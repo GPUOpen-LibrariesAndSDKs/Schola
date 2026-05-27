@@ -308,6 +308,10 @@ def main(args: Sb3TrainScriptSettings) -> Optional[Tuple[float, float]]:
                 pbar_callback = CustomProgressBarCallback()
                 callbacks.append(pbar_callback)
 
+            if args.environment_settings.env_options:
+                # Inherited from SB3's `set_options`
+                env.set_options(options=args.environment_settings.env_options)
+
             model.learn(
                 total_timesteps=args.training_settings.timesteps,
                 callback=callbacks,

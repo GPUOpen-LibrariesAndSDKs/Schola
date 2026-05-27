@@ -281,6 +281,7 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
                     if isinstance(primary_sim, ExternalSimulator)
                     else primary_sim.get_executable_args()
                 ),
+                "options": dict(args.environment_settings.env_options),
             },
         )
         .framework("torch")

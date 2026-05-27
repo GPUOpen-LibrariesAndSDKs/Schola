@@ -119,6 +119,7 @@ class ScholaEnvRunner(MultiAgentEnvRunner):
         self.env = RayVecEnv(
             env_ctx["protocol"](**protocol_args),
             env_ctx["simulator"](**env_ctx.get("simulator_args", {})),
+            env_config=env_ctx,
         )
 
         self.num_envs: int = self.env.num_envs

@@ -4,6 +4,7 @@
 
 from concurrent import futures
 from typing import Callable, List
+from unittest.mock import MagicMock
 import grpc
 
 
@@ -12,9 +13,35 @@ from functools import cache
 from typing import Dict, List, Optional, Any, Tuple
 import pytest
 
+from schola.core.protocols.base_protocol import BaseRLProtocol
+from schola.core.simulators.base_simulator import BaseSimulator
 from schola.core.utils.dict_helpers import map_dict
 from schola.core.model import StateMetadata
 from schola.gym import env
+
+
+@pytest.fixture(scope="function")
+def mock_protocol_and_simulator():
+    """Build a mock protocol + simulator pair that pass the
+    ``supported_protocols`` isinstance check in the SB3 / RLlib env
+    constructors (``VecEnv.__init__`` / ``BaseRayEnv.__init__``).
+
+    ``MagicMock(spec=BaseRLProtocol)`` makes ``isinstance(protocol, BaseRLProtocol)``
+    return ``True``. ``simulator.supported_protocols`` is overridden to a real
+    tuple so the isinstance check uses a concrete class object. All other
+    lifecycle calls (``protocol.start()``, ``simulator.start(...)``,
+    ``protocol.send_startup_msg(...)``) auto-resolve as MagicMock no-ops, which
+    is what lets the env-options tests drive the real env ``__init__``
+    end-to-end without spinning up a gRPC server.
+
+    Hoisted to the root conftest so both ``Test/sb3`` and ``Test/rllib``
+    can reuse the same fixture; the original framework-local copies were
+    byte-identical.
+    """
+    protocol = MagicMock(spec=BaseRLProtocol)
+    simulator = MagicMock(spec=BaseSimulator)
+    simulator.supported_protocols = (BaseRLProtocol,)
+    return protocol, simulator
 
 from .envs.gym_server import GymToGymServiceServicer, VecGymToGymServiceServicer
 from .envs.imitation_server import GymToImitationServiceServicer

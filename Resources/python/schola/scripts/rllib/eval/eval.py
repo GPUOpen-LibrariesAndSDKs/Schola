@@ -36,6 +36,35 @@ def _apply_eval_episode_budget(algo: Any, n_episodes: int) -> None:
         logger.debug("Could not override evaluation duration: %s", e)
 
 
+def _apply_env_options(algo: Any, env_options: Dict[str, Any]) -> None:
+    """Stage CLI ``--env-options.k=v`` on the restored algorithm's live envs.
+
+    Eval differs from training: by the time we reach ``algo.evaluate()`` the
+    env runners have already been constructed by ``Algorithm.from_checkpoint``
+    against the checkpoint's baked-in ``env_config``, so re-writing
+    ``env_config["options"]`` would not reach them. The mechanism that *does*
+    reach them is ``foreach_env_runner(env.set_options(...))``: the next
+    ``reset()`` that fires during ``algo.evaluate()`` then picks the options
+    up one-shot, mirroring SB3's pattern.
+    """
+    if not env_options:
+        return
+
+    opts = dict(env_options)
+
+    def _stage(env_runner: Any) -> None:
+        env_runner.env.set_options(opts)
+
+    # Training group always exists; evaluation group only when
+    # ``evaluation_num_env_runners > 0`` was baked into the checkpoint.
+    for group in (
+        algo.env_runner_group,
+        getattr(algo, "eval_env_runner_group", None),
+    ):
+        if group is not None:
+            group.foreach_env_runner(_stage)
+
+
 def main(args: RllibEvalScriptSettings) -> Dict[str, Any]:
     """
     Restore an RLlib ``Algorithm`` from ``checkpoint`` and run built-in evaluation.
@@ -74,6 +103,7 @@ def main(args: RllibEvalScriptSettings) -> Dict[str, Any]:
     try:
         algo = Algorithm.from_checkpoint(str(args.checkpoint))
         _apply_eval_episode_budget(algo, args.n_eval_episodes)
+        _apply_env_options(algo, args.environment_settings.env_options)
         logger.info(
             "Running RLlib Algorithm.evaluate() for up to %d episodes (if supported by checkpoint config).",
             args.n_eval_episodes,

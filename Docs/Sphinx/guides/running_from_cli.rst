@@ -150,3 +150,49 @@ The map should be specified as a relative path from the ``Content`` folder, with
 
 .. note::
     The map parameter will not work with Shipping builds by default, you need to take additional steps to allow the map to be loaded based on a command line flag. 
+
+Passing Environment Options
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Schola lets you forward arbitrary key/value reset options to your Unreal environment at training or evaluation time via ``--env-options``. The values are delivered to the simulator on the next ``reset()`` (mirroring SB3's ``set_options`` semantics) and are useful for parameters that should not be baked into the binary -- for example, a curriculum level, a difficulty setting, or a per-run seed source.
+
+Use Cyclopts' dotted syntax and repeat the flag once per key:
+
+.. tabs::
+
+    .. group-tab:: Stable Baselines 3
+        .. code-block:: bash
+
+            schola sb3 train [ppo|sac] executable --executable-path <PATH_TO_EXECUTABLE> \
+                --env-options.level=hard --env-options.curriculum=stage2
+
+    .. group-tab:: Ray RLlib
+        .. code-block:: bash
+
+            schola rllib train [ppo|sac|impala|appo] executable --executable-path <PATH_TO_EXECUTABLE> \
+                --env-options.level=hard --env-options.curriculum=stage2
+
+The same flag works for evaluation:
+
+.. tabs::
+
+    .. group-tab:: Stable Baselines 3
+        .. code-block:: bash
+
+            schola sb3 eval [ppo|sac] --checkpoint <PATH_TO_CHECKPOINT> executable \
+                --executable-path <PATH_TO_EXECUTABLE> --env-options.level=hard
+
+    .. group-tab:: Ray RLlib
+        .. code-block:: bash
+
+            schola rllib eval --checkpoint <PATH_TO_CHECKPOINT> executable \
+                --executable-path <PATH_TO_EXECUTABLE> --env-options.level=hard
+
+.. note::
+
+    Values arrive at your Unreal environment as **strings** -- ``--env-options`` is typed as ``Dict[str, str]`` and Cyclopts does not perform type inference on the CLI side. Parse or cast them as needed inside your Unreal environment code.
+
+.. note::
+
+    Options are consumed on the **first** ``reset()`` after they are set and then cleared (SB3-style one-shot). To re-apply between resets, call ``env.set_options(...)`` from your training script, or pass the flag again on each invocation.
+

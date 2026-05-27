@@ -5,7 +5,7 @@ Common utility functions and classes for use in Schola scripts.
 """
 
 from enum import Enum
-from typing import Annotated, Literal, Optional, Tuple, List, Type, Union
+from typing import Annotated, Dict, Literal, Optional, Tuple, List, Type, Union
 
 from dataclasses import dataclass, field
 from cyclopts import App, Parameter, validators, group_extractors, Group, types
@@ -367,6 +367,11 @@ class EnvironmentSettings:
         GrpcProtocolConfig, Parameter(group="Protocol Arguments", name="*")
     ] = field(default_factory=GrpcProtocolConfig)
     "Settings for the protocol to use for communicating with the external simulator"
+
+    env_options: Annotated[Dict[str, str], Parameter(group="Environment Arguments")] = (
+        field(default_factory=dict)
+    )
+    "Key=value reset options forwarded to the simulator on the first env.reset(). Repeat the flag to set multiple keys, e.g. --env-options.level=1 --env-options.curriculum=easy."
 
 
 @dataclass

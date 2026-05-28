@@ -2,72 +2,43 @@
 
 """Tests for env_options / ``env_config["options"]`` on the RLlib env.
 
-The behavior under test, defined on ``BaseRayEnv`` and overridden on
-``RayVecEnv.reset``:
+Behavior under test (on ``BaseRayEnv``, with ``RayVecEnv.reset`` override):
 
 * ``env_config["options"]`` seeds a one-shot cache on construction.
 * ``set_options(opts)`` overwrites the cache; ``set_options(None)`` clears it.
-* The first ``reset()`` without an explicit ``options=`` broadcasts the cache
-  to every sub-env and clears it (SB3-style one-shot).
-* An explicit ``reset(options=dict)`` is broadcast for that reset only and
-  does not consume the cache.
-* An explicit ``reset(options=list)`` is forwarded element-wise and its
-  length must match ``num_envs``.
+* The first ``reset()`` without explicit ``options=`` broadcasts the cache to
+  every sub-env and clears it; explicit ``reset(options=dict)`` broadcasts for
+  that call only; ``reset(options=list)`` is forwarded element-wise and must
+  match ``num_envs``.
 * All entry points deepcopy so caller-side mutation cannot leak in.
 
-Only ``RayVecEnv`` is covered: the user-facing ``--env-options`` flag flows
-through ``ScholaEnvRunner.make_env``/``Algorithm.from_checkpoint``, both of
-which build ``RayVecEnv`` (never ``RayEnv``). The cache itself lives on
-``BaseRayEnv``, so single-env coverage would only re-prove the shared layer.
+Only ``RayVecEnv`` is covered since the ``--env-options`` flag always builds
+it (never ``RayEnv``). It is constructed directly against the
+``stub_protocol_class`` / ``stub_simulator_class`` fixtures, which pre-arm the
+wire-level shapes so the real ``__init__`` / ``reset`` run end-to-end -- no
+subclassing needed to bypass ``_define_environment`` (see ``make_env``).
 """
 
-import gymnasium as gym
-import numpy as np
 import pytest
 
 from schola.rllib.env import RayVecEnv
 
 
-class _StubRayVecEnv(RayVecEnv):
-    """Stub out ``_define_environment`` so ``__init__`` can run without a
-    live Unreal protocol.
-
-    Only sets the four attributes ``RayVecEnv._init_agent_tracking`` actually
-    reads when building its ``_SingleEnvWrapper`` list (``num_envs``,
-    ``possible_agents``, ``_single_observation_spaces``,
-    ``_single_action_spaces``). Everything else -- including the one-shot
-    ``_options`` cache -- is set by the real ``BaseRayEnv.__init__``, which
-    is the whole point of running construction for real.
-    """
-
-    def __init__(self, protocol, simulator, num_envs=2, *, env_config=None):
-        self._stub_num_envs = num_envs
-        super().__init__(protocol, simulator, env_config=env_config)
-
-    def _define_environment(self):
-        self.num_envs = self._stub_num_envs
-        self.possible_agents = ["agent_0"]
-        self._single_observation_spaces = {
-            "agent_0": gym.spaces.Box(0.0, 1.0, (1,), dtype=np.float32)
-        }
-        self._single_action_spaces = {"agent_0": gym.spaces.Discrete(2)}
-
-
 @pytest.fixture
-def make_env(mock_protocol_and_simulator):
-    """Build a real ``RayVecEnv`` against mocked protocol/simulator.
+def make_env(stub_protocol_class, stub_simulator_class):
+    """Build a real ``RayVecEnv`` against stub protocol/simulator instances.
 
-    ``protocol.send_reset_msg`` is pre-armed with an ``(obs, infos)`` tuple
-    shaped to ``num_envs`` so the post-reset wrapper-state update path in
-    ``RayVecEnv.reset`` does not ``IndexError``.
+    The stubs are framework-agnostic real subclasses of ``BaseRLProtocol`` /
+    ``BaseSimulator`` (see ``Test/conftest.py``) whose ``get_definition`` /
+    ``send_reset_msg`` are pre-armed for ``stub_protocol_class.NUM_ENVS``
+    sub-envs, which is what lets ``RayVecEnv.__init__`` and ``.reset()`` run
+    against them without a live gRPC server or hand-crafted post-reset state.
     """
-    protocol, simulator = mock_protocol_and_simulator
 
-    def _factory(num_envs=2, *, env_config=None):
-        obs = [{"agent_0": np.zeros((1,), dtype=np.float32)} for _ in range(num_envs)]
-        infos = [{"agent_0": {}} for _ in range(num_envs)]
-        protocol.send_reset_msg.return_value = (obs, infos)
-        return _StubRayVecEnv(protocol, simulator, num_envs, env_config=env_config)
+    def _factory(*, env_config=None):
+        protocol = stub_protocol_class()
+        simulator = stub_simulator_class()
+        return RayVecEnv(protocol, simulator, env_config=env_config)
 
     return _factory
 
@@ -112,12 +83,12 @@ def test_first_reset_broadcasts_cache_and_clears_it(make_env):
     """A cached options dict is broadcast to every sub-env (as a per-env
     list) and the cache is cleared in the same call -- the one-shot pattern."""
     opts = {"level": "67"}
-    env = make_env(num_envs=2, env_config={"options": opts})
+    env = make_env(env_config={"options": opts})
 
     env.reset()
 
     env.protocol.send_reset_msg.assert_called_once_with(
-        seeds=None, options=[opts, opts]
+        seeds=None, options=[opts] * env.num_envs
     )
     assert env._options == {}
 
@@ -125,7 +96,7 @@ def test_first_reset_broadcasts_cache_and_clears_it(make_env):
 def test_reset_without_cached_options_forwards_none(make_env):
     """No cache and no explicit ``options=`` → protocol gets ``options=None``,
     preserving the pre-feature behavior for unconfigured envs."""
-    env = make_env(num_envs=2)
+    env = make_env()
     env.reset()
     env.protocol.send_reset_msg.assert_called_once_with(seeds=None, options=None)
 
@@ -134,12 +105,12 @@ def test_explicit_dict_does_not_consume_cache(make_env):
     """An explicit ``reset(options=dict)`` is broadcast for that reset only
     and leaves the cached value armed for a later ``reset()``."""
     cached = {"level": "cached"}
-    env = make_env(num_envs=2, env_config={"options": cached})
+    env = make_env(env_config={"options": cached})
 
     env.reset(options={"level": "override"})
 
     env.protocol.send_reset_msg.assert_called_once_with(
-        seeds=None, options=[{"level": "override"}, {"level": "override"}]
+        seeds=None, options=[{"level": "override"}] * env.num_envs
     )
     assert env._options == cached
 
@@ -147,11 +118,11 @@ def test_explicit_dict_does_not_consume_cache(make_env):
 def test_explicit_list_options_per_env(make_env):
     """A list-of-dicts of length ``num_envs`` is forwarded element-wise; a
     list whose length doesn't match must raise (documented contract)."""
-    env = make_env(num_envs=2)
+    env = make_env()
 
-    per_env = [{"level": "1"}, {"level": "2"}]
+    per_env = [{"level": str(i)} for i in range(env.num_envs)]
     env.reset(options=per_env)
     env.protocol.send_reset_msg.assert_called_once_with(seeds=None, options=per_env)
 
     with pytest.raises(AssertionError):
-        env.reset(options=[{"level": "1"}])
+        env.reset(options=per_env[:-1])

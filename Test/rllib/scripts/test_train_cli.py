@@ -580,9 +580,7 @@ def test_options_thread_through_rllib_env_config_recipe(mock_protocol_and_simula
 
     # Mirror what RLlib's default env runner does at env-build time: wrap
     # env_config in an EnvContext (dict subclass) and pass it to the env class.
-    env_ctx = EnvContext(
-        config.env_config, worker_index=0, num_workers=0, remote=False
-    )
+    env_ctx = EnvContext(config.env_config, worker_index=0, num_workers=0, remote=False)
     env = _PolicyMappingEnv(protocol, simulator, env_config=env_ctx)
 
     assert env._options == expected_options, (

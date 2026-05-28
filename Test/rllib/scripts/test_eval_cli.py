@@ -131,97 +131,9 @@ def test_eval_cli_env_options_dotted_syntax(mock_eval_app, mock_main, tmp_path: 
     }
 
 
-# ---- _apply_env_options unit tests -----------------------------------------
-
-
-class FakeEnv:
-    """Minimal stand-in for an env exposing ``set_options``. Records every
-    call so tests can assert against ``set_options_calls`` directly."""
-
-    def __init__(self):
-        self.set_options_calls = []
-
-    def set_options(self, opts):
-        self.set_options_calls.append(opts)
-
-
-class FakeEnvRunner:
-    """Env runner with a real ``FakeEnv`` attached as ``.env``."""
-
-    def __init__(self):
-        self.env = FakeEnv()
-
-
-class FakeEnvRunnerGroup:
-    """Implements RLlib's ``foreach_env_runner(fn)`` semantics over an
-    in-memory list of runners. ``foreach_calls`` lets tests assert
-    whether the group was traversed at all."""
-
-    def __init__(self, runners=()):
-        self._runners = list(runners)
-        self.foreach_calls = 0
-
-    def foreach_env_runner(self, fn):
-        self.foreach_calls += 1
-        for r in self._runners:
-            fn(r)
-
-
-class FakeAlgo:
-    """Tiny algorithm stand-in exposing just the two attributes that
-    ``_apply_env_options`` reads."""
-
-    def __init__(self, env_runner_group, eval_env_runner_group=None):
-        self.env_runner_group = env_runner_group
-        self.eval_env_runner_group = eval_env_runner_group
-
-
-def test_apply_env_options_noops_on_empty_dict():
-    """An empty ``env_options`` must not touch the algorithm at all -- no
-    env-runner traversal, no ``set_options`` calls."""
-    runner = FakeEnvRunner()
-    group = FakeEnvRunnerGroup([runner])
-    algo = FakeAlgo(group)
-
-    _apply_env_options(algo, {})
-
-    assert group.foreach_calls == 0
-    assert runner.env.set_options_calls == []
-
-
-def test_apply_env_options_stages_via_foreach_env_runner():
-    """``_apply_env_options`` must dispatch through ``foreach_env_runner`` on
-    the training group; the staged callable then resolves
-    ``runner.env.set_options(opts)`` on each runner."""
-    runner = FakeEnvRunner()
-    algo = FakeAlgo(FakeEnvRunnerGroup([runner]))
-
-    opts = {"level": "1"}
-    _apply_env_options(algo, opts)
-
-    assert runner.env.set_options_calls == [opts]
-
-
-def test_apply_env_options_also_stages_on_eval_env_runner_group():
-    """When the checkpoint was trained with ``evaluation_num_env_runners > 0``
-    the algorithm exposes a separate ``eval_env_runner_group`` whose envs
-    are the ones ``algo.evaluate()`` actually drives; both groups must be
-    visited."""
-    train_runner = FakeEnvRunner()
-    eval_runner = FakeEnvRunner()
-    algo = FakeAlgo(
-        env_runner_group=FakeEnvRunnerGroup([train_runner]),
-        eval_env_runner_group=FakeEnvRunnerGroup([eval_runner]),
-    )
-
-    opts = {"level": "1"}
-    _apply_env_options(algo, opts)
-
-    assert train_runner.env.set_options_calls == [opts]
-    assert eval_runner.env.set_options_calls == [opts]
-
-
 # ---- eval.main forwarding tests --------------------------------------------
+# Mock-based orchestration tests; real-object drift coverage lives in the
+# test_apply_env_options_reaches_real_* tests.
 
 
 @pytest.fixture
@@ -235,13 +147,15 @@ def patch_rllib_eval_deps(mocker):
     mocker.patch("ray.init")
     mocker.patch("ray.shutdown")
 
-    mock_algo = MagicMock()
-    mock_algo.evaluate.return_value = {"env_runners": {"episode_reward_mean": 1.0}}
-
     runner = MagicMock()
-    mock_algo._captured_env = runner.env  # exposed for assertions
+    mock_algo = MagicMock()
+    # foreach_env_runner(fn) applies fn to the single runner, mirroring RLlib.
     mock_algo.env_runner_group.foreach_env_runner.side_effect = lambda fn: fn(runner)
+    # Set explicitly so the getattr(algo, "eval_env_runner_group", None) lookup
+    # in _apply_env_options resolves to a real None, not an auto-created mock.
     mock_algo.eval_env_runner_group = None
+    mock_algo.evaluate.return_value = {"env_runners": {"episode_reward_mean": 1.0}}
+    mock_algo._captured_env = runner.env  # exposed for assertions
 
     mocker.patch(
         "ray.rllib.algorithms.algorithm.Algorithm.from_checkpoint",
@@ -322,3 +236,63 @@ def test_rllib_eval_cli_on_real_checkpoint(
     assert isinstance(results, dict)
     env_metrics = results.get("env_runners") or results.get("evaluation")
     assert env_metrics is not None
+
+
+# ---- _apply_env_options real-object contract tests -------------------------
+#
+# These build a real algo (via the shared ``make_schola_rllib_config`` fixture,
+# also used by ``test_rllib_env_runner``) and drive the actual
+# ``env_runner_group`` / ``foreach_env_runner``, so a Ray rename of that
+# contract -- or a dropped ``RayVecEnv.set_options`` -- fails here rather than
+# passing green against fabricated mock attributes.
+
+
+@pytest.fixture
+def build_eval_algo(make_schola_rllib_config):
+    """Build real algos from the shared config and ``stop()`` them at teardown,
+    so tests don't have to manage cleanup themselves. Teardown runs even if the
+    test body raises."""
+    pytest.importorskip("ray")
+    algos = []
+
+    def _build(*, evaluation=None):
+        algo = make_schola_rllib_config(evaluation=evaluation).build_algo()
+        algos.append(algo)
+        return algo
+
+    yield _build
+
+    for algo in algos:
+        algo.stop()
+
+
+@pytest.mark.xdist_group(name="ray-cluster")
+@pytest.mark.timeout(180)
+def test_apply_env_options_reaches_real_env_runner_group(build_eval_algo, ray_cluster):
+    """Drives the actual ``env_runner_group`` / ``foreach_env_runner`` and lands
+    ``set_options`` on a real ``RayVecEnv`` (asserted via its one-shot cache)."""
+    algo = build_eval_algo()
+    opts = {"level": "1", "curriculum": "easy"}
+    _apply_env_options(algo, opts)
+
+    cached = algo.env_runner_group.foreach_env_runner(lambda r: r.env._options)
+    assert cached and all(c == opts for c in cached)
+
+
+@pytest.mark.xdist_group(name="ray-cluster")
+@pytest.mark.timeout(180)
+def test_apply_env_options_reaches_real_eval_env_runner_group(
+    build_eval_algo, ray_cluster
+):
+    """When the algo was built with ``evaluation_num_env_runners > 0`` it exposes
+    a separate ``eval_env_runner_group``; both groups must receive the options."""
+    algo = build_eval_algo(evaluation={"evaluation_num_env_runners": 1})
+    opts = {"level": "1"}
+    _apply_env_options(algo, opts)
+
+    train_cached = algo.env_runner_group.foreach_env_runner(lambda r: r.env._options)
+    eval_cached = algo.eval_env_runner_group.foreach_env_runner(
+        lambda r: r.env._options
+    )
+    assert train_cached and all(c == opts for c in train_cached)
+    assert eval_cached and all(c == opts for c in eval_cached)

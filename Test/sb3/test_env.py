@@ -11,7 +11,6 @@ from unittest.mock import MagicMock
 
 from schola.sb3.env import VecEnv
 from schola.core.simulators.unreal.editor_simulator import UnrealEditor
-from schola.core.utils.id_manager import IdManager
 from stable_baselines3.common.env_util import make_vec_env
 
 
@@ -72,46 +71,20 @@ def test_sb3_env_close(make_env_server):
     env.close()
 
 
-class _StubVecEnv(VecEnv):
-    """Concrete ``VecEnv`` that runs the real ``__init__`` against mocked
-    protocol/simulator instances by stubbing the one extension point that
-    would otherwise need a live server: ``_define_environment``.
-
-    Overriding only ``_define_environment`` means the rest of
-    ``VecEnv.__init__`` -- the protocol/simulator isinstance check, the
-    ``start()`` / ``send_startup_msg()`` calls (auto-resolved as MagicMock
-    no-ops), and SB3's base ``VecEnv.__init__`` (which wires ``num_envs``,
-    ``_seeds``, ``_options``, ``reset_infos``) -- runs for real. This keeps
-    the tests honest against any future change to that init flow.
-    """
-
-    def __init__(self, simulator, protocol, num_envs: int = 2):
-        self._stub_num_envs = num_envs
-        super().__init__(simulator, protocol)
-
-    def _define_environment(self, protocol):
-        ids = [["agent_0"] for _ in range(self._stub_num_envs)]
-        id_manager = IdManager(ids)
-        agent_types = [{"agent_0": ""} for _ in range(self._stub_num_envs)]
-        obs_space = gym.spaces.Box(low=0.0, high=1.0, shape=(1,), dtype=np.float32)
-        action_space = gym.spaces.Discrete(2)
-        return id_manager, agent_types, obs_space, action_space
-
-
 @pytest.fixture(scope="function")
-def make_stub_vec_env(mock_protocol_and_simulator):
-    """Factory that constructs a real ``VecEnv`` via dependency injection with
-    mocked protocol/simulator.
+def make_stub_vec_env(stub_protocol_class, stub_simulator_class):
+    """Factory for a real ``VecEnv`` built against stub protocol/simulator
+    instances, so the full ``VecEnv.__init__`` flow runs without subclassing.
 
-    The returned env has its ``_process_reset`` replaced by a sentinel-returning
-    mock so the set_options/reset tests can assert on protocol traffic without
-    needing real obs/info shapes from ``send_reset_msg``.
+    ``_process_reset`` is replaced with a sentinel mock so set_options/reset
+    tests can assert on protocol traffic without caring about the obs/info
+    shape ``send_reset_msg`` returns.
     """
-    protocol, simulator = mock_protocol_and_simulator
-    protocol.send_reset_msg.return_value = ([], [])
 
-    def _factory(num_envs: int = 2) -> VecEnv:
-        env = _StubVecEnv(simulator=simulator, protocol=protocol, num_envs=num_envs)
+    def _factory() -> VecEnv:
+        protocol = stub_protocol_class()
+        simulator = stub_simulator_class()
+        env = VecEnv(simulator, protocol)
         env._process_reset = MagicMock(return_value="sentinel_obs")
         return env
 
@@ -121,15 +94,15 @@ def make_stub_vec_env(mock_protocol_and_simulator):
 def test_set_options_then_reset_forwards_to_protocol(make_stub_vec_env):
     """After ``set_options(opts)``, the next ``reset()`` forwards the broadcast
     options list to ``protocol.send_reset_msg(options=...)``."""
-    env = make_stub_vec_env(num_envs=2)
+    env = make_stub_vec_env()
     opts = {"level": "67", "curriculum": "sorta_hard"}
 
     env.set_options(opts)
     result = env.reset()
 
     env.protocol.send_reset_msg.assert_called_once_with(
-        seeds=[None, None],
-        options=[opts, opts],
+        seeds=[None] * env.num_envs,
+        options=[opts] * env.num_envs,
     )
     assert result == "sentinel_obs"
 
@@ -138,31 +111,30 @@ def test_reset_without_set_options_forwards_empty_per_env_options(make_stub_vec_
     """If ``set_options`` is never called, ``reset()`` should forward the
     default per-sub-env empty-dict options to the protocol (not None, not a
     bare dict)."""
-    env = make_stub_vec_env(num_envs=2)
+    env = make_stub_vec_env()
 
     env.reset()
 
     env.protocol.send_reset_msg.assert_called_once_with(
-        seeds=[None, None],
-        options=[{}, {}],
+        seeds=[None] * env.num_envs,
+        options=[{}] * env.num_envs,
     )
 
 
 def test_options_are_consumed_after_one_reset(make_stub_vec_env):
     """``set_options`` is one-shot: a second ``reset()`` after the first must
     not re-send the previously supplied options."""
-    env = make_stub_vec_env(num_envs=2)
+    env = make_stub_vec_env()
     env.set_options({"level": "67"})
 
     env.reset()
     env.protocol.send_reset_msg.reset_mock()
-    env.protocol.send_reset_msg.return_value = ([], [])
 
     env.reset()
 
     env.protocol.send_reset_msg.assert_called_once_with(
-        seeds=[None, None],
-        options=[{}, {}],
+        seeds=[None] * env.num_envs,
+        options=[{}] * env.num_envs,
     )
 
 
@@ -179,7 +151,7 @@ def test_set_options_survive_vec_monitor_wrap(make_stub_vec_env):
     """
     from stable_baselines3.common.vec_env import VecMonitor
 
-    env = make_stub_vec_env(num_envs=2)
+    env = make_stub_vec_env()
     opts = {"level": "67", "curriculum": "sorta_hard"}
 
     env.set_options(options=opts)
@@ -187,8 +159,8 @@ def test_set_options_survive_vec_monitor_wrap(make_stub_vec_env):
     monitored.reset()
 
     env.protocol.send_reset_msg.assert_called_once_with(
-        seeds=[None, None],
-        options=[opts, opts],
+        seeds=[None] * env.num_envs,
+        options=[opts] * env.num_envs,
     )
 
 

@@ -114,6 +114,61 @@ def make_rllib_vec_pettingzoo_env(make_vec_pettingzoo_env_server):
     return _factory
 
 
+@pytest.fixture
+def make_schola_rllib_config(stub_protocol_class, stub_simulator_class):
+    """Build a fully-flagged ``PPOConfig`` whose env runner is a real
+    ``ScholaEnvRunner`` over stub protocol/simulator.
+
+    Shared by the env-runner unit tests (which build the runner directly via
+    ``ScholaEnvRunner(config=...)``) and the eval API-contract test (which
+    calls ``build_algo()`` to get a real ``env_runner_group``). Centralizes the
+    RLlib-version-sensitive config wiring so a Ray API change lands in one place.
+
+    ``evaluation`` is forwarded to ``AlgorithmConfig.evaluation(...)`` so a test
+    can request an ``eval_env_runner_group`` (e.g.
+    ``evaluation={"evaluation_num_env_runners": 1}``).
+    """
+    from ray.rllib.algorithms.ppo import PPOConfig
+    from schola.rllib.env_runner import ScholaEnvRunner
+
+    def _make(
+        *,
+        protocol_args=None,
+        simulator_args=None,
+        port_offset_mode="per_worker",
+        evaluation=None,
+    ):
+        env_config = {
+            "protocol": stub_protocol_class,
+            "simulator": stub_simulator_class,
+            "protocol_args": protocol_args or {},
+            "simulator_args": simulator_args or {},
+            "port_offset_mode": port_offset_mode,
+        }
+        config = (
+            PPOConfig()
+            .framework("torch")
+            .env_runners(
+                env_runner_cls=ScholaEnvRunner,
+                num_env_runners=0,
+                num_envs_per_env_runner=stub_protocol_class.NUM_ENVS,
+            )
+            .environment(env=None, env_config=env_config, disable_env_checking=True)
+            .multi_agent(
+                policies={stub_protocol_class.AGENT_ID},
+                policy_mapping_fn=lambda agent_id, *args, **kwargs: (
+                    stub_protocol_class.AGENT_ID
+                ),
+            )
+            .rl_module(model_config={"fcnet_hiddens": [8]})
+        )
+        if evaluation:
+            config = config.evaluation(**evaluation)
+        return config
+
+    return _make
+
+
 # This will make any test using this fixture be placed in the xdist_group "ray-cluster" so that only one worker can create a ray cluster.
 @pytest.fixture(scope="session")
 def ray_cluster():

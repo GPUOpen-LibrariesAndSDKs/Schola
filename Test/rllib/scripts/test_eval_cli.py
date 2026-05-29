@@ -284,9 +284,17 @@ def test_apply_env_options_reaches_real_env_runner_group(build_eval_algo, ray_cl
 def test_apply_env_options_reaches_real_eval_env_runner_group(
     build_eval_algo, ray_cluster
 ):
-    """When the algo was built with ``evaluation_num_env_runners > 0`` it exposes
-    a separate ``eval_env_runner_group``; both groups must receive the options."""
-    algo = build_eval_algo(evaluation={"evaluation_num_env_runners": 1})
+    """A separate ``eval_env_runner_group`` must also receive the options.
+
+    It is ``evaluation_interval`` (not ``evaluation_num_env_runners``) that makes
+    RLlib build the eval group, so we request a *local* eval env runner
+    (``evaluation_num_env_runners=0``) which exercises the same
+    ``_apply_env_options`` path. We deliberately avoid a remote eval runner: the
+    driver has already loaded gRPC (fork-unsafe) and torch, so Ray spawning a
+    remote env-runner actor aborts the process and crashes the xdist worker."""
+    algo = build_eval_algo(
+        evaluation={"evaluation_num_env_runners": 0, "evaluation_interval": 1}
+    )
     opts = {"level": "1"}
     _apply_env_options(algo, opts)
 

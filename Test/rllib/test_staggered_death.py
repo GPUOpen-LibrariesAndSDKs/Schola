@@ -22,13 +22,13 @@ Python-side contract tested here:
 
 Run:
   python -m pytest Test/rllib/test_staggered_death.py -v
-  OR (standalone, no pytest required):
-  python Test/rllib/test_staggered_death.py
 """
 
-import sys
 import numpy as np
 import gymnasium as gym
+import pytest
+
+from schola.rllib.env import RayEnv, RayVecEnv
 
 
 # ---------------------------------------------------------------------------
@@ -127,108 +127,40 @@ class FakeSimulator:
         pass
 
 
-# ---------------------------------------------------------------------------
-# Helper: build a RayEnv around FakeProtocol without starting Unreal
-# ---------------------------------------------------------------------------
-def make_ray_env():
-    """Construct a RayEnv backed by FakeProtocol (no Unreal connection)."""
-    protocol = FakeProtocol()
-    try:
-        from schola.rllib.env import RayEnv
-        from ray.rllib.env.multi_agent_env import MultiAgentEnv
+# Builders that inject a fake protocol + simulator into a real RayEnv/RayVecEnv
+# (no Unreal needed), backing the factory fixtures below.
+def _build_ray_env(protocol=None):
+    """Build a RayEnv with injected fake deps."""
+    protocol = FakeProtocol() if protocol is None else protocol
+    simulator = FakeSimulator()
+    simulator.supported_protocols = type(protocol)
 
-        simulator = FakeSimulator()
-        simulator.supported_protocols = type(protocol)
-
-        env = RayEnv.__new__(RayEnv)
-        env.protocol = protocol
-        env.simulator = simulator
-        env._init_space_attributes()
-        protocol.start()
-        env.protocol.send_startup_msg()
-        env._define_environment()
-        env._init_agent_tracking()
-        MultiAgentEnv.__init__(env)
-        env._fake_protocol = protocol
-        return env
-    except ImportError:
-        # Fallback: lightweight replica used when ray/rllib is not installed
-        return _StandaloneEnv(protocol)
+    env = RayEnv(protocol, simulator)
+    env._fake_protocol = protocol
+    return env
 
 
-# ---------------------------------------------------------------------------
-# Lightweight replica of RayEnv.step() for standalone / CI use
-# ---------------------------------------------------------------------------
-class _StandaloneEnv:
-    """Reproduces RayEnv.step() tracking logic without requiring ray."""
+def _build_ray_vec_env(protocol=None):
+    """Build a RayVecEnv with injected fake deps."""
+    protocol = FakeProtocol() if protocol is None else protocol
+    simulator = FakeSimulator()
+    simulator.supported_protocols = type(protocol)
 
-    def __init__(self, protocol):
-        self.protocol = protocol
-        self._env_id = 0
-        self._terminated_agents = set()
-        self._truncated_agents = set()
-        self._current_agents = set()
+    env = RayVecEnv(protocol, simulator)
+    env._fake_protocol = protocol
+    return env
 
-        ids, _, obs_defns, act_defns = protocol.get_definition()
-        self.possible_agents = list(ids[0])
-        self._current_agents = set(self.possible_agents)
-        self._single_action_spaces = act_defns[0]
-        self._single_observation_spaces = obs_defns[0]
-        self._fake_protocol = protocol
 
-    @property
-    def single_action_spaces(self):
-        return self._single_action_spaces
+@pytest.fixture
+def make_env():
+    """Factory fixture: ``make_env(protocol=None)`` -> RayEnv."""
+    return _build_ray_env
 
-    def reset(self, seed=None):
-        self._terminated_agents = set()
-        self._truncated_agents = set()
-        obs, infos = self.protocol.send_reset_msg()
-        self._current_agents = set(obs[0].keys())
-        return obs[self._env_id], infos[self._env_id]
 
-    def step(self, actions):
-        # Forward actions as-is — no no-op padding.
-        action_dict = {self._env_id: actions}
-        observations, rewards, terminateds, truncateds, infos, _, _ = (
-            self.protocol.send_action_msg(action_dict, self._single_action_spaces)
-        )
-
-        eid = self._env_id
-        all_agents_this_step = set(terminateds[eid]) | set(truncateds[eid])
-
-        for a in all_agents_this_step:
-            if terminateds[eid].get(a):
-                self._terminated_agents.add(a)
-            if truncateds[eid].get(a):
-                self._truncated_agents.add(a)
-
-        self._current_agents = {
-            a
-            for a in all_agents_this_step
-            if not terminateds[eid].get(a) and not truncateds[eid].get(a)
-        }
-
-        all_known = (
-            self._current_agents | self._terminated_agents | self._truncated_agents
-        )
-        num_done = len(self._terminated_agents | self._truncated_agents)
-        num_total = len(all_known)
-
-        terminateds[eid]["__all__"] = (
-            (num_done == num_total) if num_total > 0 else False
-        )
-        truncateds[eid]["__all__"] = (
-            (len(self._truncated_agents) == num_total) if num_total > 0 else False
-        )
-
-        return (
-            observations[eid],
-            rewards[eid],
-            terminateds[eid],
-            truncateds[eid],
-            infos[eid],
-        )
+@pytest.fixture
+def make_vec_env():
+    """Factory fixture: ``make_vec_env(protocol=None)`` -> RayVecEnv."""
+    return _build_ray_vec_env
 
 
 # ===========================================================================
@@ -236,7 +168,7 @@ class _StandaloneEnv:
 # ===========================================================================
 
 
-def test_only_live_agent_actions_forwarded():
+def test_only_live_agent_actions_forwarded(make_env):
     """
     Python must send exactly the actions RLlib provides — no zero-padding.
 
@@ -245,7 +177,7 @@ def test_only_live_agent_actions_forwarded():
     zeros, hierarchical-RL policies that distinguish no-op from a valid action
     would produce incorrect behaviour.
     """
-    env = make_ray_env()
+    env = make_env()
     obs, _ = env.reset()
     protocol = env._fake_protocol
     action_spaces = env.single_action_spaces
@@ -269,9 +201,9 @@ def test_only_live_agent_actions_forwarded():
     }, "Only the last living agent's action should reach the protocol"
 
 
-def test_all_flag_false_while_agents_alive():
+def test_all_flag_false_while_agents_alive(make_env):
     """__all__ must stay False until every agent is terminated/truncated."""
-    env = make_ray_env()
+    env = make_env()
     obs, _ = env.reset()
     action_spaces = env.single_action_spaces
 
@@ -290,9 +222,9 @@ def test_all_flag_false_while_agents_alive():
     assert terminateds["__all__"] is False, "agent_2 is still alive"
 
 
-def test_all_flag_true_when_last_agent_dies():
+def test_all_flag_true_when_last_agent_dies(make_env):
     """__all__ must become True on the step the last living agent dies."""
-    env = make_ray_env()
+    env = make_env()
     obs, _ = env.reset()
     action_spaces = env.single_action_spaces
 
@@ -309,14 +241,14 @@ def test_all_flag_true_when_last_agent_dies():
     ), "All agents dead — episode must be marked done"
 
 
-def test_episode_completes_within_bounded_steps():
+def test_episode_completes_within_bounded_steps(make_env):
     """
     Driving the env with only live agents' actions must reach __all__=True.
 
     A hang here means either the Python tracking or the C++ terminal-state
     preservation (TScholaEnvironment::Step) is broken.
     """
-    env = make_ray_env()
+    env = make_env()
     obs, _ = env.reset()
     action_spaces = env.single_action_spaces
 
@@ -336,7 +268,7 @@ def test_episode_completes_within_bounded_steps():
 
 
 # ===========================================================================
-# Phase 1.3 — Edge cases
+# Edge cases
 # ===========================================================================
 
 
@@ -445,57 +377,9 @@ class _SingleAgentProtocol(FakeProtocol):
         )
 
 
-def _make_vec_env_with(protocol):
-    """Construct a RayVecEnv backed by the given protocol (no Unreal connection)."""
-    try:
-        from schola.rllib.env import RayVecEnv
-        from ray.rllib.env.vector.vector_multi_agent_env import VectorMultiAgentEnv
-
-        simulator = FakeSimulator()
-        simulator.supported_protocols = type(protocol)
-
-        env = RayVecEnv.__new__(RayVecEnv)
-        env.protocol = protocol
-        env.simulator = simulator
-        env._init_space_attributes()
-        protocol.start()
-        env.protocol.send_startup_msg()
-        env._define_environment()
-        env._init_agent_tracking()
-        env.metadata = {"autoreset_mode": "next_step"}
-        VectorMultiAgentEnv.__init__(env)
-        env._fake_protocol = protocol
-        return env
-    except (ImportError, Exception):
-        return None
-
-
-def _make_env_with(protocol):
-    try:
-        from schola.rllib.env import RayEnv
-        from ray.rllib.env.multi_agent_env import MultiAgentEnv
-
-        simulator = FakeSimulator()
-        simulator.supported_protocols = type(protocol)
-
-        env = RayEnv.__new__(RayEnv)
-        env.protocol = protocol
-        env.simulator = simulator
-        env._init_space_attributes()
-        protocol.start()
-        env.protocol.send_startup_msg()
-        env._define_environment()
-        env._init_agent_tracking()
-        MultiAgentEnv.__init__(env)
-        env._fake_protocol = protocol
-        return env
-    except ImportError:
-        return _StandaloneEnv(protocol)
-
-
-def test_all_agents_die_simultaneously():
+def test_all_agents_die_simultaneously(make_env):
     """All 3 agents die on step 1: __all__ must be True immediately; no hang."""
-    env = _make_env_with(_AllDieTogetherProtocol())
+    env = make_env(_AllDieTogetherProtocol())
     obs, _ = env.reset()
     action_spaces = env.single_action_spaces
 
@@ -507,9 +391,9 @@ def test_all_agents_die_simultaneously():
     ), "All agents died simultaneously — __all__ must be True on step 1"
 
 
-def test_truncation_instead_of_termination():
+def test_truncation_instead_of_termination(make_env):
     """Truncation must trigger the same action-filtering and __all__ logic as termination."""
-    env = _make_env_with(_TruncationProtocol())
+    env = make_env(_TruncationProtocol())
     obs, _ = env.reset()
     action_spaces = env.single_action_spaces
 
@@ -542,9 +426,9 @@ def test_truncation_instead_of_termination():
     assert protocol.received_actions_log[2] == {"agent_2"}
 
 
-def test_reset_clears_tracking_state():
+def test_reset_clears_tracking_state(make_env):
     """reset() must wipe stale dead-agent sets so a second episode runs cleanly."""
-    env = make_ray_env()
+    env = make_env()
     action_spaces = env.single_action_spaces
 
     # Run a full episode to completion
@@ -578,9 +462,9 @@ def test_reset_clears_tracking_state():
     ), "Second episode after reset() never reached __all__=True — stale state leak"
 
 
-def test_single_agent_environment():
+def test_single_agent_environment(make_env):
     """Single-agent env: baseline behaviour — terminates after step 1 with __all__=True."""
-    env = _make_env_with(_SingleAgentProtocol())
+    env = make_env(_SingleAgentProtocol())
     obs, _ = env.reset()
     action_spaces = env.single_action_spaces
 
@@ -594,9 +478,9 @@ def test_single_agent_environment():
     ), "Single-agent env: __all__ must be True when the sole agent dies"
 
 
-def test_zero_live_agents_at_step():
+def test_zero_live_agents_at_step(make_env):
     """If all agents are already dead, episode must still end; no hang."""
-    env = make_ray_env()
+    env = make_env()
     action_spaces = env.single_action_spaces
 
     # Drive to __all__=True (all 3 dead)
@@ -626,7 +510,7 @@ def test_zero_live_agents_at_step():
     }, "After reset, all agents must be alive again"
 
 
-def test_vec_dead_agents_stripped_from_response():
+def test_vec_dead_agents_stripped_from_response(make_vec_env):
     """
     RayVecEnv must filter dead agents from gRPC response on subsequent steps.
 
@@ -634,9 +518,7 @@ def test_vec_dead_agents_stripped_from_response():
     with RayEnv via BaseRayEnv.  Without the filter, RLlib raises MultiAgentEnvError
     when it sees a second observation for an agent whose episode is already closed.
     """
-    env = _make_vec_env_with(FakeProtocol())
-    if env is None:
-        return  # skip if RayVecEnv unavailable in this environment
+    env = make_vec_env()
 
     protocol = env._fake_protocol
     action_spaces = env._single_action_spaces
@@ -667,61 +549,3 @@ def test_vec_dead_agents_stripped_from_response():
     assert "agent_1" not in obs_list[0]
     assert term_list[0]["agent_2"] is True
     assert term_list[0].get("__all__") is True, "All agents dead — episode must be done"
-
-
-# ===========================================================================
-# Standalone runner
-# ===========================================================================
-if __name__ == "__main__":
-    tests = [
-        (
-            "test_only_live_agent_actions_forwarded",
-            test_only_live_agent_actions_forwarded,
-        ),
-        (
-            "test_all_flag_false_while_agents_alive",
-            test_all_flag_false_while_agents_alive,
-        ),
-        (
-            "test_all_flag_true_when_last_agent_dies",
-            test_all_flag_true_when_last_agent_dies,
-        ),
-        (
-            "test_episode_completes_within_bounded_steps",
-            test_episode_completes_within_bounded_steps,
-        ),
-        ("test_all_agents_die_simultaneously", test_all_agents_die_simultaneously),
-        (
-            "test_truncation_instead_of_termination",
-            test_truncation_instead_of_termination,
-        ),
-        ("test_reset_clears_tracking_state", test_reset_clears_tracking_state),
-        ("test_single_agent_environment", test_single_agent_environment),
-        ("test_zero_live_agents_at_step", test_zero_live_agents_at_step),
-        (
-            "test_vec_dead_agents_stripped_from_response",
-            test_vec_dead_agents_stripped_from_response,
-        ),
-    ]
-
-    passed = failed = 0
-    errors = []
-    for name, fn in tests:
-        try:
-            fn()
-            passed += 1
-            print(f"  PASS  {name}")
-        except Exception as e:
-            failed += 1
-            errors.append((name, e))
-            print(f"  FAIL  {name}: {e}")
-
-    print(f"\n{'='*60}")
-    print(f"Results: {passed} passed, {failed} failed, {len(tests)} total")
-    if errors:
-        for name, e in errors:
-            print(f"  - {name}: {e}")
-        sys.exit(1)
-    else:
-        print("All tests passed!")
-        sys.exit(0)

@@ -119,12 +119,54 @@ public:
 
 	/**
 	 * @brief Execute a step through the Blueprint interface.
-	 * @param[in] InActions Map of agent names to their actions.
+	 *
+	 * Handles staggered agent death: agents that were already terminated or truncated
+	 * before this step have their terminal state preserved. Only actions for live agents
+	 * are forwarded to the Blueprint (dead agents have no entry in InActions since the
+	 * Python side only sends actions for agents RLlib is actively managing).
+	 *
+	 * This logic is centralised here so it automatically covers every reset protocol
+	 * (Disabled, SameStep, NextStep) without duplication in AbstractGymConnector.
+	 *
+	 * @param[in] InActions Map of agent names to their actions (live agents only).
 	 * @param[out] OutAgentStates Map of agent names to their resulting states.
 	 */
 	void Step(const TMap<FString, TInstancedStruct<FPoint>>& InActions, TMap<FString, FAgentState>& OutAgentStates) override
 	{
-		T::Execute_Step(this->GetObject(), InActions, OutAgentStates);
+		// Snapshot previously-dead agents before stepping, but only when the
+		// trainer did not send an action for them. SameStep auto-reset makes a
+		// previously terminal agent live again on the next step.
+		TMap<FString, FAgentState> DeadAgentStates;
+		for (const auto& Pair : OutAgentStates)
+		{
+			if ((Pair.Value.bTerminated || Pair.Value.bTruncated) && !InActions.Contains(Pair.Key))
+			{
+				DeadAgentStates.Add(Pair.Key, Pair.Value);
+			}
+		}
+
+		// Build a filtered action map that excludes dead agents. Python only sends
+		// actions for live agents, so an action for a previously terminal agent
+		// means the agent has been reset and should be stepped again.
+		TMap<FString, TInstancedStruct<FPoint>> LiveActions;
+		for (const auto& ActionPair : InActions)
+		{
+			if (!DeadAgentStates.Contains(ActionPair.Key))
+			{
+				LiveActions.Add(ActionPair.Key, ActionPair.Value);
+			}
+		}
+
+		T::Execute_Step(this->GetObject(), LiveActions, OutAgentStates);
+
+		// Restore the full pre-step snapshot for previously-dead agents. A per-field
+		// patch would leave observations, info, and any future FAgentState members
+		// leaking stale Blueprint output; the snapshot is the source of truth for
+		// dead agents, so overwrite the entry verbatim.
+		for (const auto& DeadPair : DeadAgentStates)
+		{
+			OutAgentStates.Add(DeadPair.Key, DeadPair.Value);
+		}
 	};
 
 };

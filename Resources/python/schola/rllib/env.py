@@ -275,6 +275,32 @@ class BaseRayEnv(ABC):
             self.simulator.stop()
             raise e
 
+    @staticmethod
+    def _filter_dead_agents(
+        env_id, already_done, observations, rewards, terminateds, truncateds, infos
+    ):
+        """
+        Remove already-dead agents from all five gRPC return dicts for one env slot.
+
+        The gRPC response unconditionally includes every agent's state, even agents
+        whose terminal flag was preserved by TScholaEnvironment::Step(). RLlib closes
+        an agent's episode on the step it first receives terminated/truncated=True and
+        raises MultiAgentEnvError if it sees any further data for that agent. This
+        helper prevents that by dropping the stale entries before they reach RLlib.
+
+        Args:
+            env_id: Key used to index each dict (int for RayVecEnv, self._env_id for RayEnv).
+            already_done: Set of agent IDs that were terminal before this step.
+            observations, rewards, terminateds, truncateds, infos: Protocol return dicts,
+                modified in-place.
+        """
+        for agent_id in already_done:
+            observations[env_id].pop(agent_id, None)
+            rewards[env_id].pop(agent_id, None)
+            terminateds[env_id].pop(agent_id, None)
+            truncateds[env_id].pop(agent_id, None)
+            infos[env_id].pop(agent_id, None)
+
     def close_extras(self, **kwargs):
         """Close protocol and stop simulator."""
         self.protocol.close()
@@ -524,9 +550,23 @@ class RayEnv(BaseRayEnv, MultiAgentEnv):
         # Convert actions to dict format expected by protocol (env_id: actions)
         action_dict = {self._env_id: actions}
 
+        # Agents already dead before this step, C++ restores their terminal state
+        # in OutAgentStates, so the gRPC response still includes their entries.
+        # We must not forward those entries to RLlib, which closes an agent's
+        # episode on the step it first receives terminated=True and will crash if
+        # it sees any further data for that agent.
+        already_done = self._terminated_agents | self._truncated_agents
+
         # Send action and get response with no autoreset support
         observations, rewards, terminateds, truncateds, infos, _, _ = (
             self.protocol.send_action_msg(action_dict, self._single_action_spaces)
+        )
+
+        # Strip previously-dead agents from every return dict so RLlib never
+        # receives a second observation for an agent whose episode is closed.
+        eid = self._env_id
+        self._filter_dead_agents(
+            eid, already_done, observations, rewards, terminateds, truncateds, infos
         )
 
         # Normal step - update agent tracking
@@ -887,12 +927,24 @@ class RayVecEnv(BaseRayEnv, VectorMultiAgentEnv):
             self.protocol.send_action_msg(action_dict, self._single_action_spaces)
         )
 
-        # Handle agents dynamically based on what Unreal returns
-        # Following RLlib spec: terminateds/truncateds dicts contain ALL agents (even inactive ones)
-        # In turn-based/hierarchical scenarios, agents may not act every step but are still alive
-        # and appear in terminateds/truncateds with False values
         for env_id in range(self.num_envs):
             env: _SingleEnvWrapper = self.envs[env_id]
+            # When _reset_on_next_step is True, the gRPC response already contains
+            # the new episode's initial observations, so do not filter them with the
+            # dead-agent set from the just-finished episode.
+            if not env._reset_on_next_step:
+                # Capture before _step() updates tracking state.
+                already_done = env._terminated_agents | env._truncated_agents
+                # Strip dead agents from gRPC response before RLlib or _step() sees them.
+                self._filter_dead_agents(
+                    env_id,
+                    already_done,
+                    observations,
+                    rewards,
+                    terminateds,
+                    truncateds,
+                    infos,
+                )
             env._step(observations[env_id], terminateds[env_id], truncateds[env_id])
 
             agents_in_this_env = (

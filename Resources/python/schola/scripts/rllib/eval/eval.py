@@ -72,7 +72,7 @@ def main(args: RllibEvalScriptSettings) -> Dict[str, Any]:
             )
 
     try:
-        algo = Algorithm.from_checkpoint(str(args.checkpoint))
+        algo = Algorithm.from_checkpoint(str(args.checkpoint.resolve()))
         _apply_eval_episode_budget(algo, args.n_eval_episodes)
         logger.info(
             "Running RLlib Algorithm.evaluate() for up to %d episodes (if supported by checkpoint config).",

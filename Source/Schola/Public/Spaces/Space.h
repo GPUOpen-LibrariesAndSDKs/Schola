@@ -23,7 +23,8 @@ class ConstSpaceVisitor;
 	 Discrete        UMETA(DisplayName="Discrete"),      ///< Discrete space with integer choices
 	 MultiDiscrete   UMETA(DisplayName="MultiDiscrete"), ///< Multi-discrete space with multiple integer choices
 	 Box             UMETA(DisplayName="Box"),           ///< Box space with continuous float ranges
-	 Dict            UMETA(DisplayName="Dict")           ///< Dictionary space containing named sub-spaces
+	 Dict            UMETA(DisplayName="Dict"),          ///< Dictionary space containing named sub-spaces
+	 Text            UMETA(DisplayName="Text")           ///< Text space with variable-length strings
  };
 
  

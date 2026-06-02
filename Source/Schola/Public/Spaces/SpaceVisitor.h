@@ -7,6 +7,7 @@ struct FDiscreteSpace;
 struct FBoxSpace;
 struct FDictSpace;
 struct FMultiDiscreteSpace;
+struct FTextSpace;
 
 /**
  * @class SpaceVisitor
@@ -49,6 +50,12 @@ public:
 	 * @param[in,out] Space The DictSpace to visit.
 	 */
 	virtual void operator()(FDictSpace& Space){};
+
+	/**
+	 * @brief Visits a TextSpace.
+	 * @param[in,out] Space The TextSpace to visit.
+	 */
+	virtual void operator()(FTextSpace& Space){};
 
 };
 
@@ -93,5 +100,11 @@ public:
 	 * @param[in] Space The const DictSpace to visit.
 	 */
 	virtual void operator()(const FDictSpace& Space){};
+
+	/**
+	 * @brief Visits a const TextSpace.
+	 * @param[in] Space The const TextSpace to visit.
+	 */
+	virtual void operator()(const FTextSpace& Space){};
 
 };

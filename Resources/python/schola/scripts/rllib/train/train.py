@@ -334,7 +334,7 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
             lr=args.training_settings.learning_rate,
             gamma=args.training_settings.gamma,
             num_epochs=args.training_settings.num_epochs,
-            train_batch_size=args.training_settings.train_batch_size_per_learner,
+            train_batch_size_per_learner=args.training_settings.train_batch_size_per_learner,
             minibatch_size=args.training_settings.minibatch_size,
             **args.algorithm_settings.get_settings_dict(),
         )

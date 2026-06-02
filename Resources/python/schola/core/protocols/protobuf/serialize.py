@@ -138,6 +138,12 @@ def _(space: spaces.Discrete, action: int) -> proto_points.DiscretePoint:
     return msg
 
 
+@to_proto.register
+def _(space: spaces.Text, action: str) -> proto_points.TextPoint:
+    msg = proto_points.TextPoint(value=action)
+    return msg
+
+
 @singledispatch
 def space_to_proto(space):
     """
@@ -199,6 +205,14 @@ def _(space: MultiDiscrete) -> proto_spaces.MultiDiscreteSpace:
 @space_to_proto.register
 def _(space: Discrete) -> proto_spaces.DiscreteSpace:
     msg = proto_spaces.DiscreteSpace(high=space.n)
+    return msg
+
+
+@space_to_proto.register
+def _(space: spaces.Text) -> proto_spaces.TextSpace:
+    msg = proto_spaces.TextSpace(max_length=space.max_length)
+    msg.min_length = space.min_length
+    msg.charset = "".join(sorted(space.character_set))
     return msg
 
 
@@ -270,11 +284,21 @@ def _(space: proto_spaces.MultiBinarySpace, generic_space: proto_spaces.Space) -
 
 
 @fill_generic.register
+def _(space: proto_spaces.TextSpace, generic_space: proto_spaces.Space) -> None:
+    generic_space.text_space.CopyFrom(space)
+
+
+@fill_generic.register
 def _(space: proto_spaces.DictSpace, generic_space: proto_spaces.Space) -> None:
     generic_space.dict_space.CopyFrom(space)
 
 
 # points
+
+
+@fill_generic.register
+def _(point: proto_points.TextPoint, generic_point: proto_points.Point) -> None:
+    generic_point.text_point.CopyFrom(point)
 
 
 @fill_generic.register
@@ -348,6 +372,12 @@ def _(space: proto_spaces.DictSpace) -> proto_spaces.Space:
 
 
 @make_generic.register
+def _(space: proto_spaces.TextSpace) -> proto_spaces.Space:
+    msg = proto_spaces.Space(text_space=space)
+    return msg
+
+
+@make_generic.register
 def _(space: proto_spaces.BoxSpace) -> proto_spaces.Space:
     msg = proto_spaces.Space(box_space=space)
     return msg
@@ -398,4 +428,10 @@ def _(point: proto_points.DiscretePoint) -> proto_points.Point:
 @make_generic.register
 def _(point: proto_points.MultiDiscretePoint) -> proto_points.Point:
     msg = proto_points.Point(multi_discrete_point=point)
+    return msg
+
+
+@make_generic.register
+def _(point: proto_points.TextPoint) -> proto_points.Point:
+    msg = proto_points.Point(text_point=point)
     return msg

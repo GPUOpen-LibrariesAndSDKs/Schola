@@ -90,6 +90,10 @@ class Point;
 struct PointDefaultTypeInternal;
 SCHOLAPROTOBUF_API extern PointDefaultTypeInternal _Point_default_instance_;
 SCHOLAPROTOBUF_API extern const ::google::protobuf::internal::ClassDataFull Point_class_data_;
+class TextPoint;
+struct TextPointDefaultTypeInternal;
+SCHOLAPROTOBUF_API extern TextPointDefaultTypeInternal _TextPoint_default_instance_;
+SCHOLAPROTOBUF_API extern const ::google::protobuf::internal::ClassDataFull TextPoint_class_data_;
 }  // namespace Schola
 namespace google {
 namespace protobuf {
@@ -101,6 +105,202 @@ namespace Schola {
 // ===================================================================
 
 
+// -------------------------------------------------------------------
+
+class SCHOLAPROTOBUF_API TextPoint final : public ::google::protobuf::Message
+/* @@protoc_insertion_point(class_definition:Schola.TextPoint) */ {
+ public:
+  inline TextPoint() : TextPoint(nullptr) {}
+  ~TextPoint() PROTOBUF_FINAL;
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+  void operator delete(TextPoint* PROTOBUF_NONNULL msg, std::destroying_delete_t) {
+    SharedDtor(*msg);
+    ::google::protobuf::internal::SizedDelete(msg, sizeof(TextPoint));
+  }
+#endif
+
+  template <typename = void>
+  explicit PROTOBUF_CONSTEXPR TextPoint(::google::protobuf::internal::ConstantInitialized);
+
+  inline TextPoint(const TextPoint& from) : TextPoint(nullptr, from) {}
+  inline TextPoint(TextPoint&& from) noexcept
+      : TextPoint(nullptr, ::std::move(from)) {}
+  inline TextPoint& operator=(const TextPoint& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline TextPoint& operator=(TextPoint&& from) noexcept {
+    if (this == &from) return *this;
+    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL mutable_unknown_fields()
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
+    return GetDescriptor();
+  }
+  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const TextPoint& default_instance() {
+    return *reinterpret_cast<const TextPoint*>(
+        &_TextPoint_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages = 6;
+  friend void swap(TextPoint& a, TextPoint& b) { a.Swap(&b); }
+  inline void Swap(TextPoint* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(TextPoint* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  TextPoint* PROTOBUF_NONNULL New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
+    return ::google::protobuf::Message::DefaultConstruct<TextPoint>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const TextPoint& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom(const TextPoint& from) { TextPoint::MergeImpl(*this, from); }
+
+  private:
+  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
+                        const ::google::protobuf::MessageLite& from_msg);
+
+  public:
+  bool IsInitialized() const {
+    return true;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
+  #if defined(PROTOBUF_CUSTOM_VTABLE)
+  private:
+  static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
+  static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
+
+  public:
+  ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
+  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+    return _InternalSerialize(*this, target, stream);
+  }
+  #else   // PROTOBUF_CUSTOM_VTABLE
+  ::size_t ByteSizeLong() const final;
+  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
+  #endif  // PROTOBUF_CUSTOM_VTABLE
+  int GetCachedSize() const { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static void SharedDtor(MessageLite& self);
+  void InternalSwap(TextPoint* PROTOBUF_NONNULL other);
+ private:
+  template <typename T>
+  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
+  static ::absl::string_view FullMessageName() { return "Schola.TextPoint"; }
+
+ protected:
+  explicit TextPoint(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  TextPoint(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const TextPoint& from);
+  TextPoint(
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, TextPoint&& from) noexcept
+      : TextPoint(arena) {
+    *this = ::std::move(from);
+  }
+  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
+  static void* PROTOBUF_NONNULL PlacementNew_(
+      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static constexpr auto InternalNewImpl_();
+
+ public:
+  static constexpr auto InternalGenerateClassData_();
+
+  ::google::protobuf::Metadata GetMetadata() const;
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+  enum : int {
+    kValueFieldNumber = 1,
+  };
+  // string value = 1;
+  void clear_value() ;
+  const ::std::string& value() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_value(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_value();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_value();
+  void set_allocated_value(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_value() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_value(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_value();
+
+  public:
+  // @@protoc_insertion_point(class_scope:Schola.TextPoint)
+ private:
+  class _Internal;
+  friend class ::google::protobuf::internal::TcParser;
+  static const ::google::protobuf::internal::TcParseTable<0, 1,
+                                   0, 30,
+                                   2>
+      _table_;
+
+  friend class ::google::protobuf::MessageLite;
+  friend class ::google::protobuf::Arena;
+  template <typename T>
+  friend class ::google::protobuf::Arena::InternalHelper;
+  using InternalArenaConstructable_ = void;
+  using DestructorSkippable_ = void;
+  struct Impl_ {
+    inline explicit constexpr Impl_(::google::protobuf::internal::ConstantInitialized) noexcept;
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+        const TextPoint& from_msg);
+    ::google::protobuf::internal::HasBits<1> _has_bits_;
+    ::google::protobuf::internal::CachedSize _cached_size_;
+    ::google::protobuf::internal::ArenaStringPtr value_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_Points_2eproto;
+};
+
+SCHOLAPROTOBUF_API extern const ::google::protobuf::internal::ClassDataFull TextPoint_class_data_;
 // -------------------------------------------------------------------
 
 class SCHOLAPROTOBUF_API MultiDiscretePoint final : public ::google::protobuf::Message
@@ -1221,9 +1421,10 @@ class SCHOLAPROTOBUF_API Point final : public ::google::protobuf::Message
     kMultiDiscretePoint = 3,
     kMultiBinaryPoint = 4,
     kDictPoint = 5,
+    kTextPoint = 6,
     POINT_NOT_SET = 0,
   };
-  static constexpr int kIndexInFileMessages = 6;
+  static constexpr int kIndexInFileMessages = 7;
   friend void swap(Point& a, Point& b) { a.Swap(&b); }
   inline void Swap(Point* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -1316,6 +1517,7 @@ class SCHOLAPROTOBUF_API Point final : public ::google::protobuf::Message
     kMultiDiscretePointFieldNumber = 3,
     kMultiBinaryPointFieldNumber = 4,
     kDictPointFieldNumber = 5,
+    kTextPointFieldNumber = 6,
   };
   // .Schola.BoxPoint box_point = 1;
   bool has_box_point() const;
@@ -1412,6 +1614,25 @@ class SCHOLAPROTOBUF_API Point final : public ::google::protobuf::Message
   ::Schola::DictPoint* PROTOBUF_NONNULL _internal_mutable_dict_point();
 
   public:
+  // .Schola.TextPoint text_point = 6;
+  bool has_text_point() const;
+  private:
+  bool _internal_has_text_point() const;
+
+  public:
+  void clear_text_point() ;
+  const ::Schola::TextPoint& text_point() const;
+  [[nodiscard]] ::Schola::TextPoint* PROTOBUF_NULLABLE release_text_point();
+  ::Schola::TextPoint* PROTOBUF_NONNULL mutable_text_point();
+  void set_allocated_text_point(::Schola::TextPoint* PROTOBUF_NULLABLE value);
+  void unsafe_arena_set_allocated_text_point(::Schola::TextPoint* PROTOBUF_NULLABLE value);
+  ::Schola::TextPoint* PROTOBUF_NULLABLE unsafe_arena_release_text_point();
+
+  private:
+  const ::Schola::TextPoint& _internal_text_point() const;
+  ::Schola::TextPoint* PROTOBUF_NONNULL _internal_mutable_text_point();
+
+  public:
   void clear_point();
   PointCase point_case() const;
   // @@protoc_insertion_point(class_scope:Schola.Point)
@@ -1422,11 +1643,12 @@ class SCHOLAPROTOBUF_API Point final : public ::google::protobuf::Message
   void set_has_multi_discrete_point();
   void set_has_multi_binary_point();
   void set_has_dict_point();
+  void set_has_text_point();
   inline bool has_point() const;
   inline void clear_has_point();
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<0, 5,
-                                   5, 0,
+  static const ::google::protobuf::internal::TcParseTable<0, 6,
+                                   6, 0,
                                    2>
       _table_;
 
@@ -1453,6 +1675,7 @@ class SCHOLAPROTOBUF_API Point final : public ::google::protobuf::Message
       ::google::protobuf::Message* PROTOBUF_NULLABLE multi_discrete_point_;
       ::google::protobuf::Message* PROTOBUF_NULLABLE multi_binary_point_;
       ::google::protobuf::Message* PROTOBUF_NULLABLE dict_point_;
+      ::google::protobuf::Message* PROTOBUF_NULLABLE text_point_;
     } point_;
     ::google::protobuf::internal::CachedSize _cached_size_;
     ::uint32_t _oneof_case_[1];
@@ -1757,6 +1980,75 @@ inline ::google::protobuf::Map<std::string, ::Schola::Point>* PROTOBUF_NONNULL D
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
   // @@protoc_insertion_point(field_mutable_map:Schola.DictPoint.values)
   return _internal_mutable_values();
+}
+
+// -------------------------------------------------------------------
+
+// TextPoint
+
+// string value = 1;
+inline void TextPoint::clear_value() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.value_.ClearToEmpty();
+  _impl_._has_bits_[0] &= ~0x00000001u;
+}
+inline const ::std::string& TextPoint::value() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:Schola.TextPoint.value)
+  return _internal_value();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void TextPoint::set_value(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_._has_bits_[0] |= 0x00000001u;
+  _impl_.value_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:Schola.TextPoint.value)
+}
+inline ::std::string* PROTOBUF_NONNULL TextPoint::mutable_value()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  ::std::string* _s = _internal_mutable_value();
+  // @@protoc_insertion_point(field_mutable:Schola.TextPoint.value)
+  return _s;
+}
+inline const ::std::string& TextPoint::_internal_value() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.value_.Get();
+}
+inline void TextPoint::_internal_set_value(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_._has_bits_[0] |= 0x00000001u;
+  _impl_.value_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL TextPoint::_internal_mutable_value() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_._has_bits_[0] |= 0x00000001u;
+  return _impl_.value_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE TextPoint::release_value() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:Schola.TextPoint.value)
+  if ((_impl_._has_bits_[0] & 0x00000001u) == 0) {
+    return nullptr;
+  }
+  _impl_._has_bits_[0] &= ~0x00000001u;
+  auto* released = _impl_.value_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.value_.Set("", GetArena());
+  }
+  return released;
+}
+inline void TextPoint::set_allocated_value(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    _impl_._has_bits_[0] |= 0x00000001u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000001u;
+  }
+  _impl_.value_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.value_.IsDefault()) {
+    _impl_.value_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:Schola.TextPoint.value)
 }
 
 // -------------------------------------------------------------------
@@ -2165,6 +2457,87 @@ inline ::Schola::DictPoint* PROTOBUF_NONNULL Point::mutable_dict_point()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
   ::Schola::DictPoint* _msg = _internal_mutable_dict_point();
   // @@protoc_insertion_point(field_mutable:Schola.Point.dict_point)
+  return _msg;
+}
+
+// .Schola.TextPoint text_point = 6;
+inline bool Point::has_text_point() const {
+  return point_case() == kTextPoint;
+}
+inline bool Point::_internal_has_text_point() const {
+  return point_case() == kTextPoint;
+}
+inline void Point::set_has_text_point() {
+  _impl_._oneof_case_[0] = kTextPoint;
+}
+inline void Point::clear_text_point() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (point_case() == kTextPoint) {
+    if (GetArena() == nullptr) {
+      delete _impl_.point_.text_point_;
+    } else if (::google::protobuf::internal::DebugHardenClearOneofMessageOnArena()) {
+      ::google::protobuf::internal::MaybePoisonAfterClear(_impl_.point_.text_point_);
+    }
+    clear_has_point();
+  }
+}
+inline ::Schola::TextPoint* PROTOBUF_NULLABLE Point::release_text_point() {
+  // @@protoc_insertion_point(field_release:Schola.Point.text_point)
+  if (point_case() == kTextPoint) {
+    clear_has_point();
+    auto* temp = reinterpret_cast<::Schola::TextPoint*>(_impl_.point_.text_point_);
+    if (GetArena() != nullptr) {
+      temp = ::google::protobuf::internal::DuplicateIfNonNull(temp);
+    }
+    _impl_.point_.text_point_ = nullptr;
+    return temp;
+  } else {
+    return nullptr;
+  }
+}
+inline const ::Schola::TextPoint& Point::_internal_text_point() const {
+  return point_case() == kTextPoint ? *reinterpret_cast<::Schola::TextPoint*>(_impl_.point_.text_point_) : reinterpret_cast<::Schola::TextPoint&>(::Schola::_TextPoint_default_instance_);
+}
+inline const ::Schola::TextPoint& Point::text_point() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:Schola.Point.text_point)
+  return _internal_text_point();
+}
+inline ::Schola::TextPoint* PROTOBUF_NULLABLE Point::unsafe_arena_release_text_point() {
+  // @@protoc_insertion_point(field_unsafe_arena_release:Schola.Point.text_point)
+  if (point_case() == kTextPoint) {
+    clear_has_point();
+    auto* temp = reinterpret_cast<::Schola::TextPoint*>(_impl_.point_.text_point_);
+    _impl_.point_.text_point_ = nullptr;
+    return temp;
+  } else {
+    return nullptr;
+  }
+}
+inline void Point::unsafe_arena_set_allocated_text_point(
+    ::Schola::TextPoint* PROTOBUF_NULLABLE value) {
+  // We rely on the oneof clear method to free the earlier contents
+  // of this oneof. We can directly use the pointer we're given to
+  // set the new value.
+  clear_point();
+  if (value) {
+    set_has_text_point();
+    _impl_.point_.text_point_ = reinterpret_cast<::google::protobuf::Message*>(value);
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:Schola.Point.text_point)
+}
+inline ::Schola::TextPoint* PROTOBUF_NONNULL Point::_internal_mutable_text_point() {
+  if (point_case() != kTextPoint) {
+    clear_point();
+    set_has_text_point();
+    _impl_.point_.text_point_ = reinterpret_cast<::google::protobuf::Message*>(
+        ::google::protobuf::Message::DefaultConstruct<::Schola::TextPoint>(GetArena()));
+  }
+  return reinterpret_cast<::Schola::TextPoint*>(_impl_.point_.text_point_);
+}
+inline ::Schola::TextPoint* PROTOBUF_NONNULL Point::mutable_text_point()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  ::Schola::TextPoint* _msg = _internal_mutable_text_point();
+  // @@protoc_insertion_point(field_mutable:Schola.Point.text_point)
   return _msg;
 }
 

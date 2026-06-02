@@ -25,7 +25,7 @@ _sym_db = _symbol_database.Default()
 import schola.generated.DType_pb2 as DType__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0cPoints.proto\x12\x06Schola\x1a\x0b\x44Type.proto\"G\n\x08\x42oxPoint\x12\x0e\n\x06values\x18\x01 \x03(\x02\x12\x1c\n\x05\x64type\x18\x02 \x01(\x0e\x32\r.Schola.DType\x12\r\n\x05shape\x18\x03 \x03(\x05\"\x1e\n\rDiscretePoint\x12\r\n\x05value\x18\x01 \x01(\x05\"$\n\x12MultiDiscretePoint\x12\x0e\n\x06values\x18\x01 \x03(\x05\"\"\n\x10MultiBinaryPoint\x12\x0e\n\x06values\x18\x01 \x03(\x08\"x\n\tDictPoint\x12-\n\x06values\x18\x01 \x03(\x0b\x32\x1d.Schola.DictPoint.ValuesEntry\x1a<\n\x0bValuesEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1c\n\x05value\x18\x02 \x01(\x0b\x32\r.Schola.Point:\x02\x38\x01\"\x85\x02\n\x05Point\x12%\n\tbox_point\x18\x01 \x01(\x0b\x32\x10.Schola.BoxPointH\x00\x12/\n\x0e\x64iscrete_point\x18\x02 \x01(\x0b\x32\x15.Schola.DiscretePointH\x00\x12:\n\x14multi_discrete_point\x18\x03 \x01(\x0b\x32\x1a.Schola.MultiDiscretePointH\x00\x12\x36\n\x12multi_binary_point\x18\x04 \x01(\x0b\x32\x18.Schola.MultiBinaryPointH\x00\x12\'\n\ndict_point\x18\x05 \x01(\x0b\x32\x11.Schola.DictPointH\x00\x42\x07\n\x05pointb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0cPoints.proto\x12\x06Schola\x1a\x0b\x44Type.proto\"G\n\x08\x42oxPoint\x12\x0e\n\x06values\x18\x01 \x03(\x02\x12\x1c\n\x05\x64type\x18\x02 \x01(\x0e\x32\r.Schola.DType\x12\r\n\x05shape\x18\x03 \x03(\x05\"\x1e\n\rDiscretePoint\x12\r\n\x05value\x18\x01 \x01(\x05\"$\n\x12MultiDiscretePoint\x12\x0e\n\x06values\x18\x01 \x03(\x05\"\"\n\x10MultiBinaryPoint\x12\x0e\n\x06values\x18\x01 \x03(\x08\"x\n\tDictPoint\x12-\n\x06values\x18\x01 \x03(\x0b\x32\x1d.Schola.DictPoint.ValuesEntry\x1a<\n\x0bValuesEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1c\n\x05value\x18\x02 \x01(\x0b\x32\r.Schola.Point:\x02\x38\x01\"\x1a\n\tTextPoint\x12\r\n\x05value\x18\x01 \x01(\t\"\xae\x02\n\x05Point\x12%\n\tbox_point\x18\x01 \x01(\x0b\x32\x10.Schola.BoxPointH\x00\x12/\n\x0e\x64iscrete_point\x18\x02 \x01(\x0b\x32\x15.Schola.DiscretePointH\x00\x12:\n\x14multi_discrete_point\x18\x03 \x01(\x0b\x32\x1a.Schola.MultiDiscretePointH\x00\x12\x36\n\x12multi_binary_point\x18\x04 \x01(\x0b\x32\x18.Schola.MultiBinaryPointH\x00\x12\'\n\ndict_point\x18\x05 \x01(\x0b\x32\x11.Schola.DictPointH\x00\x12\'\n\ntext_point\x18\x06 \x01(\x0b\x32\x11.Schola.TextPointH\x00\x42\x07\n\x05pointb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -46,6 +46,8 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_DICTPOINT']._serialized_end=336
   _globals['_DICTPOINT_VALUESENTRY']._serialized_start=276
   _globals['_DICTPOINT_VALUESENTRY']._serialized_end=336
-  _globals['_POINT']._serialized_start=339
-  _globals['_POINT']._serialized_end=600
+  _globals['_TEXTPOINT']._serialized_start=338
+  _globals['_TEXTPOINT']._serialized_end=364
+  _globals['_POINT']._serialized_start=367
+  _globals['_POINT']._serialized_end=669
 # @@protoc_insertion_point(module_scope)

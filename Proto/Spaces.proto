@@ -28,6 +28,12 @@ message MultiBinarySpace {
     int32 shape = 1;
 }
 
+message TextSpace {
+    int32 max_length = 1;
+    optional int32 min_length = 2;
+    optional string charset = 3;
+}
+
 message Space {
     oneof space {
         BoxSpace box_space = 1;
@@ -35,6 +41,7 @@ message Space {
         MultiDiscreteSpace multi_discrete_space = 3;
         MultiBinarySpace multi_binary_space = 4;
         DictSpace dict_space = 5;
+        TextSpace text_space = 6;
     }
 }
 

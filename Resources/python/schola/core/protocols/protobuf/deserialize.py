@@ -127,6 +127,19 @@ def _(msg: proto_spaces.MultiDiscreteSpace) -> spaces.MultiDiscrete:
 
 
 @from_proto.register
+def _(msg: proto_spaces.TextSpace) -> spaces.Text:
+    # min_length and charset use proto3 explicit presence; only forward them
+    # when set so Gymnasium's own defaults (min_length=1, alphanumeric charset)
+    # apply otherwise.
+    kwargs = {"max_length": msg.max_length}
+    if msg.HasField("min_length"):
+        kwargs["min_length"] = msg.min_length
+    if msg.HasField("charset"):
+        kwargs["charset"] = msg.charset
+    return spaces.Text(**kwargs)
+
+
+@from_proto.register
 def _(msg: proto_spaces.DictSpace) -> spaces.Dict:
     space_dict = {key: from_proto(value) for key, value in msg.spaces.items()}
     return spaces.Dict(spaces=space_dict)
@@ -165,6 +178,11 @@ def _(msg: proto_points.DiscretePoint) -> int:
 def _(msg: proto_points.MultiBinaryPoint) -> np.ndarray:
     # np.bool was removed in NumPy 1.24; use bool/np.bool_ for compatibility
     return np.array(msg.values, dtype=np.bool_)
+
+
+@from_proto.register
+def _(msg: proto_points.TextPoint) -> str:
+    return msg.value
 
 
 @from_proto.register

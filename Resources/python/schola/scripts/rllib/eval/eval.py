@@ -101,7 +101,7 @@ def main(args: RllibEvalScriptSettings) -> Dict[str, Any]:
             )
 
     try:
-        algo = Algorithm.from_checkpoint(str(args.checkpoint))
+        algo = Algorithm.from_checkpoint(str(args.checkpoint.resolve()))
         _apply_eval_episode_budget(algo, args.n_eval_episodes)
         _apply_env_options(algo, args.environment_settings.env_options)
         logger.info(

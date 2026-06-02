@@ -89,6 +89,10 @@ def main(args: Sb3EvalScriptSettings) -> Tuple[float, float]:
                 env.norm_reward = True
                 model.set_env(env)
 
+            if args.environment_settings.env_options:
+                # Inherited from SB3's `set_options`
+                env.set_options(options=args.environment_settings.env_options)
+
             monitored = VecMonitor(env)
             ev: tuple[List[float], List[float]] = evaluate_policy(
                 model,

@@ -48,6 +48,45 @@ def mock_app(mock_main):
     )
 
 
+@pytest.fixture(scope="function")
+def make_train_args(tmp_path):
+    """Factory fixture for ``Sb3TrainScriptSettings`` that wraps the in-file
+    ``_train_args`` helper. Pre-existing tests use ``_train_args`` directly; new
+    tests should prefer this fixture for a pytest-idiomatic call shape.
+    """
+
+    def _factory(**kwargs) -> Sb3TrainScriptSettings:
+        return _train_args(tmp_path, **kwargs)
+
+    return _factory
+
+
+@pytest.fixture(scope="function")
+def mock_vec_env():
+    """A fresh minimal MagicMock ``VecEnv``, function-scoped so per-test call
+    counts (``set_options``, ``close``) cannot bleed across tests."""
+    return _mock_vec_env()
+
+
+@pytest.fixture(scope="function")
+def patch_sb3_ppo_train_deps(mocker, mock_vec_env):
+    """Patch the dependencies that ``schola.scripts.sb3.train.train.main``
+    reaches into for the PPO "no-checkpoint" happy path.
+
+    Yields the underlying mock ``VecEnv`` so tests can assert against it
+    (``mock_env.set_options.assert_*``, etc.).
+    """
+    mocker.patch("schola.sb3.env.VecEnv", autospec=True, return_value=mock_vec_env)
+
+    mock_model = MagicMock()
+    mock_model.get_vec_normalize_env.return_value = None
+    mock_ppo = mocker.patch("stable_baselines3.PPO")
+    mock_ppo.load.side_effect = Exception("no checkpoint")
+    mock_ppo.return_value = mock_model
+
+    return mock_vec_env
+
+
 def _train_args(
     tmp_path: Path,
     *,
@@ -63,6 +102,7 @@ def _train_args(
     pbar: bool = False,
     algorithm_settings: PPOTrainSettings | SACTrainSettings | None = None,
     policy_kwargs_network: bool = False,
+    env_options: dict[str, str] | None = None,
 ) -> Sb3TrainScriptSettings:
     ckpt_dir = tmp_path / "ckpt"
     ckpt_dir.mkdir(parents=True, exist_ok=True)
@@ -89,7 +129,8 @@ def _train_args(
 
     return Sb3TrainScriptSettings(
         environment_settings=EnvironmentSettings(
-            protocol_settings=GrpcProtocolConfig(port=1, url="localhost")
+            protocol_settings=GrpcProtocolConfig(port=1, url="localhost"),
+            env_options=env_options or {},
         ),
         algorithm_settings=algorithm_settings or PPOTrainSettings(),
         training_settings=replace(
@@ -297,6 +338,25 @@ def test_main_enable_checkpoints_passes_callback(mock_ppo, mock_vec_cls, tmp_pat
     kwargs = mock_model.learn.call_args.kwargs
     cbs = kwargs.get("callback") or []
     assert any(isinstance(c, CheckpointCallback) for c in cbs)
+
+
+def test_main_forwards_env_options_to_env(patch_sb3_ppo_train_deps, make_train_args):
+    """When ``environment_settings.env_options`` is non-empty, ``main`` should
+    forward it to the env via ``set_options`` before ``model.learn``."""
+    opts = {"level": "1", "curriculum": "easy"}
+    main(make_train_args(timesteps=2, env_options=opts))
+
+    patch_sb3_ppo_train_deps.set_options.assert_called_once_with(options=opts)
+
+
+def test_main_skips_set_options_when_env_options_empty(
+    patch_sb3_ppo_train_deps, make_train_args
+):
+    """When ``environment_settings.env_options`` is empty, ``main`` should not
+    call ``set_options``."""
+    main(make_train_args(timesteps=2, env_options={}))
+
+    patch_sb3_ppo_train_deps.set_options.assert_not_called()
 
 
 @patch("schola.sb3.env.VecEnv")

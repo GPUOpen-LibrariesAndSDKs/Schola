@@ -4,17 +4,132 @@
 
 from concurrent import futures
 from typing import Callable, List
+from unittest.mock import MagicMock
 import grpc
 
-
+import gymnasium as gym
+import numpy as np
 import pytest
 from functools import cache
 from typing import Dict, List, Optional, Any, Tuple
 import pytest
 
+from schola.core.protocols.base_protocol import BaseRLProtocol
+from schola.core.simulators.base_simulator import BaseSimulator
 from schola.core.utils.dict_helpers import map_dict
 from schola.core.model import StateMetadata
 from schola.gym import env
+
+
+@pytest.fixture(scope="function")
+def mock_protocol_and_simulator():
+    """Build a mock protocol + simulator pair that pass the
+    ``supported_protocols`` isinstance check in the SB3 / RLlib env
+    constructors (``VecEnv.__init__`` / ``BaseRayEnv.__init__``).
+
+    ``MagicMock(spec=BaseRLProtocol)`` makes ``isinstance(protocol, BaseRLProtocol)``
+    return ``True``. ``simulator.supported_protocols`` is overridden to a real
+    tuple so the isinstance check uses a concrete class object. All other
+    lifecycle calls (``protocol.start()``, ``simulator.start(...)``,
+    ``protocol.send_startup_msg(...)``) auto-resolve as MagicMock no-ops, which
+    is what lets the env-options tests drive the real env ``__init__``
+    end-to-end without spinning up a gRPC server.
+    """
+    protocol = MagicMock(spec=BaseRLProtocol)
+    simulator = MagicMock(spec=BaseSimulator)
+    simulator.supported_protocols = (BaseRLProtocol,)
+    return protocol, simulator
+
+
+@pytest.fixture(scope="function")
+def stub_protocol_class():
+    """Real ``BaseRLProtocol`` subclass for tests that need a *class*, not an
+    instance: ``ScholaEnvRunner.make_env`` does ``issubclass(...)`` then
+    ``cls(**protocol_args)``, which a ``MagicMock(spec=...)`` can't satisfy.
+
+    Each instance records its ``__init__`` kwargs on ``init_kwargs`` and
+    appends itself to ``cls.instances``. ``get_definition`` / ``send_reset_msg``
+    are MagicMocks pre-armed to ``cls.NUM_ENVS`` so the real env ``__init__``
+    runs without a live server; re-arm ``instance.get_definition.return_value``
+    for a different shape. Scenario constants (``NUM_ENVS``, ``AGENT_ID``, ...)
+    are class attributes tests can read directly.
+    """
+
+    class _StubProtocol(BaseRLProtocol):
+        NUM_ENVS: int = 2
+        OBS_SPACE = gym.spaces.Box(0.0, 1.0, (1,), dtype=np.float32)
+        ACTION_SPACE = gym.spaces.Discrete(2)
+        AGENT_ID = "agent_0"
+
+        instances: list = []
+        # Shadow the ``@property`` descriptor on ``BaseProtocol`` with a
+        # plain class attribute so ``simulator.start(protocol.properties)``
+        # reads a real dict without needing an instance-level setter.
+        properties = {}
+
+        def __init__(self, **kwargs):
+            self.init_kwargs = kwargs
+            self.start = MagicMock()
+            self.close = MagicMock()
+            self.send_startup_msg = MagicMock()
+            self.get_definition = MagicMock(
+                return_value=(
+                    [[self.AGENT_ID] for _ in range(self.NUM_ENVS)],
+                    [{self.AGENT_ID: ""} for _ in range(self.NUM_ENVS)],
+                    {i: {self.AGENT_ID: self.OBS_SPACE} for i in range(self.NUM_ENVS)},
+                    {
+                        i: {self.AGENT_ID: self.ACTION_SPACE}
+                        for i in range(self.NUM_ENVS)
+                    },
+                )
+            )
+            self.send_reset_msg = MagicMock(
+                return_value=(
+                    [
+                        {self.AGENT_ID: np.zeros((1,), dtype=np.float32)}
+                        for _ in range(self.NUM_ENVS)
+                    ],
+                    [{self.AGENT_ID: {}} for _ in range(self.NUM_ENVS)],
+                )
+            )
+            self.send_action_msg = MagicMock()
+            type(self).instances.append(self)
+
+        def __bool__(self) -> bool:
+            return True
+
+    return _StubProtocol
+
+
+@pytest.fixture(scope="function")
+def stub_simulator_class():
+    """Real ``BaseSimulator`` subclass paired with ``stub_protocol_class``.
+
+    ``supported_protocols`` is ``(BaseRLProtocol,)`` so the
+    ``isinstance(protocol, simulator.supported_protocols)`` check in
+    ``RayVecEnv.__init__`` / ``VecEnv.__init__`` accepts any
+    ``BaseRLProtocol`` subclass -- including the stub protocol class.
+
+    Like ``stub_protocol_class``, each instance records its ``__init__``
+    kwargs on ``init_kwargs`` and appends itself to ``cls.instances`` so
+    tests can assert on what the SUT instantiated it with.
+    """
+
+    class _StubSimulator(BaseSimulator):
+        instances: list = []
+        supported_protocols = (BaseRLProtocol,)
+
+        def __init__(self, **kwargs):
+            self.init_kwargs = kwargs
+            self.start = MagicMock()
+            self.stop = MagicMock()
+            type(self).instances.append(self)
+
+        def __bool__(self) -> bool:
+            return True
+
+    return _StubSimulator
+
 
 from .envs.gym_server import GymToGymServiceServicer, VecGymToGymServiceServicer
 from .envs.imitation_server import GymToImitationServiceServicer

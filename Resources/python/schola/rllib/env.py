@@ -103,9 +103,32 @@ class BaseRayEnv(ABC):
     """
 
     def __init__(
-        self, protocol: BaseRLProtocol, simulator: BaseSimulator, verbosity: int = 0
+        self,
+        protocol: BaseRLProtocol,
+        simulator: BaseSimulator,
+        verbosity: int = 0,
+        *,
+        env_config: Optional[Dict[str, Any]] = None,
     ):
-        """Initialize protocol, simulator, and shared environment infrastructure."""
+        """Initialize protocol, simulator, and shared environment infrastructure.
+
+        Parameters
+        ----------
+        protocol : BaseRLProtocol
+            Already-constructed protocol instance for communicating with Unreal.
+        simulator : BaseSimulator
+            Already-constructed simulator instance managing the Unreal process.
+        verbosity : int
+            Logging verbosity level passed through from the training driver.
+        env_config : Optional[Dict[str, Any]]
+            Optional RLlib ``env_config`` / ``EnvContext`` dict. Recognized keys:
+            ``options`` -- reset options forwarded to the *first* ``reset()``
+            and then cleared, matching the SB3 ``_options`` one-shot pattern.
+            To re-arm options between resets the caller must pass them
+            explicitly via ``reset(options=...)`` or ``set_options(...)``.
+            Unknown keys are ignored. ``EnvContext`` is a ``dict`` subclass so
+            it can be passed directly.
+        """
         # 1. Protocol and simulator setup
         self.protocol = protocol
         self.simulator = simulator
@@ -127,6 +150,15 @@ class BaseRayEnv(ABC):
         self.id_manager: IdManager
         self.num_envs = 0
 
+        # One-shot reset options, mirroring SB3 ``VecEnv._options`` semantics:
+        # the value seeded from env_config["options"] is forwarded on the first
+        # ``reset()`` (when no explicit ``options`` arg is given) and cleared
+        # on consumption. Callers re-arm by passing ``reset(options=...)`` or
+        # ``set_options(...)`` directly. deepcopy guards against mutation of
+        # the source dict.
+        cfg = env_config or {}
+        self._options: Dict[str, Any] = deepcopy(cfg.get("options") or {})
+
         # 3. Send startup message with autoreset
         # Note: This may be called twice if protocol was already started (e.g., from factory function)
         # Protocol implementations should handle duplicate startup messages gracefully
@@ -137,6 +169,21 @@ class BaseRayEnv(ABC):
 
         # 6. Initialize agent tracking (subclass-specific)
         self._init_agent_tracking()
+
+    def set_options(self, options: Optional[Dict[str, Any]] = None) -> None:
+        """
+        Stage reset options to be consumed on the next ``reset()`` call.
+
+        Mirrors SB3's ``VecEnv.set_options``: cached options are forwarded
+        *once* on the next ``reset()`` without an explicit ``options`` arg
+        and then cleared. Pass ``None`` (or omit) to clear pending options.
+
+        This is the documented entry point for the training/eval drivers to
+        forward CLI-level ``--env-options.key=value`` to the simulator after
+        the env has already been constructed (i.e. after RLlib's env runners
+        have built their envs from the algorithm's ``env_config``).
+        """
+        self._options = deepcopy(options) if options is not None else {}
 
     def _init_space_attributes(self):
         """Initialize observation and action space attributes to None."""
@@ -381,10 +428,21 @@ class RayEnv(BaseRayEnv, MultiAgentEnv):
     """
 
     def __init__(
-        self, protocol: BaseRLProtocol, simulator: BaseSimulator, verbosity: int = 0
+        self,
+        protocol: BaseRLProtocol,
+        simulator: BaseSimulator,
+        verbosity: int = 0,
+        *,
+        env_config: Optional[Dict[str, Any]] = None,
     ):
         # Initialize shared base class functionality
-        BaseRayEnv.__init__(self, protocol, simulator, verbosity)
+        BaseRayEnv.__init__(
+            self,
+            protocol,
+            simulator,
+            verbosity,
+            env_config=env_config,
+        )
 
         # Initialize MultiAgentEnv (required for gym.Env compatibility)
         MultiAgentEnv.__init__(self)
@@ -429,11 +487,27 @@ class RayEnv(BaseRayEnv, MultiAgentEnv):
 
         Args:
             seed: Random seed (int)
-            options: Optional reset options
+            options: Optional reset options for one reset only. If omitted
+                (``None``), any cached options from ``env_config["options"]``
+                (or a prior ``set_options`` call) are consumed and cleared.
+                An explicit ``options`` value -- even an empty dict -- is sent
+                as-is and does not consume the cache.
 
         Returns:
             Tuple of (observations, infos) as MultiAgentDict format.
         """
+        # SB3-style one-shot consumption of the cached options. Only the
+        # "options omitted" path consumes; an explicit dict (even ``{}``)
+        # passes through and leaves the cache armed for a later reset.
+        # Both paths deepcopy so a downstream mutation (in the protocol or
+        # in user code that retains a reference to the sent dict) cannot
+        # bleed back into the caller's dict or the still-armed cache.
+        if options is None and self._options:
+            options = deepcopy(self._options)
+            self._options = {}
+        elif options is not None:
+            options = deepcopy(options)
+
         MultiAgentEnv.reset(self, seed=seed, options=options)
         seed_list = [seed] if seed is not None else None
         option_list = [options] if options is not None else None
@@ -692,10 +766,21 @@ class RayVecEnv(BaseRayEnv, VectorMultiAgentEnv):
     """
 
     def __init__(
-        self, protocol: BaseRLProtocol, simulator: BaseSimulator, verbosity: int = 0
+        self,
+        protocol: BaseRLProtocol,
+        simulator: BaseSimulator,
+        verbosity: int = 0,
+        *,
+        env_config: Optional[Dict[str, Any]] = None,
     ):
         # Initialize shared base class functionality
-        BaseRayEnv.__init__(self, protocol, simulator, verbosity)
+        BaseRayEnv.__init__(
+            self,
+            protocol,
+            simulator,
+            verbosity,
+            env_config=env_config,
+        )
 
         # Setup metadata
         self.metadata = {}
@@ -744,18 +829,44 @@ class RayVecEnv(BaseRayEnv, VectorMultiAgentEnv):
         self,
         *,
         seed: Optional[Union[int, List[int]]] = None,
-        options: Optional[Dict[str, Any]] = None,
+        options: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """
         Reset all sub-environments.
 
         Args:
             seed: Random seed (int or list of ints, one per environment)
-            options: Optional reset options
+            options: Optional reset options, accepted in three shapes. If
+                omitted (``None``), the cached ``env_config["options"]`` /
+                ``set_options`` value is broadcast to every sub-env and then
+                cleared (SB3-style one-shot). An explicit ``dict`` is broadcast
+                to every sub-env and does not consume the cache; an explicit
+                ``list[dict]`` must have length ``num_envs`` and is forwarded
+                element-wise without consuming the cache. Caller inputs are
+                deepcopied in every branch.
 
         Returns:
             Tuple of (observations, infos) as List[MultiAgentDict] format.
         """
+        # SB3-style one-shot consumption: only the "options omitted" path
+        # consumes the cache. Explicit ``dict`` values, or explicit
+        # ``list`` values whose length matches ``num_envs``, pass through
+        # and leave the cache armed for a later reset. Every branch
+        # deepcopies so that (a) per-env slots are independent and
+        # (b) a downstream mutation cannot bleed back into the caller's
+        # source dict/list or the still-armed cache.
+        if options is None and self._options:
+            options = [deepcopy(self._options) for _ in range(self.num_envs)]
+            self._options = {}
+        elif isinstance(options, dict):
+            options = [deepcopy(options) for _ in range(self.num_envs)]
+        elif isinstance(options, list):
+            assert len(options) == self.num_envs, (
+                "Number of options must match number of environments, if "
+                "passed as list"
+            )
+            options = [deepcopy(o) for o in options]
+
         if seed is not None:
             # Create a nicely distributed set of seeds for each sub-environment
             if isinstance(seed, int):

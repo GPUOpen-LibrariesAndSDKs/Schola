@@ -319,6 +319,30 @@ def test_ppo_checkpoint_args(mock_app, mock_main):
     assert args.checkpoint_settings.save_vecnormalize == True
 
 
+def test_ppo_options_default_is_empty_dict(mock_app, mock_main):
+    command, bound, _ = mock_app.parse_args(["ppo"], exit_on_error=False)
+    command(*bound.args, **bound.kwargs)
+    args = mock_main.call_args[0][0]
+    assert args.environment_settings.env_options == {}
+
+
+def test_ppo_env_options_dotted_syntax(mock_app, mock_main):
+    command, bound, _ = mock_app.parse_args(
+        [
+            "ppo",
+            "--env-options.level=1",
+            "--env-options.curriculum=easy",
+        ],
+        exit_on_error=False,
+    )
+    command(*bound.args, **bound.kwargs)
+    args = mock_main.call_args[0][0]
+    assert args.environment_settings.env_options == {
+        "level": "1",
+        "curriculum": "easy",
+    }
+
+
 def test_sac_with_executable_simulator(mock_app, mock_main, tmp_path):
     """Test SAC command with executable simulator type and executable path is correctly parsed."""
     # Create a fake executable file

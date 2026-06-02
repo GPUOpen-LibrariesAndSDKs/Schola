@@ -6,6 +6,9 @@ import logging
 import pickle
 from cyclopts import App
 import pytest
+from ray.rllib.algorithms.ppo import PPOConfig
+from ray.rllib.env.env_context import EnvContext
+
 from schola.scripts.common.settings import UnrealExecutableSimulatorConfig
 from schola.scripts.rllib.train.train import (
     app as train_app,
@@ -516,6 +519,80 @@ def test_protocol_settings(mock_app, mock_main):
 
     # Verify protocol settings
     assert args.environment_settings.protocol_settings.port == 12345
+
+
+def test_ppo_env_options_default_is_empty_dict(mock_app, mock_main):
+    """Without ``--env-options.k=v`` the field defaults to an empty dict."""
+    mock_app.meta(["ppo"], result_action="return_value")
+    args: RllibScriptSettings = mock_main.call_args[0][0]
+    assert args.environment_settings.env_options == {}
+
+
+def test_ppo_env_options_dotted_syntax(mock_app, mock_main):
+    """Cyclopts dotted syntax populates ``env_options`` with str values."""
+    mock_app.meta(
+        [
+            "ppo",
+            "--env-options.level=1",
+            "--env-options.curriculum=easy",
+        ],
+        result_action="return_value",
+    )
+    args: RllibScriptSettings = mock_main.call_args[0][0]
+    assert args.environment_settings.env_options == {
+        "level": "1",
+        "curriculum": "easy",
+    }
+
+
+def test_options_thread_through_rllib_env_config_recipe(mock_protocol_and_simulator):
+    """``env_config["options"]`` survives the RLlib config plumbing the train
+    CLI uses.
+
+    ``train.main`` wires CLI ``--env-options.*`` values into the RLlib config via
+    the standard ``AlgorithmConfig.environment(env_config={"options": ...})``
+    recipe -- the same recipe a user would arrive at by following the RLlib
+    docs example:
+    https://github.com/ray-project/ray/blob/master/rllib/examples/envs/custom_gym_env.py
+
+    At env-build time RLlib wraps ``config.env_config`` in an ``EnvContext``
+    (a ``dict`` subclass) and hands that to the env class. Schola's
+    ``BaseRayEnv.__init__`` then reads ``cfg.get("options")`` to seed the
+    one-shot options cache. This test mirrors that build path directly and
+    asserts the options dict the user passed lands in ``BaseRayEnv._options``.
+
+    Catches regressions where:
+
+    * ``AlgorithmConfig.environment(env_config=...)`` drops or mutates the
+      user's dict before it reaches the env constructor,
+    * ``EnvContext`` ceases to behave like a plain ``dict`` (so the
+      ``cfg.get("options")`` lookup in ``BaseRayEnv.__init__`` would break), or
+    * Schola's ``env_config["options"]`` contract drifts away from the shape
+      RLlib actually delivers at env-build time.
+    """
+    protocol, simulator = mock_protocol_and_simulator
+
+    expected_options = {"level": "hard", "schedule": ["a", "b"]}
+    config = PPOConfig().environment(env_config={"options": expected_options})
+
+    # The user's env_config must round-trip through .environment() unchanged.
+    assert config.env_config == {"options": expected_options}
+
+    # Mirror what RLlib's default env runner does at env-build time: wrap
+    # env_config in an EnvContext (dict subclass) and pass it to the env class.
+    env_ctx = EnvContext(config.env_config, worker_index=0, num_workers=0, remote=False)
+    env = _PolicyMappingEnv(protocol, simulator, env_config=env_ctx)
+
+    assert env._options == expected_options, (
+        "Schola's env_config['options'] cache was not populated when the env "
+        "was constructed via the RLlib docs recipe; a user following "
+        "https://github.com/ray-project/ray/blob/master/rllib/examples/envs/"
+        "custom_gym_env.py would see options silently dropped on reset."
+    )
+    # The deepcopy guarantee from BaseRayEnv.__init__ must still hold:
+    # mutating the user's source dict after construction must not leak in.
+    expected_options["level"] = "MUTATED"
+    assert env._options["level"] == "hard"
 
 
 def test_multiple_algorithms_return_different_settings(mock_app, mock_main):

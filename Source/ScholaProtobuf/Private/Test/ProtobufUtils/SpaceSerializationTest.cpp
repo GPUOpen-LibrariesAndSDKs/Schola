@@ -9,6 +9,7 @@
 #include "Spaces/DiscreteSpace.h"
 #include "Spaces/MultiDiscreteSpace.h"
 #include "Spaces/BoxSpace.h"
+#include "Spaces/TextSpace.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProtobufDiscreteSpaceSerializationTest, "Schola.Protobuf.Serialization.Spaces.Discrete", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 bool FProtobufDiscreteSpaceSerializationTest::RunTest(const FString& Parameters)
@@ -107,6 +108,56 @@ bool FProtobufBoxSpaceSerializationTest::RunTest(const FString& Parameters)
 		auto& Shape = OutProto.box_space().shape_dimensions();
 		TestEqual(TEXT("BoxSpace.shape_dimensions size == 1"), (int)Shape.size(), 1);
 		TestEqual(TEXT("BoxSpace.shape_dimensions[0] == 2"), Shape.Get(0), 2);
+	}
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProtobufTextSpaceSerializationTest, "Schola.Protobuf.Serialization.Spaces.Text", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FProtobufTextSpaceSerializationTest::RunTest(const FString& Parameters)
+{
+	TInstancedStruct<FSpace> Inst;
+	Inst.InitializeAs<FTextSpace>();
+	FTextSpace* Space = Inst.GetMutablePtr<FTextSpace>();
+	Space->MaxLength = 32;
+	Space->bHasMinLength = true;
+	Space->MinLength = 4;
+	Space->Charset = TEXT("abc");
+
+	Schola::Space OutProto;
+	ProtobufSerializer::ToProto(Inst, &OutProto);
+
+	TestTrue(TEXT("Text space serialized as text_space"), OutProto.has_text_space());
+	if (OutProto.has_text_space())
+	{
+		TestEqual(TEXT("TextSpace.max_length == 32"), OutProto.text_space().max_length(), 32);
+		TestTrue(TEXT("TextSpace has min_length set"), OutProto.text_space().has_min_length());
+		TestEqual(TEXT("TextSpace.min_length == 4"), OutProto.text_space().min_length(), 4);
+		TestTrue(TEXT("TextSpace has charset set"), OutProto.text_space().has_charset());
+		TestEqual(TEXT("TextSpace.charset == abc"), FString(UTF8_TO_TCHAR(OutProto.text_space().charset().c_str())), FString(TEXT("abc")));
+	}
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProtobufTextSpaceMinimalSerializationTest, "Schola.Protobuf.Serialization.Spaces.TextMinimal", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FProtobufTextSpaceMinimalSerializationTest::RunTest(const FString& Parameters)
+{
+	// When min length and charset are unset, the optional proto fields should stay unset.
+	TInstancedStruct<FSpace> Inst;
+	Inst.InitializeAs<FTextSpace>();
+	FTextSpace* Space = Inst.GetMutablePtr<FTextSpace>();
+	Space->MaxLength = 10;
+
+	Schola::Space OutProto;
+	ProtobufSerializer::ToProto(Inst, &OutProto);
+
+	TestTrue(TEXT("Text space serialized as text_space"), OutProto.has_text_space());
+	if (OutProto.has_text_space())
+	{
+		TestEqual(TEXT("TextSpace.max_length == 10"), OutProto.text_space().max_length(), 10);
+		TestFalse(TEXT("TextSpace min_length unset"), OutProto.text_space().has_min_length());
+		TestFalse(TEXT("TextSpace charset unset"), OutProto.text_space().has_charset());
 	}
 
 	return true;

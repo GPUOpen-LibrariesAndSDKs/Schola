@@ -6,6 +6,7 @@
 #include "Points/DictPoint.h"
 #include "Points/DiscretePoint.h"
 #include "Points/MultiDiscretePoint.h"
+#include "Points/TextPoint.h"
 #include "Points/PointVisitor.h"	
 #include "Spaces/SpaceVisitor.h"
 #include "Spaces/DictSpace.h"
@@ -13,6 +14,7 @@
 #include "Spaces/DiscreteSpace.h"
 #include "Spaces/MultiDiscreteSpace.h"
 #include "Spaces/BoxSpace.h"
+#include "Spaces/TextSpace.h"
 #include "Containers/StringConv.h"
 #include "TrainingDataTypes/EnvironmentState.h"
 #include "TrainingDataTypes/TrainingState.h"
@@ -109,6 +111,13 @@ public:
 		}
 	};
 
+	void operator()(const FTextPoint& Point) override
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE_STR("ScholaProtobuf: Serialize TextPoint");
+		Schola::TextPoint* PointMsg = SerializedPointBuffer->mutable_text_point();
+		PointMsg->set_value(TCHAR_TO_UTF8(*Point.Value));
+	};
+
 	/** @return Underlying Schola::Point buffer (e.g. after visiting dict entries). */
 	Schola::Point* GetDictPoint()
 	{
@@ -184,6 +193,21 @@ public:
 		for (int DimensionSize : Space.Shape)
 		{
 			ConcreteSpace->add_shape_dimensions(DimensionSize);
+		}
+	};
+
+	void operator()(const FTextSpace& Space) override
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE_STR("ScholaProtobuf: Serialize TextSpace");
+		Schola::TextSpace* ConcreteSpace = SerializedSpaceBuffer->mutable_text_space();
+		ConcreteSpace->set_max_length(Space.MaxLength);
+		if (Space.bHasMinLength)
+		{
+			ConcreteSpace->set_min_length(Space.MinLength);
+		}
+		if (!Space.Charset.IsEmpty())
+		{
+			ConcreteSpace->set_charset(TCHAR_TO_UTF8(*Space.Charset));
 		}
 	};
 };

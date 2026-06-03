@@ -10,6 +10,7 @@
 #include "Spaces/MultiDiscreteSpace.h"
 #include "Spaces/BoxSpace.h"
 #include "Spaces/BoxSpaceDimension.h"
+#include "Spaces/TextSpace.h"
 
 #include <string>
 
@@ -112,6 +113,53 @@ bool FProtobufBoxSpaceDeserializationTest::RunTest(const FString& Parameters)
 		{
 			TestEqual(TEXT("BoxSpace.shape[0] == 2"), Space->Shape[0], 2);
 		}
+	}
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProtobufTextSpaceDeserializationTest, "Schola.Protobuf.Deserialization.Spaces.Text", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FProtobufTextSpaceDeserializationTest::RunTest(const FString& Parameters)
+{
+	Schola::Space InProto;
+	auto* TextProto = InProto.mutable_text_space();
+	TextProto->set_max_length(32);
+	TextProto->set_min_length(4);
+	TextProto->set_charset("abc");
+
+	TInstancedStruct<FSpace> Out;
+	ProtobufDeserializer::FromProto(InProto, Out);
+
+	const FTextSpace* Space = Out.GetPtr<FTextSpace>();
+	TestTrue(TEXT("Text space deserialized as text_space"), Space != nullptr);
+	if (Space)
+	{
+		TestEqual(TEXT("TextSpace.MaxLength == 32"), Space->MaxLength, 32);
+		TestTrue(TEXT("TextSpace.bHasMinLength true"), Space->bHasMinLength);
+		TestEqual(TEXT("TextSpace.MinLength == 4"), Space->MinLength, 4);
+		TestEqual(TEXT("TextSpace.Charset == abc"), Space->Charset, FString(TEXT("abc")));
+	}
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProtobufTextSpaceMinimalDeserializationTest, "Schola.Protobuf.Deserialization.Spaces.TextMinimal", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FProtobufTextSpaceMinimalDeserializationTest::RunTest(const FString& Parameters)
+{
+	// Only max_length set: min length flag should be false and charset empty.
+	Schola::Space InProto;
+	InProto.mutable_text_space()->set_max_length(10);
+
+	TInstancedStruct<FSpace> Out;
+	ProtobufDeserializer::FromProto(InProto, Out);
+
+	const FTextSpace* Space = Out.GetPtr<FTextSpace>();
+	TestTrue(TEXT("Text space deserialized as text_space"), Space != nullptr);
+	if (Space)
+	{
+		TestEqual(TEXT("TextSpace.MaxLength == 10"), Space->MaxLength, 10);
+		TestFalse(TEXT("TextSpace.bHasMinLength false"), Space->bHasMinLength);
+		TestTrue(TEXT("TextSpace.Charset empty"), Space->Charset.IsEmpty());
 	}
 
 	return true;

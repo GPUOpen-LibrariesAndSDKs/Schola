@@ -52,6 +52,12 @@ public:
 	virtual void operator()(const FDictSpace& Space) override;
 
 	/**
+	 * @brief Processes a text space for serialization.
+	 * @param[in] Space The text space to process.
+	 */
+	virtual void operator()(const FTextSpace& Space) override;
+
+	/**
 	 * @brief Builds and returns a new buffer containing the serialized space.
 	 * @return Pointer to the newly created buffer.
 	 */

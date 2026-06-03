@@ -133,12 +133,13 @@ class TestTextPoint:
 class TestTextSpace:
 
     def test_defaults(self):
-        """Only max_length set; min_length/charset left to Gymnasium defaults."""
+        """Only max_length set; min_length/charset left unset so Gymnasium defaults apply."""
         space = Text(max_length=12)
         proto = space_to_proto(space)
         assert isinstance(proto, TextSpace), "Serialized space should be TextSpace"
         assert proto.max_length == 12, "TextSpace max_length should be 12"
-        assert proto.min_length == 1, "TextSpace min_length should default to 1"
+        assert not proto.HasField("min_length"), "min_length should be left unset for default (1)"
+        assert not proto.HasField("charset"), "charset should be left unset for default (alphanumeric)"
 
     def test_explicit_charset_is_sorted(self):
         """Charset is serialized as a deterministic, deduplicated sorted string."""

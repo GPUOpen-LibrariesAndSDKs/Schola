@@ -63,10 +63,9 @@ TESTING_FUNDAMENTAL_SPACES = [
     # MultiDiscrete([[2, 3], [3, 2]], start=[[10, 20], [30, 40]]),
     MultiBinary(8),
     # MultiBinary([2, 3]),
-    # Text Not supported by Schola yet
-    # Text(6),
-    # Text(min_length=3, max_length=6),
-    # Text(6, charset="abcdef"),
+    Text(6),
+    Text(min_length=3, max_length=6),
+    Text(6, charset="abcdef"),
 ]
 TESTING_FUNDAMENTAL_SPACES_IDS = [f"{space}" for space in TESTING_FUNDAMENTAL_SPACES]
 

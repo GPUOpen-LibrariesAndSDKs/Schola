@@ -7,6 +7,7 @@
 #include "Spaces/BoxSpace.h"
 #include "Spaces/DictSpace.h"
 #include "Spaces/DiscreteSpace.h"
+#include "Spaces/TextSpace.h"
 #include "Common/BlueprintErrorUtils.h"
 #include "Common/InstancedStructUtils.h"
 
@@ -35,6 +36,11 @@ ESpaceType USpaceBlueprintLibrary::Space_Type(const FInstancedStruct& InSpace)
     if (InSpace.GetScriptStruct() && InSpace.GetScriptStruct()->IsChildOf(FDictSpace::StaticStruct()))
 	{
 		return ESpaceType::Dict;
+	}
+
+    if (InSpace.GetScriptStruct() && InSpace.GetScriptStruct()->IsChildOf(FTextSpace::StaticStruct()))
+	{
+		return ESpaceType::Text;
 	}
 
     return ESpaceType::MultiBinary;

@@ -7,6 +7,7 @@
 #include "Points/MultiBinaryPoint.h"
 #include "Points/MultiDiscretePoint.h"
 #include "Points/DictPoint.h"
+#include "Points/TextPoint.h"
 #include "Common/InstancedStructUtils.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -86,6 +87,20 @@ bool FPointBlueprintLibrary_Type_DictTest::RunTest(const FString& Parameters)
     EPointType Result = UPointBlueprintLibrary::Point_Type(ToUntypedInstancedStruct(Point));
 
     TestEqual(TEXT("Point_Type(DictPoint) == EPointType::Dict"), Result, EPointType::Dict);
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPointBlueprintLibrary_Type_TextTest, "Schola.Points.Blueprint.PointBlueprintLibrary.Type.Text", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FPointBlueprintLibrary_Type_TextTest::RunTest(const FString& Parameters)
+{
+    TInstancedStruct<FPoint> Point;
+    Point.InitializeAs<FTextPoint>(FString(TEXT("hello")));
+
+    EPointType Result = UPointBlueprintLibrary::Point_Type(ToUntypedInstancedStruct(Point));
+
+    TestEqual(TEXT("Point_Type(TextPoint) == EPointType::Text"), Result, EPointType::Text);
 
     return true;
 }
@@ -172,6 +187,20 @@ bool FPointBlueprintLibrary_IsOfType_DictTrueTest::RunTest(const FString& Parame
     bool Result = UPointBlueprintLibrary::Point_IsOfType(ToUntypedInstancedStruct(Point), EPointType::Dict);
 
     TestTrue(TEXT("Point_IsOfType(DictPoint, Dict) == true"), Result);
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPointBlueprintLibrary_IsOfType_TextTrueTest, "Schola.Points.Blueprint.PointBlueprintLibrary.IsOfType.TextTrue", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FPointBlueprintLibrary_IsOfType_TextTrueTest::RunTest(const FString& Parameters)
+{
+    TInstancedStruct<FPoint> Point;
+    Point.InitializeAs<FTextPoint>(FString(TEXT("hello")));
+
+    bool Result = UPointBlueprintLibrary::Point_IsOfType(ToUntypedInstancedStruct(Point), EPointType::Text);
+
+    TestTrue(TEXT("Point_IsOfType(TextPoint, Text) == true"), Result);
 
     return true;
 }

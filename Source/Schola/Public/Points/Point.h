@@ -88,6 +88,7 @@ struct TBaseStructure<FPoint>
 	 Discrete        UMETA(DisplayName="Discrete"),      ///< Discrete point with a single integer value
 	 MultiDiscrete   UMETA(DisplayName="MultiDiscrete"), ///< Multi-discrete point with multiple integer values
 	 Box             UMETA(DisplayName="Box"),           ///< Box point with continuous float values
-	 Dict            UMETA(DisplayName="Dict")           ///< Dictionary point containing named sub-points
+	 Dict            UMETA(DisplayName="Dict"),          ///< Dictionary point containing named sub-points
+	 Text            UMETA(DisplayName="Text")           ///< Text point holding a string value
  };
  

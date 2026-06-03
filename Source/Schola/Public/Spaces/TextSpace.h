@@ -46,7 +46,8 @@ public:
 	/**
 	 * @brief The set of characters allowed in strings in this space.
 	 * 
-	 * An empty charset means any character is permitted.
+	 * An empty charset applies no restriction in C++, but maps to Gymnasium's
+	 * default (alphanumeric) set when exchanged with Python.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Definition", meta = (DisplayName = "Character Set"))
 	FString Charset = TEXT("");
@@ -61,6 +62,16 @@ public:
 	 * @param MaxLength The maximum allowed string length.
 	 */
 	FTextSpace(int MaxLength) : MaxLength(MaxLength) {};
+
+	/**
+	 * @brief Constructs a TextSpace from its length bounds and character set.
+	 * @param MaxLength The maximum allowed string length.
+	 * @param bHasMinLength Whether a minimum length constraint is enforced.
+	 * @param MinLength The minimum allowed string length. Only enforced when bHasMinLength is true.
+	 * @param Charset The set of allowed characters. An empty string applies no restriction.
+	 */
+	FTextSpace(int MaxLength, bool bHasMinLength, int MinLength, const FString& Charset)
+		: MaxLength(MaxLength), bHasMinLength(bHasMinLength), MinLength(MinLength), Charset(Charset) {};
 
 	/**
 	 * @brief Copies the contents of another TextSpace into this one.

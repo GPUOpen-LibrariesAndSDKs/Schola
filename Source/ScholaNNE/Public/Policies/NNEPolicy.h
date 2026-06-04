@@ -19,6 +19,9 @@
  * This policy class integrates Unreal Engine's Neural Network Engine (NNE) with the Schola
  * reinforcement learning framework, enabling trained neural network models to control agents.
  * Supports both CPU and GPU inference runtimes.
+ *
+ * @note Text spaces (FTextSpace) are not yet supported for NNE inference. Supported spaces are
+ * Box, Discrete, MultiDiscrete, MultiBinary, and Dict (and nested combinations thereof).
  */
 UCLASS(Blueprintable, BlueprintType, EditInlineNew, DefaultToInstanced)
 class SCHOLANNE_API UNNEPolicy : public UObject, public IPolicy

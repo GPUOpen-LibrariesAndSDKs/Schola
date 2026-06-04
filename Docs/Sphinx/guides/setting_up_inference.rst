@@ -8,6 +8,12 @@ This guide will explain how to use your trained RL agents in inference mode (i.e
     
     This guide assumes you have already done a training run using Schola and have either a saved checkpoint or a model exported to Onnx.
 
+.. note::
+
+    Text spaces are not yet supported for NNE inference. The supported observation and action
+    spaces are Box, Discrete, MultiDiscrete, MultiBinary, and Dict (including nested combinations
+    of these).
+
 
 Convert a Checkpoint to Onnx
 ----------------------------

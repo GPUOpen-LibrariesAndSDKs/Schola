@@ -8,6 +8,39 @@
 #include "TextSpace.generated.h"
 
 /**
+ * @namespace ScholaTextCharsets
+ * @brief Common character-set presets for use with FTextSpace::Charset.
+ */
+namespace ScholaTextCharsets
+{
+	/** No restriction - any character is allowed (full UTF-8). */
+	inline constexpr const TCHAR* Any = TEXT("");
+	/** ASCII digits 0-9. */
+	inline constexpr const TCHAR* Numeric = TEXT("0123456789");
+	/** ASCII letters a-z and A-Z. */
+	inline constexpr const TCHAR* Alphabetic = TEXT("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ");
+	/** ASCII digits and letters (matches Gymnasium's default alphanumeric set). */
+	inline constexpr const TCHAR* Alphanumeric = TEXT("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ");
+}
+
+/**
+ * @enum ETextCharsetPreset
+ * @brief Selectable character-set presets for building an FTextSpace charset.
+ */
+UENUM(BlueprintType)
+enum class ETextCharsetPreset : uint8
+{
+	/** No charset restriction (any character is allowed, i.e. full UTF-8). */
+	Any UMETA(DisplayName = "Any (UTF-8)"),
+	/** ASCII digits 0-9. */
+	Numeric UMETA(DisplayName = "Numeric"),
+	/** ASCII letters a-z and A-Z. */
+	Alphabetic UMETA(DisplayName = "Alphabetic"),
+	/** ASCII digits and letters (Gymnasium's default). */
+	Alphanumeric UMETA(DisplayName = "Alphanumeric"),
+};
+
+/**
  * @struct FTextSpace
  * @brief A struct representing a space of variable-length strings.
  * 
@@ -24,30 +57,25 @@ public:
 	/**
 	 * @brief The maximum allowed length (inclusive) of strings in this space.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Definition", meta = (DisplayName = "Maximum Length"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Definition", meta = (DisplayName = "Maximum Length", ClampMin = "0"))
 	int MaxLength = 0;
 
 	/**
-	 * @brief Whether a minimum length constraint is set for this space.
-	 * 
-	 * When false, MinLength is ignored and the effective minimum length is 0.
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Definition", meta = (DisplayName = "Has Minimum Length", InlineEditConditionToggle))
-	bool bHasMinLength = false;
-
-	/**
 	 * @brief The minimum allowed length (inclusive) of strings in this space.
-	 * 
-	 * Only enforced when bHasMinLength is true.
+	 *
+	 * Defaults to 0 so an empty (MaxLength == 0) space stays coherent (MinLength <= MaxLength).
+	 * The length constructors and the Make Text Space node default this to 1 to match Gymnasium.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Definition", meta = (DisplayName = "Minimum Length", EditCondition = "bHasMinLength"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Definition", meta = (DisplayName = "Minimum Length", ClampMin = "0"))
 	int MinLength = 0;
 
 	/**
 	 * @brief The set of characters allowed in strings in this space.
 	 * 
-	 * An empty charset applies no restriction in C++, but maps to Gymnasium's
-	 * default (alphanumeric) set when exchanged with Python.
+	 * An empty charset is treated as Gymnasium's default (alphanumeric) set, both for
+	 * C++ validation and when exchanged with Python. Gymnasium's Text space always has
+	 * a finite charset (there is no "unrestricted" option), so aligning on the default
+	 * keeps validation consistent across the language boundary.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Definition", meta = (DisplayName = "Character Set"))
 	FString Charset = TEXT("");
@@ -60,18 +88,24 @@ public:
 	/**
 	 * @brief Constructs a TextSpace with a specific maximum length.
 	 * @param MaxLength The maximum allowed string length.
+	 *
+	 * MinLength defaults to 1 (matching Gymnasium) when MaxLength is positive, and 0 otherwise
+	 * so the space stays coherent (MinLength <= MaxLength).
 	 */
-	FTextSpace(int MaxLength) : MaxLength(MaxLength) {};
+	FTextSpace(int MaxLength) : MaxLength(MaxLength), MinLength(MaxLength > 0 ? 1 : 0) {};
 
 	/**
 	 * @brief Constructs a TextSpace from its length bounds and character set.
 	 * @param MaxLength The maximum allowed string length.
-	 * @param bHasMinLength Whether a minimum length constraint is enforced.
-	 * @param MinLength The minimum allowed string length. Only enforced when bHasMinLength is true.
+	 * @param MinLength The minimum allowed string length.
 	 * @param Charset The set of allowed characters. An empty string applies no restriction.
 	 */
-	FTextSpace(int MaxLength, bool bHasMinLength, int MinLength, const FString& Charset)
-		: MaxLength(MaxLength), bHasMinLength(bHasMinLength), MinLength(MinLength), Charset(Charset) {};
+	FTextSpace(int MaxLength, int MinLength, const FString& Charset)
+		: MaxLength(MaxLength), MinLength(MinLength), Charset(Charset)
+	{
+		verifyf(MinLength >= 0, TEXT("FTextSpace MinLength (%d) must be non-negative"), MinLength);
+		verifyf(MinLength <= MaxLength, TEXT("FTextSpace MinLength (%d) must be <= MaxLength (%d)"), MinLength, MaxLength);
+	};
 
 	/**
 	 * @brief Copies the contents of another TextSpace into this one.

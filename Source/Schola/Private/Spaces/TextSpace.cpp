@@ -2,8 +2,6 @@
 
 #include "Spaces/TextSpace.h"
 
-
-
 FTextSpace::FTextSpace()
 	: MaxLength(0)
 {
@@ -12,7 +10,6 @@ FTextSpace::FTextSpace()
 void FTextSpace::Copy(const FTextSpace& Other)
 {
 	this->MaxLength = Other.MaxLength;
-	this->bHasMinLength = Other.bHasMinLength;
 	this->MinLength = Other.MinLength;
 	this->Charset = Other.Charset;
 }
@@ -33,20 +30,24 @@ ESpaceValidationResult FTextSpace::Validate(const TInstancedStruct<FPoint>& InPo
 		return ESpaceValidationResult::OutOfBounds;
 	}
 
-	if (this->bHasMinLength && Length < this->MinLength)
+	if (Length < this->MinLength)
 	{
 		return ESpaceValidationResult::OutOfBounds;
 	}
 
-	if (!this->Charset.IsEmpty())
+	// An empty charset maps to Gymnasium's default (alphanumeric) set when the space
+	// is exchanged with Python, where "no restriction" cannot be represented. Validate
+	// against that same set so a point accepted here is also accepted across the boundary.
+	const FString EffectiveCharset = this->Charset.IsEmpty()
+		? FString(ScholaTextCharsets::Alphanumeric)
+		: this->Charset;
+
+	for (const TCHAR Character : TypedObservation->Value)
 	{
-		for (const TCHAR Character : TypedObservation->Value)
+		int32 Index = INDEX_NONE;
+		if (!EffectiveCharset.FindChar(Character, Index))
 		{
-			int32 Index = INDEX_NONE;
-			if (!this->Charset.FindChar(Character, Index))
-			{
-				return ESpaceValidationResult::OutOfBounds;
-			}
+			return ESpaceValidationResult::OutOfBounds;
 		}
 	}
 

@@ -10,6 +10,28 @@
 #endif
 
 /**
+ * @brief Raises a non-fatal Blueprint script error with a custom message.
+ * @param InFunctionName The name of the function where the error occurred.
+ * @param InMessage The error message describing what went wrong.
+ */
+inline void RaiseBlueprintError(const FString& InFunctionName, const FString& InMessage)
+{
+#if !(UE_BUILD_TEST || UE_BUILD_SHIPPING)
+	FFrame* TopFrame = FFrame::GetThreadLocalTopStackFrame();
+	if (TopFrame)
+	{
+		const FString ErrorMessage = FString::Printf(TEXT("%s: %s"), *InFunctionName, *InMessage);
+	#if WITH_EDITOR
+		const FBlueprintExceptionInfo ExceptionInfo(EBlueprintExceptionType::NonFatalError, FText::FromString(ErrorMessage));
+		FBlueprintCoreDelegates::ThrowScriptException(TopFrame->Object, *TopFrame, ExceptionInfo);
+	#else
+		UE_LOG(LogBlueprintUserMessages, Error, TEXT("%s:\n%s"), *ErrorMessage, *TopFrame->GetStackTrace());
+	#endif	// WITH_EDITOR
+	}
+#endif	// !(UE_BUILD_TEST || UE_BUILD_SHIPPING)
+}
+
+/**
  * @brief Raises a Blueprint script error when an invalid InstancedStruct is passed.
  * @param InFunctionName The name of the function where the error occurred.
  */

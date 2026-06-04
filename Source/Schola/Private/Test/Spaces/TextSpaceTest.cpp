@@ -16,7 +16,6 @@ bool FTextSpaceDefaultTest::RunTest(const FString& Parameters)
 	FTextSpace TextSpace = FTextSpace();
 
 	TestEqual(TEXT("TextSpace.MaxLength == 0"), TextSpace.MaxLength, 0);
-	TestFalse(TEXT("TextSpace.bHasMinLength == false"), TextSpace.bHasMinLength);
 	TestEqual(TEXT("TextSpace.MinLength == 0"), TextSpace.MinLength, 0);
 	TestTrue(TEXT("TextSpace.Charset is empty"), TextSpace.Charset.IsEmpty());
 
@@ -30,6 +29,7 @@ bool FTextSpaceMaxLengthConstructorTest::RunTest(const FString& Parameters)
 	FTextSpace TextSpace = FTextSpace(16);
 
 	TestEqual(TEXT("TextSpace.MaxLength == 16"), TextSpace.MaxLength, 16);
+	TestEqual(TEXT("TextSpace.MinLength == 1"), TextSpace.MinLength, 1);
 
 	return true;
 }
@@ -40,7 +40,6 @@ bool FTextSpaceCopyTest::RunTest(const FString& Parameters)
 {
 	FTextSpace OriginalSpace = FTextSpace();
 	OriginalSpace.MaxLength = 32;
-	OriginalSpace.bHasMinLength = true;
 	OriginalSpace.MinLength = 4;
 	OriginalSpace.Charset = TEXT("abc");
 
@@ -48,7 +47,6 @@ bool FTextSpaceCopyTest::RunTest(const FString& Parameters)
 	CopiedSpace.Copy(OriginalSpace);
 
 	TestEqual(TEXT("CopiedSpace.MaxLength == 32"), CopiedSpace.MaxLength, 32);
-	TestTrue(TEXT("CopiedSpace.bHasMinLength == true"), CopiedSpace.bHasMinLength);
 	TestEqual(TEXT("CopiedSpace.MinLength == 4"), CopiedSpace.MinLength, 4);
 	TestEqual(TEXT("CopiedSpace.Charset == abc"), CopiedSpace.Charset, FString(TEXT("abc")));
 
@@ -134,7 +132,6 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTextSpaceValidateMinLengthSuccessTest, "Schola
 bool FTextSpaceValidateMinLengthSuccessTest::RunTest(const FString& Parameters)
 {
 	FTextSpace TextSpace = FTextSpace(16);
-	TextSpace.bHasMinLength = true;
 	TextSpace.MinLength = 3;
 
 	TInstancedStruct<FPoint> Point = TInstancedStruct<FPoint>::Make<FTextPoint>(FTextPoint(TEXT("hello")));
@@ -149,7 +146,6 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTextSpaceValidateTooShortTest, "Schola.Spaces.
 bool FTextSpaceValidateTooShortTest::RunTest(const FString& Parameters)
 {
 	FTextSpace TextSpace = FTextSpace(16);
-	TextSpace.bHasMinLength = true;
 	TextSpace.MinLength = 10;
 
 	TInstancedStruct<FPoint> Point = TInstancedStruct<FPoint>::Make<FTextPoint>(FTextPoint(TEXT("hello")));
@@ -181,6 +177,37 @@ bool FTextSpaceValidateCharsetViolationTest::RunTest(const FString& Parameters)
 	TextSpace.Charset = TEXT("abc");
 
 	TInstancedStruct<FPoint> Point = TInstancedStruct<FPoint>::Make<FTextPoint>(FTextPoint(TEXT("abz")));
+
+	TestEqual(TEXT("TextSpace.Validate(Point) == OutOfBounds"), TextSpace.Validate(Point), ESpaceValidationResult::OutOfBounds);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTextSpaceValidateEmptyCharsetAlphanumericSuccessTest, "Schola.Spaces.TextSpace.Validate Empty Charset Alphanumeric Success Test", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FTextSpaceValidateEmptyCharsetAlphanumericSuccessTest::RunTest(const FString& Parameters)
+{
+	// An empty charset is treated as Gymnasium's alphanumeric default, so a purely
+	// alphanumeric string should still validate successfully.
+	FTextSpace TextSpace = FTextSpace(16);
+
+	TInstancedStruct<FPoint> Point = TInstancedStruct<FPoint>::Make<FTextPoint>(FTextPoint(TEXT("abc123")));
+
+	TestEqual(TEXT("TextSpace.Validate(Point) == Success"), TextSpace.Validate(Point), ESpaceValidationResult::Success);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTextSpaceValidateEmptyCharsetNonAlphanumericViolationTest, "Schola.Spaces.TextSpace.Validate Empty Charset Non Alphanumeric Violation Test", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FTextSpaceValidateEmptyCharsetNonAlphanumericViolationTest::RunTest(const FString& Parameters)
+{
+	// With an empty charset aligned to Gymnasium's alphanumeric default, a string with
+	// a non-alphanumeric character (here a space) must be rejected so it cannot be sent
+	// to Python where it would fall outside the deserialized Text space's charset.
+	FTextSpace TextSpace = FTextSpace(16);
+
+	TInstancedStruct<FPoint> Point = TInstancedStruct<FPoint>::Make<FTextPoint>(FTextPoint(TEXT("hi there")));
 
 	TestEqual(TEXT("TextSpace.Validate(Point) == OutOfBounds"), TextSpace.Validate(Point), ESpaceValidationResult::OutOfBounds);
 

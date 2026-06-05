@@ -25,7 +25,7 @@ _sym_db = _symbol_database.Default()
 import schola.generated.DType_pb2 as DType__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0cSpaces.proto\x12\x06Schola\x1a\x0b\x44Type.proto\"\xaa\x01\n\x08\x42oxSpace\x12\x36\n\ndimensions\x18\x01 \x03(\x0b\x32\".Schola.BoxSpace.BoxSpaceDimension\x12\x18\n\x10shape_dimensions\x18\x02 \x03(\x05\x12\x1c\n\x05\x64type\x18\x03 \x01(\x0e\x32\r.Schola.DType\x1a.\n\x11\x42oxSpaceDimension\x12\x0b\n\x03low\x18\x01 \x01(\x02\x12\x0c\n\x04high\x18\x02 \x01(\x02\"\x1d\n\rDiscreteSpace\x12\x0c\n\x04high\x18\x01 \x01(\x05\"\"\n\x12MultiDiscreteSpace\x12\x0c\n\x04high\x18\x01 \x03(\x05\"!\n\x10MultiBinarySpace\x12\r\n\x05shape\x18\x01 \x01(\x05\"i\n\tTextSpace\x12\x12\n\nmax_length\x18\x01 \x01(\x05\x12\x17\n\nmin_length\x18\x02 \x01(\x05H\x00\x88\x01\x01\x12\x14\n\x07\x63harset\x18\x03 \x01(\tH\x01\x88\x01\x01\x42\r\n\x0b_min_lengthB\n\n\x08_charset\"\xae\x02\n\x05Space\x12%\n\tbox_space\x18\x01 \x01(\x0b\x32\x10.Schola.BoxSpaceH\x00\x12/\n\x0e\x64iscrete_space\x18\x02 \x01(\x0b\x32\x15.Schola.DiscreteSpaceH\x00\x12:\n\x14multi_discrete_space\x18\x03 \x01(\x0b\x32\x1a.Schola.MultiDiscreteSpaceH\x00\x12\x36\n\x12multi_binary_space\x18\x04 \x01(\x0b\x32\x18.Schola.MultiBinarySpaceH\x00\x12\'\n\ndict_space\x18\x05 \x01(\x0b\x32\x11.Schola.DictSpaceH\x00\x12\'\n\ntext_space\x18\x06 \x01(\x0b\x32\x11.Schola.TextSpaceH\x00\x42\x07\n\x05space\"x\n\tDictSpace\x12-\n\x06spaces\x18\x01 \x03(\x0b\x32\x1d.Schola.DictSpace.SpacesEntry\x1a<\n\x0bSpacesEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1c\n\x05value\x18\x02 \x01(\x0b\x32\r.Schola.Space:\x02\x38\x01\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0cSpaces.proto\x12\x06Schola\x1a\x0b\x44Type.proto\"\xaa\x01\n\x08\x42oxSpace\x12\x36\n\ndimensions\x18\x01 \x03(\x0b\x32\".Schola.BoxSpace.BoxSpaceDimension\x12\x18\n\x10shape_dimensions\x18\x02 \x03(\x05\x12\x1c\n\x05\x64type\x18\x03 \x01(\x0e\x32\r.Schola.DType\x1a.\n\x11\x42oxSpaceDimension\x12\x0b\n\x03low\x18\x01 \x01(\x02\x12\x0c\n\x04high\x18\x02 \x01(\x02\"\x1d\n\rDiscreteSpace\x12\x0c\n\x04high\x18\x01 \x01(\x05\"\"\n\x12MultiDiscreteSpace\x12\x0c\n\x04high\x18\x01 \x03(\x05\"!\n\x10MultiBinarySpace\x12\r\n\x05shape\x18\x01 \x01(\x05\"D\n\tTextSpace\x12\x12\n\nmax_length\x18\x01 \x01(\x05\x12\x12\n\nmin_length\x18\x02 \x01(\x05\x12\x0f\n\x07\x63harset\x18\x03 \x01(\t\"\xae\x02\n\x05Space\x12%\n\tbox_space\x18\x01 \x01(\x0b\x32\x10.Schola.BoxSpaceH\x00\x12/\n\x0e\x64iscrete_space\x18\x02 \x01(\x0b\x32\x15.Schola.DiscreteSpaceH\x00\x12:\n\x14multi_discrete_space\x18\x03 \x01(\x0b\x32\x1a.Schola.MultiDiscreteSpaceH\x00\x12\x36\n\x12multi_binary_space\x18\x04 \x01(\x0b\x32\x18.Schola.MultiBinarySpaceH\x00\x12\'\n\ndict_space\x18\x05 \x01(\x0b\x32\x11.Schola.DictSpaceH\x00\x12\'\n\ntext_space\x18\x06 \x01(\x0b\x32\x11.Schola.TextSpaceH\x00\x42\x07\n\x05space\"x\n\tDictSpace\x12-\n\x06spaces\x18\x01 \x03(\x0b\x32\x1d.Schola.DictSpace.SpacesEntry\x1a<\n\x0bSpacesEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1c\n\x05value\x18\x02 \x01(\x0b\x32\r.Schola.Space:\x02\x38\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -45,11 +45,11 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_MULTIBINARYSPACE']._serialized_start=277
   _globals['_MULTIBINARYSPACE']._serialized_end=310
   _globals['_TEXTSPACE']._serialized_start=312
-  _globals['_TEXTSPACE']._serialized_end=417
-  _globals['_SPACE']._serialized_start=420
-  _globals['_SPACE']._serialized_end=722
-  _globals['_DICTSPACE']._serialized_start=724
-  _globals['_DICTSPACE']._serialized_end=844
-  _globals['_DICTSPACE_SPACESENTRY']._serialized_start=784
-  _globals['_DICTSPACE_SPACESENTRY']._serialized_end=844
+  _globals['_TEXTSPACE']._serialized_end=380
+  _globals['_SPACE']._serialized_start=383
+  _globals['_SPACE']._serialized_end=685
+  _globals['_DICTSPACE']._serialized_start=687
+  _globals['_DICTSPACE']._serialized_end=807
+  _globals['_DICTSPACE_SPACESENTRY']._serialized_start=747
+  _globals['_DICTSPACE_SPACESENTRY']._serialized_end=807
 # @@protoc_insertion_point(module_scope)

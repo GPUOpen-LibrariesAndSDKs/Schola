@@ -35,17 +35,10 @@ ESpaceValidationResult FTextSpace::Validate(const TInstancedStruct<FPoint>& InPo
 		return ESpaceValidationResult::OutOfBounds;
 	}
 
-	// An empty charset maps to Gymnasium's default (alphanumeric) set when the space
-	// is exchanged with Python, where "no restriction" cannot be represented. Validate
-	// against that same set so a point accepted here is also accepted across the boundary.
-	const FString EffectiveCharset = this->Charset.IsEmpty()
-		? FString(ScholaTextCharsets::Alphanumeric)
-		: this->Charset;
-
 	for (const TCHAR Character : TypedObservation->Value)
 	{
 		int32 Index = INDEX_NONE;
-		if (!EffectiveCharset.FindChar(Character, Index))
+		if (!this->Charset.FindChar(Character, Index))
 		{
 			return ESpaceValidationResult::OutOfBounds;
 		}

@@ -128,15 +128,11 @@ def _(msg: proto_spaces.MultiDiscreteSpace) -> spaces.MultiDiscrete:
 
 @from_proto.register
 def _(msg: proto_spaces.TextSpace) -> spaces.Text:
-    # min_length and charset use proto3 explicit presence; only forward them
-    # when set so Gymnasium's own defaults (min_length=1, alphanumeric charset)
-    # apply otherwise.
-    kwargs = {"max_length": msg.max_length}
-    if msg.HasField("min_length"):
-        kwargs["min_length"] = msg.min_length
-    if msg.HasField("charset"):
-        kwargs["charset"] = msg.charset
-    return spaces.Text(**kwargs)
+    return spaces.Text(
+        max_length=msg.max_length,
+        min_length=msg.min_length,
+        charset=msg.charset,
+    )
 
 
 @from_proto.register

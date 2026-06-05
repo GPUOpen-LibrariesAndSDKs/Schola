@@ -258,8 +258,7 @@ class SCHOLAPROTOBUF_API TextSpace final : public ::google::protobuf::Message
     kMaxLengthFieldNumber = 1,
     kMinLengthFieldNumber = 2,
   };
-  // optional string charset = 3;
-  bool has_charset() const;
+  // string charset = 3;
   void clear_charset() ;
   const ::std::string& charset() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
@@ -284,8 +283,7 @@ class SCHOLAPROTOBUF_API TextSpace final : public ::google::protobuf::Message
   void _internal_set_max_length(::int32_t value);
 
   public:
-  // optional int32 min_length = 2;
-  bool has_min_length() const;
+  // int32 min_length = 2;
   void clear_min_length() ;
   ::int32_t min_length() const;
   void set_min_length(::int32_t value);
@@ -2235,11 +2233,7 @@ inline void TextSpace::_internal_set_max_length(::int32_t value) {
   _impl_.max_length_ = value;
 }
 
-// optional int32 min_length = 2;
-inline bool TextSpace::has_min_length() const {
-  bool value = (_impl_._has_bits_[0] & 0x00000004u) != 0;
-  return value;
-}
+// int32 min_length = 2;
 inline void TextSpace::clear_min_length() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.min_length_ = 0;
@@ -2263,11 +2257,7 @@ inline void TextSpace::_internal_set_min_length(::int32_t value) {
   _impl_.min_length_ = value;
 }
 
-// optional string charset = 3;
-inline bool TextSpace::has_charset() const {
-  bool value = (_impl_._has_bits_[0] & 0x00000001u) != 0;
-  return value;
-}
+// string charset = 3;
 inline void TextSpace::clear_charset() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.charset_.ClearToEmpty();

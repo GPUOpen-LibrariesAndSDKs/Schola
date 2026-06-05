@@ -25,21 +25,21 @@ public:
      * @brief Creates a text space from its length bounds and optional character set.
      * @param[in] InMaxLength The maximum allowed string length (inclusive).
      * @param[in] InMinLength The minimum allowed string length (inclusive). Defaults to 1, matching Gymnasium.
-     * @param[in] InCharset The set of allowed characters. An empty string applies no charset restriction in C++, but maps to Gymnasium's default (alphanumeric) set when exchanged with Python. Use GetTextCharsetPreset for common sets.
+     * @param[in] InCharset The set of allowed characters, taken literally. An empty string denotes the empty set (only the empty string is valid). Defaults to Gymnasium's alphanumeric set. Use GetTextCharsetPreset for common sets.
      * @return A new text space instance.
      */
     UFUNCTION(BlueprintPure, Category="Schola|Space|Text", meta=(DisplayName="Make Text Space"))
-    static TInstancedStruct<FTextSpace> MakeTextSpace(UPARAM(DisplayName="Max Length") int32 InMaxLength, UPARAM(DisplayName="Min Length") int32 InMinLength = 1, UPARAM(DisplayName="Charset") const FString& InCharset = TEXT(""));
+    static TInstancedStruct<FTextSpace> MakeTextSpace(UPARAM(DisplayName="Max Length") int32 InMaxLength, UPARAM(DisplayName="Min Length") int32 InMinLength = 1, UPARAM(DisplayName="Charset") const FString& InCharset = TEXT("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"));
 
     /**
      * @brief Creates a text space from its length bounds and a character-set preset.
      * @param[in] InMaxLength The maximum allowed string length (inclusive).
      * @param[in] InMinLength The minimum allowed string length (inclusive). Defaults to 1, matching Gymnasium.
-     * @param[in] InCharsetPreset The character-set preset to use. ETextCharsetPreset::Any applies no restriction.
+     * @param[in] InCharsetPreset The character-set preset to use. Defaults to Alphanumeric to match Gymnasium. To use an empty set, call MakeTextSpace with an empty charset instead.
      * @return A new text space instance.
      */
     UFUNCTION(BlueprintPure, Category="Schola|Space|Text", meta=(DisplayName="Make Text Space From Preset"))
-    static TInstancedStruct<FTextSpace> MakeTextSpaceFromPreset(UPARAM(DisplayName="Max Length") int32 InMaxLength, UPARAM(DisplayName="Min Length") int32 InMinLength = 1, UPARAM(DisplayName="Charset Preset") ETextCharsetPreset InCharsetPreset = ETextCharsetPreset::Any);
+    static TInstancedStruct<FTextSpace> MakeTextSpaceFromPreset(UPARAM(DisplayName="Max Length") int32 InMaxLength, UPARAM(DisplayName="Min Length") int32 InMinLength = 1, UPARAM(DisplayName="Charset Preset") ETextCharsetPreset InCharsetPreset = ETextCharsetPreset::Alphanumeric);
 
     /**
      * @brief Breaks a text space into its length bounds and character set.
@@ -54,7 +54,7 @@ public:
     /**
      * @brief Returns the character-set string for a given preset.
      * @param[in] InPreset The preset to resolve.
-     * @return The matching character-set string. ETextCharsetPreset::Any returns an empty string (no restriction).
+     * @return The matching character-set string for the preset.
      */
     UFUNCTION(BlueprintPure, Category="Schola|Space|Text", meta=(DisplayName="Get Text Charset Preset"))
     static FString GetTextCharsetPreset(UPARAM(DisplayName="Preset") ETextCharsetPreset InPreset);

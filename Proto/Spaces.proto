@@ -30,8 +30,8 @@ message MultiBinarySpace {
 
 message TextSpace {
     int32 max_length = 1;
-    optional int32 min_length = 2;
-    optional string charset = 3;
+    int32 min_length = 2;
+    string charset = 3;
 }
 
 message Space {

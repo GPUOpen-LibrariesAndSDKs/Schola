@@ -357,21 +357,20 @@ const char descriptor_table_protodef_Spaces_2eproto[] ABSL_ATTRIBUTE_SECTION_VAR
     "\032.\n\021BoxSpaceDimension\022\013\n\003low\030\001 \001(\002\022\014\n\004hi"
     "gh\030\002 \001(\002\"\035\n\rDiscreteSpace\022\014\n\004high\030\001 \001(\005\""
     "\"\n\022MultiDiscreteSpace\022\014\n\004high\030\001 \003(\005\"!\n\020M"
-    "ultiBinarySpace\022\r\n\005shape\030\001 \001(\005\"i\n\tTextSp"
-    "ace\022\022\n\nmax_length\030\001 \001(\005\022\027\n\nmin_length\030\002 "
-    "\001(\005H\000\210\001\001\022\024\n\007charset\030\003 \001(\tH\001\210\001\001B\r\n\013_min_l"
-    "engthB\n\n\010_charset\"\256\002\n\005Space\022%\n\tbox_space"
-    "\030\001 \001(\0132\020.Schola.BoxSpaceH\000\022/\n\016discrete_s"
-    "pace\030\002 \001(\0132\025.Schola.DiscreteSpaceH\000\022:\n\024m"
-    "ulti_discrete_space\030\003 \001(\0132\032.Schola.Multi"
-    "DiscreteSpaceH\000\0226\n\022multi_binary_space\030\004 "
-    "\001(\0132\030.Schola.MultiBinarySpaceH\000\022\'\n\ndict_"
-    "space\030\005 \001(\0132\021.Schola.DictSpaceH\000\022\'\n\ntext"
-    "_space\030\006 \001(\0132\021.Schola.TextSpaceH\000B\007\n\005spa"
-    "ce\"x\n\tDictSpace\022-\n\006spaces\030\001 \003(\0132\035.Schola"
-    ".DictSpace.SpacesEntry\032<\n\013SpacesEntry\022\013\n"
-    "\003key\030\001 \001(\t\022\034\n\005value\030\002 \001(\0132\r.Schola.Space"
-    ":\0028\001b\006proto3"
+    "ultiBinarySpace\022\r\n\005shape\030\001 \001(\005\"D\n\tTextSp"
+    "ace\022\022\n\nmax_length\030\001 \001(\005\022\022\n\nmin_length\030\002 "
+    "\001(\005\022\017\n\007charset\030\003 \001(\t\"\256\002\n\005Space\022%\n\tbox_sp"
+    "ace\030\001 \001(\0132\020.Schola.BoxSpaceH\000\022/\n\016discret"
+    "e_space\030\002 \001(\0132\025.Schola.DiscreteSpaceH\000\022:"
+    "\n\024multi_discrete_space\030\003 \001(\0132\032.Schola.Mu"
+    "ltiDiscreteSpaceH\000\0226\n\022multi_binary_space"
+    "\030\004 \001(\0132\030.Schola.MultiBinarySpaceH\000\022\'\n\ndi"
+    "ct_space\030\005 \001(\0132\021.Schola.DictSpaceH\000\022\'\n\nt"
+    "ext_space\030\006 \001(\0132\021.Schola.TextSpaceH\000B\007\n\005"
+    "space\"x\n\tDictSpace\022-\n\006spaces\030\001 \003(\0132\035.Sch"
+    "ola.DictSpace.SpacesEntry\032<\n\013SpacesEntry"
+    "\022\013\n\003key\030\001 \001(\t\022\034\n\005value\030\002 \001(\0132\r.Schola.Sp"
+    "ace:\0028\001b\006proto3"
 };
 static const ::_pbi::DescriptorTable* PROTOBUF_NONNULL const
     descriptor_table_Spaces_2eproto_deps[1] = {
@@ -381,7 +380,7 @@ static ::absl::once_flag descriptor_table_Spaces_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_Spaces_2eproto = {
     false,
     false,
-    852,
+    815,
     descriptor_table_protodef_Spaces_2eproto,
     "Spaces.proto",
     &descriptor_table_Spaces_2eproto_once,
@@ -1864,10 +1863,10 @@ TextSpace::_table_ = {
     // int32 max_length = 1;
     {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(TextSpace, _impl_.max_length_), 1>(),
      {8, 1, 0, PROTOBUF_FIELD_OFFSET(TextSpace, _impl_.max_length_)}},
-    // optional int32 min_length = 2;
+    // int32 min_length = 2;
     {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(TextSpace, _impl_.min_length_), 2>(),
      {16, 2, 0, PROTOBUF_FIELD_OFFSET(TextSpace, _impl_.min_length_)}},
-    // optional string charset = 3;
+    // string charset = 3;
     {::_pbi::TcParser::FastUS1,
      {26, 0, 0, PROTOBUF_FIELD_OFFSET(TextSpace, _impl_.charset_)}},
   }}, {{
@@ -1876,10 +1875,10 @@ TextSpace::_table_ = {
     // int32 max_length = 1;
     {PROTOBUF_FIELD_OFFSET(TextSpace, _impl_.max_length_), _Internal::kHasBitsOffset + 1, 0,
     (0 | ::_fl::kFcOptional | ::_fl::kInt32)},
-    // optional int32 min_length = 2;
+    // int32 min_length = 2;
     {PROTOBUF_FIELD_OFFSET(TextSpace, _impl_.min_length_), _Internal::kHasBitsOffset + 2, 0,
     (0 | ::_fl::kFcOptional | ::_fl::kInt32)},
-    // optional string charset = 3;
+    // string charset = 3;
     {PROTOBUF_FIELD_OFFSET(TextSpace, _impl_.charset_), _Internal::kHasBitsOffset + 0, 0,
     (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
   }},
@@ -1934,20 +1933,23 @@ PROTOBUF_NOINLINE void TextSpace::Clear() {
     }
   }
 
-  cached_has_bits = this_._impl_._has_bits_[0];
-  // optional int32 min_length = 2;
-  if ((cached_has_bits & 0x00000004u) != 0) {
-    target =
-        ::google::protobuf::internal::WireFormatLite::WriteInt32ToArrayWithField<2>(
-            stream, this_._internal_min_length(), target);
+  // int32 min_length = 2;
+  if ((this_._impl_._has_bits_[0] & 0x00000004u) != 0) {
+    if (this_._internal_min_length() != 0) {
+      target =
+          ::google::protobuf::internal::WireFormatLite::WriteInt32ToArrayWithField<2>(
+              stream, this_._internal_min_length(), target);
+    }
   }
 
-  // optional string charset = 3;
-  if ((cached_has_bits & 0x00000001u) != 0) {
-    const ::std::string& _s = this_._internal_charset();
-    ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-        _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "Schola.TextSpace.charset");
-    target = stream->WriteStringMaybeAliased(3, _s, target);
+  // string charset = 3;
+  if ((this_._impl_._has_bits_[0] & 0x00000001u) != 0) {
+    if (!this_._internal_charset().empty()) {
+      const ::std::string& _s = this_._internal_charset();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "Schola.TextSpace.charset");
+      target = stream->WriteStringMaybeAliased(3, _s, target);
+    }
   }
 
   if (ABSL_PREDICT_FALSE(this_._internal_metadata_.have_unknown_fields())) {
@@ -1976,10 +1978,12 @@ PROTOBUF_NOINLINE void TextSpace::Clear() {
   ::_pbi::Prefetch5LinesFrom7Lines(&this_);
   cached_has_bits = this_._impl_._has_bits_[0];
   if ((cached_has_bits & 0x00000007u) != 0) {
-    // optional string charset = 3;
+    // string charset = 3;
     if ((cached_has_bits & 0x00000001u) != 0) {
-      total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
-                                      this_._internal_charset());
+      if (!this_._internal_charset().empty()) {
+        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_charset());
+      }
     }
     // int32 max_length = 1;
     if ((cached_has_bits & 0x00000002u) != 0) {
@@ -1988,10 +1992,12 @@ PROTOBUF_NOINLINE void TextSpace::Clear() {
             this_._internal_max_length());
       }
     }
-    // optional int32 min_length = 2;
+    // int32 min_length = 2;
     if ((cached_has_bits & 0x00000004u) != 0) {
-      total_size += ::_pbi::WireFormatLite::Int32SizePlusOne(
-          this_._internal_min_length());
+      if (this_._internal_min_length() != 0) {
+        total_size += ::_pbi::WireFormatLite::Int32SizePlusOne(
+            this_._internal_min_length());
+      }
     }
   }
   return this_.MaybeComputeUnknownFieldsSize(total_size,
@@ -2009,7 +2015,13 @@ void TextSpace::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::googl
   cached_has_bits = from._impl_._has_bits_[0];
   if ((cached_has_bits & 0x00000007u) != 0) {
     if ((cached_has_bits & 0x00000001u) != 0) {
-      _this->_internal_set_charset(from._internal_charset());
+      if (!from._internal_charset().empty()) {
+        _this->_internal_set_charset(from._internal_charset());
+      } else {
+        if (_this->_impl_.charset_.IsDefault()) {
+          _this->_internal_set_charset("");
+        }
+      }
     }
     if ((cached_has_bits & 0x00000002u) != 0) {
       if (from._internal_max_length() != 0) {
@@ -2017,7 +2029,9 @@ void TextSpace::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::googl
       }
     }
     if ((cached_has_bits & 0x00000004u) != 0) {
-      _this->_impl_.min_length_ = from._impl_.min_length_;
+      if (from._internal_min_length() != 0) {
+        _this->_impl_.min_length_ = from._impl_.min_length_;
+      }
     }
   }
   _this->_impl_._has_bits_[0] |= cached_has_bits;

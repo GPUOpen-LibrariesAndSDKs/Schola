@@ -8,7 +8,6 @@ from typing import Any, Dict, List
 import numpy as np
 
 from gymnasium.spaces import Box, Discrete, MultiDiscrete, MultiBinary
-from gymnasium.spaces.text import alphanumeric
 import schola.generated.Spaces_pb2 as proto_spaces
 import schola.generated.Points_pb2 as proto_points
 import schola.generated.State_pb2 as state
@@ -211,15 +210,12 @@ def _(space: Discrete) -> proto_spaces.DiscreteSpace:
 
 @space_to_proto.register
 def _(space: spaces.Text) -> proto_spaces.TextSpace:
-    # min_length and charset use proto3 explicit presence. Only set them when
-    # they differ from Gymnasium's defaults so the deserializer can leave them
-    # unset and let Gymnasium apply its own defaults on the other side.
-    msg = proto_spaces.TextSpace(max_length=space.max_length)
-    if space.min_length != 1:
-        msg.min_length = space.min_length
-    if space.character_set != alphanumeric:
-        msg.charset = "".join(sorted(space.character_set))
-    return msg
+    # sorted string of the space's character_set, which may be empty (the empty set).
+    return proto_spaces.TextSpace(
+        max_length=space.max_length,
+        min_length=space.min_length,
+        charset="".join(sorted(space.character_set)),
+    )
 
 
 @space_to_proto.register

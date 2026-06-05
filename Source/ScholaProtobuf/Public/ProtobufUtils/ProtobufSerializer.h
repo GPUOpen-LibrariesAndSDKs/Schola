@@ -202,10 +202,7 @@ public:
 		Schola::TextSpace* ConcreteSpace = SerializedSpaceBuffer->mutable_text_space();
 		ConcreteSpace->set_max_length(Space.MaxLength);
 		ConcreteSpace->set_min_length(Space.MinLength);
-		if (!Space.Charset.IsEmpty())
-		{
-			ConcreteSpace->set_charset(TCHAR_TO_UTF8(*Space.Charset));
-		}
+		ConcreteSpace->set_charset(TCHAR_TO_UTF8(*Space.Charset));
 	};
 };
 

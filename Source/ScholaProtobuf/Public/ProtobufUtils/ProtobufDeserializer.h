@@ -222,19 +222,14 @@ public:
 		Space.Shape.Append(InBoxSpace.shape_dimensions().data(), InBoxSpace.shape_dimensions_size());
 	};
 
-	/** Deserializes length bounds and optional charset into FTextSpace. */
+	/** Deserializes length bounds and charset into FTextSpace. */
 	void Deserialize(const Schola::TextSpace& InTextSpace)
 	{
 		DeserializedSpace.InitializeAs<FTextSpace>();
 		FTextSpace& Space = DeserializedSpace.GetMutable<FTextSpace>();
 		Space.MaxLength = InTextSpace.max_length();
-		// min_length uses proto3 explicit presence; when absent (e.g. Python omits
-		// it because it equals Gymnasium's default of 1), apply Gymnasium's default of 1.
-		Space.MinLength = InTextSpace.has_min_length() ? InTextSpace.min_length() : 1;
-		if (InTextSpace.has_charset())
-		{
-			Space.Charset = FString(UTF8_TO_TCHAR(InTextSpace.charset().c_str()));
-		}
+		Space.MinLength = InTextSpace.min_length();
+		Space.Charset = FString(UTF8_TO_TCHAR(InTextSpace.charset().c_str()));
 	};
 };
 

@@ -13,8 +13,6 @@
  */
 namespace ScholaTextCharsets
 {
-	/** No restriction - any character is allowed (full UTF-8). */
-	inline constexpr const TCHAR* Any = TEXT("");
 	/** ASCII digits 0-9. */
 	inline constexpr const TCHAR* Numeric = TEXT("0123456789");
 	/** ASCII letters a-z and A-Z. */
@@ -30,8 +28,6 @@ namespace ScholaTextCharsets
 UENUM(BlueprintType)
 enum class ETextCharsetPreset : uint8
 {
-	/** No charset restriction (any character is allowed, i.e. full UTF-8). */
-	Any UMETA(DisplayName = "Any (UTF-8)"),
 	/** ASCII digits 0-9. */
 	Numeric UMETA(DisplayName = "Numeric"),
 	/** ASCII letters a-z and A-Z. */
@@ -45,8 +41,8 @@ enum class ETextCharsetPreset : uint8
  * @brief A struct representing a space of variable-length strings.
  * 
  * A text space represents a string whose length is bounded by [MinLength, MaxLength]
- * and whose characters are optionally restricted to a fixed character set. This mirrors
- * the gymnasium Text space and is commonly used for text-based observations or actions.
+ * and whose characters are restricted to a fixed character set (defaulting to alphanumeric).
+ * This mirrors the gymnasium Text space and is commonly used for text-based observations or actions.
  */
 USTRUCT(BlueprintType)
 struct SCHOLA_API FTextSpace : public FSpace
@@ -71,14 +67,14 @@ public:
 
 	/**
 	 * @brief The set of characters allowed in strings in this space.
-	 * 
-	 * An empty charset is treated as Gymnasium's default (alphanumeric) set, both for
-	 * C++ validation and when exchanged with Python. Gymnasium's Text space always has
-	 * a finite charset (there is no "unrestricted" option), so aligning on the default
-	 * keeps validation consistent across the language boundary.
+	 *
+	 * The charset is taken literally: it is the exact set of permitted characters and
+	 * maps directly to Gymnasium's character_set. An empty charset is the empty set.
+	 * Defaults to Gymnasium's alphanumeric set so a default-constructed space matches
+	 * Gymnasium's Text default.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Definition", meta = (DisplayName = "Character Set"))
-	FString Charset = TEXT("");
+	FString Charset = ScholaTextCharsets::Alphanumeric;
 
 	/**
 	 * @brief Constructs an empty TextSpace with MaxLength=0.
@@ -98,7 +94,7 @@ public:
 	 * @brief Constructs a TextSpace from its length bounds and character set.
 	 * @param MaxLength The maximum allowed string length.
 	 * @param MinLength The minimum allowed string length.
-	 * @param Charset The set of allowed characters. An empty string applies no restriction.
+	 * @param Charset The set of allowed characters, taken literally. An empty string denotes the empty set.
 	 */
 	FTextSpace(int MaxLength, int MinLength, const FString& Charset)
 		: MaxLength(MaxLength), MinLength(MinLength), Charset(Charset)

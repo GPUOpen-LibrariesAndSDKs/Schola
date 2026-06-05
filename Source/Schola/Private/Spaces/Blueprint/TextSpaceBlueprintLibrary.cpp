@@ -57,9 +57,7 @@ FString UTextSpaceBlueprintLibrary::GetTextCharsetPreset(ETextCharsetPreset InPr
     case ETextCharsetPreset::Alphabetic:
         return ScholaTextCharsets::Alphabetic;
     case ETextCharsetPreset::Alphanumeric:
-        return ScholaTextCharsets::Alphanumeric;
-    case ETextCharsetPreset::Any:
     default:
-        return ScholaTextCharsets::Any;
+        return ScholaTextCharsets::Alphanumeric;
     }
 }

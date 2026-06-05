@@ -58,17 +58,18 @@ bool FTextSpaceBlueprintLibrary_MakeTextSpaceFromPreset_AlphanumericTest::RunTes
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTextSpaceBlueprintLibrary_MakeTextSpaceFromPreset_AnyTest, "Schola.Spaces.Blueprint.TextSpaceBlueprintLibrary.MakeTextSpaceFromPreset.Any", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTextSpaceBlueprintLibrary_MakeTextSpace_EmptyCharsetTest, "Schola.Spaces.Blueprint.TextSpaceBlueprintLibrary.MakeTextSpace.EmptyCharset", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
 
-bool FTextSpaceBlueprintLibrary_MakeTextSpaceFromPreset_AnyTest::RunTest(const FString& Parameters)
+bool FTextSpaceBlueprintLibrary_MakeTextSpace_EmptyCharsetTest::RunTest(const FString& Parameters)
 {
-    TInstancedStruct<FTextSpace> Result = UTextSpaceBlueprintLibrary::MakeTextSpaceFromPreset(8, 1, ETextCharsetPreset::Any);
+    // An explicit empty charset is the empty set (only the empty string is a valid point).
+    TInstancedStruct<FTextSpace> Result = UTextSpaceBlueprintLibrary::MakeTextSpace(8, 1, TEXT(""));
 
     TestTrue(TEXT("Result is valid"), Result.IsValid());
 
     const FTextSpace& TextSpace = Result.Get<FTextSpace>();
     TestEqual(TEXT("TextSpace.MaxLength == 8"), TextSpace.MaxLength, 8);
-    TestTrue(TEXT("TextSpace.Charset is empty (no restriction)"), TextSpace.Charset.IsEmpty());
+    TestTrue(TEXT("TextSpace.Charset is empty (the empty set)"), TextSpace.Charset.IsEmpty());
 
     return true;
 }

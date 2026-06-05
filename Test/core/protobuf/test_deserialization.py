@@ -97,12 +97,19 @@ class TestTextPoint:
 
 class TestTextSpace:
     def test_defaults(self):
-        """Absent min_length/charset should fall back to Gymnasium defaults."""
+        """All fields are copied verbatim; an empty charset maps to an empty set."""
         space = from_proto(TextSpace(max_length=10))
         assert isinstance(space, spaces.Text), "Should deserialize to a Text space"
         assert space.max_length == 10, "max_length should be 10"
-        assert space.min_length == 1, "min_length should default to 1"
-        assert len(space.character_set) > 0, "charset should use Gym default"
+        assert space.min_length == 0, "min_length should be copied verbatim"
+        assert space.character_set == frozenset(), "empty charset should map to the empty set"
+
+    def test_empty_charset_is_literal(self):
+        """An explicit empty charset is the empty set (only the empty string is valid)."""
+        space = from_proto(TextSpace(max_length=5, min_length=0, charset=""))
+        assert space.character_set == frozenset(), "charset should be the empty set"
+        assert space.contains(""), "empty string should be a valid point"
+        assert not space.contains("a"), "no non-empty string should be valid"
 
     def test_explicit_fields(self):
         space = from_proto(TextSpace(max_length=8, min_length=2, charset="abc"))

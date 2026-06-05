@@ -9,6 +9,7 @@ from schola.generated.Spaces_pb2 import *
 from schola.generated.DType_pb2 import *
 import numpy as np
 from gymnasium.spaces import Box, Discrete, MultiDiscrete, MultiBinary, Dict, Text
+from gymnasium.spaces.text import alphanumeric
 
 
 class TestDiscretePoint:
@@ -133,13 +134,15 @@ class TestTextPoint:
 class TestTextSpace:
 
     def test_defaults(self):
-        """Only max_length set; min_length/charset left unset so Gymnasium defaults apply."""
+        """All fields are serialized verbatim, including Gymnasium's own defaults."""
         space = Text(max_length=12)
         proto = space_to_proto(space)
         assert isinstance(proto, TextSpace), "Serialized space should be TextSpace"
         assert proto.max_length == 12, "TextSpace max_length should be 12"
-        assert not proto.HasField("min_length"), "min_length should be left unset for default (1)"
-        assert not proto.HasField("charset"), "charset should be left unset for default (alphanumeric)"
+        assert proto.min_length == 1, "min_length should be Gymnasium's default of 1"
+        assert proto.charset == "".join(
+            sorted(alphanumeric)
+        ), "charset should be the sorted default alphanumeric set"
 
     def test_explicit_charset_is_sorted(self):
         """Charset is serialized as a deterministic, deduplicated sorted string."""
@@ -147,6 +150,12 @@ class TestTextSpace:
         proto = space_to_proto(space)
         assert proto.min_length == 2, "TextSpace min_length should be 2"
         assert proto.charset == "abc", "Charset should be sorted/deduplicated to 'abc'"
+
+    def test_empty_charset_is_literal(self):
+        """An empty character set serializes to an empty charset (the empty set)."""
+        space = Text(max_length=8, charset="")
+        proto = space_to_proto(space)
+        assert proto.charset == "", "Empty character set should serialize to an empty charset"
 
 
 class TestDictPoint:

@@ -17,7 +17,7 @@ bool FTextSpaceDefaultTest::RunTest(const FString& Parameters)
 
 	TestEqual(TEXT("TextSpace.MaxLength == 0"), TextSpace.MaxLength, 0);
 	TestEqual(TEXT("TextSpace.MinLength == 0"), TextSpace.MinLength, 0);
-	TestTrue(TEXT("TextSpace.Charset is empty"), TextSpace.Charset.IsEmpty());
+	TestEqual(TEXT("TextSpace.Charset defaults to alphanumeric"), TextSpace.Charset, FString(ScholaTextCharsets::Alphanumeric));
 
 	return true;
 }
@@ -183,12 +183,12 @@ bool FTextSpaceValidateCharsetViolationTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTextSpaceValidateEmptyCharsetAlphanumericSuccessTest, "Schola.Spaces.TextSpace.Validate Empty Charset Alphanumeric Success Test", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTextSpaceValidateDefaultCharsetAlphanumericSuccessTest, "Schola.Spaces.TextSpace.Validate Default Charset Alphanumeric Success Test", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
 
-bool FTextSpaceValidateEmptyCharsetAlphanumericSuccessTest::RunTest(const FString& Parameters)
+bool FTextSpaceValidateDefaultCharsetAlphanumericSuccessTest::RunTest(const FString& Parameters)
 {
-	// An empty charset is treated as Gymnasium's alphanumeric default, so a purely
-	// alphanumeric string should still validate successfully.
+	// The default charset is Gymnasium's alphanumeric set, so a purely alphanumeric
+	// string validates successfully.
 	FTextSpace TextSpace = FTextSpace(16);
 
 	TInstancedStruct<FPoint> Point = TInstancedStruct<FPoint>::Make<FTextPoint>(FTextPoint(TEXT("abc123")));
@@ -198,18 +198,31 @@ bool FTextSpaceValidateEmptyCharsetAlphanumericSuccessTest::RunTest(const FStrin
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTextSpaceValidateEmptyCharsetNonAlphanumericViolationTest, "Schola.Spaces.TextSpace.Validate Empty Charset Non Alphanumeric Violation Test", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTextSpaceValidateEmptyCharsetRejectsNonEmptyTest, "Schola.Spaces.TextSpace.Validate Empty Charset Rejects Non Empty Test", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
 
-bool FTextSpaceValidateEmptyCharsetNonAlphanumericViolationTest::RunTest(const FString& Parameters)
+bool FTextSpaceValidateEmptyCharsetRejectsNonEmptyTest::RunTest(const FString& Parameters)
 {
-	// With an empty charset aligned to Gymnasium's alphanumeric default, a string with
-	// a non-alphanumeric character (here a space) must be rejected so it cannot be sent
-	// to Python where it would fall outside the deserialized Text space's charset.
-	FTextSpace TextSpace = FTextSpace(16);
+	// An empty charset is the empty set: no character is permitted, so any non-empty
+	// string is rejected.
+	FTextSpace TextSpace = FTextSpace(16, 0, TEXT(""));
 
-	TInstancedStruct<FPoint> Point = TInstancedStruct<FPoint>::Make<FTextPoint>(FTextPoint(TEXT("hi there")));
+	TInstancedStruct<FPoint> Point = TInstancedStruct<FPoint>::Make<FTextPoint>(FTextPoint(TEXT("a")));
 
 	TestEqual(TEXT("TextSpace.Validate(Point) == OutOfBounds"), TextSpace.Validate(Point), ESpaceValidationResult::OutOfBounds);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTextSpaceValidateEmptyCharsetAcceptsEmptyStringTest, "Schola.Spaces.TextSpace.Validate Empty Charset Accepts Empty String Test", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FTextSpaceValidateEmptyCharsetAcceptsEmptyStringTest::RunTest(const FString& Parameters)
+{
+	// With an empty charset (empty set) and MinLength 0, only the empty string is valid.
+	FTextSpace TextSpace = FTextSpace(16, 0, TEXT(""));
+
+	TInstancedStruct<FPoint> Point = TInstancedStruct<FPoint>::Make<FTextPoint>(FTextPoint(TEXT("")));
+
+	TestEqual(TEXT("TextSpace.Validate(Point) == Success"), TextSpace.Validate(Point), ESpaceValidationResult::Success);
 
 	return true;
 }

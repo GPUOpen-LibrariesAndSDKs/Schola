@@ -130,9 +130,7 @@ bool FProtobufTextSpaceSerializationTest::RunTest(const FString& Parameters)
 	if (OutProto.has_text_space())
 	{
 		TestEqual(TEXT("TextSpace.max_length == 32"), OutProto.text_space().max_length(), 32);
-		TestTrue(TEXT("TextSpace has min_length set"), OutProto.text_space().has_min_length());
 		TestEqual(TEXT("TextSpace.min_length == 4"), OutProto.text_space().min_length(), 4);
-		TestTrue(TEXT("TextSpace has charset set"), OutProto.text_space().has_charset());
 		TestEqual(TEXT("TextSpace.charset == abc"), FString(UTF8_TO_TCHAR(OutProto.text_space().charset().c_str())), FString(TEXT("abc")));
 	}
 
@@ -142,12 +140,14 @@ bool FProtobufTextSpaceSerializationTest::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProtobufTextSpaceMinimalSerializationTest, "Schola.Protobuf.Serialization.Spaces.TextMinimal", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 bool FProtobufTextSpaceMinimalSerializationTest::RunTest(const FString& Parameters)
 {
-	// min_length is always serialized. A default-constructed FTextSpace has MinLength 0
-	// (so an empty space stays coherent); charset stays unset when empty.
+	// All fields are serialized verbatim. An empty Charset (the empty set) is sent as an
+	// empty string; min_length is sent as-is (0 here so an empty space stays coherent).
 	TInstancedStruct<FSpace> Inst;
 	Inst.InitializeAs<FTextSpace>();
 	FTextSpace* Space = Inst.GetMutablePtr<FTextSpace>();
 	Space->MaxLength = 10;
+	Space->MinLength = 0;
+	Space->Charset = TEXT("");
 
 	Schola::Space OutProto;
 	ProtobufSerializer::ToProto(Inst, &OutProto);
@@ -156,9 +156,8 @@ bool FProtobufTextSpaceMinimalSerializationTest::RunTest(const FString& Paramete
 	if (OutProto.has_text_space())
 	{
 		TestEqual(TEXT("TextSpace.max_length == 10"), OutProto.text_space().max_length(), 10);
-		TestTrue(TEXT("TextSpace has min_length set"), OutProto.text_space().has_min_length());
 		TestEqual(TEXT("TextSpace.min_length == 0"), OutProto.text_space().min_length(), 0);
-		TestFalse(TEXT("TextSpace charset unset"), OutProto.text_space().has_charset());
+		TestTrue(TEXT("TextSpace charset is empty"), OutProto.text_space().charset().empty());
 	}
 
 	return true;

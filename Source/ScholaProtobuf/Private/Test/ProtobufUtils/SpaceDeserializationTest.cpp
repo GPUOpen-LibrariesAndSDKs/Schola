@@ -145,7 +145,8 @@ bool FProtobufTextSpaceDeserializationTest::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProtobufTextSpaceMinimalDeserializationTest, "Schola.Protobuf.Deserialization.Spaces.TextMinimal", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 bool FProtobufTextSpaceMinimalDeserializationTest::RunTest(const FString& Parameters)
 {
-	// Only max_length set: min_length should fall back to the default of 1 and charset stay empty.
+	// Only max_length set: min_length is copied verbatim (proto default 0) and an empty
+	// charset stays empty (the empty set; only the empty string is a valid point).
 	Schola::Space InProto;
 	InProto.mutable_text_space()->set_max_length(10);
 
@@ -157,7 +158,7 @@ bool FProtobufTextSpaceMinimalDeserializationTest::RunTest(const FString& Parame
 	if (Space)
 	{
 		TestEqual(TEXT("TextSpace.MaxLength == 10"), Space->MaxLength, 10);
-		TestEqual(TEXT("TextSpace.MinLength == 1"), Space->MinLength, 1);
+		TestEqual(TEXT("TextSpace.MinLength == 0"), Space->MinLength, 0);
 		TestTrue(TEXT("TextSpace.Charset empty"), Space->Charset.IsEmpty());
 	}
 

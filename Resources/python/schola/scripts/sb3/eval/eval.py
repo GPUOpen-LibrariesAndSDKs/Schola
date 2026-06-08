@@ -120,7 +120,9 @@ def main(args: Sb3EvalScriptSettings) -> Tuple[float, float]:
 
             monitored.close()
             return mean_reward, std_reward
-    except Exception:
+    except (KeyboardInterrupt, Exception) as e:
+        if isinstance(e, KeyboardInterrupt):
+            logger.info("Ctrl-C received. Shutting down gracefully; please do not press Ctrl-C again.")
         if env is not None:
             env.close()
         raise

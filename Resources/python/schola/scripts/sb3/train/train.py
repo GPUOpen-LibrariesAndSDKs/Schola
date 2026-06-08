@@ -371,10 +371,12 @@ def main(args: Sb3TrainScriptSettings) -> Optional[Tuple[float, float]]:
             else:
                 logger.info("Evaluation disabled. Skipping.")
                 env.close()
-    except Exception as e:
+    except (KeyboardInterrupt, Exception) as e:
+        if isinstance(e, KeyboardInterrupt):
+            logger.info("Ctrl-C received. Shutting down gracefully; please do not press Ctrl-C again.")
         if env:
             env.close()
-        raise e
+        raise
 
 
 app = App(name="train", help="Train a model using StableBaselines3")

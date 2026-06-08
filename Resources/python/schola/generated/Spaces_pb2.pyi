@@ -42,19 +42,31 @@ class MultiBinarySpace(_message.Message):
     shape: int
     def __init__(self, shape: _Optional[int] = ...) -> None: ...
 
+class TextSpace(_message.Message):
+    __slots__ = ("max_length", "min_length", "charset")
+    MAX_LENGTH_FIELD_NUMBER: _ClassVar[int]
+    MIN_LENGTH_FIELD_NUMBER: _ClassVar[int]
+    CHARSET_FIELD_NUMBER: _ClassVar[int]
+    max_length: int
+    min_length: int
+    charset: str
+    def __init__(self, max_length: _Optional[int] = ..., min_length: _Optional[int] = ..., charset: _Optional[str] = ...) -> None: ...
+
 class Space(_message.Message):
-    __slots__ = ("box_space", "discrete_space", "multi_discrete_space", "multi_binary_space", "dict_space")
+    __slots__ = ("box_space", "discrete_space", "multi_discrete_space", "multi_binary_space", "dict_space", "text_space")
     BOX_SPACE_FIELD_NUMBER: _ClassVar[int]
     DISCRETE_SPACE_FIELD_NUMBER: _ClassVar[int]
     MULTI_DISCRETE_SPACE_FIELD_NUMBER: _ClassVar[int]
     MULTI_BINARY_SPACE_FIELD_NUMBER: _ClassVar[int]
     DICT_SPACE_FIELD_NUMBER: _ClassVar[int]
+    TEXT_SPACE_FIELD_NUMBER: _ClassVar[int]
     box_space: BoxSpace
     discrete_space: DiscreteSpace
     multi_discrete_space: MultiDiscreteSpace
     multi_binary_space: MultiBinarySpace
     dict_space: DictSpace
-    def __init__(self, box_space: _Optional[_Union[BoxSpace, _Mapping]] = ..., discrete_space: _Optional[_Union[DiscreteSpace, _Mapping]] = ..., multi_discrete_space: _Optional[_Union[MultiDiscreteSpace, _Mapping]] = ..., multi_binary_space: _Optional[_Union[MultiBinarySpace, _Mapping]] = ..., dict_space: _Optional[_Union[DictSpace, _Mapping]] = ...) -> None: ...
+    text_space: TextSpace
+    def __init__(self, box_space: _Optional[_Union[BoxSpace, _Mapping]] = ..., discrete_space: _Optional[_Union[DiscreteSpace, _Mapping]] = ..., multi_discrete_space: _Optional[_Union[MultiDiscreteSpace, _Mapping]] = ..., multi_binary_space: _Optional[_Union[MultiBinarySpace, _Mapping]] = ..., dict_space: _Optional[_Union[DictSpace, _Mapping]] = ..., text_space: _Optional[_Union[TextSpace, _Mapping]] = ...) -> None: ...
 
 class DictSpace(_message.Message):
     __slots__ = ("spaces",)

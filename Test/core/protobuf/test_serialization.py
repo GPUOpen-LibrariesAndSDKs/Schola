@@ -3,11 +3,13 @@
 
 import pytest
 
-from schola.core.protocols.protobuf.serialize import to_proto
+from schola.core.protocols.protobuf.serialize import to_proto, space_to_proto
 from schola.generated.Points_pb2 import *
+from schola.generated.Spaces_pb2 import *
 from schola.generated.DType_pb2 import *
 import numpy as np
-from gymnasium.spaces import Box, Discrete, MultiDiscrete, MultiBinary, Dict
+from gymnasium.spaces import Box, Discrete, MultiDiscrete, MultiBinary, Dict, Text
+from gymnasium.spaces.text import alphanumeric
 
 
 class TestDiscretePoint:
@@ -112,6 +114,50 @@ class TestBoxPoint:
         assert list(point.shape) == [2, 2], "BoxPoint shape should be [2, 2]"
 
 
+class TestTextPoint:
+
+    def test_value(self):
+        """Test serialization of a string to TextPoint"""
+        space = Text(max_length=16)
+        point = to_proto(space, "six seven")
+        assert isinstance(point, TextPoint), "Serialized point should be TextPoint"
+        assert point.value == "six seven", "TextPoint value should be 'hello'"
+
+    def test_empty_string(self):
+        """Test serialization of an empty string to TextPoint"""
+        space = Text(max_length=16)
+        point = to_proto(space, "")
+        assert isinstance(point, TextPoint), "Serialized point should be TextPoint"
+        assert point.value == "", "TextPoint value should be empty"
+
+
+class TestTextSpace:
+
+    def test_defaults(self):
+        """All fields are serialized verbatim, including Gymnasium's own defaults."""
+        space = Text(max_length=12)
+        proto = space_to_proto(space)
+        assert isinstance(proto, TextSpace), "Serialized space should be TextSpace"
+        assert proto.max_length == 12, "TextSpace max_length should be 12"
+        assert proto.min_length == 1, "min_length should be Gymnasium's default of 1"
+        assert proto.charset == "".join(
+            sorted(alphanumeric)
+        ), "charset should be the sorted default alphanumeric set"
+
+    def test_explicit_charset_is_sorted(self):
+        """Charset is serialized as a deterministic, deduplicated sorted string."""
+        space = Text(max_length=8, min_length=2, charset="cba")
+        proto = space_to_proto(space)
+        assert proto.min_length == 2, "TextSpace min_length should be 2"
+        assert proto.charset == "abc", "Charset should be sorted/deduplicated to 'abc'"
+
+    def test_empty_charset_is_literal(self):
+        """An empty character set serializes to an empty charset (the empty set)."""
+        space = Text(max_length=8, charset="")
+        proto = space_to_proto(space)
+        assert proto.charset == "", "Empty character set should serialize to an empty charset"
+
+
 class TestDictPoint:
 
     def test_empty(self):
@@ -178,6 +224,13 @@ class TestPoint:
             2,
             3,
         ], "MultiDiscretePoint values should be [1, 2, 3]"
+
+    def test_text_point(self):
+        """Test serialization of a string produces TextPoint"""
+        space = Text(max_length=16)
+        point = to_proto(space, "abc")
+        assert isinstance(point, TextPoint), "Serialized point should be TextPoint"
+        assert point.value == "abc", "TextPoint value should be 'abc'"
 
     def test_multi_binary_point(self):
         """Test serialization of [True, False, True] produces MultiBinaryPoint in Point"""

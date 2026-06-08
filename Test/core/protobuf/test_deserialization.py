@@ -6,8 +6,10 @@ import pytest
 
 from schola.core.protocols.protobuf.deserialize import from_proto
 from schola.generated.Points_pb2 import *
+from schola.generated.Spaces_pb2 import *
 from schola.generated.DType_pb2 import *
 import numpy as np
+import gymnasium.spaces as spaces
 
 
 class TestDiscretePoint:
@@ -81,6 +83,43 @@ class TestBoxPoint:
         ), "BoxPoint with values [1.0, 2.0, 1.0, 2.0] and shape [2, 2] should deserialize to np.array([[1.0, 2.0], [1.0, 2.0]], dtype=np.float32)"
 
 
+class TestTextPoint:
+    def test_value(self):
+        point = TextPoint(value="one two")
+        assert (
+            from_proto(point) == "one two"
+        ), "TextPoint with value 'one two' should deserialize to 'one two'"
+
+    def test_empty(self):
+        point = TextPoint()
+        assert from_proto(point) == "", "Empty TextPoint should deserialize to ''"
+
+
+class TestTextSpace:
+    def test_defaults(self):
+        """All fields are copied verbatim; an empty charset maps to an empty set."""
+        space = from_proto(TextSpace(max_length=10))
+        assert isinstance(space, spaces.Text), "Should deserialize to a Text space"
+        assert space.max_length == 10, "max_length should be 10"
+        assert space.min_length == 0, "min_length should be copied verbatim"
+        assert space.character_set == frozenset(), "empty charset should map to the empty set"
+
+    def test_empty_charset_is_literal(self):
+        """An explicit empty charset is the empty set (only the empty string is valid)."""
+        space = from_proto(TextSpace(max_length=5, min_length=0, charset=""))
+        assert space.character_set == frozenset(), "charset should be the empty set"
+        assert space.contains(""), "empty string should be a valid point"
+        assert not space.contains("a"), "no non-empty string should be valid"
+
+    def test_explicit_fields(self):
+        space = from_proto(TextSpace(max_length=8, min_length=2, charset="abc"))
+        assert space.max_length == 8, "max_length should be 8"
+        assert space.min_length == 2, "min_length should be 2"
+        assert space.character_set == frozenset(
+            "abc"
+        ), "charset should be {a, b, c}"
+
+
 class TestDictPoint:
 
     def test_empty(self):
@@ -142,6 +181,12 @@ class TestPoint:
         assert np.all(
             from_proto(point) == np.array([True, False, True], dtype=np.bool_)
         ), "Point with multi_binary_point [True, False, True] should deserialize to np.array([True, False, True], dtype=np.bool_)"
+
+    def test_text_point(self):
+        point = Point(text_point=TextPoint(value="hello"))
+        assert (
+            from_proto(point) == "hello"
+        ), "Point with text_point 'hello' should deserialize to 'hello'"
 
     def test_dict_point(self):
         point = Point(

@@ -127,6 +127,15 @@ def _(msg: proto_spaces.MultiDiscreteSpace) -> spaces.MultiDiscrete:
 
 
 @from_proto.register
+def _(msg: proto_spaces.TextSpace) -> spaces.Text:
+    return spaces.Text(
+        max_length=msg.max_length,
+        min_length=msg.min_length,
+        charset=msg.charset,
+    )
+
+
+@from_proto.register
 def _(msg: proto_spaces.DictSpace) -> spaces.Dict:
     space_dict = {key: from_proto(value) for key, value in msg.spaces.items()}
     return spaces.Dict(spaces=space_dict)
@@ -165,6 +174,11 @@ def _(msg: proto_points.DiscretePoint) -> int:
 def _(msg: proto_points.MultiBinaryPoint) -> np.ndarray:
     # np.bool was removed in NumPy 1.24; use bool/np.bool_ for compatibility
     return np.array(msg.values, dtype=np.bool_)
+
+
+@from_proto.register
+def _(msg: proto_points.TextPoint) -> str:
+    return msg.value
 
 
 @from_proto.register

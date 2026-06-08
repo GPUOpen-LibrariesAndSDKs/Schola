@@ -27,6 +27,10 @@ message DictPoint {
     map<string, Point> values = 1;
 }
 
+message TextPoint {
+    string value = 1;
+}
+
 message Point {
     oneof point {
         BoxPoint box_point = 1;
@@ -34,6 +38,7 @@ message Point {
         MultiDiscretePoint multi_discrete_point = 3;
         MultiBinaryPoint multi_binary_point = 4;
         DictPoint dict_point = 5;
+        TextPoint text_point = 6;
     }
 }
 

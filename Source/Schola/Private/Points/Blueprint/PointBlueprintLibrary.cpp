@@ -7,6 +7,7 @@
 #include "Points/BoxPoint.h"
 #include "Points/DictPoint.h"
 #include "Points/MultiDiscretePoint.h"
+#include "Points/TextPoint.h"
 
 EPointType UPointBlueprintLibrary::Point_Type(const FInstancedStruct& InPoint)
 {
@@ -33,6 +34,11 @@ EPointType UPointBlueprintLibrary::Point_Type(const FInstancedStruct& InPoint)
 	if (InPoint.GetScriptStruct() && InPoint.GetScriptStruct()->IsChildOf(FDictPoint::StaticStruct()))
 	{
 		return EPointType::Dict;
+	}
+
+    if (InPoint.GetScriptStruct() && InPoint.GetScriptStruct()->IsChildOf(FTextPoint::StaticStruct()))
+	{
+		return EPointType::Text;
 	}
 
     return EPointType::MultiBinary;

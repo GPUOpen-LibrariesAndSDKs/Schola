@@ -7,6 +7,7 @@ struct FDiscretePoint;
 struct FMultiDiscretePoint;
 struct FBoxPoint;
 struct FDictPoint;
+struct FTextPoint;
 
 /**
  * @class PointVisitor
@@ -49,6 +50,12 @@ public:
 	 * @param[in,out] Point The MultiDiscretePoint to visit.
 	 */
 	virtual void operator()(FMultiDiscretePoint& Point){};
+
+	/**
+	 * @brief Visits a TextPoint.
+	 * @param[in,out] Point The TextPoint to visit.
+	 */
+	virtual void operator()(FTextPoint& Point){};
 
 };
 
@@ -93,4 +100,10 @@ public:
 	 * @param[in] Point The const MultiDiscretePoint to visit.
 	 */
 	virtual void operator()(const FMultiDiscretePoint& Point){};
+
+	/**
+	 * @brief Visits a const TextPoint.
+	 * @param[in] Point The const TextPoint to visit.
+	 */
+	virtual void operator()(const FTextPoint& Point){};
 };

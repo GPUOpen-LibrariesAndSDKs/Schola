@@ -33,6 +33,33 @@ namespace _pbi = ::google::protobuf::internal;
 namespace _fl = ::google::protobuf::internal::field_layout;
 namespace Schola {
 
+inline constexpr TextPoint::Impl_::Impl_(
+    ::_pbi::ConstantInitialized) noexcept
+      : _cached_size_{0},
+        value_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()) {}
+
+template <typename>
+PROTOBUF_CONSTEXPR TextPoint::TextPoint(::_pbi::ConstantInitialized)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(TextPoint_class_data_.base()),
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(),
+#endif  // PROTOBUF_CUSTOM_VTABLE
+      _impl_(::_pbi::ConstantInitialized()) {
+}
+struct TextPointDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR TextPointDefaultTypeInternal() : _instance(::_pbi::ConstantInitialized{}) {}
+  ~TextPointDefaultTypeInternal() {}
+  union {
+    TextPoint _instance;
+  };
+};
+
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT SCHOLAPROTOBUF_API
+    PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 TextPointDefaultTypeInternal _TextPoint_default_instance_;
+
 inline constexpr MultiDiscretePoint::Impl_::Impl_(
     ::_pbi::ConstantInitialized) noexcept
       : values_{},
@@ -240,8 +267,14 @@ const ::uint32_t
         1,
         0x000, // bitmap
         PROTOBUF_FIELD_OFFSET(::Schola::DictPoint, _impl_.values_),
+        0x081, // bitmap
+        PROTOBUF_FIELD_OFFSET(::Schola::TextPoint, _impl_._has_bits_),
+        4, // hasbit index offset
+        PROTOBUF_FIELD_OFFSET(::Schola::TextPoint, _impl_.value_),
+        0,
         0x004, // bitmap
         PROTOBUF_FIELD_OFFSET(::Schola::Point, _impl_._oneof_case_[0]),
+        ::_pbi::kInvalidFieldOffsetTag,
         ::_pbi::kInvalidFieldOffsetTag,
         ::_pbi::kInvalidFieldOffsetTag,
         ::_pbi::kInvalidFieldOffsetTag,
@@ -258,7 +291,8 @@ static const ::_pbi::MigrationSchema
         {16, sizeof(::Schola::MultiBinaryPoint)},
         {18, sizeof(::Schola::DictPoint_ValuesEntry_DoNotUse)},
         {25, sizeof(::Schola::DictPoint)},
-        {27, sizeof(::Schola::Point)},
+        {27, sizeof(::Schola::TextPoint)},
+        {32, sizeof(::Schola::Point)},
 };
 static const ::_pb::Message* PROTOBUF_NONNULL const file_default_instances[] = {
     &::Schola::_BoxPoint_default_instance_._instance,
@@ -267,6 +301,7 @@ static const ::_pb::Message* PROTOBUF_NONNULL const file_default_instances[] = {
     &::Schola::_MultiBinaryPoint_default_instance_._instance,
     &::Schola::_DictPoint_ValuesEntry_DoNotUse_default_instance_._instance,
     &::Schola::_DictPoint_default_instance_._instance,
+    &::Schola::_TextPoint_default_instance_._instance,
     &::Schola::_Point_default_instance_._instance,
 };
 const char descriptor_table_protodef_Points_2eproto[] ABSL_ATTRIBUTE_SECTION_VARIABLE(
@@ -279,14 +314,15 @@ const char descriptor_table_protodef_Points_2eproto[] ABSL_ATTRIBUTE_SECTION_VAR
     "\n\006values\030\001 \003(\010\"x\n\tDictPoint\022-\n\006values\030\001 "
     "\003(\0132\035.Schola.DictPoint.ValuesEntry\032<\n\013Va"
     "luesEntry\022\013\n\003key\030\001 \001(\t\022\034\n\005value\030\002 \001(\0132\r."
-    "Schola.Point:\0028\001\"\205\002\n\005Point\022%\n\tbox_point\030"
-    "\001 \001(\0132\020.Schola.BoxPointH\000\022/\n\016discrete_po"
-    "int\030\002 \001(\0132\025.Schola.DiscretePointH\000\022:\n\024mu"
-    "lti_discrete_point\030\003 \001(\0132\032.Schola.MultiD"
-    "iscretePointH\000\0226\n\022multi_binary_point\030\004 \001"
-    "(\0132\030.Schola.MultiBinaryPointH\000\022\'\n\ndict_p"
-    "oint\030\005 \001(\0132\021.Schola.DictPointH\000B\007\n\005point"
-    "b\006proto3"
+    "Schola.Point:\0028\001\"\032\n\tTextPoint\022\r\n\005value\030\001"
+    " \001(\t\"\256\002\n\005Point\022%\n\tbox_point\030\001 \001(\0132\020.Scho"
+    "la.BoxPointH\000\022/\n\016discrete_point\030\002 \001(\0132\025."
+    "Schola.DiscretePointH\000\022:\n\024multi_discrete"
+    "_point\030\003 \001(\0132\032.Schola.MultiDiscretePoint"
+    "H\000\0226\n\022multi_binary_point\030\004 \001(\0132\030.Schola."
+    "MultiBinaryPointH\000\022\'\n\ndict_point\030\005 \001(\0132\021"
+    ".Schola.DictPointH\000\022\'\n\ntext_point\030\006 \001(\0132"
+    "\021.Schola.TextPointH\000B\007\n\005pointb\006proto3"
 };
 static const ::_pbi::DescriptorTable* PROTOBUF_NONNULL const
     descriptor_table_Points_2eproto_deps[1] = {
@@ -296,13 +332,13 @@ static ::absl::once_flag descriptor_table_Points_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_Points_2eproto = {
     false,
     false,
-    608,
+    677,
     descriptor_table_protodef_Points_2eproto,
     "Points.proto",
     &descriptor_table_Points_2eproto_once,
     descriptor_table_Points_2eproto_deps,
     1,
-    7,
+    8,
     schemas,
     file_default_instances,
     TableStruct_Points_2eproto::offsets,
@@ -1742,6 +1778,268 @@ void DictPoint::InternalSwap(DictPoint* PROTOBUF_RESTRICT PROTOBUF_NONNULL other
 }
 // ===================================================================
 
+class TextPoint::_Internal {
+ public:
+  using HasBits =
+      decltype(::std::declval<TextPoint>()._impl_._has_bits_);
+  static constexpr ::int32_t kHasBitsOffset =
+      8 * PROTOBUF_FIELD_OFFSET(TextPoint, _impl_._has_bits_);
+};
+
+TextPoint::TextPoint(::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(arena, TextPoint_class_data_.base()) {
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(arena) {
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  SharedCtor(arena);
+  // @@protoc_insertion_point(arena_constructor:Schola.TextPoint)
+}
+PROTOBUF_NDEBUG_INLINE TextPoint::Impl_::Impl_(
+    ::google::protobuf::internal::InternalVisibility visibility,
+    ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+    const ::Schola::TextPoint& from_msg)
+      : _has_bits_{from._has_bits_},
+        _cached_size_{0},
+        value_(arena, from.value_) {}
+
+TextPoint::TextPoint(
+    ::google::protobuf::Arena* PROTOBUF_NULLABLE arena,
+    const TextPoint& from)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(arena, TextPoint_class_data_.base()) {
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(arena) {
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  TextPoint* const _this = this;
+  (void)_this;
+  _internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(
+      from._internal_metadata_);
+  new (&_impl_) Impl_(internal_visibility(), arena, from._impl_, from);
+
+  // @@protoc_insertion_point(copy_constructor:Schola.TextPoint)
+}
+PROTOBUF_NDEBUG_INLINE TextPoint::Impl_::Impl_(
+    ::google::protobuf::internal::InternalVisibility visibility,
+    ::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
+      : _cached_size_{0},
+        value_(arena) {}
+
+inline void TextPoint::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
+  new (&_impl_) Impl_(internal_visibility(), arena);
+}
+TextPoint::~TextPoint() {
+  // @@protoc_insertion_point(destructor:Schola.TextPoint)
+  SharedDtor(*this);
+}
+inline void TextPoint::SharedDtor(MessageLite& self) {
+  TextPoint& this_ = static_cast<TextPoint&>(self);
+  this_._internal_metadata_.Delete<::google::protobuf::UnknownFieldSet>();
+  ABSL_DCHECK(this_.GetArena() == nullptr);
+  this_._impl_.value_.Destroy();
+  this_._impl_.~Impl_();
+}
+
+inline void* PROTOBUF_NONNULL TextPoint::PlacementNew_(
+    const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+    ::google::protobuf::Arena* PROTOBUF_NULLABLE arena) {
+  return ::new (mem) TextPoint(arena);
+}
+constexpr auto TextPoint::InternalNewImpl_() {
+  return ::google::protobuf::internal::MessageCreator::CopyInit(sizeof(TextPoint),
+                                            alignof(TextPoint));
+}
+constexpr auto TextPoint::InternalGenerateClassData_() {
+  return ::google::protobuf::internal::ClassDataFull{
+      ::google::protobuf::internal::ClassData{
+          &_TextPoint_default_instance_._instance,
+          &_table_.header,
+          nullptr,  // OnDemandRegisterArenaDtor
+          nullptr,  // IsInitialized
+          &TextPoint::MergeImpl,
+          ::google::protobuf::Message::GetNewImpl<TextPoint>(),
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+          &TextPoint::SharedDtor,
+          ::google::protobuf::Message::GetClearImpl<TextPoint>(), &TextPoint::ByteSizeLong,
+              &TextPoint::_InternalSerialize,
+#endif  // PROTOBUF_CUSTOM_VTABLE
+          PROTOBUF_FIELD_OFFSET(TextPoint, _impl_._cached_size_),
+          false,
+      },
+      &TextPoint::kDescriptorMethods,
+      &descriptor_table_Points_2eproto,
+      nullptr,  // tracker
+  };
+}
+
+PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 const
+    ::google::protobuf::internal::ClassDataFull TextPoint_class_data_ =
+        TextPoint::InternalGenerateClassData_();
+
+PROTOBUF_ATTRIBUTE_WEAK const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL
+TextPoint::GetClassData() const {
+  ::google::protobuf::internal::PrefetchToLocalCache(&TextPoint_class_data_);
+  ::google::protobuf::internal::PrefetchToLocalCache(TextPoint_class_data_.tc_table);
+  return TextPoint_class_data_.base();
+}
+PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
+const ::_pbi::TcParseTable<0, 1, 0, 30, 2>
+TextPoint::_table_ = {
+  {
+    PROTOBUF_FIELD_OFFSET(TextPoint, _impl_._has_bits_),
+    0, // no _extensions_
+    1, 0,  // max_field_number, fast_idx_mask
+    offsetof(decltype(_table_), field_lookup_table),
+    4294967294,  // skipmap
+    offsetof(decltype(_table_), field_entries),
+    1,  // num_field_entries
+    0,  // num_aux_entries
+    offsetof(decltype(_table_), field_names),  // no aux_entries
+    TextPoint_class_data_.base(),
+    nullptr,  // post_loop_handler
+    ::_pbi::TcParser::GenericFallback,  // fallback
+    #ifdef PROTOBUF_PREFETCH_PARSE_TABLE
+    ::_pbi::TcParser::GetTable<::Schola::TextPoint>(),  // to_prefetch
+    #endif  // PROTOBUF_PREFETCH_PARSE_TABLE
+  }, {{
+    // string value = 1;
+    {::_pbi::TcParser::FastUS1,
+     {10, 0, 0, PROTOBUF_FIELD_OFFSET(TextPoint, _impl_.value_)}},
+  }}, {{
+    65535, 65535
+  }}, {{
+    // string value = 1;
+    {PROTOBUF_FIELD_OFFSET(TextPoint, _impl_.value_), _Internal::kHasBitsOffset + 0, 0,
+    (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+  }},
+  // no aux_entries
+  {{
+    "\20\5\0\0\0\0\0\0"
+    "Schola.TextPoint"
+    "value"
+  }},
+};
+PROTOBUF_NOINLINE void TextPoint::Clear() {
+// @@protoc_insertion_point(message_clear_start:Schola.TextPoint)
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  ::uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  cached_has_bits = _impl_._has_bits_[0];
+  if ((cached_has_bits & 0x00000001u) != 0) {
+    _impl_.value_.ClearNonDefaultToEmpty();
+  }
+  _impl_._has_bits_.Clear();
+  _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
+}
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+::uint8_t* PROTOBUF_NONNULL TextPoint::_InternalSerialize(
+    const ::google::protobuf::MessageLite& base, ::uint8_t* PROTOBUF_NONNULL target,
+    ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) {
+  const TextPoint& this_ = static_cast<const TextPoint&>(base);
+#else   // PROTOBUF_CUSTOM_VTABLE
+::uint8_t* PROTOBUF_NONNULL TextPoint::_InternalSerialize(
+    ::uint8_t* PROTOBUF_NONNULL target,
+    ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+  const TextPoint& this_ = *this;
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  // @@protoc_insertion_point(serialize_to_array_start:Schola.TextPoint)
+  ::uint32_t cached_has_bits = 0;
+  (void)cached_has_bits;
+
+  // string value = 1;
+  if ((this_._impl_._has_bits_[0] & 0x00000001u) != 0) {
+    if (!this_._internal_value().empty()) {
+      const ::std::string& _s = this_._internal_value();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "Schola.TextPoint.value");
+      target = stream->WriteStringMaybeAliased(1, _s, target);
+    }
+  }
+
+  if (ABSL_PREDICT_FALSE(this_._internal_metadata_.have_unknown_fields())) {
+    target =
+        ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
+            this_._internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:Schola.TextPoint)
+  return target;
+}
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+::size_t TextPoint::ByteSizeLong(const MessageLite& base) {
+  const TextPoint& this_ = static_cast<const TextPoint&>(base);
+#else   // PROTOBUF_CUSTOM_VTABLE
+::size_t TextPoint::ByteSizeLong() const {
+  const TextPoint& this_ = *this;
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  // @@protoc_insertion_point(message_byte_size_start:Schola.TextPoint)
+  ::size_t total_size = 0;
+
+  ::uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void)cached_has_bits;
+
+   {
+    // string value = 1;
+    cached_has_bits = this_._impl_._has_bits_[0];
+    if ((cached_has_bits & 0x00000001u) != 0) {
+      if (!this_._internal_value().empty()) {
+        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_value());
+      }
+    }
+  }
+  return this_.MaybeComputeUnknownFieldsSize(total_size,
+                                             &this_._impl_._cached_size_);
+}
+
+void TextPoint::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::google::protobuf::MessageLite& from_msg) {
+  auto* const _this = static_cast<TextPoint*>(&to_msg);
+  auto& from = static_cast<const TextPoint&>(from_msg);
+  // @@protoc_insertion_point(class_specific_merge_from_start:Schola.TextPoint)
+  ABSL_DCHECK_NE(&from, _this);
+  ::uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  cached_has_bits = from._impl_._has_bits_[0];
+  if ((cached_has_bits & 0x00000001u) != 0) {
+    if (!from._internal_value().empty()) {
+      _this->_internal_set_value(from._internal_value());
+    } else {
+      if (_this->_impl_.value_.IsDefault()) {
+        _this->_internal_set_value("");
+      }
+    }
+  }
+  _this->_impl_._has_bits_[0] |= cached_has_bits;
+  _this->_internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(from._internal_metadata_);
+}
+
+void TextPoint::CopyFrom(const TextPoint& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:Schola.TextPoint)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+
+void TextPoint::InternalSwap(TextPoint* PROTOBUF_RESTRICT PROTOBUF_NONNULL other) {
+  using ::std::swap;
+  auto* arena = GetArena();
+  ABSL_DCHECK_EQ(arena, other->GetArena());
+  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+  swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.value_, &other->_impl_.value_, arena);
+}
+
+::google::protobuf::Metadata TextPoint::GetMetadata() const {
+  return ::google::protobuf::Message::GetMetadataImpl(GetClassData()->full());
+}
+// ===================================================================
+
 class Point::_Internal {
  public:
   static constexpr ::int32_t kOneofCaseOffset =
@@ -1813,6 +2111,19 @@ void Point::set_allocated_dict_point(::Schola::DictPoint* PROTOBUF_NULLABLE dict
   }
   // @@protoc_insertion_point(field_set_allocated:Schola.Point.dict_point)
 }
+void Point::set_allocated_text_point(::Schola::TextPoint* PROTOBUF_NULLABLE text_point) {
+  ::google::protobuf::Arena* message_arena = GetArena();
+  clear_point();
+  if (text_point) {
+    ::google::protobuf::Arena* submessage_arena = text_point->GetArena();
+    if (message_arena != submessage_arena) {
+      text_point = ::google::protobuf::internal::GetOwnedMessage(message_arena, text_point, submessage_arena);
+    }
+    set_has_text_point();
+    _impl_.point_.text_point_ = text_point;
+  }
+  // @@protoc_insertion_point(field_set_allocated:Schola.Point.text_point)
+}
 Point::Point(::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
 #if defined(PROTOBUF_CUSTOM_VTABLE)
     : ::google::protobuf::Message(arena, Point_class_data_.base()) {
@@ -1860,6 +2171,9 @@ Point::Point(
         break;
       case kDictPoint:
         _impl_.point_.dict_point_ = ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.point_.dict_point_);
+        break;
+      case kTextPoint:
+        _impl_.point_.text_point_ = ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.point_.text_point_);
         break;
   }
 
@@ -1933,6 +2247,14 @@ void Point::clear_point() {
       }
       break;
     }
+    case kTextPoint: {
+      if (GetArena() == nullptr) {
+        delete _impl_.point_.text_point_;
+      } else if (::google::protobuf::internal::DebugHardenClearOneofMessageOnArena()) {
+        ::google::protobuf::internal::MaybePoisonAfterClear(_impl_.point_.text_point_);
+      }
+      break;
+    }
     case POINT_NOT_SET: {
       break;
     }
@@ -1984,17 +2306,17 @@ Point::GetClassData() const {
   return Point_class_data_.base();
 }
 PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
-const ::_pbi::TcParseTable<0, 5, 5, 0, 2>
+const ::_pbi::TcParseTable<0, 6, 6, 0, 2>
 Point::_table_ = {
   {
     0,  // no _has_bits_
     0, // no _extensions_
-    5, 0,  // max_field_number, fast_idx_mask
+    6, 0,  // max_field_number, fast_idx_mask
     offsetof(decltype(_table_), field_lookup_table),
-    4294967264,  // skipmap
+    4294967232,  // skipmap
     offsetof(decltype(_table_), field_entries),
-    5,  // num_field_entries
-    5,  // num_aux_entries
+    6,  // num_field_entries
+    6,  // num_aux_entries
     offsetof(decltype(_table_), aux_entries),
     Point_class_data_.base(),
     nullptr,  // post_loop_handler
@@ -2022,6 +2344,9 @@ Point::_table_ = {
     // .Schola.DictPoint dict_point = 5;
     {PROTOBUF_FIELD_OFFSET(Point, _impl_.point_.dict_point_), _Internal::kOneofCaseOffset + 0, 4,
     (0 | ::_fl::kFcOneof | ::_fl::kMessage | ::_fl::kTvTable)},
+    // .Schola.TextPoint text_point = 6;
+    {PROTOBUF_FIELD_OFFSET(Point, _impl_.point_.text_point_), _Internal::kOneofCaseOffset + 0, 5,
+    (0 | ::_fl::kFcOneof | ::_fl::kMessage | ::_fl::kTvTable)},
   }},
   {{
       {::_pbi::TcParser::GetTable<::Schola::BoxPoint>()},
@@ -2029,6 +2354,7 @@ Point::_table_ = {
       {::_pbi::TcParser::GetTable<::Schola::MultiDiscretePoint>()},
       {::_pbi::TcParser::GetTable<::Schola::MultiBinaryPoint>()},
       {::_pbi::TcParser::GetTable<::Schola::DictPoint>()},
+      {::_pbi::TcParser::GetTable<::Schola::TextPoint>()},
   }},
   {{
   }},
@@ -2090,6 +2416,12 @@ PROTOBUF_NOINLINE void Point::Clear() {
           stream);
       break;
     }
+    case kTextPoint: {
+      target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
+          6, *this_._impl_.point_.text_point_, this_._impl_.point_.text_point_->GetCachedSize(), target,
+          stream);
+      break;
+    }
     default:
       break;
   }
@@ -2145,6 +2477,12 @@ PROTOBUF_NOINLINE void Point::Clear() {
     case kDictPoint: {
       total_size += 1 +
                     ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.point_.dict_point_);
+      break;
+    }
+    // .Schola.TextPoint text_point = 6;
+    case kTextPoint: {
+      total_size += 1 +
+                    ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.point_.text_point_);
       break;
     }
     case POINT_NOT_SET: {
@@ -2212,6 +2550,14 @@ void Point::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::google::p
           _this->_impl_.point_.dict_point_ = ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.point_.dict_point_);
         } else {
           _this->_impl_.point_.dict_point_->MergeFrom(*from._impl_.point_.dict_point_);
+        }
+        break;
+      }
+      case kTextPoint: {
+        if (oneof_needs_init) {
+          _this->_impl_.point_.text_point_ = ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.point_.text_point_);
+        } else {
+          _this->_impl_.point_.text_point_->MergeFrom(*from._impl_.point_.text_point_);
         }
         break;
       }

@@ -10,6 +10,7 @@
 #include "Points/DiscretePoint.h"
 #include "Points/MultiDiscretePoint.h"
 #include "Points/BoxPoint.h"
+#include "Points/TextPoint.h"
 
 #include <string>
 
@@ -103,6 +104,24 @@ bool FProtobufBoxPointSerializationTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("Box[2] approx 0.3"), FMath::IsNearlyEqual((float)Repeated.Get(2), 0.3f));
 		TestTrue(TEXT("Box Shape Has 2 Dimensions"), OutProto.box_point().shape().size() == 2);
 		TestEqual(TEXT("Box Shape First Dimension is 2"), OutProto.box_point().shape().Get(0), 2);
+	}
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProtobufTextPointSerializationTest, "Schola.Protobuf.Serialization.Points.Text", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FProtobufTextPointSerializationTest::RunTest(const FString& Parameters)
+{
+	TInstancedStruct<FPoint> Inst;
+	Inst.InitializeAs<FTextPoint>(FString(TEXT("hello world")));
+
+	Schola::Point OutProto;
+	ProtobufSerializer::ToProto(Inst, &OutProto);
+
+	TestTrue(TEXT("Text point serialized as text_point"), OutProto.has_text_point());
+	if (OutProto.has_text_point())
+	{
+		TestEqual(TEXT("Text value matches"), FString(UTF8_TO_TCHAR(OutProto.text_point().value().c_str())), FString(TEXT("hello world")));
 	}
 
 	return true;

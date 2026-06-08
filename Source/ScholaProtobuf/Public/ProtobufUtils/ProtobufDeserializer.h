@@ -7,6 +7,7 @@
 #include "Points/BoxPoint.h"
 #include "Points/DiscretePoint.h"
 #include "Points/DictPoint.h"
+#include "Points/TextPoint.h"
 #include "TrainingDataTypes/TrainingUpdate.h"
 #include "TrainingDataTypes/EnvironmentUpdate.h"
 #include "TrainingDataTypes/StartRequest.h"
@@ -17,6 +18,7 @@
 #include "Spaces/MultiDiscreteSpace.h"
 #include "Spaces/BoxSpace.h"
 #include "Spaces/BoxSpaceDimension.h"
+#include "Spaces/TextSpace.h"
 #include "StructUtils/InstancedStruct.h"
 #include "ImitationConnectors/AbstractImitationConnector.h"
 THIRD_PARTY_INCLUDES_START
@@ -69,6 +71,10 @@ public:
 			case (Schola::Point::kMultiDiscretePoint):
 				this->Deserialize(InPoint.multi_discrete_point());
 				break;
+
+			case (Schola::Point::kTextPoint):
+				this->Deserialize(InPoint.text_point());
+				break;
 		}
 	};
 
@@ -113,6 +119,13 @@ public:
 		DeserializedPoint.InitializeAs<FDiscretePoint>(InDiscretePoint.value());
 	};
 
+	/** Deserializes a UTF-8 string into FTextPoint. */
+	void Deserialize(const Schola::TextPoint& InTextPoint)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE_STR("ScholaProtobuf: Deserialize TextPoint");
+		DeserializedPoint.InitializeAs<FTextPoint>(FString(UTF8_TO_TCHAR(InTextPoint.value().c_str())));
+	};
+
 };
 
 /**
@@ -152,6 +165,9 @@ public:
 				break;
 			case Schola::Space::kBoxSpace:
 				this->Deserialize(InSpace.box_space());
+				break;
+			case Schola::Space::kTextSpace:
+				this->Deserialize(InSpace.text_space());
 				break;
 			case Schola::Space::SPACE_NOT_SET:
 			default:
@@ -204,6 +220,16 @@ public:
 		// Shape
 		Space.Shape.Empty();
 		Space.Shape.Append(InBoxSpace.shape_dimensions().data(), InBoxSpace.shape_dimensions_size());
+	};
+
+	/** Deserializes length bounds and charset into FTextSpace. */
+	void Deserialize(const Schola::TextSpace& InTextSpace)
+	{
+		DeserializedSpace.InitializeAs<FTextSpace>();
+		FTextSpace& Space = DeserializedSpace.GetMutable<FTextSpace>();
+		Space.MaxLength = InTextSpace.max_length();
+		Space.MinLength = InTextSpace.min_length();
+		Space.Charset = FString(UTF8_TO_TCHAR(InTextSpace.charset().c_str()));
 	};
 };
 

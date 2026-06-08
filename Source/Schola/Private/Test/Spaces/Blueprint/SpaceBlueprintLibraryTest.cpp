@@ -7,6 +7,7 @@
 #include "Spaces/MultiBinarySpace.h"
 #include "Spaces/MultiDiscreteSpace.h"
 #include "Spaces/DictSpace.h"
+#include "Spaces/TextSpace.h"
 #include "Common/InstancedStructUtils.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -86,6 +87,20 @@ bool FSpaceBlueprintLibrary_Type_DictTest::RunTest(const FString& Parameters)
     ESpaceType Result = USpaceBlueprintLibrary::Space_Type(ToUntypedInstancedStruct(Space));
 
     TestEqual(TEXT("Space_Type(DictSpace) == ESpaceType::Dict"), Result, ESpaceType::Dict);
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSpaceBlueprintLibrary_Type_TextTest, "Schola.Spaces.Blueprint.SpaceBlueprintLibrary.Type.Text", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FSpaceBlueprintLibrary_Type_TextTest::RunTest(const FString& Parameters)
+{
+    TInstancedStruct<FSpace> Space;
+    Space.InitializeAs<FTextSpace>(16);
+
+    ESpaceType Result = USpaceBlueprintLibrary::Space_Type(ToUntypedInstancedStruct(Space));
+
+    TestEqual(TEXT("Space_Type(TextSpace) == ESpaceType::Text"), Result, ESpaceType::Text);
 
     return true;
 }
@@ -172,6 +187,20 @@ bool FSpaceBlueprintLibrary_IsOfType_DictTrueTest::RunTest(const FString& Parame
     bool Result = USpaceBlueprintLibrary::Space_IsOfType(ToUntypedInstancedStruct(Space), ESpaceType::Dict);
 
     TestTrue(TEXT("Space_IsOfType(DictSpace, Dict) == true"), Result);
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSpaceBlueprintLibrary_IsOfType_TextTrueTest, "Schola.Spaces.Blueprint.SpaceBlueprintLibrary.IsOfType.TextTrue", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FSpaceBlueprintLibrary_IsOfType_TextTrueTest::RunTest(const FString& Parameters)
+{
+    TInstancedStruct<FSpace> Space;
+    Space.InitializeAs<FTextSpace>(16);
+
+    bool Result = USpaceBlueprintLibrary::Space_IsOfType(ToUntypedInstancedStruct(Space), ESpaceType::Text);
+
+    TestTrue(TEXT("Space_IsOfType(TextSpace, Text) == true"), Result);
 
     return true;
 }

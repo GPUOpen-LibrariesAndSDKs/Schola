@@ -48,16 +48,24 @@ class DictPoint(_message.Message):
     values: _containers.MessageMap[str, Point]
     def __init__(self, values: _Optional[_Mapping[str, Point]] = ...) -> None: ...
 
+class TextPoint(_message.Message):
+    __slots__ = ("value",)
+    VALUE_FIELD_NUMBER: _ClassVar[int]
+    value: str
+    def __init__(self, value: _Optional[str] = ...) -> None: ...
+
 class Point(_message.Message):
-    __slots__ = ("box_point", "discrete_point", "multi_discrete_point", "multi_binary_point", "dict_point")
+    __slots__ = ("box_point", "discrete_point", "multi_discrete_point", "multi_binary_point", "dict_point", "text_point")
     BOX_POINT_FIELD_NUMBER: _ClassVar[int]
     DISCRETE_POINT_FIELD_NUMBER: _ClassVar[int]
     MULTI_DISCRETE_POINT_FIELD_NUMBER: _ClassVar[int]
     MULTI_BINARY_POINT_FIELD_NUMBER: _ClassVar[int]
     DICT_POINT_FIELD_NUMBER: _ClassVar[int]
+    TEXT_POINT_FIELD_NUMBER: _ClassVar[int]
     box_point: BoxPoint
     discrete_point: DiscretePoint
     multi_discrete_point: MultiDiscretePoint
     multi_binary_point: MultiBinaryPoint
     dict_point: DictPoint
-    def __init__(self, box_point: _Optional[_Union[BoxPoint, _Mapping]] = ..., discrete_point: _Optional[_Union[DiscretePoint, _Mapping]] = ..., multi_discrete_point: _Optional[_Union[MultiDiscretePoint, _Mapping]] = ..., multi_binary_point: _Optional[_Union[MultiBinaryPoint, _Mapping]] = ..., dict_point: _Optional[_Union[DictPoint, _Mapping]] = ...) -> None: ...
+    text_point: TextPoint
+    def __init__(self, box_point: _Optional[_Union[BoxPoint, _Mapping]] = ..., discrete_point: _Optional[_Union[DiscretePoint, _Mapping]] = ..., multi_discrete_point: _Optional[_Union[MultiDiscretePoint, _Mapping]] = ..., multi_binary_point: _Optional[_Union[MultiBinaryPoint, _Mapping]] = ..., dict_point: _Optional[_Union[DictPoint, _Mapping]] = ..., text_point: _Optional[_Union[TextPoint, _Mapping]] = ...) -> None: ...

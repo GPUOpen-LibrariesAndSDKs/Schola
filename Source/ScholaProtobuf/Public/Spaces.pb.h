@@ -94,6 +94,10 @@ class Space;
 struct SpaceDefaultTypeInternal;
 SCHOLAPROTOBUF_API extern SpaceDefaultTypeInternal _Space_default_instance_;
 SCHOLAPROTOBUF_API extern const ::google::protobuf::internal::ClassDataFull Space_class_data_;
+class TextSpace;
+struct TextSpaceDefaultTypeInternal;
+SCHOLAPROTOBUF_API extern TextSpaceDefaultTypeInternal _TextSpace_default_instance_;
+SCHOLAPROTOBUF_API extern const ::google::protobuf::internal::ClassDataFull TextSpace_class_data_;
 }  // namespace Schola
 namespace google {
 namespace protobuf {
@@ -105,6 +109,226 @@ namespace Schola {
 // ===================================================================
 
 
+// -------------------------------------------------------------------
+
+class SCHOLAPROTOBUF_API TextSpace final : public ::google::protobuf::Message
+/* @@protoc_insertion_point(class_definition:Schola.TextSpace) */ {
+ public:
+  inline TextSpace() : TextSpace(nullptr) {}
+  ~TextSpace() PROTOBUF_FINAL;
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+  void operator delete(TextSpace* PROTOBUF_NONNULL msg, std::destroying_delete_t) {
+    SharedDtor(*msg);
+    ::google::protobuf::internal::SizedDelete(msg, sizeof(TextSpace));
+  }
+#endif
+
+  template <typename = void>
+  explicit PROTOBUF_CONSTEXPR TextSpace(::google::protobuf::internal::ConstantInitialized);
+
+  inline TextSpace(const TextSpace& from) : TextSpace(nullptr, from) {}
+  inline TextSpace(TextSpace&& from) noexcept
+      : TextSpace(nullptr, ::std::move(from)) {}
+  inline TextSpace& operator=(const TextSpace& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline TextSpace& operator=(TextSpace&& from) noexcept {
+    if (this == &from) return *this;
+    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL mutable_unknown_fields()
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
+    return GetDescriptor();
+  }
+  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const TextSpace& default_instance() {
+    return *reinterpret_cast<const TextSpace*>(
+        &_TextSpace_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages = 5;
+  friend void swap(TextSpace& a, TextSpace& b) { a.Swap(&b); }
+  inline void Swap(TextSpace* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(TextSpace* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  TextSpace* PROTOBUF_NONNULL New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
+    return ::google::protobuf::Message::DefaultConstruct<TextSpace>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const TextSpace& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom(const TextSpace& from) { TextSpace::MergeImpl(*this, from); }
+
+  private:
+  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
+                        const ::google::protobuf::MessageLite& from_msg);
+
+  public:
+  bool IsInitialized() const {
+    return true;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
+  #if defined(PROTOBUF_CUSTOM_VTABLE)
+  private:
+  static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
+  static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
+
+  public:
+  ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
+  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+    return _InternalSerialize(*this, target, stream);
+  }
+  #else   // PROTOBUF_CUSTOM_VTABLE
+  ::size_t ByteSizeLong() const final;
+  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
+  #endif  // PROTOBUF_CUSTOM_VTABLE
+  int GetCachedSize() const { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static void SharedDtor(MessageLite& self);
+  void InternalSwap(TextSpace* PROTOBUF_NONNULL other);
+ private:
+  template <typename T>
+  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
+  static ::absl::string_view FullMessageName() { return "Schola.TextSpace"; }
+
+ protected:
+  explicit TextSpace(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  TextSpace(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const TextSpace& from);
+  TextSpace(
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, TextSpace&& from) noexcept
+      : TextSpace(arena) {
+    *this = ::std::move(from);
+  }
+  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
+  static void* PROTOBUF_NONNULL PlacementNew_(
+      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static constexpr auto InternalNewImpl_();
+
+ public:
+  static constexpr auto InternalGenerateClassData_();
+
+  ::google::protobuf::Metadata GetMetadata() const;
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+  enum : int {
+    kCharsetFieldNumber = 3,
+    kMaxLengthFieldNumber = 1,
+    kMinLengthFieldNumber = 2,
+  };
+  // string charset = 3;
+  void clear_charset() ;
+  const ::std::string& charset() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_charset(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_charset();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_charset();
+  void set_allocated_charset(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_charset() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_charset(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_charset();
+
+  public:
+  // int32 max_length = 1;
+  void clear_max_length() ;
+  ::int32_t max_length() const;
+  void set_max_length(::int32_t value);
+
+  private:
+  ::int32_t _internal_max_length() const;
+  void _internal_set_max_length(::int32_t value);
+
+  public:
+  // int32 min_length = 2;
+  void clear_min_length() ;
+  ::int32_t min_length() const;
+  void set_min_length(::int32_t value);
+
+  private:
+  ::int32_t _internal_min_length() const;
+  void _internal_set_min_length(::int32_t value);
+
+  public:
+  // @@protoc_insertion_point(class_scope:Schola.TextSpace)
+ private:
+  class _Internal;
+  friend class ::google::protobuf::internal::TcParser;
+  static const ::google::protobuf::internal::TcParseTable<2, 3,
+                                   0, 32,
+                                   2>
+      _table_;
+
+  friend class ::google::protobuf::MessageLite;
+  friend class ::google::protobuf::Arena;
+  template <typename T>
+  friend class ::google::protobuf::Arena::InternalHelper;
+  using InternalArenaConstructable_ = void;
+  using DestructorSkippable_ = void;
+  struct Impl_ {
+    inline explicit constexpr Impl_(::google::protobuf::internal::ConstantInitialized) noexcept;
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+        const TextSpace& from_msg);
+    ::google::protobuf::internal::HasBits<1> _has_bits_;
+    ::google::protobuf::internal::CachedSize _cached_size_;
+    ::google::protobuf::internal::ArenaStringPtr charset_;
+    ::int32_t max_length_;
+    ::int32_t min_length_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_Spaces_2eproto;
+};
+
+SCHOLAPROTOBUF_API extern const ::google::protobuf::internal::ClassDataFull TextSpace_class_data_;
 // -------------------------------------------------------------------
 
 class SCHOLAPROTOBUF_API MultiDiscreteSpace final : public ::google::protobuf::Message
@@ -1178,7 +1402,7 @@ class SCHOLAPROTOBUF_API DictSpace final : public ::google::protobuf::Message
     return *reinterpret_cast<const DictSpace*>(
         &_DictSpace_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 7;
+  static constexpr int kIndexInFileMessages = 8;
   friend void swap(DictSpace& a, DictSpace& b) { a.Swap(&b); }
   inline void Swap(DictSpace* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -1421,9 +1645,10 @@ class SCHOLAPROTOBUF_API Space final : public ::google::protobuf::Message
     kMultiDiscreteSpace = 3,
     kMultiBinarySpace = 4,
     kDictSpace = 5,
+    kTextSpace = 6,
     SPACE_NOT_SET = 0,
   };
-  static constexpr int kIndexInFileMessages = 5;
+  static constexpr int kIndexInFileMessages = 6;
   friend void swap(Space& a, Space& b) { a.Swap(&b); }
   inline void Swap(Space* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -1516,6 +1741,7 @@ class SCHOLAPROTOBUF_API Space final : public ::google::protobuf::Message
     kMultiDiscreteSpaceFieldNumber = 3,
     kMultiBinarySpaceFieldNumber = 4,
     kDictSpaceFieldNumber = 5,
+    kTextSpaceFieldNumber = 6,
   };
   // .Schola.BoxSpace box_space = 1;
   bool has_box_space() const;
@@ -1612,6 +1838,25 @@ class SCHOLAPROTOBUF_API Space final : public ::google::protobuf::Message
   ::Schola::DictSpace* PROTOBUF_NONNULL _internal_mutable_dict_space();
 
   public:
+  // .Schola.TextSpace text_space = 6;
+  bool has_text_space() const;
+  private:
+  bool _internal_has_text_space() const;
+
+  public:
+  void clear_text_space() ;
+  const ::Schola::TextSpace& text_space() const;
+  [[nodiscard]] ::Schola::TextSpace* PROTOBUF_NULLABLE release_text_space();
+  ::Schola::TextSpace* PROTOBUF_NONNULL mutable_text_space();
+  void set_allocated_text_space(::Schola::TextSpace* PROTOBUF_NULLABLE value);
+  void unsafe_arena_set_allocated_text_space(::Schola::TextSpace* PROTOBUF_NULLABLE value);
+  ::Schola::TextSpace* PROTOBUF_NULLABLE unsafe_arena_release_text_space();
+
+  private:
+  const ::Schola::TextSpace& _internal_text_space() const;
+  ::Schola::TextSpace* PROTOBUF_NONNULL _internal_mutable_text_space();
+
+  public:
   void clear_space();
   SpaceCase space_case() const;
   // @@protoc_insertion_point(class_scope:Schola.Space)
@@ -1622,11 +1867,12 @@ class SCHOLAPROTOBUF_API Space final : public ::google::protobuf::Message
   void set_has_multi_discrete_space();
   void set_has_multi_binary_space();
   void set_has_dict_space();
+  void set_has_text_space();
   inline bool has_space() const;
   inline void clear_has_space();
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<0, 5,
-                                   5, 0,
+  static const ::google::protobuf::internal::TcParseTable<0, 6,
+                                   6, 0,
                                    2>
       _table_;
 
@@ -1653,6 +1899,7 @@ class SCHOLAPROTOBUF_API Space final : public ::google::protobuf::Message
       ::google::protobuf::Message* PROTOBUF_NULLABLE multi_discrete_space_;
       ::google::protobuf::Message* PROTOBUF_NULLABLE multi_binary_space_;
       ::google::protobuf::Message* PROTOBUF_NULLABLE dict_space_;
+      ::google::protobuf::Message* PROTOBUF_NULLABLE text_space_;
     } space_;
     ::google::protobuf::internal::CachedSize _cached_size_;
     ::uint32_t _oneof_case_[1];
@@ -1956,6 +2203,123 @@ inline ::int32_t MultiBinarySpace::_internal_shape() const {
 inline void MultiBinarySpace::_internal_set_shape(::int32_t value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.shape_ = value;
+}
+
+// -------------------------------------------------------------------
+
+// TextSpace
+
+// int32 max_length = 1;
+inline void TextSpace::clear_max_length() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.max_length_ = 0;
+  _impl_._has_bits_[0] &= ~0x00000002u;
+}
+inline ::int32_t TextSpace::max_length() const {
+  // @@protoc_insertion_point(field_get:Schola.TextSpace.max_length)
+  return _internal_max_length();
+}
+inline void TextSpace::set_max_length(::int32_t value) {
+  _internal_set_max_length(value);
+  _impl_._has_bits_[0] |= 0x00000002u;
+  // @@protoc_insertion_point(field_set:Schola.TextSpace.max_length)
+}
+inline ::int32_t TextSpace::_internal_max_length() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.max_length_;
+}
+inline void TextSpace::_internal_set_max_length(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.max_length_ = value;
+}
+
+// int32 min_length = 2;
+inline void TextSpace::clear_min_length() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.min_length_ = 0;
+  _impl_._has_bits_[0] &= ~0x00000004u;
+}
+inline ::int32_t TextSpace::min_length() const {
+  // @@protoc_insertion_point(field_get:Schola.TextSpace.min_length)
+  return _internal_min_length();
+}
+inline void TextSpace::set_min_length(::int32_t value) {
+  _internal_set_min_length(value);
+  _impl_._has_bits_[0] |= 0x00000004u;
+  // @@protoc_insertion_point(field_set:Schola.TextSpace.min_length)
+}
+inline ::int32_t TextSpace::_internal_min_length() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.min_length_;
+}
+inline void TextSpace::_internal_set_min_length(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.min_length_ = value;
+}
+
+// string charset = 3;
+inline void TextSpace::clear_charset() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.charset_.ClearToEmpty();
+  _impl_._has_bits_[0] &= ~0x00000001u;
+}
+inline const ::std::string& TextSpace::charset() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:Schola.TextSpace.charset)
+  return _internal_charset();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void TextSpace::set_charset(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_._has_bits_[0] |= 0x00000001u;
+  _impl_.charset_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:Schola.TextSpace.charset)
+}
+inline ::std::string* PROTOBUF_NONNULL TextSpace::mutable_charset()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  ::std::string* _s = _internal_mutable_charset();
+  // @@protoc_insertion_point(field_mutable:Schola.TextSpace.charset)
+  return _s;
+}
+inline const ::std::string& TextSpace::_internal_charset() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.charset_.Get();
+}
+inline void TextSpace::_internal_set_charset(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_._has_bits_[0] |= 0x00000001u;
+  _impl_.charset_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL TextSpace::_internal_mutable_charset() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_._has_bits_[0] |= 0x00000001u;
+  return _impl_.charset_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE TextSpace::release_charset() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:Schola.TextSpace.charset)
+  if ((_impl_._has_bits_[0] & 0x00000001u) == 0) {
+    return nullptr;
+  }
+  _impl_._has_bits_[0] &= ~0x00000001u;
+  auto* released = _impl_.charset_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.charset_.Set("", GetArena());
+  }
+  return released;
+}
+inline void TextSpace::set_allocated_charset(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    _impl_._has_bits_[0] |= 0x00000001u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000001u;
+  }
+  _impl_.charset_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.charset_.IsDefault()) {
+    _impl_.charset_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:Schola.TextSpace.charset)
 }
 
 // -------------------------------------------------------------------
@@ -2364,6 +2728,87 @@ inline ::Schola::DictSpace* PROTOBUF_NONNULL Space::mutable_dict_space()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
   ::Schola::DictSpace* _msg = _internal_mutable_dict_space();
   // @@protoc_insertion_point(field_mutable:Schola.Space.dict_space)
+  return _msg;
+}
+
+// .Schola.TextSpace text_space = 6;
+inline bool Space::has_text_space() const {
+  return space_case() == kTextSpace;
+}
+inline bool Space::_internal_has_text_space() const {
+  return space_case() == kTextSpace;
+}
+inline void Space::set_has_text_space() {
+  _impl_._oneof_case_[0] = kTextSpace;
+}
+inline void Space::clear_text_space() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (space_case() == kTextSpace) {
+    if (GetArena() == nullptr) {
+      delete _impl_.space_.text_space_;
+    } else if (::google::protobuf::internal::DebugHardenClearOneofMessageOnArena()) {
+      ::google::protobuf::internal::MaybePoisonAfterClear(_impl_.space_.text_space_);
+    }
+    clear_has_space();
+  }
+}
+inline ::Schola::TextSpace* PROTOBUF_NULLABLE Space::release_text_space() {
+  // @@protoc_insertion_point(field_release:Schola.Space.text_space)
+  if (space_case() == kTextSpace) {
+    clear_has_space();
+    auto* temp = reinterpret_cast<::Schola::TextSpace*>(_impl_.space_.text_space_);
+    if (GetArena() != nullptr) {
+      temp = ::google::protobuf::internal::DuplicateIfNonNull(temp);
+    }
+    _impl_.space_.text_space_ = nullptr;
+    return temp;
+  } else {
+    return nullptr;
+  }
+}
+inline const ::Schola::TextSpace& Space::_internal_text_space() const {
+  return space_case() == kTextSpace ? *reinterpret_cast<::Schola::TextSpace*>(_impl_.space_.text_space_) : reinterpret_cast<::Schola::TextSpace&>(::Schola::_TextSpace_default_instance_);
+}
+inline const ::Schola::TextSpace& Space::text_space() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:Schola.Space.text_space)
+  return _internal_text_space();
+}
+inline ::Schola::TextSpace* PROTOBUF_NULLABLE Space::unsafe_arena_release_text_space() {
+  // @@protoc_insertion_point(field_unsafe_arena_release:Schola.Space.text_space)
+  if (space_case() == kTextSpace) {
+    clear_has_space();
+    auto* temp = reinterpret_cast<::Schola::TextSpace*>(_impl_.space_.text_space_);
+    _impl_.space_.text_space_ = nullptr;
+    return temp;
+  } else {
+    return nullptr;
+  }
+}
+inline void Space::unsafe_arena_set_allocated_text_space(
+    ::Schola::TextSpace* PROTOBUF_NULLABLE value) {
+  // We rely on the oneof clear method to free the earlier contents
+  // of this oneof. We can directly use the pointer we're given to
+  // set the new value.
+  clear_space();
+  if (value) {
+    set_has_text_space();
+    _impl_.space_.text_space_ = reinterpret_cast<::google::protobuf::Message*>(value);
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:Schola.Space.text_space)
+}
+inline ::Schola::TextSpace* PROTOBUF_NONNULL Space::_internal_mutable_text_space() {
+  if (space_case() != kTextSpace) {
+    clear_space();
+    set_has_text_space();
+    _impl_.space_.text_space_ = reinterpret_cast<::google::protobuf::Message*>(
+        ::google::protobuf::Message::DefaultConstruct<::Schola::TextSpace>(GetArena()));
+  }
+  return reinterpret_cast<::Schola::TextSpace*>(_impl_.space_.text_space_);
+}
+inline ::Schola::TextSpace* PROTOBUF_NONNULL Space::mutable_text_space()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  ::Schola::TextSpace* _msg = _internal_mutable_text_space();
+  // @@protoc_insertion_point(field_mutable:Schola.Space.text_space)
   return _msg;
 }
 

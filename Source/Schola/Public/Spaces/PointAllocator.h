@@ -8,12 +8,14 @@
 #include "Points/MultiDiscretePoint.h"
 #include "Points/BoxPoint.h"
 #include "Points/DictPoint.h"
+#include "Points/TextPoint.h"
 // Space type headers (needed for field access in allocation)
 #include "Spaces/MultiBinarySpace.h"
 #include "Spaces/DiscreteSpace.h"
 #include "Spaces/MultiDiscreteSpace.h"
 #include "Spaces/BoxSpace.h"
 #include "Spaces/DictSpace.h"
+#include "Spaces/TextSpace.h"
 
 
 /**
@@ -77,6 +79,15 @@ public:
 		PointToAllocate.InitializeAs<FBoxPoint>();
 		FBoxPoint& P = PointToAllocate.GetMutable<FBoxPoint>();
 		P.Values.Init(0.0f, InSpace.Dimensions.Num());
+	}
+
+	/**
+	 * @brief Allocates a TextPoint for a TextSpace.
+	 * @param[in] InSpace The TextSpace to allocate for.
+	 */
+	void operator()(const FTextSpace& InSpace) override
+	{
+		PointToAllocate.InitializeAs<FTextPoint>();
 	}
 
 	/**

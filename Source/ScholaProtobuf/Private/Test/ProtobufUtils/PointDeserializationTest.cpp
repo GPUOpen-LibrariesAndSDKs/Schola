@@ -10,6 +10,7 @@
 #include "Points/DiscretePoint.h"
 #include "Points/MultiDiscretePoint.h"
 #include "Points/BoxPoint.h"
+#include "Points/TextPoint.h"
 
 #include <string>
 
@@ -97,6 +98,25 @@ bool FProtobufBoxPointDeserializationTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("Box[0] approx 0.1"), FMath::IsNearlyEqual(Box->Values[0], 0.1f));
 		TestTrue(TEXT("Box[1] approx 0.2"), FMath::IsNearlyEqual(Box->Values[1], 0.2f));
 		TestTrue(TEXT("Box[2] approx 0.3"), FMath::IsNearlyEqual(Box->Values[2], 0.3f));
+	}
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProtobufTextPointDeserializationTest, "Schola.Protobuf.Deserialization.Points.Text", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FProtobufTextPointDeserializationTest::RunTest(const FString& Parameters)
+{
+	Schola::Point InProto;
+	InProto.mutable_text_point()->set_value("hello world");
+
+	TInstancedStruct<FPoint> Out;
+	ProtobufDeserializer::FromProto(InProto, Out);
+
+	const FTextPoint* Text = Out.GetPtr<FTextPoint>();
+	TestTrue(TEXT("Text point deserialized as text_point"), Text != nullptr);
+	if (Text)
+	{
+		TestEqual(TEXT("Text value matches"), Text->Value, FString(TEXT("hello world")));
 	}
 
 	return true;

@@ -95,6 +95,11 @@ class PPOTrainSettings(BaseSb3AlgorithmSettings, BasePPOSettings):
     sde_sample_freq: int = -1
     "Frequency at which to sample the SDE noise. This determines how often the noise is sampled when using State Dependent Exploration (SDE). A value of -1 means that it will sample the noise at every step, while a positive integer will specify the number of steps between samples. This can help to control the exploration behavior of the agent."
 
+    target_kl: Annotated[
+        Optional[float], Parameter(validator=validators.Number(gt=0.0))
+    ] = None
+    "Approximate KL-divergence threshold used to early-stop the PPO update epoch loop when the policy moves too far from the rollout distribution. When set, SB3 stops the inner epoch loop as soon as the running approximate KL exceeds this value, which stabilizes training when ``train/approx_kl`` would otherwise blow past ``clip_range``. Typical values are 0.01-0.05. Leave as None to disable (SB3's default)."
+
     def __post_init__(self):
         super().__post_init__()
         if self.normalize_advantage and self.batch_size <= 1:

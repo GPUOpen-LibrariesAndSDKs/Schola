@@ -104,6 +104,7 @@ def test_ppo_cli_default_args(mock_app, mock_main):
     assert args.algorithm_settings.normalize_advantage == True
     assert args.algorithm_settings.ent_coef == 0.0
     assert args.algorithm_settings.vf_coef == 0.5
+    assert args.algorithm_settings.target_kl is None
 
 
 def test_ppo_cli_custom_args(mock_app, mock_main):
@@ -131,6 +132,8 @@ def test_ppo_cli_custom_args(mock_app, mock_main):
             "0.01",
             "--vf-coef",
             "0.25",
+            "--target-kl",
+            "0.03",
             "--timesteps",
             "10000",
         ],
@@ -156,6 +159,7 @@ def test_ppo_cli_custom_args(mock_app, mock_main):
     assert args.algorithm_settings.clip_range == 0.3
     assert args.algorithm_settings.ent_coef == 0.01
     assert args.algorithm_settings.vf_coef == 0.25
+    assert args.algorithm_settings.target_kl == 0.03
 
     # Verify top-level args
     assert args.training_settings.timesteps == 10000

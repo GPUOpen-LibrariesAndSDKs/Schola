@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+// Copyright (c) 2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
 #pragma once
 

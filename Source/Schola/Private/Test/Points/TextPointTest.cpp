@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+// Copyright (c) 2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
 #include "Misc/AutomationTest.h"
 #include "Points/TextPoint.h"

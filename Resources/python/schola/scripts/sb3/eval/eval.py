@@ -5,6 +5,7 @@ Evaluate a trained Stable-Baselines3 policy against a Schola-backed environment.
 """
 
 import logging
+import signal
 from typing import List, Tuple, cast, Any
 
 from cyclopts import App
@@ -122,7 +123,8 @@ def main(args: Sb3EvalScriptSettings) -> Tuple[float, float]:
             return mean_reward, std_reward
     except (KeyboardInterrupt, Exception) as e:
         if isinstance(e, KeyboardInterrupt):
-            logger.info("Ctrl-C received. Shutting down gracefully; please do not press Ctrl-C again.")
+            logger.info("Ctrl-C received. Shutting down gracefully;")
+            signal.signal(signal.SIGINT, signal.SIG_IGN)  # Protect cleanup phase
         if env is not None:
             env.close()
         raise

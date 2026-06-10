@@ -36,24 +36,55 @@ def _apply_eval_episode_budget(algo: Any, n_episodes: int) -> None:
         logger.debug("Could not override evaluation duration: %s", e)
 
 
-def _apply_env_options(algo: Any, env_options: Dict[str, Any]) -> None:
-    """Stage CLI ``--env-options.k=v`` on the restored algorithm's live envs.
+def _build_env_config(args: RllibEvalScriptSettings) -> Dict[str, Any]:
+    """Build a complete ``env_config`` from the CLI environment settings.
 
-    Eval differs from training: by the time we reach ``algo.evaluate()`` the
-    env runners have already been constructed by ``Algorithm.from_checkpoint``
-    against the checkpoint's baked-in ``env_config``, so re-writing
-    ``env_config["options"]`` would not reach them. The mechanism that *does*
-    reach them is ``foreach_env_runner(env.set_options(...))``: the next
-    ``reset()`` that fires during ``algo.evaluate()`` then picks the options
-    up one-shot, mirroring SB3's pattern.
+    The checkpoint's baked-in ``env_config`` is ignored so the CLI always wins
+    (unset flags fall back to dataclass defaults). Mirrors the training script.
     """
-    if not env_options:
-        return
+    from schola.core.protocols.protobuf.grpc_protocol import GrpcProtocol
+    from schola.core.simulators.unreal.executable_simulator import UnrealExecutable
+    from schola.core.simulators.external_simulator import ExternalSimulator
 
-    opts = dict(env_options)
+    protocol_args = args.environment_settings.protocol_settings
+    sim_args = args.environment_settings.simulator_settings
+    primary_sim = sim_args.make()
+    is_external = isinstance(primary_sim, ExternalSimulator)
 
-    def _stage(env_runner: Any) -> None:
-        env_runner.env.set_options(opts)
+    return {
+        "protocol": GrpcProtocol,
+        "protocol_args": {
+            "url": protocol_args.url,
+            "port": protocol_args.port,
+            "credential_mode": protocol_args.credential_mode.value,
+            "environment_start_timeout": protocol_args.environment_start_timeout,
+        },
+        "port_offset_mode": protocol_args.port_offset_mode.value,
+        "simulator": ExternalSimulator if is_external else UnrealExecutable,
+        "simulator_args": (
+            primary_sim.get_simulator_args()
+            if is_external
+            else primary_sim.get_executable_args()
+        ),
+        "options": dict(args.environment_settings.env_options),
+    }
+
+
+def _apply_env_config(algo: Any, env_config: Dict[str, Any]) -> None:
+    """Override the restored algorithm's ``env_config`` and rebuild its envs.
+
+    ``from_checkpoint`` already built the env runners against the baked-in
+    ``env_config``; rewriting the config and calling ``make_env()`` rebuilds
+    them with the CLI settings. The env is therefore opened twice (by
+    ``from_checkpoint`` then here).
+    """
+
+    def _rebuild(env_runner: Any) -> None:
+        # The built config is frozen; copy unfrozen, then use the public setter.
+        cfg = env_runner.config.copy(copy_frozen=False)
+        cfg.environment(env_config=env_config)
+        env_runner.config = cfg
+        env_runner.make_env()
 
     # Training group always exists; evaluation group only when
     # ``evaluation_num_env_runners > 0`` was baked into the checkpoint.
@@ -62,7 +93,7 @@ def _apply_env_options(algo: Any, env_options: Dict[str, Any]) -> None:
         getattr(algo, "eval_env_runner_group", None),
     ):
         if group is not None:
-            group.foreach_env_runner(_stage)
+            group.foreach_env_runner(_rebuild)
 
 
 def main(args: RllibEvalScriptSettings) -> Dict[str, Any]:
@@ -103,7 +134,7 @@ def main(args: RllibEvalScriptSettings) -> Dict[str, Any]:
     try:
         algo = Algorithm.from_checkpoint(str(args.checkpoint.resolve()))
         _apply_eval_episode_budget(algo, args.n_eval_episodes)
-        _apply_env_options(algo, args.environment_settings.env_options)
+        _apply_env_config(algo, _build_env_config(args))
         logger.info(
             "Running RLlib Algorithm.evaluate() for up to %d episodes (if supported by checkpoint config).",
             args.n_eval_episodes,

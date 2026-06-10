@@ -11,10 +11,10 @@ from cyclopts import App
 from schola.scripts.rllib.eval.eval import (
     RllibEvalCommand,
     _apply_env_config,
-    _build_env_config,
     main as eval_main,
 )
 from schola.scripts.rllib.eval.settings import RllibEvalScriptSettings
+from schola.scripts.rllib.settings import ResourceSettings
 
 
 @pytest.fixture
@@ -27,6 +27,163 @@ def mock_eval_app(mock_main):
     base = App(name="eval", help="Evaluate a trained RLlib policy from a checkpoint")
     logger = logging.getLogger(__name__)
     return RllibEvalCommand(base, RllibEvalScriptSettings, mock_main, logger).make()
+
+
+@pytest.fixture
+def rllib_eval_meta_app():
+    """Real ``schola rllib eval`` Cyclopts meta-app (invokes ``eval_main``)."""
+    base = App(name="eval", help="Evaluate a trained RLlib policy from a checkpoint")
+    logger = logging.getLogger(__name__)
+    return RllibEvalCommand(base, RllibEvalScriptSettings, eval_main, logger).make()
+
+
+@pytest.fixture
+def dummy_rllib_checkpoint_dir(
+    tmp_path: Path, make_vec_env_server, make_env, ray_cluster
+):
+    """Train a tiny PPO over an in-process Schola gRPC gym server and save a
+    checkpoint.
+
+    Yields ``(checkpoint_dir, server_port)``. The gym server stays alive for the
+    whole test so ``eval_main`` can reconnect to the same port after rebuilding
+    the env (the env is opened once by ``from_checkpoint`` and again by
+    ``_apply_env_config``). Uses the session ``ray_cluster`` so ``eval_main`` can
+    run with ``ResourceSettings(using_cluster=True)`` without a double ``ray.init``.
+    """
+    pytest.importorskip("ray")
+    from ray.rllib.algorithms.ppo import PPOConfig
+    from ray.rllib.connectors.env_to_module import FlattenObservations
+    from ray.rllib.core.rl_module.default_model_config import DefaultModelConfig
+    from ray.rllib.core.rl_module.multi_rl_module import MultiRLModuleSpec
+    from ray.rllib.core.rl_module.rl_module import RLModuleSpec
+    from ray.rllib.policy.policy import PolicySpec
+    from schola.rllib.env_runner import ScholaEnvRunner
+    from schola.scripts.common.settings import (
+        EnvironmentSettings,
+        GrpcProtocolConfig,
+        PortOffsetMode,
+    )
+
+    port = make_vec_env_server([make_env("CartPole-v1", 0)])
+
+    # Build the baked-in env_config through the same helper the train/eval CLIs
+    # use, so the checkpoint matches a real run. ``fixed`` keeps the single
+    # local runner on the in-process server port.
+    env_config = EnvironmentSettings(
+        protocol_settings=GrpcProtocolConfig(
+            url="localhost", port=port, port_offset_mode=PortOffsetMode.FIXED
+        ),
+    ).make_env_config()
+
+    config = (
+        PPOConfig()
+        .api_stack(
+            enable_rl_module_and_learner=True,
+            enable_env_runner_and_connector_v2=True,
+        )
+        .training(num_epochs=1, train_batch_size=128, minibatch_size=32)
+        .environment(env_config=env_config)
+        .framework("torch")
+        .env_runners(
+            env_runner_cls=ScholaEnvRunner,
+            num_env_runners=0,
+            env_to_module_connector=lambda env, spaces=None, device=None: FlattenObservations(
+                input_observation_space=env.single_observation_space,
+                input_action_space=env.single_action_space,
+                multi_agent=True,
+            ),
+        )
+        .learners(num_learners=0)
+        # Bake in a local eval runner so the reloaded algo.evaluate() has an env
+        # runner group to run on.
+        .evaluation(
+            evaluation_num_env_runners=0,
+            evaluation_interval=1,
+            evaluation_duration=2,
+            evaluation_duration_unit="episodes",
+        )
+        .multi_agent(
+            policies={"shared_policy": PolicySpec()},
+            policy_mapping_fn=lambda agent_id, *args, **kwargs: "shared_policy",
+        )
+        .rl_module(
+            rl_module_spec=MultiRLModuleSpec(
+                rl_module_specs={
+                    "shared_policy": RLModuleSpec(
+                        model_config=DefaultModelConfig(
+                            fcnet_hiddens=[32, 32], vf_share_layers=True
+                        )
+                    )
+                }
+            ),
+        )
+    )
+    algo = config.build_algo()
+    try:
+        algo.train()
+        ckpt = tmp_path / "rllib_eval_ckpt"
+        algo.save(str(ckpt))
+        yield ckpt, port
+    finally:
+        algo.stop()
+
+
+# ---- eval.main end-to-end tests on a real checkpoint -----------------------
+#
+# These drive the full ``eval_main`` orchestration on the checkpoint built by
+# ``dummy_rllib_checkpoint_dir`` above: ``from_checkpoint`` -> ``_apply_env_config``
+# (which rebuilds the env from the CLI config) -> ``algo.evaluate()``. Because the
+# new eval always rebuilds the env, the CLI protocol must point back at the same
+# live server port kept alive by the fixture.
+
+
+@pytest.mark.xdist_group(name="ray-cluster")
+@pytest.mark.timeout(180)
+def test_rllib_eval_main_on_real_checkpoint(dummy_rllib_checkpoint_dir):
+    """``eval_main`` restores the checkpoint, rebuilds the env from the CLI
+    protocol args (pointed at the same live server) and evaluates for real."""
+    pytest.importorskip("ray")
+    from schola.scripts.common.settings import EnvironmentSettings, GrpcProtocolConfig
+
+    ckpt, port = dummy_rllib_checkpoint_dir
+    args = RllibEvalScriptSettings(
+        checkpoint=ckpt,
+        n_eval_episodes=2,
+        environment_settings=EnvironmentSettings(
+            protocol_settings=GrpcProtocolConfig(url="localhost", port=port),
+        ),
+        resource_settings=ResourceSettings(using_cluster=True),
+    )
+    results = eval_main(args)
+    assert isinstance(results, dict)
+    env_metrics = results.get("env_runners") or results.get("evaluation")
+    assert env_metrics is not None
+
+
+@pytest.mark.xdist_group(name="ray-cluster")
+@pytest.mark.timeout(180)
+def test_rllib_eval_cli_on_real_checkpoint(
+    dummy_rllib_checkpoint_dir, rllib_eval_meta_app
+):
+    """End-to-end ``schola rllib eval`` parsing and ``eval_main`` on a real
+    checkpoint, with the protocol port pointed at the live in-process server."""
+    pytest.importorskip("ray")
+    ckpt, port = dummy_rllib_checkpoint_dir
+    results = rllib_eval_meta_app.meta(
+        [
+            "--checkpoint",
+            str(ckpt),
+            "--n-eval-episodes",
+            "2",
+            "--port",
+            str(port),
+            "--using-cluster",
+        ],
+        result_action="return_value",
+    )
+    assert isinstance(results, dict)
+    env_metrics = results.get("env_runners") or results.get("evaluation")
+    assert env_metrics is not None
 
 
 # ---- CLI parsing tests -----------------------------------------------------
@@ -84,7 +241,7 @@ def test_eval_cli_env_options_dotted_syntax(mock_eval_app, mock_main, tmp_path: 
     assert args.environment_settings.env_options == {"level": "1", "curriculum": "easy"}
 
 
-# ---- _build_env_config unit tests ------------------------------------------
+# ---- eval.main orchestration tests -----------------------------------------
 
 
 @pytest.fixture
@@ -106,51 +263,6 @@ def make_eval_args(tmp_path: Path):
         )
 
     return _make
-
-
-def test_build_env_config_defaults_to_external_simulator(make_eval_args):
-    """Default simulator settings yield an ExternalSimulator gRPC config that
-    carries the CLI protocol address and env options."""
-    from schola.core.protocols.protobuf.grpc_protocol import GrpcProtocol
-    from schola.core.simulators.external_simulator import ExternalSimulator
-
-    cfg = _build_env_config(make_eval_args(env_options={"k": "v"}))
-
-    assert cfg["protocol"] is GrpcProtocol
-    assert cfg["simulator"] is ExternalSimulator
-    assert cfg["protocol_args"]["url"] == "localhost"
-    assert cfg["protocol_args"]["port"] == 1
-    assert cfg["options"] == {"k": "v"}
-
-
-def test_build_env_config_uses_executable_simulator(tmp_path):
-    """An executable simulator config serializes via ``get_executable_args``
-    (renamed kwargs + ``validate_path=False`` for remote reconstruction)."""
-    from schola.core.simulators.unreal.executable_simulator import UnrealExecutable
-    from schola.scripts.common.settings import (
-        EnvironmentSettings,
-        UnrealExecutableSimulatorConfig,
-    )
-
-    exe = tmp_path / "game.exe"
-    exe.write_text("")
-    args = RllibEvalScriptSettings(
-        checkpoint=tmp_path,
-        environment_settings=EnvironmentSettings(
-            simulator_settings=UnrealExecutableSimulatorConfig(executable_path=exe),
-        ),
-    )
-
-    cfg = _build_env_config(args)
-
-    assert cfg["simulator"] is UnrealExecutable
-    assert cfg["simulator_args"]["executable_path"] == exe
-    assert cfg["simulator_args"]["validate_path"] is False
-
-
-# ---- eval.main orchestration tests -----------------------------------------
-# Mock-based orchestration tests; real-object drift coverage lives in the
-# test_apply_env_config_rebuilds_real_* tests.
 
 
 @pytest.fixture

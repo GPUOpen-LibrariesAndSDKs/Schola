@@ -183,9 +183,6 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
     from ray.rllib.connectors.env_to_module import FlattenObservations
     from schola.rllib.env import RayVecEnv
     from schola.rllib.env_runner import ScholaEnvRunner
-    from schola.core.protocols.protobuf.grpc_protocol import GrpcProtocol
-    from schola.core.simulators.unreal.executable_simulator import UnrealExecutable
-    from schola.core.simulators.external_simulator import ExternalSimulator
     from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 
     sim_args = args.environment_settings.simulator_settings
@@ -262,27 +259,7 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
             enable_env_runner_and_connector_v2=True,  # Enable EnvRunner
         )
         .environment(
-            env_config={
-                "protocol": GrpcProtocol,
-                "protocol_args": {
-                    "url": protocol_args.url,
-                    "port": protocol_args.port,
-                    "credential_mode": protocol_args.credential_mode.value,
-                    "environment_start_timeout": protocol_args.environment_start_timeout,
-                },
-                "port_offset_mode": protocol_args.port_offset_mode.value,
-                "simulator": (
-                    ExternalSimulator
-                    if isinstance(primary_sim, ExternalSimulator)
-                    else UnrealExecutable
-                ),
-                "simulator_args": (
-                    primary_sim.get_simulator_args()
-                    if isinstance(primary_sim, ExternalSimulator)
-                    else primary_sim.get_executable_args()
-                ),
-                "options": dict(args.environment_settings.env_options),
-            },
+            env_config=args.environment_settings.make_env_config(primary_sim),
         )
         .framework("torch")
         .env_runners(

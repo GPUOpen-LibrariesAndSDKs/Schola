@@ -36,40 +36,6 @@ def _apply_eval_episode_budget(algo: Any, n_episodes: int) -> None:
         logger.debug("Could not override evaluation duration: %s", e)
 
 
-def _build_env_config(args: RllibEvalScriptSettings) -> Dict[str, Any]:
-    """Build a complete ``env_config`` from the CLI environment settings.
-
-    The checkpoint's baked-in ``env_config`` is ignored so the CLI always wins
-    (unset flags fall back to dataclass defaults). Mirrors the training script.
-    """
-    from schola.core.protocols.protobuf.grpc_protocol import GrpcProtocol
-    from schola.core.simulators.unreal.executable_simulator import UnrealExecutable
-    from schola.core.simulators.external_simulator import ExternalSimulator
-
-    protocol_args = args.environment_settings.protocol_settings
-    sim_args = args.environment_settings.simulator_settings
-    primary_sim = sim_args.make()
-    is_external = isinstance(primary_sim, ExternalSimulator)
-
-    return {
-        "protocol": GrpcProtocol,
-        "protocol_args": {
-            "url": protocol_args.url,
-            "port": protocol_args.port,
-            "credential_mode": protocol_args.credential_mode.value,
-            "environment_start_timeout": protocol_args.environment_start_timeout,
-        },
-        "port_offset_mode": protocol_args.port_offset_mode.value,
-        "simulator": ExternalSimulator if is_external else UnrealExecutable,
-        "simulator_args": (
-            primary_sim.get_simulator_args()
-            if is_external
-            else primary_sim.get_executable_args()
-        ),
-        "options": dict(args.environment_settings.env_options),
-    }
-
-
 def _apply_env_config(algo: Any, env_config: Dict[str, Any]) -> None:
     """Override the restored algorithm's ``env_config`` and rebuild its envs.
 
@@ -134,7 +100,9 @@ def main(args: RllibEvalScriptSettings) -> Dict[str, Any]:
     try:
         algo = Algorithm.from_checkpoint(str(args.checkpoint.resolve()))
         _apply_eval_episode_budget(algo, args.n_eval_episodes)
-        _apply_env_config(algo, _build_env_config(args))
+        # The checkpoint's baked-in ``env_config`` is ignored so the CLI always
+        # wins (unset flags fall back to dataclass defaults).
+        _apply_env_config(algo, args.environment_settings.make_env_config())
         logger.info(
             "Running RLlib Algorithm.evaluate() for up to %d episodes (if supported by checkpoint config).",
             args.n_eval_episodes,

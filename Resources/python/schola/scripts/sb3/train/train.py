@@ -7,6 +7,7 @@ Script to train a Stable Baselines3 model using Schola.
 from dataclasses import asdict
 import os
 import logging
+import signal
 from typing import (
     Any,
     Dict,
@@ -371,10 +372,13 @@ def main(args: Sb3TrainScriptSettings) -> Optional[Tuple[float, float]]:
             else:
                 logger.info("Evaluation disabled. Skipping.")
                 env.close()
-    except Exception as e:
-        if env:
+    except (KeyboardInterrupt, Exception) as e:
+        if isinstance(e, KeyboardInterrupt):
+            logger.info("Ctrl-C received. Shutting down gracefully;")
+            signal.signal(signal.SIGINT, signal.SIG_IGN)  # Protect cleanup phase
+        if env is not None:
             env.close()
-        raise e
+        raise
 
 
 app = App(name="train", help="Train a model using StableBaselines3")

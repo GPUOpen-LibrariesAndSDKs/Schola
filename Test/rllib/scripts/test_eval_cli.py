@@ -44,11 +44,11 @@ def dummy_rllib_checkpoint_dir(
     """Train a tiny PPO over an in-process Schola gRPC gym server and save a
     checkpoint.
 
-    Yields ``(checkpoint_dir, server_port)``. The gym server stays alive for the
-    whole test so ``eval_main`` can reconnect to the same port after rebuilding
-    the env (the env is opened once by ``from_checkpoint`` and again by
-    ``_apply_env_config``). Uses the session ``ray_cluster`` so ``eval_main`` can
-    run with ``ResourceSettings(using_cluster=True)`` without a double ``ray.init``.
+    Yields ``(checkpoint_dir, eval_port)``. Train and eval run against separate
+    gym servers on different ports, mirroring real post-hoc eval (e.g. train
+    headless, eval with rendering); the train port is irrelevant to eval thanks
+    to the CLI-wins env_config rebuild. Uses the session ``ray_cluster`` to avoid
+    a double ``ray.init`` under ``ResourceSettings(using_cluster=True)``.
     """
     pytest.importorskip("ray")
     from ray.rllib.algorithms.ppo import PPOConfig
@@ -58,22 +58,25 @@ def dummy_rllib_checkpoint_dir(
     from ray.rllib.core.rl_module.rl_module import RLModuleSpec
     from ray.rllib.policy.policy import PolicySpec
     from schola.rllib.env_runner import ScholaEnvRunner
+    from schola.scripts.rllib.env_config import build_env_config
     from schola.scripts.common.settings import (
         EnvironmentSettings,
         GrpcProtocolConfig,
         PortOffsetMode,
     )
 
-    port = make_vec_env_server([make_env("CartPole-v1", 0)])
+    train_port = make_vec_env_server([make_env("CartPole-v1", 0)])
 
     # Build the baked-in env_config through the same helper the train/eval CLIs
     # use, so the checkpoint matches a real run. ``fixed`` keeps the single
-    # local runner on the in-process server port.
-    env_config = EnvironmentSettings(
-        protocol_settings=GrpcProtocolConfig(
-            url="localhost", port=port, port_offset_mode=PortOffsetMode.FIXED
-        ),
-    ).make_env_config()
+    # local runner on the training server port.
+    env_config = build_env_config(
+        EnvironmentSettings(
+            protocol_settings=GrpcProtocolConfig(
+                url="localhost", port=train_port, port_offset_mode=PortOffsetMode.FIXED
+            ),
+        )
+    )
 
     config = (
         PPOConfig()
@@ -123,7 +126,10 @@ def dummy_rllib_checkpoint_dir(
         algo.train()
         ckpt = tmp_path / "rllib_eval_ckpt"
         algo.save(str(ckpt))
-        yield ckpt, port
+        # Eval gets its own server/port; the restored algo rebuilds its env
+        # from the CLI config and connects here, not to the train port.
+        eval_port = make_vec_env_server([make_env("CartPole-v1", 0)])
+        yield ckpt, eval_port
     finally:
         algo.stop()
 
@@ -133,24 +139,25 @@ def dummy_rllib_checkpoint_dir(
 # These drive the full ``eval_main`` orchestration on the checkpoint built by
 # ``dummy_rllib_checkpoint_dir`` above: ``from_checkpoint`` -> ``_apply_env_config``
 # (which rebuilds the env from the CLI config) -> ``algo.evaluate()``. Because the
-# new eval always rebuilds the env, the CLI protocol must point back at the same
-# live server port kept alive by the fixture.
+# new eval always rebuilds the env from the CLI config, the CLI protocol points at
+# the dedicated eval server (a different port than training) -- the same way a real
+# post-hoc eval connects to its own process.
 
 
 @pytest.mark.xdist_group(name="ray-cluster")
 @pytest.mark.timeout(180)
 def test_rllib_eval_main_on_real_checkpoint(dummy_rllib_checkpoint_dir):
     """``eval_main`` restores the checkpoint, rebuilds the env from the CLI
-    protocol args (pointed at the same live server) and evaluates for real."""
+    protocol args (pointed at the dedicated eval server) and evaluates for real."""
     pytest.importorskip("ray")
     from schola.scripts.common.settings import EnvironmentSettings, GrpcProtocolConfig
 
-    ckpt, port = dummy_rllib_checkpoint_dir
+    ckpt, eval_port = dummy_rllib_checkpoint_dir
     args = RllibEvalScriptSettings(
         checkpoint=ckpt,
         n_eval_episodes=2,
         environment_settings=EnvironmentSettings(
-            protocol_settings=GrpcProtocolConfig(url="localhost", port=port),
+            protocol_settings=GrpcProtocolConfig(url="localhost", port=eval_port),
         ),
         resource_settings=ResourceSettings(using_cluster=True),
     )
@@ -166,9 +173,9 @@ def test_rllib_eval_cli_on_real_checkpoint(
     dummy_rllib_checkpoint_dir, rllib_eval_meta_app
 ):
     """End-to-end ``schola rllib eval`` parsing and ``eval_main`` on a real
-    checkpoint, with the protocol port pointed at the live in-process server."""
+    checkpoint, with the protocol port pointed at the dedicated eval server."""
     pytest.importorskip("ray")
-    ckpt, port = dummy_rllib_checkpoint_dir
+    ckpt, eval_port = dummy_rllib_checkpoint_dir
     results = rllib_eval_meta_app.meta(
         [
             "--checkpoint",
@@ -176,7 +183,7 @@ def test_rllib_eval_cli_on_real_checkpoint(
             "--n-eval-episodes",
             "2",
             "--port",
-            str(port),
+            str(eval_port),
             "--using-cluster",
         ],
         result_action="return_value",

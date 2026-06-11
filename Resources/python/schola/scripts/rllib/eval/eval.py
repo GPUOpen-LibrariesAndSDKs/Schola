@@ -79,6 +79,7 @@ def main(args: RllibEvalScriptSettings) -> Dict[str, Any]:
 
     import ray
     from ray.rllib.algorithms.algorithm import Algorithm
+    from schola.scripts.rllib.env_config import build_env_config
 
     if not args.resource_settings.using_cluster:
         ray.init(
@@ -102,7 +103,7 @@ def main(args: RllibEvalScriptSettings) -> Dict[str, Any]:
         _apply_eval_episode_budget(algo, args.n_eval_episodes)
         # The checkpoint's baked-in ``env_config`` is ignored so the CLI always
         # wins (unset flags fall back to dataclass defaults).
-        _apply_env_config(algo, args.environment_settings.make_env_config())
+        _apply_env_config(algo, build_env_config(args.environment_settings))
         logger.info(
             "Running RLlib Algorithm.evaluate() for up to %d episodes (if supported by checkpoint config).",
             args.n_eval_episodes,

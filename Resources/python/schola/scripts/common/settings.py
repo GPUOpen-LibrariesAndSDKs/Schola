@@ -6,9 +6,7 @@ Common utility functions and classes for use in Schola scripts.
 
 from enum import Enum
 from typing import (
-    TYPE_CHECKING,
     Annotated,
-    Any,
     Dict,
     Literal,
     Optional,
@@ -23,9 +21,6 @@ from cyclopts import App, Parameter, validators, group_extractors, Group, types
 from pathlib import Path
 
 from rich.console import Console
-
-if TYPE_CHECKING:
-    from schola.core.simulators.base_simulator import BaseSimulator
 
 console = Console()
 
@@ -386,55 +381,6 @@ class EnvironmentSettings:
         field(default_factory=dict)
     )
     "Key=value reset options forwarded to the simulator on the first env.reset(). Repeat the flag to set multiple keys, e.g. --env-options.level=1 --env-options.curriculum=easy."
-
-    def make_env_config(
-        self, simulator: Optional["BaseSimulator"] = None
-    ) -> Dict[str, Any]:
-        """
-        Build the RLlib ``env_config`` dict from these environment settings.
-
-        Shared by the RLlib train and eval scripts so the protocol/simulator
-        serialization (including the external-vs-executable simulator branch)
-        lives in exactly one place.
-
-        Parameters
-        ----------
-        simulator : BaseSimulator, optional
-            An already-constructed simulator to serialize. Callers that have
-            built a simulator (e.g. training's space-discovery step) pass it so
-            this helper stays side-effect-free and never builds a second time.
-            When ``None`` a simulator is constructed from ``simulator_settings``.
-
-        Returns
-        -------
-        Dict[str, Any]
-            The ``env_config`` consumed by ``ScholaEnvRunner.make_env``.
-        """
-        from schola.core.protocols.protobuf.grpc_protocol import GrpcProtocol
-        from schola.core.simulators.external_simulator import ExternalSimulator
-        from schola.core.simulators.unreal.executable_simulator import UnrealExecutable
-
-        primary_sim = (
-            simulator if simulator is not None else self.simulator_settings.make()
-        )
-        is_external = isinstance(primary_sim, ExternalSimulator)
-        return {
-            "protocol": GrpcProtocol,
-            "protocol_args": {
-                "url": self.protocol_settings.url,
-                "port": self.protocol_settings.port,
-                "credential_mode": self.protocol_settings.credential_mode.value,
-                "environment_start_timeout": self.protocol_settings.environment_start_timeout,
-            },
-            "port_offset_mode": self.protocol_settings.port_offset_mode.value,
-            "simulator": ExternalSimulator if is_external else UnrealExecutable,
-            "simulator_args": (
-                primary_sim.get_simulator_args()
-                if is_external
-                else primary_sim.get_executable_args()
-            ),
-            "options": dict(self.env_options),
-        }
 
 
 @dataclass

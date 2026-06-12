@@ -36,24 +36,21 @@ def _apply_eval_episode_budget(algo: Any, n_episodes: int) -> None:
         logger.debug("Could not override evaluation duration: %s", e)
 
 
-def _apply_env_options(algo: Any, env_options: Dict[str, Any]) -> None:
-    """Stage CLI ``--env-options.k=v`` on the restored algorithm's live envs.
+def _apply_env_config(algo: Any, env_config: Dict[str, Any]) -> None:
+    """Override the restored algorithm's ``env_config`` and rebuild its envs.
 
-    Eval differs from training: by the time we reach ``algo.evaluate()`` the
-    env runners have already been constructed by ``Algorithm.from_checkpoint``
-    against the checkpoint's baked-in ``env_config``, so re-writing
-    ``env_config["options"]`` would not reach them. The mechanism that *does*
-    reach them is ``foreach_env_runner(env.set_options(...))``: the next
-    ``reset()`` that fires during ``algo.evaluate()`` then picks the options
-    up one-shot, mirroring SB3's pattern.
+    ``from_checkpoint`` already built the env runners against the baked-in
+    ``env_config``; rewriting the config and calling ``make_env()`` rebuilds
+    them with the CLI settings. The env is therefore opened twice (by
+    ``from_checkpoint`` then here).
     """
-    if not env_options:
-        return
 
-    opts = dict(env_options)
-
-    def _stage(env_runner: Any) -> None:
-        env_runner.env.set_options(opts)
+    def _rebuild(env_runner: Any) -> None:
+        # The built config is frozen; copy unfrozen, then use the public setter.
+        cfg = env_runner.config.copy(copy_frozen=False)
+        cfg.environment(env_config=env_config)
+        env_runner.config = cfg
+        env_runner.make_env()
 
     # Training group always exists; evaluation group only when
     # ``evaluation_num_env_runners > 0`` was baked into the checkpoint.
@@ -62,7 +59,7 @@ def _apply_env_options(algo: Any, env_options: Dict[str, Any]) -> None:
         getattr(algo, "eval_env_runner_group", None),
     ):
         if group is not None:
-            group.foreach_env_runner(_stage)
+            group.foreach_env_runner(_rebuild)
 
 
 def main(args: RllibEvalScriptSettings) -> Dict[str, Any]:
@@ -82,6 +79,7 @@ def main(args: RllibEvalScriptSettings) -> Dict[str, Any]:
 
     import ray
     from ray.rllib.algorithms.algorithm import Algorithm
+    from schola.scripts.rllib.utils import build_env_config
 
     if not args.resource_settings.using_cluster:
         ray.init(
@@ -103,7 +101,9 @@ def main(args: RllibEvalScriptSettings) -> Dict[str, Any]:
     try:
         algo = Algorithm.from_checkpoint(str(args.checkpoint.resolve()))
         _apply_eval_episode_budget(algo, args.n_eval_episodes)
-        _apply_env_options(algo, args.environment_settings.env_options)
+        # The checkpoint's baked-in ``env_config`` is ignored so the CLI always
+        # wins (unset flags fall back to dataclass defaults).
+        _apply_env_config(algo, build_env_config(args.environment_settings))
         logger.info(
             "Running RLlib Algorithm.evaluate() for up to %d episodes (if supported by checkpoint config).",
             args.n_eval_episodes,

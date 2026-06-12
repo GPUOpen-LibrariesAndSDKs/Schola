@@ -5,7 +5,16 @@ Common utility functions and classes for use in Schola scripts.
 """
 
 from enum import Enum
-from typing import Annotated, Dict, Literal, Optional, Tuple, List, Type, Union
+from typing import (
+    Annotated,
+    Dict,
+    Literal,
+    Optional,
+    Tuple,
+    List,
+    Type,
+    Union,
+)
 
 from dataclasses import dataclass, field
 from cyclopts import App, Parameter, validators, group_extractors, Group, types

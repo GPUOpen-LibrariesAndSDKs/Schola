@@ -1,7 +1,6 @@
 # Copyright (c) 2026 Advanced Micro Devices, Inc. All Rights Reserved.
 """
-Helpers for building and manipulating the RLlib ``env_config`` dict shared by
-the Schola train/eval scripts.
+Shared helper functions for the Schola RLlib scripts (train, eval, export)
 """
 
 from typing import TYPE_CHECKING, Any, Dict, Optional

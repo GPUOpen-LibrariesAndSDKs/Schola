@@ -58,7 +58,7 @@ def dummy_rllib_checkpoint_dir(
     from ray.rllib.core.rl_module.rl_module import RLModuleSpec
     from ray.rllib.policy.policy import PolicySpec
     from schola.rllib.env_runner import ScholaEnvRunner
-    from schola.scripts.rllib.env_config import build_env_config
+    from schola.scripts.rllib.utils import build_env_config
     from schola.scripts.common.settings import (
         EnvironmentSettings,
         GrpcProtocolConfig,

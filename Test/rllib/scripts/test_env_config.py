@@ -1,9 +1,9 @@
 # Copyright (c) 2026 Advanced Micro Devices, Inc. All Rights Reserved.
-"""Tests for ``schola.scripts.rllib.env_config``."""
+"""Tests for ``schola.scripts.rllib.utils``."""
 
 from pathlib import Path
 
-from schola.scripts.rllib.env_config import build_env_config
+from schola.scripts.rllib.utils import build_env_config
 from schola.scripts.common.settings import (
     EnvironmentSettings,
     GrpcProtocolConfig,

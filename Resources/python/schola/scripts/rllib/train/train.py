@@ -183,7 +183,7 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
     from ray.rllib.connectors.env_to_module import FlattenObservations
     from schola.rllib.env import RayVecEnv
     from schola.rllib.env_runner import ScholaEnvRunner
-    from schola.scripts.rllib.env_config import build_env_config
+    from schola.scripts.rllib.utils import build_env_config
     from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 
     sim_args = args.environment_settings.simulator_settings

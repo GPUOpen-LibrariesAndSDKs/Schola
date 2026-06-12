@@ -79,7 +79,7 @@ def main(args: RllibEvalScriptSettings) -> Dict[str, Any]:
 
     import ray
     from ray.rllib.algorithms.algorithm import Algorithm
-    from schola.scripts.rllib.env_config import build_env_config
+    from schola.scripts.rllib.utils import build_env_config
 
     if not args.resource_settings.using_cluster:
         ray.init(

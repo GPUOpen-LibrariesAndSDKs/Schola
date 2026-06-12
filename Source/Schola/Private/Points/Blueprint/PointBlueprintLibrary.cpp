@@ -2,6 +2,7 @@
 
 #include "Points/Blueprint/PointBlueprintLibrary.h"
 
+#include "Common/BlueprintErrorUtils.h"
 #include "Points/MultiBinaryPoint.h"
 #include "Points/DiscretePoint.h"
 #include "Points/BoxPoint.h"
@@ -47,4 +48,23 @@ EPointType UPointBlueprintLibrary::Point_Type(const FInstancedStruct& InPoint)
 bool UPointBlueprintLibrary::Point_IsOfType(const FInstancedStruct& InPoint, EPointType InType)
 {
 	return Point_Type(InPoint) == InType;
+}
+
+FString UPointBlueprintLibrary::PointToString(const FInstancedStruct& InPoint)
+{
+	if (!InPoint.IsValid())
+	{
+		RaiseInvalidInstancedStructError(TEXT("PointToString"));
+		return FString();
+	}
+
+	const UScriptStruct* ScriptStruct = InPoint.GetScriptStruct();
+	if (!ScriptStruct || !ScriptStruct->IsChildOf(FPoint::StaticStruct()))
+	{
+		RaiseInstancedStructTypeMismatchError(InPoint, TEXT("FPoint"), TEXT("PointToString"));
+		return FString();
+	}
+
+	const FPoint* Point = InPoint.GetPtr<FPoint>();
+	return Point ? Point->ToString() : FString();
 }

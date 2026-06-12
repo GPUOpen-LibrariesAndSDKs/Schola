@@ -95,3 +95,17 @@ bool FMultiDiscreteSpace::IsEmpty() const
 {
 	return this->High.Num() == 0;
 }
+
+FString FMultiDiscreteSpace::ToString() const
+{
+	FString HighPart;
+	for (int32 i = 0; i < High.Num(); ++i)
+	{
+		if (i > 0)
+		{
+			HighPart += TEXT(", ");
+		}
+		HighPart += FString::FromInt(High[i]);
+	}
+	return FString::Printf(TEXT("MultiDiscreteSpace(High=[%s])"), *HighPart);
+}

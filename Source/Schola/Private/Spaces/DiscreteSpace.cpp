@@ -63,3 +63,8 @@ bool FDiscreteSpace::IsEmpty() const
 {
 	return this->High == 0;
 }
+
+FString FDiscreteSpace::ToString() const
+{
+	return FString::Printf(TEXT("DiscreteSpace(High=%d)"), High);
+}

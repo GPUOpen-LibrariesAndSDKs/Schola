@@ -7,12 +7,6 @@
 #include "Spaces/Space.h"
 #include "SpaceBlueprintLibrary.generated.h"
 
-struct FMultiBinarySpace;
-struct FDiscreteSpace;
-struct FBoxSpace;
-struct FDictSpace;
-struct FMultiDiscreteSpace;
-
 /**
  * @class USpaceBlueprintLibrary
  * @brief Blueprint helpers for inspecting Space InstancedStructs.
@@ -26,6 +20,7 @@ struct FMultiDiscreteSpace;
  * - UMultiDiscreteSpaceBlueprintLibrary for MultiDiscrete spaces
  * - UBoxSpaceBlueprintLibrary for Box (continuous) spaces
  * - UDictSpaceBlueprintLibrary for Dictionary spaces
+ * - UTextSpaceBlueprintLibrary for Text spaces
  */
 UCLASS()
 class SCHOLA_API USpaceBlueprintLibrary : public UBlueprintFunctionLibrary
@@ -59,4 +54,12 @@ public:
      */
     UFUNCTION(BlueprintPure, Category = "Schola|Space", meta = (DisplayName = "Contains (Space, Point)", ReturnDisplayName="Contains"))
     static bool Space_Contains(UPARAM(DisplayName="Space") const FInstancedStruct& InSpace, UPARAM(DisplayName="Point") const FInstancedStruct& InPoint);
+
+	/**
+	 * @brief String representation of any instanced space whose script struct derives from FSpace.
+	 * @param[in] InSpace Type-erased instanced struct holding a concrete FSpace subtype.
+	 * @return Debug string from the space's ToString(), or empty if invalid / wrong type.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Schola|Space", meta = (DisplayName = "To String (Space)", ReturnDisplayName = "String"))
+	static FString SpaceToString(UPARAM(DisplayName = "Space") const FInstancedStruct& InSpace);
 };

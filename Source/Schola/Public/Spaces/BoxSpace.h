@@ -124,6 +124,11 @@ public:
 	ESpaceValidationResult Validate(const TInstancedStruct<FPoint>& Point) const override;
 
 	/**
+	 * @brief Converts this space to a string representation.
+	 */
+	FString ToString() const override;
+
+	/**
 	 * @brief Accepts a mutable visitor for the visitor pattern.
 	 * @param[in,out] InVisitor The visitor to accept.
 	 */

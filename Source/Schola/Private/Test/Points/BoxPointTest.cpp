@@ -126,5 +126,14 @@ bool FBoxPointResetTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoxPointToStringTest, "Schola.Points.BoxPoint.ToString", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FBoxPointToStringTest::RunTest(const FString& Parameters)
+{
+	const FBoxPoint BoxPoint({1.5f, 2.0f});
+	TestEqual(TEXT("FBoxPoint::ToString bracketed SanitizeFloat values"), BoxPoint.ToString(), FString(TEXT("[1.5, 2.0]")));
+	return true;
+}
+
 
 #endif

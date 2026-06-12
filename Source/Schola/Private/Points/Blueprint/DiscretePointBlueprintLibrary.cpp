@@ -27,5 +27,6 @@ int32 UDiscretePointBlueprintLibrary::DiscretePointToInt32(const TInstancedStruc
     }
 
     return TypedPoint->Value;
+
 }
 

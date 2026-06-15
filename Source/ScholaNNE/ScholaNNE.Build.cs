@@ -16,7 +16,7 @@ public class ScholaNNE : ModuleRules
         PublicIncludePaths.AddRange(new string[] { });
 		PrivateIncludePaths.AddRange(new string[] { "ScholaNNE/Private"});
 		// Make generated code available to other modules
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "gRPC", "Schola", "Projects", "NNE"});
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Schola", "Projects", "NNE"});
 
 		PrivateIncludePathModuleNames.AddRange(new string[] {  "Engine" });
 		PrivateDependencyModuleNames.AddRange(new string[] { });

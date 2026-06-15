@@ -72,3 +72,15 @@ ESpaceValidationResult FDictSpace::Validate(const TInstancedStruct<FPoint>& InPo
 	}
 	return ESpaceValidationResult::Success;
 }
+
+FString FDictSpace::ToString() const
+{
+	FString Body;
+	for (const TPair<FString, TInstancedStruct<FSpace>>& Pair : Spaces)
+	{
+		const FSpace* SubSpace = Pair.Value.GetPtr<FSpace>();
+		const FString SubStr = SubSpace ? SubSpace->ToString() : TEXT("(null)");
+		Body += FString::Printf(TEXT("\t%s: %s,\n"), *Pair.Key, *SubStr);
+	}
+	return FString::Printf(TEXT("DictSpace(\n{%s})"), *Body);
+}

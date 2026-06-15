@@ -238,4 +238,13 @@ bool FMultiDiscreteSpaceGetMaxValueTest::RunTest(const FString& Parameters)
 
     return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMultiDiscreteSpaceToStringTest, "Schola.Spaces.MultiDiscreteSpace.ToString", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FMultiDiscreteSpaceToStringTest::RunTest(const FString& Parameters)
+{
+	FMultiDiscreteSpace DiscreteSpace(TArray<int>{2, 3, 4});
+	TestEqual(TEXT("FMultiDiscreteSpace::ToString"), DiscreteSpace.ToString(), FString(TEXT("MultiDiscreteSpace(High=[2, 3, 4])")));
+	return true;
+}
 #endif

@@ -112,6 +112,11 @@ struct SCHOLA_API FSpace
 	 */
 	virtual int GetFlattenedSize() const PURE_VIRTUAL(FSpace::GetFlattenedSize, return 0;);
 
+	/**
+	 * @brief Converts this space to a string representation.
+	 * @return A string representation of this space for debugging and logging.
+	 */
+	virtual FString ToString() const PURE_VIRTUAL(FSpace::ToString, return TEXT("Invalid Space"););
 
 	/**
 	 * @brief Virtual destructor.

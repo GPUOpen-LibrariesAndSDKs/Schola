@@ -138,19 +138,20 @@ struct SCHOLA_API FBoxPoint : public FPoint
 
 	/**
 	 * @brief Converts this point to a string representation.
-	 * @return A comma-separated string of the float values.
+	 * @return Bracketed list of floats, e.g. `[0, 1.5]`.
 	 */
 	FString ToString() const override
 	{
-		FString Result = TEXT("");
-		for (int i = 0; i < this->Values.Num(); i++)
+		FString Result = TEXT("[");
+		for (int i = 0; i < this->Values.Num(); ++i)
 		{
-			Result += FString::SanitizeFloat(this->Values[i]);
-			if (i != this->Values.Num() - 1)
+			if (i > 0)
 			{
 				Result += TEXT(", ");
 			}
+			Result += FString::SanitizeFloat(this->Values[i]);
 		}
+		Result += TEXT("]");
 		return Result;
-	};
+	}
 };

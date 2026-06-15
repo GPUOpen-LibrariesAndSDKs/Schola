@@ -82,5 +82,24 @@ bool FMultiBinaryPointResetTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMultiBinaryPointToStringWithValuesTest, "Schola.Points.MultiBinaryPoint.ToString.WithValues", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FMultiBinaryPointToStringWithValuesTest::RunTest(const FString& Parameters)
+{
+	FMultiBinaryPoint MultiBinaryPoint;
+	MultiBinaryPoint.Values = {true, false, true};
+	TestEqual(TEXT("FMultiBinaryPoint::ToString lists bools as true/false"), MultiBinaryPoint.ToString(), FString(TEXT("[true, false, true]")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMultiBinaryPointToStringEmptyTest, "Schola.Points.MultiBinaryPoint.ToString.Empty", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FMultiBinaryPointToStringEmptyTest::RunTest(const FString& Parameters)
+{
+	const FMultiBinaryPoint MultiBinaryPoint;
+	TestEqual(TEXT("FMultiBinaryPoint::ToString with no values"), MultiBinaryPoint.ToString(), FString(TEXT("[]")));
+	return true;
+}
+
 
 #endif

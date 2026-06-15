@@ -92,4 +92,14 @@ bool FMultiBinarySpaceValidateWrongDimensionsTest::RunTest(const FString& Parame
 
     return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMultiBinarySpaceToStringTest, "Schola.Spaces.MultiBinarySpace.ToString", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FMultiBinarySpaceToStringTest::RunTest(const FString& Parameters)
+{
+	FMultiBinarySpace MultiBinarySpace;
+	MultiBinarySpace.Shape = 8;
+	TestEqual(TEXT("FMultiBinarySpace::ToString"), MultiBinarySpace.ToString(), FString(TEXT("MultiBinarySpace(Shape=8)")));
+	return true;
+}
 #endif

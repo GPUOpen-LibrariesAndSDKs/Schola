@@ -322,4 +322,35 @@ bool FBoxSpaceValidateWrongDataTypeTest::RunTest(const FString& Parameters)
 
     return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoxSpaceToStringNoShapeTest, "Schola.Spaces.BoxSpace.ToString.NoShape", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FBoxSpaceToStringNoShapeTest::RunTest(const FString& Parameters)
+{
+	FBoxSpace BoxSpace;
+	BoxSpace.Add(-1.0f, 1.0f);
+	BoxSpace.Add(-2.0f, 2.0f);
+
+	TestEqual(
+		TEXT("FBoxSpace::ToString without shape"),
+		BoxSpace.ToString(),
+		FString(TEXT("BoxSpace(Dimensions={[-1, 1], [-2, 2]})")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoxSpaceToStringWithShapeTest, "Schola.Spaces.BoxSpace.ToString.WithShape", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FBoxSpaceToStringWithShapeTest::RunTest(const FString& Parameters)
+{
+	TArray<float> Low = {-1.0f, -2.0f};
+	TArray<float> High = {1.0f, 2.0f};
+	TArray<int> Shape = {2};
+	FBoxSpace BoxSpace(Low, High, Shape);
+
+	TestEqual(
+		TEXT("FBoxSpace::ToString with shape"),
+		BoxSpace.ToString(),
+		FString(TEXT("BoxSpace(Dimensions={[-1, 1], [-2, 2]}, Shape=[2])")));
+	return true;
+}
 #endif

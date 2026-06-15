@@ -241,4 +241,16 @@ bool FTextSpaceValidateWrongDataTypeTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTextSpaceToStringEmptyCharsetTest, "Schola.Spaces.TextSpace.ToString.EmptyCharset", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FTextSpaceToStringEmptyCharsetTest::RunTest(const FString& Parameters)
+{
+	FTextSpace TextSpace;
+	TextSpace.MinLength = 1;
+	TextSpace.MaxLength = 16;
+	TextSpace.Charset = TEXT("");
+	TestEqual(TEXT("FTextSpace::ToString empty charset"), TextSpace.ToString(), FString(TEXT("TextSpace(MinLength=1, MaxLength=16, Charset=\"\")")));
+	return true;
+}
+
 #endif

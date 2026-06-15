@@ -116,4 +116,14 @@ bool FDiscreteSpaceValidateWrongDataTypeTest::RunTest(const FString& Parameters)
 
     return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDiscreteSpaceToStringTest, "Schola.Spaces.DiscreteSpace.ToString", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FDiscreteSpaceToStringTest::RunTest(const FString& Parameters)
+{
+	FDiscreteSpace DiscreteSpace;
+	DiscreteSpace.High = 10;
+	TestEqual(TEXT("FDiscreteSpace::ToString"), DiscreteSpace.ToString(), FString(TEXT("DiscreteSpace(High=10)")));
+	return true;
+}
 #endif

@@ -111,19 +111,20 @@ struct SCHOLA_API FMultiDiscretePoint : public FPoint
 
 	/**
 	 * @brief Converts this point to a string representation.
-	 * @return A comma-separated string of the integer values.
+	 * @return Bracketed list of integers, e.g. `[0, 1, 2]`.
 	 */
 	FString ToString() const override
 	{
-		FString Result = TEXT("");
-		for (int i = 0; i < this->Values.Num(); i++)
+		FString Result = TEXT("[");
+		for (int i = 0; i < this->Values.Num(); ++i)
 		{
-			Result += FString::Printf(TEXT("%d"), this->Values[i]);
-			if (i != this->Values.Num() - 1)
+			if (i > 0)
 			{
 				Result += TEXT(", ");
 			}
+			Result += FString::Printf(TEXT("%d"), this->Values[i]);
 		}
+		Result += TEXT("]");
 		return Result;
 	}
 };

@@ -7,12 +7,6 @@
 #include "Points/Point.h"
 #include "PointBlueprintLibrary.generated.h"
 
-struct FMultiBinaryPoint;
-struct FDiscretePoint;
-struct FBoxPoint;
-struct FDictPoint;
-struct FMultiDiscretePoint;
-
 /**
  * @class UPointBlueprintLibrary
  * @brief Blueprint oriented helper functions for inspecting Point InstancedStructs.
@@ -26,6 +20,7 @@ struct FMultiDiscretePoint;
  * - UMultiDiscretePointBlueprintLibrary for MultiDiscrete points
  * - UBoxPointBlueprintLibrary for Box (continuous) points
  * - UDictPointBlueprintLibrary for Dictionary points
+ * - UTextPointBlueprintLibrary for Text points
  */
 UCLASS()
 class SCHOLA_API UPointBlueprintLibrary : public UBlueprintFunctionLibrary
@@ -49,5 +44,13 @@ public:
      */
     UFUNCTION(BlueprintPure, Category="Schola|Point", meta=(DisplayName="Is Of Type (Point)", ReturnDisplayName="Is Type"))
     static bool Point_IsOfType(UPARAM(DisplayName="Point") const FInstancedStruct& InPoint, UPARAM(DisplayName="Type") EPointType InType);
+
+	/**
+	 * @brief String representation of any instanced point whose script struct derives from FPoint.
+	 * @param[in] InPoint Type-erased instanced struct holding a concrete FPoint subtype.
+	 * @return Debug string from the point's ToString(), or empty if invalid / wrong type.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Schola|Point", meta = (DisplayName = "To String (Point)", ReturnDisplayName = "String"))
+	static FString PointToString(UPARAM(DisplayName = "Point") const FInstancedStruct& InPoint);
 
 };

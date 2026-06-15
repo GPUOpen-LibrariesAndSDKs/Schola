@@ -73,24 +73,22 @@ sb3 = [
 
 # Dependencies for running training with RLlib.
 # * ray[rllib] is required to run training with RLlib.
-# * ray[rllib]>=2.49 is the earliest version of RLlib supporting Gymnasium>=1.1.0, and 2.54 is the latest available version.
+# * ray[rllib]>=2.49 is the earliest version of RLlib supporting Gymnasium>=1.1.0.
+# * <2.55 because ray 2.55 removed ray.init(local_mode=...), which the test suite relies on.
 rllib = [
-    "ray[rllib]>=2.49, <2.56",
+    "ray[rllib]>=2.49, <2.55",
 ]
 
 # Dependencies for collecting Minari datasets with Schola.
 # * minari[hdf5] is required to collect Minari datasets with Schola. 0.5.2 is required for MultiBinary and MultiDiscrete spaces.
 minari = [
     "minari[hdf5,create]>=0.5.2",
+    "pillow",
 ]
 
-# All dependencies (sb3, rllib, minari)
+# All dependencies (sb3, rllib, minari). 
 all = [
-    "stable-baselines3>=2.6",
-    "tqdm",
-    "rich",
-    "ray[rllib]>=2.49, <2.55",
-    "minari[hdf5,create]>=0.5.2",
+    "schola[sb3,rllib,minari]",
 ]
 
 [project.scripts]

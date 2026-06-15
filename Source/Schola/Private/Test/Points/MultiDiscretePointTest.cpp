@@ -78,4 +78,23 @@ bool FMultiDiscretePointResetTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMultiDiscretePointToStringWithValuesTest, "Schola.Points.MultiDiscretePoint.ToString.WithValues", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FMultiDiscretePointToStringWithValuesTest::RunTest(const FString& Parameters)
+{
+	FMultiDiscretePoint DiscretePoint;
+	DiscretePoint.Values = {1, 2, 3};
+	TestEqual(TEXT("FMultiDiscretePoint::ToString bracketed integers"), DiscretePoint.ToString(), FString(TEXT("[1, 2, 3]")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMultiDiscretePointToStringEmptyTest, "Schola.Points.MultiDiscretePoint.ToString.Empty", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FMultiDiscretePointToStringEmptyTest::RunTest(const FString& Parameters)
+{
+	const FMultiDiscretePoint DiscretePoint;
+	TestEqual(TEXT("FMultiDiscretePoint::ToString empty is empty brackets"), DiscretePoint.ToString(), FString(TEXT("[]")));
+	return true;
+}
+
 #endif

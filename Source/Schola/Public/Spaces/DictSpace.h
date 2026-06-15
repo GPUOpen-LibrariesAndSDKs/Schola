@@ -81,6 +81,11 @@ struct SCHOLA_API FDictSpace : public FSpace
 	ESpaceValidationResult Validate(const TInstancedStruct<FPoint>& InPoint) const override;
 
 	/**
+	 * @brief Converts this space to a string representation.
+	 */
+	FString ToString() const override;
+
+	/**
 	 * @brief Accepts a mutable visitor for the visitor pattern.
 	 * @param[in,out] InVisitor The visitor to accept.
 	 */

@@ -1,6 +1,13 @@
 # Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
 
-"""Unreal automation test batch types shared by pytest conftest."""
+"""Unreal automation test batch types shared by pytest conftest.
+
+.. note::
+    Unreal's session report JSON can omit a test when its full path is a strict prefix of another
+    registered test (for example ``Schola.Foo.ToString`` next to ``Schola.Foo.ToString.Empty``). Pytest
+    then raises "Test not found in Unreal Engine results". Prefer sibling leaf names that are not
+    prefixes of one another (e.g. ``...ToString.WithValues`` and ``...ToString.Empty``).
+"""
 
 from __future__ import annotations
 

@@ -109,15 +109,20 @@ struct SCHOLA_API FMultiBinaryPoint : public FPoint
 
 	/**
 	 * @brief Converts this point to a string representation.
-	 * @return A string showing all boolean values.
+	 * @return Bracketed list of true/false, e.g. `[true, false]`.
 	 */
 	FString ToString() const override
 	{
-		FString Result = TEXT("BinaryPoint: ");
-		for (int i = 0; i < this->Values.Num(); i++)
+		FString Result = TEXT("[");
+		for (int i = 0; i < this->Values.Num(); ++i)
 		{
-			Result += FString::Printf(TEXT("%d "), this->Values[i]);
+			if (i > 0)
+			{
+				Result += TEXT(", ");
+			}
+			Result += this->Values[i] ? TEXT("true") : TEXT("false");
 		}
+		Result += TEXT("]");
 		return Result;
 	}
 };

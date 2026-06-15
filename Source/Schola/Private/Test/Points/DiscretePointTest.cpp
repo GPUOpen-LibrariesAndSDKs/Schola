@@ -42,4 +42,13 @@ bool FDiscretePointResetTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDiscretePointToStringTest, "Schola.Points.DiscretePoint.ToString", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FDiscretePointToStringTest::RunTest(const FString& Parameters)
+{
+	const FDiscretePoint DiscretePoint(42);
+	TestEqual(TEXT("FDiscretePoint::ToString formats integer value"), DiscretePoint.ToString(), FString(TEXT("42")));
+	return true;
+}
+
 #endif

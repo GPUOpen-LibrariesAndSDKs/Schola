@@ -3,6 +3,7 @@
 #include "Misc/AutomationTest.h"
 
 #include "Spaces/DictSpace.h"
+#include "Spaces/DiscreteSpace.h"
 #include "Spaces/BoxSpace.h"
 #include "Spaces/Space.h"
 #include "Points/BoxPoint.h"
@@ -159,6 +160,31 @@ bool FDictSpaceValidateWrongDimensionsKeysMismatchTest::RunTest(const FString& P
 
 	TestEqual(TEXT("DictSpace.Validate(Point) == ESpaceValidationResult::WrongDimensions when point keys do not match space keys"), DictSpace.Validate(Point), ESpaceValidationResult::WrongDimensions);
 
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDictSpaceToStringEmptyTest, "Schola.Spaces.DictSpace.ToString.Empty", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FDictSpaceToStringEmptyTest::RunTest(const FString& Parameters)
+{
+	const FDictSpace DictSpace;
+	TestEqual(TEXT("FDictSpace::ToString empty"), DictSpace.ToString(), FString(TEXT("DictSpace(\n{})")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDictSpaceToStringSingleEntryTest, "Schola.Spaces.DictSpace.ToString.SingleEntry", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FDictSpaceToStringSingleEntryTest::RunTest(const FString& Parameters)
+{
+	FDictSpace DictSpace;
+	FDiscreteSpace Discrete;
+	Discrete.High = 5;
+	DictSpace.Spaces.Add(TEXT("slot"), TInstancedStruct<FSpace>::Make<FDiscreteSpace>(Discrete));
+
+	TestEqual(
+		TEXT("FDictSpace::ToString single named subspace"),
+		DictSpace.ToString(),
+		FString(TEXT("DictSpace(\n{\tslot: DiscreteSpace(High=5),\n})")));
 	return true;
 }
 

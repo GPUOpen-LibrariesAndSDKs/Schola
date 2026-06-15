@@ -9,6 +9,7 @@
 #include "Spaces/DictSpace.h"
 #include "Spaces/TextSpace.h"
 #include "Common/InstancedStructUtils.h"
+#include "Math/Vector.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -201,6 +202,127 @@ bool FSpaceBlueprintLibrary_IsOfType_TextTrueTest::RunTest(const FString& Parame
     bool Result = USpaceBlueprintLibrary::Space_IsOfType(ToUntypedInstancedStruct(Space), ESpaceType::Text);
 
     TestTrue(TEXT("Space_IsOfType(TextSpace, Text) == true"), Result);
+
+    return true;
+}
+
+// SpaceToString Tests
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSpaceBlueprintLibrary_SpaceToString_InvalidTest, "Schola.Spaces.Blueprint.SpaceBlueprintLibrary.SpaceToString.Invalid", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FSpaceBlueprintLibrary_SpaceToString_InvalidTest::RunTest(const FString& Parameters)
+{
+    FInstancedStruct Invalid;
+    TestFalse(TEXT("Uninitialized instanced struct is invalid"), Invalid.IsValid());
+
+    FString Result = USpaceBlueprintLibrary::SpaceToString(Invalid);
+    TestTrue(TEXT("SpaceToString(invalid) returns empty"), Result.IsEmpty());
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSpaceBlueprintLibrary_SpaceToString_NonSpaceStructTest, "Schola.Spaces.Blueprint.SpaceBlueprintLibrary.SpaceToString.NonSpaceStruct", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FSpaceBlueprintLibrary_SpaceToString_NonSpaceStructTest::RunTest(const FString& Parameters)
+{
+    FInstancedStruct NotASpace;
+    NotASpace.InitializeAs<FVector>(FVector(1.0f, 2.0f, 3.0f));
+
+    FString Result = USpaceBlueprintLibrary::SpaceToString(NotASpace);
+    TestTrue(TEXT("SpaceToString(non-FSpace struct) returns empty"), Result.IsEmpty());
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSpaceBlueprintLibrary_SpaceToString_DiscreteMatchesNativeTest, "Schola.Spaces.Blueprint.SpaceBlueprintLibrary.SpaceToString.DiscreteMatchesNative", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FSpaceBlueprintLibrary_SpaceToString_DiscreteMatchesNativeTest::RunTest(const FString& Parameters)
+{
+    TInstancedStruct<FSpace> Space;
+    Space.InitializeAs<FDiscreteSpace>();
+    Space.GetMutable<FDiscreteSpace>().High = 10;
+
+    const FString Expected = Space.Get<FDiscreteSpace>().ToString();
+    const FString Result = USpaceBlueprintLibrary::SpaceToString(ToUntypedInstancedStruct(Space));
+
+    TestEqual(TEXT("SpaceToString(Discrete) matches native ToString"), Result, Expected);
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSpaceBlueprintLibrary_SpaceToString_TextMatchesNativeTest, "Schola.Spaces.Blueprint.SpaceBlueprintLibrary.SpaceToString.TextMatchesNative", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FSpaceBlueprintLibrary_SpaceToString_TextMatchesNativeTest::RunTest(const FString& Parameters)
+{
+    TInstancedStruct<FSpace> Space;
+    Space.InitializeAs<FTextSpace>(16);
+
+    const FString Expected = Space.Get<FTextSpace>().ToString();
+    const FString Result = USpaceBlueprintLibrary::SpaceToString(ToUntypedInstancedStruct(Space));
+
+    TestEqual(TEXT("SpaceToString(Text) matches native ToString"), Result, Expected);
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSpaceBlueprintLibrary_SpaceToString_BoxMatchesNativeTest, "Schola.Spaces.Blueprint.SpaceBlueprintLibrary.SpaceToString.BoxMatchesNative", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FSpaceBlueprintLibrary_SpaceToString_BoxMatchesNativeTest::RunTest(const FString& Parameters)
+{
+    TInstancedStruct<FSpace> Space;
+    Space.InitializeAs<FBoxSpace>();
+    Space.GetMutable<FBoxSpace>().Add(-1.0f, 1.0f);
+
+    const FString Expected = Space.Get<FBoxSpace>().ToString();
+    const FString Result = USpaceBlueprintLibrary::SpaceToString(ToUntypedInstancedStruct(Space));
+
+    TestEqual(TEXT("SpaceToString(Box) matches native ToString"), Result, Expected);
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSpaceBlueprintLibrary_SpaceToString_MultiBinaryMatchesNativeTest, "Schola.Spaces.Blueprint.SpaceBlueprintLibrary.SpaceToString.MultiBinaryMatchesNative", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FSpaceBlueprintLibrary_SpaceToString_MultiBinaryMatchesNativeTest::RunTest(const FString& Parameters)
+{
+    TInstancedStruct<FSpace> Space;
+    Space.InitializeAs<FMultiBinarySpace>();
+    Space.GetMutable<FMultiBinarySpace>().Shape = 4;
+
+    const FString Expected = Space.Get<FMultiBinarySpace>().ToString();
+    const FString Result = USpaceBlueprintLibrary::SpaceToString(ToUntypedInstancedStruct(Space));
+
+    TestEqual(TEXT("SpaceToString(MultiBinary) matches native ToString"), Result, Expected);
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSpaceBlueprintLibrary_SpaceToString_MultiDiscreteMatchesNativeTest, "Schola.Spaces.Blueprint.SpaceBlueprintLibrary.SpaceToString.MultiDiscreteMatchesNative", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FSpaceBlueprintLibrary_SpaceToString_MultiDiscreteMatchesNativeTest::RunTest(const FString& Parameters)
+{
+    TInstancedStruct<FSpace> Space;
+    Space.InitializeAs<FMultiDiscreteSpace>(TArray<int32>{2, 3, 4});
+
+    const FString Expected = Space.Get<FMultiDiscreteSpace>().ToString();
+    const FString Result = USpaceBlueprintLibrary::SpaceToString(ToUntypedInstancedStruct(Space));
+
+    TestEqual(TEXT("SpaceToString(MultiDiscrete) matches native ToString"), Result, Expected);
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSpaceBlueprintLibrary_SpaceToString_DictMatchesNativeTest, "Schola.Spaces.Blueprint.SpaceBlueprintLibrary.SpaceToString.DictMatchesNative", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FSpaceBlueprintLibrary_SpaceToString_DictMatchesNativeTest::RunTest(const FString& Parameters)
+{
+    TInstancedStruct<FSpace> Space;
+    Space.InitializeAs<FDictSpace>();
+
+    const FString Expected = Space.Get<FDictSpace>().ToString();
+    const FString Result = USpaceBlueprintLibrary::SpaceToString(ToUntypedInstancedStruct(Space));
+
+    TestEqual(TEXT("SpaceToString(Dict) matches native ToString"), Result, Expected);
 
     return true;
 }

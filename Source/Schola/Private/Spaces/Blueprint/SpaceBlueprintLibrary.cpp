@@ -73,3 +73,22 @@ bool USpaceBlueprintLibrary::Space_Contains(const FInstancedStruct& InSpace, con
 
 	return InSpace.GetPtr<FSpace>()->Contains(ToTypedInstancedStruct<FPoint>(InPoint));
 }
+
+FString USpaceBlueprintLibrary::SpaceToString(const FInstancedStruct& InSpace)
+{
+	if (!InSpace.IsValid())
+	{
+		RaiseInvalidInstancedStructError(TEXT("SpaceToString"));
+		return FString();
+	}
+
+	const UScriptStruct* ScriptStruct = InSpace.GetScriptStruct();
+	if (!ScriptStruct || !ScriptStruct->IsChildOf(FSpace::StaticStruct()))
+	{
+		RaiseInstancedStructTypeMismatchError(InSpace, TEXT("FSpace"), TEXT("SpaceToString"));
+		return FString();
+	}
+
+	const FSpace* Space = InSpace.GetPtr<FSpace>();
+	return Space ? Space->ToString() : FString();
+}

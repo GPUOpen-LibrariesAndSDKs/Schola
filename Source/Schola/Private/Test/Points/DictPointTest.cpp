@@ -174,4 +174,27 @@ bool FDictPointOverwriteExistingPointTest::RunTest(const FString& Parameters)
 
     return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDictPointToStringEmptyTest, "Schola.Points.DictPoint.ToString.Empty", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FDictPointToStringEmptyTest::RunTest(const FString& Parameters)
+{
+	const FDictPoint DictPoint;
+	TestEqual(TEXT("FDictPoint::ToString empty map"), DictPoint.ToString(), FString(TEXT("{\n}")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDictPointToStringSingleEntryTest, "Schola.Points.DictPoint.ToString.SingleEntry", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FDictPointToStringSingleEntryTest::RunTest(const FString& Parameters)
+{
+	FDictPoint DictPoint;
+	TInstancedStruct<FPoint> Inner;
+	Inner.InitializeAs<FDiscretePoint>(7);
+	DictPoint.Points.Add(TEXT("alpha"), MoveTemp(Inner));
+
+	const FString Expected = FString(TEXT("{\n    alpha: 7,\n}"));
+	TestEqual(TEXT("FDictPoint::ToString single key"), DictPoint.ToString(), Expected);
+	return true;
+}
 #endif

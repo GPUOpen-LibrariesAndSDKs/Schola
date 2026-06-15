@@ -61,3 +61,15 @@ bool FTextSpace::IsEmpty() const
 {
 	return this->MaxLength == 0;
 }
+
+FString FTextSpace::ToString() const
+{
+	FString CharsetDisplay = Charset;
+	if (CharsetDisplay.Len() > 64)
+	{
+		CharsetDisplay = CharsetDisplay.Left(64).Append(TEXT("..."));
+	}
+	CharsetDisplay.ReplaceInline(TEXT("\\"), TEXT("\\\\"));
+	CharsetDisplay.ReplaceInline(TEXT("\""), TEXT("\\\""));
+	return FString::Printf(TEXT("TextSpace(MinLength=%d, MaxLength=%d, Charset=\"%s\")"), MinLength, MaxLength, *CharsetDisplay);
+}

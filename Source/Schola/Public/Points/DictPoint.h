@@ -93,20 +93,24 @@ struct FDictPoint : public FPoint
 
 	/**
 	 * @brief Converts this dictionary point to a string representation.
-	 * @return A string showing all key-value pairs in the dictionary.
+	 * @return A multi-line string with one entry per line, for example:
+	 * @code
+	 * {
+	 *     key_a: ...
+	 *     key_b: ...
+	 * }
+	 * @endcode
 	 */
 	FString ToString() const override
 	{
-		FString Result = TEXT("{");
-		int Count = 0;
+		if (Points.Num() == 0)
+		{
+			return TEXT("{\n}");
+		}
+		FString Result = TEXT("{\n");
 		for (const auto& Pair : Points)
 		{
-			if (Count > 0)
-			{
-				Result += TEXT(", ");
-			}
-			Result += FString::Printf(TEXT("%s: %s"), *Pair.Key, *Pair.Value.Get<FPoint>().ToString());
-			Count++;
+			Result += FString::Printf(TEXT("    %s: %s,\n"), *Pair.Key, *Pair.Value.Get<FPoint>().ToString());
 		}
 		Result += TEXT("}");
 		return Result;

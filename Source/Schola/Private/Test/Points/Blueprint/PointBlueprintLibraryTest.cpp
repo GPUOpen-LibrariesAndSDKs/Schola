@@ -9,6 +9,7 @@
 #include "Points/DictPoint.h"
 #include "Points/TextPoint.h"
 #include "Common/InstancedStructUtils.h"
+#include "Math/Vector.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -201,6 +202,127 @@ bool FPointBlueprintLibrary_IsOfType_TextTrueTest::RunTest(const FString& Parame
     bool Result = UPointBlueprintLibrary::Point_IsOfType(ToUntypedInstancedStruct(Point), EPointType::Text);
 
     TestTrue(TEXT("Point_IsOfType(TextPoint, Text) == true"), Result);
+
+    return true;
+}
+
+// PointToString Tests
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPointBlueprintLibrary_PointToString_InvalidTest, "Schola.Points.Blueprint.PointBlueprintLibrary.PointToString.Invalid", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FPointBlueprintLibrary_PointToString_InvalidTest::RunTest(const FString& Parameters)
+{
+    FInstancedStruct Invalid;
+    TestFalse(TEXT("Uninitialized instanced struct is invalid"), Invalid.IsValid());
+
+    FString Result = UPointBlueprintLibrary::PointToString(Invalid);
+    TestTrue(TEXT("PointToString(invalid) returns empty"), Result.IsEmpty());
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPointBlueprintLibrary_PointToString_NonPointStructTest, "Schola.Points.Blueprint.PointBlueprintLibrary.PointToString.NonPointStruct", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FPointBlueprintLibrary_PointToString_NonPointStructTest::RunTest(const FString& Parameters)
+{
+    FInstancedStruct NotAPoint;
+    NotAPoint.InitializeAs<FVector>(FVector(1.0f, 2.0f, 3.0f));
+
+    FString Result = UPointBlueprintLibrary::PointToString(NotAPoint);
+    TestTrue(TEXT("PointToString(non-FPoint struct) returns empty"), Result.IsEmpty());
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPointBlueprintLibrary_PointToString_DiscreteMatchesNativeTest, "Schola.Points.Blueprint.PointBlueprintLibrary.PointToString.DiscreteMatchesNative", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FPointBlueprintLibrary_PointToString_DiscreteMatchesNativeTest::RunTest(const FString& Parameters)
+{
+    TInstancedStruct<FPoint> Point;
+    Point.InitializeAs<FDiscretePoint>(42);
+
+    const FString Expected = Point.Get<FDiscretePoint>().ToString();
+    const FString Result = UPointBlueprintLibrary::PointToString(ToUntypedInstancedStruct(Point));
+
+    TestEqual(TEXT("PointToString(Discrete) matches native ToString"), Result, Expected);
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPointBlueprintLibrary_PointToString_TextMatchesNativeTest, "Schola.Points.Blueprint.PointBlueprintLibrary.PointToString.TextMatchesNative", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FPointBlueprintLibrary_PointToString_TextMatchesNativeTest::RunTest(const FString& Parameters)
+{
+    TInstancedStruct<FPoint> Point;
+    Point.InitializeAs<FTextPoint>(FString(TEXT("hello")));
+
+    const FString Expected = Point.Get<FTextPoint>().ToString();
+    const FString Result = UPointBlueprintLibrary::PointToString(ToUntypedInstancedStruct(Point));
+
+    TestEqual(TEXT("PointToString(Text) matches native ToString"), Result, Expected);
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPointBlueprintLibrary_PointToString_BoxMatchesNativeTest, "Schola.Points.Blueprint.PointBlueprintLibrary.PointToString.BoxMatchesNative", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FPointBlueprintLibrary_PointToString_BoxMatchesNativeTest::RunTest(const FString& Parameters)
+{
+    TInstancedStruct<FPoint> Point;
+    Point.InitializeAs<FBoxPoint>();
+    Point.GetMutable<FBoxPoint>().Add(3.5f);
+
+    const FString Expected = Point.Get<FBoxPoint>().ToString();
+    const FString Result = UPointBlueprintLibrary::PointToString(ToUntypedInstancedStruct(Point));
+
+    TestEqual(TEXT("PointToString(Box) matches native ToString"), Result, Expected);
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPointBlueprintLibrary_PointToString_MultiBinaryMatchesNativeTest, "Schola.Points.Blueprint.PointBlueprintLibrary.PointToString.MultiBinaryMatchesNative", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FPointBlueprintLibrary_PointToString_MultiBinaryMatchesNativeTest::RunTest(const FString& Parameters)
+{
+    TInstancedStruct<FPoint> Point;
+    Point.InitializeAs<FMultiBinaryPoint>();
+    Point.GetMutable<FMultiBinaryPoint>().Values = {true, false, true};
+
+    const FString Expected = Point.Get<FMultiBinaryPoint>().ToString();
+    const FString Result = UPointBlueprintLibrary::PointToString(ToUntypedInstancedStruct(Point));
+
+    TestEqual(TEXT("PointToString(MultiBinary) matches native ToString"), Result, Expected);
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPointBlueprintLibrary_PointToString_MultiDiscreteMatchesNativeTest, "Schola.Points.Blueprint.PointBlueprintLibrary.PointToString.MultiDiscreteMatchesNative", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FPointBlueprintLibrary_PointToString_MultiDiscreteMatchesNativeTest::RunTest(const FString& Parameters)
+{
+    TInstancedStruct<FPoint> Point;
+    Point.InitializeAs<FMultiDiscretePoint>();
+    Point.GetMutable<FMultiDiscretePoint>().Values = {1, 2, 3};
+
+    const FString Expected = Point.Get<FMultiDiscretePoint>().ToString();
+    const FString Result = UPointBlueprintLibrary::PointToString(ToUntypedInstancedStruct(Point));
+
+    TestEqual(TEXT("PointToString(MultiDiscrete) matches native ToString"), Result, Expected);
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPointBlueprintLibrary_PointToString_DictMatchesNativeTest, "Schola.Points.Blueprint.PointBlueprintLibrary.PointToString.DictMatchesNative", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FPointBlueprintLibrary_PointToString_DictMatchesNativeTest::RunTest(const FString& Parameters)
+{
+    TInstancedStruct<FPoint> Point;
+    Point.InitializeAs<FDictPoint>();
+
+    const FString Expected = Point.Get<FDictPoint>().ToString();
+    const FString Result = UPointBlueprintLibrary::PointToString(ToUntypedInstancedStruct(Point));
+
+    TestEqual(TEXT("PointToString(Dict) matches native ToString"), Result, Expected);
 
     return true;
 }

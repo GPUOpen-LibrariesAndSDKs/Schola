@@ -50,3 +50,8 @@ bool FMultiBinarySpace::IsEmpty() const
 {
     return this->Shape == 0;
 }
+
+FString FMultiBinarySpace::ToString() const
+{
+	return FString::Printf(TEXT("MultiBinarySpace(Shape=%d)"), Shape);
+}

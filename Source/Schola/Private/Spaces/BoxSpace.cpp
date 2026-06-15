@@ -193,6 +193,34 @@ bool FBoxSpace::IsEmpty() const
 	return this->Dimensions.IsEmpty();
 }
 
+FString FBoxSpace::ToString() const
+{
+	FString DimPart;
+	for (int32 i = 0; i < Dimensions.Num(); ++i)
+	{
+		if (i > 0)
+		{
+			DimPart += TEXT(", ");
+		}
+		DimPart += FString::Printf(TEXT("[%.6g, %.6g]"), Dimensions[i].Low, Dimensions[i].High);
+	}
+	FString ShapePart;
+	if (Shape.Num() > 0)
+	{
+		ShapePart += TEXT(", Shape=[");
+		for (int32 i = 0; i < Shape.Num(); ++i)
+		{
+			if (i > 0)
+			{
+				ShapePart += TEXT(", ");
+			}
+			ShapePart += FString::FromInt(Shape[i]);
+		}
+		ShapePart += TEXT("]");
+	}
+	return FString::Printf(TEXT("BoxSpace(Dimensions={%s}%s)"), *DimPart, *ShapePart);
+}
+
 void FBoxSpace::Add(float Low, float High)
 {
 	this->Dimensions.Emplace(Low, High);

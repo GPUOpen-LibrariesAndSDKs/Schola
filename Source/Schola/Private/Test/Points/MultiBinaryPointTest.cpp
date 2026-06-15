@@ -82,9 +82,9 @@ bool FMultiBinaryPointResetTest::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMultiBinaryPointToStringTest, "Schola.Points.MultiBinaryPoint.ToString", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMultiBinaryPointToStringWithValuesTest, "Schola.Points.MultiBinaryPoint.ToString.WithValues", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
 
-bool FMultiBinaryPointToStringTest::RunTest(const FString& Parameters)
+bool FMultiBinaryPointToStringWithValuesTest::RunTest(const FString& Parameters)
 {
 	FMultiBinaryPoint MultiBinaryPoint;
 	MultiBinaryPoint.Values = {true, false, true};

@@ -78,9 +78,9 @@ bool FMultiDiscretePointResetTest::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMultiDiscretePointToStringTest, "Schola.Points.MultiDiscretePoint.ToString", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMultiDiscretePointToStringWithValuesTest, "Schola.Points.MultiDiscretePoint.ToString.WithValues", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
 
-bool FMultiDiscretePointToStringTest::RunTest(const FString& Parameters)
+bool FMultiDiscretePointToStringWithValuesTest::RunTest(const FString& Parameters)
 {
 	FMultiDiscretePoint DiscretePoint;
 	DiscretePoint.Values = {1, 2, 3};

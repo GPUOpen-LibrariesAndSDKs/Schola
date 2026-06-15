@@ -159,30 +159,10 @@ def _discover_env_metadata(
     """
     Discover policy metadata by briefly standing up a temporary environment.
 
-    RLlib needs the agent IDs, agent types, policy mapping, and serialized
-    ``env_config`` before it can build its training config. To learn these we
-    connect to a running Unreal instance (for ``ExternalSimulator``) or launch
-    one temporarily (for executable/project simulators).
-
-    The temporary environment owns external resources (a gRPC channel and, for
-    non-external simulators, a launched Unreal process). Those resources are
-    started inside ``RayVecEnv.__init__`` itself, so cleanup must cover the case
-    where construction fails part-way (startup handshake, ``get_definition``,
-    validation, timeout, or a ``KeyboardInterrupt`` during a slow launch).
-    Mirroring the SB3 environment's ``_define_environment``, this catches the
-    failure, releases the protocol and simulator, then re-raises the original
-    exception.
-
-    Returns
-    -------
-    Tuple[list, dict, Callable, Dict[str, Any]]
-        ``(agent_ids, agent_types, policy_mapping_fn, env_config)``.
-
-    Notes
-    -----
-    This helper either returns complete discovery metadata or re-raises the
-    original exception. It never returns partial state, so training never
-    starts in a half-configured state.
+    Returns ``(agent_ids, agent_types, policy_mapping_fn, env_config)``, which
+    RLlib needs before building its training config. On any failure (including
+    ``KeyboardInterrupt``) the protocol and simulator are released before the
+    exception is re-raised, so a launched Unreal process is never leaked.
     """
     from schola.rllib.env import RayVecEnv
     from schola.scripts.rllib.utils import build_env_config

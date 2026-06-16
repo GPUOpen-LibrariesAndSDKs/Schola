@@ -4,9 +4,9 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "GymConnectors/AbstractGymConnector.h"
-#include "Environment/EnvironmentInterface.h"
 #include "GymConnectorManager.generated.h"
+
+class UAbstractGymConnector;
 
 /**
  * @brief Actor-based container for gym connectors in the Unreal Engine world. Provides a simple way to add a gym connector to your level.

@@ -1,6 +1,8 @@
 // Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
 
 #include "TrainingUtils/GymConnectorManager.h"
+#include "GymConnectors/AbstractGymConnector.h"
+#include "Environment/EnvironmentInterface.h"
 #include "Engine/World.h"
 
 // Sets default values

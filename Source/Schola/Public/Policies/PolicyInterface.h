@@ -5,7 +5,6 @@
 #include "CoreMinimal.h"
 #include "UObject/Interface.h"
 #include "Common/InteractionDefinition.h"
-#include "Spaces/Space.h"
 #include "StructUtils/InstancedStruct.h"
 #include "PolicyInterface.generated.h"
 

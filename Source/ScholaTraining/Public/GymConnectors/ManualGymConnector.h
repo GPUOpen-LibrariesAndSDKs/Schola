@@ -2,8 +2,6 @@
 
 #pragma once
 
-#include "Points/Point.h"
-#include "Spaces/Space.h"
 #include "CoreMinimal.h"
 #include "GymConnectors/AutoResetTypeEnum.h"
 #include "TrainingDataTypes/TrainingDefinition.h"

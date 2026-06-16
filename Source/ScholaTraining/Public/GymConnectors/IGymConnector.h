@@ -4,8 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "UObject/Interface.h"
-#include "Spaces/Space.h"
-#include "Points/Point.h"
 #include "TrainingDataTypes/TrainingUpdate.h"
 #include "GymConnectors/AutoResetTypeEnum.h"
 #include "TrainingDataTypes/TrainingState.h"

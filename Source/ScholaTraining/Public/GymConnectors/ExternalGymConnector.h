@@ -3,7 +3,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "Async/Future.h"
-#include "./AbstractGymConnector.h"
+#include "GymConnectors/AbstractGymConnector.h"
 #include "TrainingSettings/ExternalGymConnectorSettings.h"
 #include "ExternalGymConnector.generated.h"
 

@@ -3,12 +3,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "./IGymConnector.h"
-#include "Environment/EnvironmentInterface.h"
+#include "GymConnectors/IGymConnector.h"
 #include "GymConnectors/AutoResetTypeEnum.h"
 #include "TrainingDataTypes/TrainingDefinition.h"
 #include "TrainingDataTypes/TrainingState.h"
 #include "AbstractGymConnector.generated.h"
+
+class IScholaEnvironment;
 
 /**
  * @brief Enum class representing the operational status of the connector.

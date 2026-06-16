@@ -4,9 +4,9 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "ImitationConnectors/AbstractImitationConnector.h"
-#include "Environment/ImitationEnvironmentInterface.h"
 #include "ImitationConnectorManager.generated.h"
+
+class UAbstractImitationConnector;
 
 /**
  * @brief Actor-based container for imitation connectors in the Unreal Engine world. Provides a simple way to add an imitation connector to your level.

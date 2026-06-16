@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Advanced Micro Devices, Inc. All Rights Reserved.
+// Copyright (c) 2023-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
 #include "GymConnectors/AbstractGymConnector.h"
 #include "Environment/EnvironmentInterface.h"

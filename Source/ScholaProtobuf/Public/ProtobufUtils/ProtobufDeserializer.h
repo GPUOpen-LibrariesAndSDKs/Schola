@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Advanced Micro Devices, Inc. All Rights Reserved.
+// Copyright (c) 2023-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -20,7 +20,7 @@
 #include "Spaces/BoxSpaceDimension.h"
 #include "Spaces/TextSpace.h"
 #include "StructUtils/InstancedStruct.h"
-#include "ImitationConnectors/AbstractImitationConnector.h"
+#include "ImitationDataTypes/ImitationState.h"
 THIRD_PARTY_INCLUDES_START
 #include "ScholaProtobufMacroGuardBegin.h"
 #include "GymConnector.pb.h"

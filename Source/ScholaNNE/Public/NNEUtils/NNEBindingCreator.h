@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
+// Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -8,10 +8,7 @@
 #include "NNERuntimeGPU.h"
 #include "NNEModelData.h"
 #include "NNERuntimeRunSync.h"
-#include "Common/InteractionDefinition.h"
-#include "Common/LogSchola.h"
 #include "Spaces/Space.h"
-#include "Spaces/SpaceVisitor.h"
 #include "NNEUtils/NNEWrappers.h"
 #include "NNEUtils/NNEBufferVisitor.h"
 #include "NNEUtils/NNEBuffer.h"

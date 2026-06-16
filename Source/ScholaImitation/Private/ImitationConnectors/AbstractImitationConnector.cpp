@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
+// Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
 #include "ImitationConnectors/AbstractImitationConnector.h"
 #include "Environment/ImitationEnvironmentInterface.h"

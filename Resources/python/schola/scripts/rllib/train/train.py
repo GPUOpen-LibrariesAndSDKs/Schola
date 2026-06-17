@@ -361,16 +361,23 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
         args.resume_settings.reset_timestep,
     )
 
-    callbacks = []
-    try:
-        from ray.tune.logger import TBXLoggerCallback
-
-        callbacks.append(TBXLoggerCallback())
-    except ImportError:
-        logger.warning(
-            "tensorboardX is not installed; TensorBoard logging will be skipped. "
-            "Install tensorboardX to enable TensorBoard logging with RLlib."
+    ckpt = args.checkpoint_settings
+    if ckpt.export_onnx and not ckpt.save_final_policy:
+        logger.info(
+            "export_onnx without save_final_policy: saving an end-of-run snapshot so "
+            "the exported model matches the final training weights (writes an end-of-run checkpoint)."
         )
+    callbacks = []
+    if ckpt.should_persist:
+        try:
+            from ray.tune.logger import TBXLoggerCallback
+
+            callbacks.append(TBXLoggerCallback())
+        except ImportError:
+            logger.warning(
+                "tensorboardX is not installed; TensorBoard logging will be skipped. "
+                "Install tensorboardX to enable TensorBoard logging with RLlib."
+            )
 
     logger.info("Starting training")
     try:
@@ -379,12 +386,8 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
             config=config,  # type: ignore
             stop=stop,
             checkpoint_config=air.CheckpointConfig(
-                checkpoint_frequency=(
-                    args.checkpoint_settings.save_freq
-                    if args.checkpoint_settings.enable_checkpoints
-                    else 0
-                ),
-                checkpoint_at_end=args.checkpoint_settings.save_final_policy,
+                checkpoint_frequency=(ckpt.save_freq if ckpt.enable_checkpoints else 0),
+                checkpoint_at_end=ckpt.save_final_policy or ckpt.export_onnx,
             ),  # type: ignore
             restore=(
                 str(args.resume_settings.resume_from)
@@ -392,10 +395,10 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
                 else None
             ),
             verbose=args.logging_settings.rllib_verbosity,
-            storage_path=str(args.checkpoint_settings.checkpoint_dir.resolve()),
+            storage_path=ckpt.storage_path,
             callbacks=callbacks,
         )
-        last_checkpoint = results.get_last_checkpoint()
+        last_checkpoint = results.get_last_checkpoint() if ckpt.should_persist else None
         logger.info("Training complete")
     finally:
         # Always shutdown ray and release the environment from training even if there is an error

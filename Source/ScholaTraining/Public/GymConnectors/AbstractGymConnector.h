@@ -1,14 +1,15 @@
-// Copyright (c) 2023 Advanced Micro Devices, Inc. All Rights Reserved.
+// Copyright (c) 2023-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
-#include "./IGymConnector.h"
-#include "Environment/EnvironmentInterface.h"
+#include "GymConnectors/IGymConnector.h"
 #include "GymConnectors/AutoResetTypeEnum.h"
 #include "TrainingDataTypes/TrainingDefinition.h"
 #include "TrainingDataTypes/TrainingState.h"
 #include "AbstractGymConnector.generated.h"
+
+class IScholaEnvironment;
 
 /**
  * @brief Enum class representing the operational status of the connector.

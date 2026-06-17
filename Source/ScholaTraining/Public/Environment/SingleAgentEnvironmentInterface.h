@@ -1,14 +1,10 @@
-// Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
+// Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
-#include "TrainingDataTypes/EnvironmentDefinition.h"
-#include "TrainingDataTypes/EnvironmentUpdate.h"
-#include "TrainingDataTypes/EnvironmentState.h"
 #include "Containers/Map.h"
 #include "Environment/EnvironmentInterface.h"
-#include "Points/Point.h"
 #include "SingleAgentEnvironmentInterface.generated.h"
 
 /**

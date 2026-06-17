@@ -1,15 +1,14 @@
-// Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
+// Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
 #pragma once
 
-#include "Points/Point.h"
-#include "Spaces/Space.h"
 #include "CoreMinimal.h"
-#include "Environment/ImitationEnvironmentInterface.h"
 #include "TrainingDataTypes/TrainingDefinition.h"
 #include "TrainingDataTypes/TrainingState.h"
 #include "ImitationDataTypes/ImitationState.h"
 #include "AbstractImitationConnector.generated.h"
+
+class IImitationScholaEnvironment;
 
 /**
  * @brief Enum class representing the status of the connector.

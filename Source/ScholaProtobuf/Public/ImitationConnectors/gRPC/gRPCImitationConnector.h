@@ -1,8 +1,9 @@
-// Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
+// Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "GymConnectors/gRPC/CommunicationManager.h"
+#include "ImitationConnectors/AbstractImitationConnector.h"
 #include "ProtobufBackends/gRPC/ConsumerRPCBackend.h"
 #include "ProtobufBackends/gRPC/ProducerRPCBackend.h"
 #include "GymConnectors/gRPC/RPCServerSettings.h"

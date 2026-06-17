@@ -1,7 +1,10 @@
 // Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
 #include "Misc/AutomationTest.h"
 
+#include "NNEUtils/NNEBuffer.h"
 #include "NNEUtils/NNEPointCreator.h"
+#include "Points/MultiDiscretePoint.h"
+#include "Spaces/MultiDiscreteSpace.h"
 
 #define TestEqualExactFloat(TestMessage, Actual, Expected) TestEqual(TestMessage, (float)Actual, (float)Expected, 0.0001f)
 

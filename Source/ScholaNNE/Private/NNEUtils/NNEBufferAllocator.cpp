@@ -1,5 +1,9 @@
-// Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
+// Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 #include "NNEUtils/NNEBufferAllocator.h"
+#include "Spaces/DictSpace.h"
+#include "Spaces/BoxSpace.h"
+#include "Spaces/DiscreteSpace.h"
+#include "Spaces/MultiBinarySpace.h"
 #include "Spaces/MultiDiscreteSpace.h"
 
 //TODO this needs some error handling for when things don't line up properly, e.g. if the space is not found in the buffer map

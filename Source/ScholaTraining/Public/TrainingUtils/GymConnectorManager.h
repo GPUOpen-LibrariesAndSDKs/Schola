@@ -1,12 +1,12 @@
-// Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
+// Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "GymConnectors/AbstractGymConnector.h"
-#include "Environment/EnvironmentInterface.h"
 #include "GymConnectorManager.generated.h"
+
+class UAbstractGymConnector;
 
 /**
  * @brief Actor-based container for gym connectors in the Unreal Engine world. Provides a simple way to add a gym connector to your level.

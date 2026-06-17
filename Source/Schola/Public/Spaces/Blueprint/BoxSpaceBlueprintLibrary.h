@@ -1,10 +1,9 @@
-// Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
+// Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "StructUtils/InstancedStruct.h"
-#include "Spaces/Space.h"
 #include "Spaces/BoxSpace.h"
 #include "BoxSpaceBlueprintLibrary.generated.h"
 

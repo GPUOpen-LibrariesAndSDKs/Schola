@@ -1,6 +1,16 @@
-// Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
+// Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
 #include "NNEUtils/NNEPointToBufferConverter.h"
+#include "Points/DictPoint.h"
+#include "Points/BoxPoint.h"
+#include "Points/DiscretePoint.h"
+#include "Points/MultiDiscretePoint.h"
+#include "Points/MultiBinaryPoint.h"
+#include "Spaces/DictSpace.h"
+#include "Spaces/BoxSpace.h"
+#include "Spaces/DiscreteSpace.h"
+#include "Spaces/MultiDiscreteSpace.h"
+#include "Spaces/MultiBinarySpace.h"
 #include "LogScholaNNE.h"
 
 void FNNEPointToBufferConverter::operator()(const FNNEDictBuffer& InBuffer)

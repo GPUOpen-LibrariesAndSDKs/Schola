@@ -1,11 +1,10 @@
-// Copyright (c) 2023 Advanced Micro Devices, Inc. All Rights Reserved.
+// Copyright (c) 2023-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "UObject/Interface.h"
 #include "Common/InteractionDefinition.h"
-#include "Spaces/Space.h"
 #include "StructUtils/InstancedStruct.h"
 #include "PolicyInterface.generated.h"
 

@@ -1,11 +1,9 @@
-// Copyright (c) 2023 Advanced Micro Devices, Inc. All Rights Reserved.
+// Copyright (c) 2023-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "UObject/Interface.h"
-#include "Spaces/Space.h"
-#include "Points/Point.h"
 #include "TrainingDataTypes/TrainingUpdate.h"
 #include "GymConnectors/AutoResetTypeEnum.h"
 #include "TrainingDataTypes/TrainingState.h"

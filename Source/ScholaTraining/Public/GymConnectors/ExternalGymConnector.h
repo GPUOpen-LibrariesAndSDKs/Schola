@@ -1,9 +1,9 @@
-// Copyright (c) 2023 Advanced Micro Devices, Inc. All Rights Reserved.
+// Copyright (c) 2023-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
 #pragma once
 #include "CoreMinimal.h"
 #include "Async/Future.h"
-#include "./AbstractGymConnector.h"
+#include "GymConnectors/AbstractGymConnector.h"
 #include "TrainingSettings/ExternalGymConnectorSettings.h"
 #include "ExternalGymConnector.generated.h"
 

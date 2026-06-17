@@ -3,6 +3,10 @@
 #include "Misc/AutomationTest.h"
 
 #include "NNEUtils/NNEBuffer.h"
+#include "Spaces/BoxSpace.h"
+#include "Spaces/DictSpace.h"
+#include "Spaces/DiscreteSpace.h"
+#include "Spaces/MultiBinarySpace.h"
 #include "Spaces/MultiDiscreteSpace.h"
 #include "NNEUtils/NNEBufferAllocator.h"
 

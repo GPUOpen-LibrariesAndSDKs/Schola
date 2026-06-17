@@ -362,6 +362,11 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
     )
 
     ckpt = args.checkpoint_settings
+    if ckpt.export_onnx and not ckpt.save_final_policy:
+        logger.info(
+            "export_onnx without save_final_policy: saving an end-of-run snapshot so "
+            "the exported model matches the final training weights (writes an end-of-run checkpoint)."
+        )
     callbacks = []
     if ckpt.should_persist:
         try:

@@ -381,9 +381,7 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
             config=config,  # type: ignore
             stop=stop,
             checkpoint_config=air.CheckpointConfig(
-                checkpoint_frequency=(
-                    ckpt.save_freq if ckpt.enable_checkpoints else 0
-                ),
+                checkpoint_frequency=(ckpt.save_freq if ckpt.enable_checkpoints else 0),
                 checkpoint_at_end=ckpt.save_final_policy or ckpt.export_onnx,
             ),  # type: ignore
             restore=(
@@ -395,9 +393,7 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
             storage_path=ckpt.storage_path,
             callbacks=callbacks,
         )
-        last_checkpoint = (
-            results.get_last_checkpoint() if ckpt.should_persist else None
-        )
+        last_checkpoint = results.get_last_checkpoint() if ckpt.should_persist else None
         logger.info("Training complete")
     finally:
         # Always shutdown ray and release the environment from training even if there is an error

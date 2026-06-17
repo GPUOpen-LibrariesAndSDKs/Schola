@@ -349,10 +349,18 @@ class CheckpointSettings:
     save_final_policy: bool = False
     "Whether to save the final policy after training is complete."
 
+    @property
+    def should_persist(self) -> bool:
+        """True when any option needs artifacts written under checkpoint_dir"""
+        return self.enable_checkpoints or self.save_final_policy or self.export_onnx
+
+    @property
+    def storage_path(self) -> Optional[str]:
+        """Tune storage_path, or None to keep checkpoint_dir untouched"""
+        return str(self.checkpoint_dir.resolve()) if self.should_persist else None
+
     def __post_init__(self):
-        if (
-            self.enable_checkpoints or self.save_final_policy
-        ) and not self.checkpoint_dir.exists():
+        if self.should_persist and not self.checkpoint_dir.exists():
             self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
 

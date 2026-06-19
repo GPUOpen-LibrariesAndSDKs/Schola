@@ -1,11 +1,14 @@
-// Copyright (c) 2024-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+// Copyright (c) 2024-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 #include "ScholaEditor.h"
 #include "EdGraphUtilities.h"
+#include "OnnxAutoImporter.h"
 
 #define LOCTEXT_NAMESPACE "ScholaEditor"
 
 void FScholaEditorModule::StartupModule()
 {
+	OnnxAutoImporter = MakeUnique<FScholaOnnxAutoImporter>();
+	OnnxAutoImporter->Start();
 	// Agent
 	FKismetEditorUtilities::FOnBlueprintCreated AgentCallback;
 	/*
@@ -63,6 +66,12 @@ void FScholaEditorModule::StartupModule()
 
 void FScholaEditorModule::ShutdownModule()
 {
+	if (OnnxAutoImporter.IsValid())
+	{
+		OnnxAutoImporter->Stop();
+		OnnxAutoImporter.Reset();
+	}
+
 	FKismetEditorUtilities::UnregisterAutoBlueprintNodeCreation(this);
 }
 

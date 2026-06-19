@@ -41,7 +41,22 @@ These commands produce an ONNX model in Schola's export layout for use in the ne
 Load an Onnx Model into Unreal Engine
 -------------------------------------
 
-Once you have your Onnx model you can import it into Unreal Engine by dragging and dropping the `.onnx` file into the content browser. This will create a new Onnx model data asset in your project.
+Schola can export ONNX models directly into your project's ``Content`` folder during training.
+When the Neural Network Engine (NNE) plugin and at least one NNE runtime (for example
+``NNERuntimeORTCpu`` or ``NNERuntimeORTDml``) are enabled, the Schola editor automatically
+imports any ``.onnx`` file written under ``Content`` and creates a corresponding
+``UNNEModelData`` asset in the Content Browser.
+
+To use auto-import:
+
+1. Set your training connector's ``CheckpointDir`` to a folder inside ``Content`` (for example
+   ``Content/Schola/Models``).
+2. Enable ``Export to ONNX`` in the checkpoint settings.
+3. Run training from the editor. When export completes, the ONNX asset appears in the matching
+   Content Browser folder without manual drag-and-drop.
+
+If NNE is not enabled, Schola logs a one-time warning and leaves the ``.onnx`` file on disk.
+You can still import manually by dragging and dropping the ``.onnx`` file into the Content Browser.
 
 
 Setting up Your Unreal Engine Level

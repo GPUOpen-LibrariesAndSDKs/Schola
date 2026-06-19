@@ -49,7 +49,7 @@ imports any ``.onnx`` file written under ``Content`` and creates a corresponding
 
 To use auto-import:
 
-1. Set your training connector's ``CheckpointDir`` to a folder inside ``Content`` (for example
+1. Set your training run's ``CheckpointDir`` to a folder inside ``Content`` (for example
    ``Content/Schola/Models``).
 2. Enable ``Export to ONNX`` in the checkpoint settings.
 3. Run training from the editor. When export completes, the ONNX asset appears in the matching

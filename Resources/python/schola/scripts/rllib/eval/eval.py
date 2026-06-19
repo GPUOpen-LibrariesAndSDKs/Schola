@@ -5,10 +5,10 @@ Evaluate a trained RLlib algorithm from a checkpoint using ``Algorithm.evaluate`
 """
 
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Type
 
 from cyclopts import App
-from schola.scripts.common.command_template import MetaNoAlgCommand
+from schola.scripts.common.command_template import ScholaCommandTemplate
 from schola.scripts.rllib.eval.settings import RllibEvalScriptSettings
 
 if not logging.getLogger().handlers:
@@ -120,10 +120,11 @@ def main(args: RllibEvalScriptSettings) -> Dict[str, Any]:
 app = App(name="eval", help="Evaluate a trained RLlib policy from a checkpoint")
 
 
-class RllibEvalCommand(MetaNoAlgCommand[RllibEvalScriptSettings]):
-    """Cyclopts wiring for ``schola rllib eval``."""
+class RllibEvalCommand(ScholaCommandTemplate[RllibEvalScriptSettings]):
 
-    pass
+    @property
+    def algorithm_table(self) -> Dict[str, Type[Any]]:
+        return {}
 
 
 app = RllibEvalCommand(app, RllibEvalScriptSettings, main, logger).make()

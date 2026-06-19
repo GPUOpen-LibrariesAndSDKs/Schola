@@ -15,10 +15,11 @@ from schola.scripts.minari.settings import (
     MinariLoggingSettings,
 )
 from schola.scripts.common.settings import EnvironmentSettings, ExternalSimulatorConfig
-from schola.scripts.common.command_template import MetaNoAlgCommand
+from schola.scripts.common.command_template import ScholaCommandTemplate
 
 # CLI Mocking Tests - verify CLI argument parsing creates correct settings classes
 
+ 
 
 @pytest.fixture
 def mock_main(mocker):
@@ -31,7 +32,13 @@ def mock_app(mock_main):
     """Build a fresh app with mocked main (no global injection)."""
     app = App(name="collect", help="Collect imitation learning datasets using Minari")
     logger = logging.getLogger(__name__)
-    app = MetaNoAlgCommand(app, MinariScriptSettings, mock_main, logger).make()
+    class MetaCollectMinariCommand(ScholaCommandTemplate[MinariScriptSettings]):
+        
+        @property
+        def algorithm_table(self):
+            return {}
+
+    app = MetaCollectMinariCommand(app, MinariScriptSettings, mock_main, logger).make()
     return app.meta
 
 

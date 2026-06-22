@@ -55,6 +55,7 @@ def build_env_config(
             "port": protocol_settings.port,
             "credential_mode": protocol_settings.credential_mode.value,
             "environment_start_timeout": protocol_settings.environment_start_timeout,
+            "grpc_close_timeout": protocol_settings.grpc_close_timeout,
         },
         "port_offset_mode": protocol_settings.port_offset_mode.value,
         "simulator": ExternalSimulator if is_external else UnrealExecutable,

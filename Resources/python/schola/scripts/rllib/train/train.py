@@ -227,8 +227,10 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
     from schola.rllib.export import export_onnx_from_policy
     from ray.rllib.policy.policy import Policy
     from ray.rllib.core.rl_module.rl_module import RLModuleSpec, RLModule
-    from ray.rllib.connectors.env_to_module import FlattenObservations
-    from schola.rllib.env_runner import ScholaEnvRunner
+    from schola.rllib.env_runner import (
+        ScholaEnvRunner,
+        schola_env_to_module_flatten_connector,
+    )
     from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 
     sim_args = args.environment_settings.simulator_settings
@@ -298,19 +300,7 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
         .env_runners(
             env_runner_cls=ScholaEnvRunner,
             num_env_runners=num_env_runners,
-            env_to_module_connector=lambda env, spaces=None, device=None: FlattenObservations(
-                input_observation_space=(
-                    env.single_observation_space
-                    if env is not None
-                    else spaces["__env_single__"][0]
-                ),
-                input_action_space=(
-                    env.single_action_space
-                    if env is not None
-                    else spaces["__env_single__"][1]
-                ),
-                multi_agent=True,
-            ),
+            env_to_module_connector=schola_env_to_module_flatten_connector,
         )
         .multi_agent(
             policies=policies,

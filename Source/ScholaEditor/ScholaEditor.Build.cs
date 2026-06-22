@@ -20,6 +20,6 @@ public class ScholaEditor : ModuleRules
 
 		PrivateIncludePathModuleNames.AddRange(new string[] { });
         PrivateDependencyModuleNames.AddRange(new string[] { "AIModule", "Engine", "Core", "BlueprintGraph", "UnrealEd", "CoreUObject", "AutomationController", "KismetCompiler", "Schola", "ScholaInteractors", "gRPC", "ScholaTraining", "Slate", "SlateCore", "ToolMenus", "DirectoryWatcher", "AssetTools" });
-		DynamicallyLoadedModuleNames.AddRange(new string[] { "NNEEditor", "NNEEditorTools" });
+		DynamicallyLoadedModuleNames.AddRange(new string[] { "NNEEditor" });
 	}
 }

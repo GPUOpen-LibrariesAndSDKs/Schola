@@ -18,10 +18,7 @@
 
 namespace
 {
-	static const FName NneEditorModuleNames[] = {
-		FName(TEXT("NNEEditor")),
-		FName(TEXT("NNEEditorTools")),
-	};
+	static const FName NneEditorModuleName(TEXT("NNEEditor"));
 }
 
 FScholaOnnxAutoImporter::~FScholaOnnxAutoImporter()
@@ -31,14 +28,11 @@ FScholaOnnxAutoImporter::~FScholaOnnxAutoImporter()
 
 bool FScholaOnnxAutoImporter::IsNneImportAvailable()
 {
-	for (const FName& ModuleName : NneEditorModuleNames)
+	if (!FModuleManager::Get().IsModuleLoaded(NneEditorModuleName))
 	{
-		if (!FModuleManager::Get().IsModuleLoaded(ModuleName))
+		if (FModuleManager::Get().LoadModule(NneEditorModuleName) == nullptr)
 		{
-			if (FModuleManager::Get().LoadModule(ModuleName) == nullptr)
-			{
-				return false;
-			}
+			return false;
 		}
 	}
 
@@ -263,7 +257,7 @@ bool FScholaOnnxAutoImporter::TryGetGameDestinationPath(
 	}
 
 	FString RelativePath = NormalizedPath;
-	if (!FPaths::MakePathRelativeTo(RelativePath, WatchedContentDirectory))
+	if (!FPaths::MakePathRelativeTo(RelativePath, *WatchedContentDirectory))
 	{
 		return false;
 	}

@@ -28,6 +28,11 @@ FScholaOnnxAutoImporter::~FScholaOnnxAutoImporter()
 
 bool FScholaOnnxAutoImporter::IsNneImportAvailable()
 {
+	if (UE::NNE::GetAllRuntimeNames().Num() == 0)
+	{
+		return false;
+	}
+
 	if (!FModuleManager::Get().IsModuleLoaded(NneEditorModuleName))
 	{
 		if (FModuleManager::Get().LoadModule(NneEditorModuleName) == nullptr)
@@ -36,7 +41,7 @@ bool FScholaOnnxAutoImporter::IsNneImportAvailable()
 		}
 	}
 
-	return UE::NNE::GetAllRuntimeNames().Num() > 0;
+	return true;
 }
 
 void FScholaOnnxAutoImporter::Start()
@@ -48,8 +53,8 @@ void FScholaOnnxAutoImporter::Start()
 		{
 			bLoggedNneUnavailableWarning = true;
 			UE_LOGFMT(LogScholaEditor, Warning,
-				"FScholaOnnxAutoImporter: NNE plugin or runtime not enabled; ONNX auto-import disabled. "
-				"Enable NNE and at least one NNE runtime, or import .onnx files manually via the Content Browser.");
+				"FScholaOnnxAutoImporter: No NNE runtime is enabled; Schola ONNX auto-import disabled. "
+				"Enable at least one NNE runtime to auto-import ONNX exports from Content.");
 		}
 		return;
 	}

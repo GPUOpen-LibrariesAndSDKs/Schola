@@ -6,7 +6,6 @@
 #include "AssetImportTask.h"
 #include "AssetToolsModule.h"
 #include "DirectoryWatcherModule.h"
-#include "Factories/Factory.h"
 #include "HAL/FileManager.h"
 #include "IAssetTools.h"
 #include "IDirectoryWatcher.h"
@@ -15,14 +14,13 @@
 #include "Modules/ModuleManager.h"
 #include "NNE.h"
 #include "Editor/UnrealEdEngine.h"
-#include "UObject/UObjectGlobals.h"
 #include "UnrealEdGlobals.h"
 
-namespace ScholaOnnxAutoImporter
+namespace
 {
-	static const TCHAR* NneEditorModuleNames[] = {
-		TEXT("NNEEditor"),
-		TEXT("NNEEditorTools"),
+	static const FName NneEditorModuleNames[] = {
+		FName(TEXT("NNEEditor")),
+		FName(TEXT("NNEEditorTools")),
 	};
 }
 
@@ -31,8 +29,37 @@ FScholaOnnxAutoImporter::~FScholaOnnxAutoImporter()
 	Stop();
 }
 
+bool FScholaOnnxAutoImporter::IsNneImportAvailable()
+{
+	for (const FName& ModuleName : NneEditorModuleNames)
+	{
+		if (!FModuleManager::Get().IsModuleLoaded(ModuleName))
+		{
+			if (FModuleManager::Get().LoadModule(ModuleName) == nullptr)
+			{
+				return false;
+			}
+		}
+	}
+
+	return UE::NNE::GetAllRuntimeNames().Num() > 0;
+}
+
 void FScholaOnnxAutoImporter::Start()
 {
+	if (!IsNneImportAvailable())
+	{
+		static bool bLoggedNneUnavailableWarning = false;
+		if (!bLoggedNneUnavailableWarning)
+		{
+			bLoggedNneUnavailableWarning = true;
+			UE_LOGFMT(LogScholaEditor, Warning,
+				"FScholaOnnxAutoImporter: NNE plugin or runtime not enabled; ONNX auto-import disabled. "
+				"Enable NNE and at least one NNE runtime, or import .onnx files manually via the Content Browser.");
+		}
+		return;
+	}
+
 	if (!DirectoryWatcherHandle.IsValid())
 	{
 		FDirectoryWatcherModule& DirectoryWatcherModule =
@@ -88,9 +115,6 @@ void FScholaOnnxAutoImporter::Stop()
 	}
 
 	PendingImports.Empty();
-	InFlightImports.Empty();
-	PendingImportTimes.Empty();
-	PendingFileSizes.Empty();
 }
 
 void FScholaOnnxAutoImporter::OnDirectoryChanged(const TArray<FFileChangeData>& FileChanges)
@@ -110,21 +134,33 @@ void FScholaOnnxAutoImporter::OnDirectoryChanged(const TArray<FFileChangeData>& 
 	}
 }
 
+bool FScholaOnnxAutoImporter::IsUnderWatchedContentDirectory(const FString& AbsoluteFilePath) const
+{
+	return FPaths::IsUnderDirectory(AbsoluteFilePath, WatchedContentDirectory);
+}
+
 void FScholaOnnxAutoImporter::QueueImport(const FString& AbsoluteFilePath)
 {
-	if (!AbsoluteFilePath.StartsWith(WatchedContentDirectory))
+	const FString NormalizedPath = FPaths::ConvertRelativePathToFull(AbsoluteFilePath);
+	if (!IsUnderWatchedContentDirectory(NormalizedPath))
 	{
 		return;
 	}
 
-	if (InFlightImports.Contains(AbsoluteFilePath))
+	if (const FPendingOnnxImport* Existing = PendingImports.Find(NormalizedPath))
 	{
-		return;
+		if (Existing->Phase == EOnnxImportPhase::Importing)
+		{
+			return;
+		}
 	}
 
-	PendingImports.Add(AbsoluteFilePath);
-	PendingImportTimes.FindOrAdd(AbsoluteFilePath) = FPlatformTime::Seconds();
-	PendingFileSizes.Remove(AbsoluteFilePath);
+	FPendingOnnxImport& Pending = PendingImports.FindOrAdd(NormalizedPath);
+	Pending.QueuedAt = FPlatformTime::Seconds();
+	Pending.StableSince = 0.0;
+	Pending.LastObservedSize = INDEX_NONE;
+	Pending.bHasObservedSize = false;
+	Pending.Phase = EOnnxImportPhase::WaitingForStableFile;
 }
 
 void FScholaOnnxAutoImporter::SuppressAutoReimportPrompt(
@@ -157,65 +193,60 @@ bool FScholaOnnxAutoImporter::Tick(float DeltaTime)
 	}
 
 	const double Now = FPlatformTime::Seconds();
-	TArray<FString> ReadyImports;
-	for (const FString& PendingPath : PendingImports)
+	TArray<FString> PathsToRemove;
+
+	for (auto& Pair : PendingImports)
 	{
-		const double* QueuedAt = PendingImportTimes.Find(PendingPath);
-		if (!QueuedAt)
+		const FString& PendingPath = Pair.Key;
+		FPendingOnnxImport& Pending = Pair.Value;
+
+		if (Pending.Phase == EOnnxImportPhase::Importing)
 		{
 			continue;
 		}
 
-		double QueuedAtValue = *QueuedAt;
-		if (!IsOnnxFileStable(PendingPath, QueuedAtValue))
+		const int64 CurrentSize = IFileManager::Get().FileSize(*PendingPath);
+		if (CurrentSize == INDEX_NONE)
 		{
-			PendingImportTimes[PendingPath] = QueuedAtValue;
+			PathsToRemove.Add(PendingPath);
 			continue;
 		}
 
-		if ((Now - QueuedAtValue) < ImportDebounceSeconds)
+		if (!Pending.bHasObservedSize || Pending.LastObservedSize != CurrentSize)
+		{
+			Pending.LastObservedSize = CurrentSize;
+			Pending.bHasObservedSize = true;
+			Pending.StableSince = 0.0;
+			continue;
+		}
+
+		if (Pending.StableSince <= 0.0)
+		{
+			Pending.StableSince = Now;
+			continue;
+		}
+
+		if ((Now - Pending.StableSince) < ImportDebounceSeconds)
 		{
 			continue;
 		}
 
-		ReadyImports.Add(PendingPath);
-	}
-
-	for (const FString& ReadyPath : ReadyImports)
-	{
-		PendingImports.Remove(ReadyPath);
-		PendingImportTimes.Remove(ReadyPath);
-		PendingFileSizes.Remove(ReadyPath);
-
-		if (ProcessImport(ReadyPath))
+		Pending.Phase = EOnnxImportPhase::Importing;
+		if (ProcessImport(PendingPath))
 		{
-			InFlightImports.Remove(ReadyPath);
+			PathsToRemove.Add(PendingPath);
+		}
+		else
+		{
+			Pending.Phase = EOnnxImportPhase::WaitingForStableFile;
+			Pending.StableSince = 0.0;
+			Pending.bHasObservedSize = false;
 		}
 	}
 
-	return true;
-}
-
-bool FScholaOnnxAutoImporter::IsOnnxFileStable(const FString& AbsoluteFilePath, double& InOutQueuedAt)
-{
-	const int64 CurrentSize = IFileManager::Get().FileSize(*AbsoluteFilePath);
-	if (CurrentSize == INDEX_NONE)
+	for (const FString& Path : PathsToRemove)
 	{
-		return false;
-	}
-
-	const int64* PreviousSize = PendingFileSizes.Find(AbsoluteFilePath);
-	if (!PreviousSize)
-	{
-		PendingFileSizes.Add(AbsoluteFilePath, CurrentSize);
-		return false;
-	}
-
-	if (*PreviousSize != CurrentSize)
-	{
-		PendingFileSizes[AbsoluteFilePath] = CurrentSize;
-		InOutQueuedAt = FPlatformTime::Seconds();
-		return false;
+		PendingImports.Remove(Path);
 	}
 
 	return true;
@@ -225,12 +256,18 @@ bool FScholaOnnxAutoImporter::TryGetGameDestinationPath(
 	const FString& AbsoluteFilePath,
 	FString& OutDestinationPath) const
 {
-	if (!AbsoluteFilePath.StartsWith(WatchedContentDirectory))
+	const FString NormalizedPath = FPaths::ConvertRelativePathToFull(AbsoluteFilePath);
+	if (!IsUnderWatchedContentDirectory(NormalizedPath))
 	{
 		return false;
 	}
 
-	FString RelativePath = AbsoluteFilePath.Mid(WatchedContentDirectory.Len());
+	FString RelativePath = NormalizedPath;
+	if (!FPaths::MakePathRelativeTo(RelativePath, WatchedContentDirectory))
+	{
+		return false;
+	}
+
 	FPaths::NormalizeFilename(RelativePath);
 	const FString RelativeDir = FPaths::GetPath(RelativePath).Replace(TEXT("\\"), TEXT("/"));
 
@@ -245,14 +282,6 @@ bool FScholaOnnxAutoImporter::ProcessImport(const FString& AbsoluteFilePath)
 		return true;
 	}
 
-	for (const TCHAR* ModuleName : ScholaOnnxAutoImporter::NneEditorModuleNames)
-	{
-		if (!FModuleManager::Get().IsModuleLoaded(ModuleName))
-		{
-			FModuleManager::Get().LoadModule(ModuleName);
-		}
-	}
-
 	FString DestinationPath;
 	if (!TryGetGameDestinationPath(AbsoluteFilePath, DestinationPath))
 	{
@@ -260,8 +289,6 @@ bool FScholaOnnxAutoImporter::ProcessImport(const FString& AbsoluteFilePath)
 			"FScholaOnnxAutoImporter: Skipping ONNX outside project Content: {0}", AbsoluteFilePath);
 		return true;
 	}
-
-	InFlightImports.Add(AbsoluteFilePath);
 
 	UAssetImportTask* ImportTask = NewObject<UAssetImportTask>();
 	ImportTask->Filename = AbsoluteFilePath;
@@ -280,14 +307,12 @@ bool FScholaOnnxAutoImporter::ProcessImport(const FString& AbsoluteFilePath)
 			"FScholaOnnxAutoImporter: Imported ONNX {0} to {1}",
 			AbsoluteFilePath,
 			ImportTask->ImportedObjectPaths[0]);
-	}
-	else
-	{
-		UE_LOGFMT(LogScholaEditor, Warning,
-			"FScholaOnnxAutoImporter: Failed to import ONNX {0} to {1}",
-			AbsoluteFilePath,
-			DestinationPath);
+		return true;
 	}
 
-	return true;
+	UE_LOGFMT(LogScholaEditor, Warning,
+		"FScholaOnnxAutoImporter: Failed to import ONNX {0} to {1}",
+		AbsoluteFilePath,
+		DestinationPath);
+	return false;
 }

@@ -20,7 +20,7 @@ from schola.scripts.common.settings import (
     ExternalSimulatorConfig,
     get_activation_function,
 )
-from schola.scripts.common.command_template import MetaAlgCommand
+from schola.scripts.common.command_template import ScholaCommandTemplate
 from schola.scripts.sb3.train.settings import (
     PPOTrainSettings,
     SACTrainSettings,
@@ -384,13 +384,13 @@ def main(args: Sb3TrainScriptSettings) -> Optional[Tuple[float, float]]:
 app = App(name="train", help="Train a model using StableBaselines3")
 
 
-class MetaTrainSB3Command(MetaAlgCommand[Sb3TrainScriptSettings]):
+class MetaTrainSB3Command(ScholaCommandTemplate[Sb3TrainScriptSettings]):
     """
-    ``MetaAlgCommand`` configuration for Stable-Baselines3 (PPO and SAC).
+    ``ScholaCommandTemplate`` configuration for Stable-Baselines3 (PPO and SAC).
 
     See Also
     --------
-    MetaAlgCommand
+    ScholaCommandTemplate
     """
 
     @property

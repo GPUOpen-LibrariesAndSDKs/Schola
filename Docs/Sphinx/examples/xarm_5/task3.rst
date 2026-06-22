@@ -3,7 +3,7 @@ Task 3 - Reach with Random Target, Random Location
 .. image:: /_static/examples/xarm_5_example/task3/task3.gif
    :alt: Task 3
 
-For rewards, we are going to change the distance-based reward. Our new mechanism will only reduce the penalty the agent recieves if it achieved better progress this episode than it did on the last. Additionally, we are going to tune a couple of other parameters.
+For rewards, we are going to change the distance-based reward. Our new mechanism will only reduce the penalty the agent receives if it achieved better progress this episode than it did on the last. Additionally, we are going to tune a couple of other parameters.
 
 In particular, within *Reward*, set:
 

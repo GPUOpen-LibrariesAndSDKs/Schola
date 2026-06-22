@@ -8,7 +8,7 @@ import logging
 from typing import Literal
 from typing_extensions import Annotated
 
-from schola.scripts.common.command_template import MetaNoAlgCommand
+from schola.scripts.common.command_template import ScholaCommandTemplate
 from schola.scripts.minari.settings import MinariScriptSettings
 from cyclopts import App, Parameter
 
@@ -127,8 +127,17 @@ _collect_app = App(
 )
 
 
-collect_app = MetaNoAlgCommand(_collect_app, MinariScriptSettings, main, logger).make()
+class CollectMinariCommand(ScholaCommandTemplate[MinariScriptSettings]):
 
+    def __init__(self, app: App, logger: logging.Logger):
+        super().__init__(app, MinariScriptSettings, main, logger)
+
+    @property
+    def algorithm_table(self):
+        return {}
+
+
+collect_app = CollectMinariCommand(_collect_app, logger).make()
 
 if __name__ == "__main__":
     collect_app.meta()

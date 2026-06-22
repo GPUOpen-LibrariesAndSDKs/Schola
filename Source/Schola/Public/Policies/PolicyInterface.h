@@ -59,23 +59,18 @@ public:
      */
     virtual bool BatchedThink(const TArray<TInstancedStruct<FPoint>>& InObservations, TArray<TInstancedStruct<FPoint>>& OutActions)
     {
-        // Default implementation for batch processing of observations
-        // This will call Think for each observation in the batch
-        // and fill the OutAction array with the results.
+        // Default implementation for batch processing of observations.
+        // Pre-size the output so Think can write each action in-place without TArray growth or Add copies.
         // Implement in derived classes to add specialized batched handling.
-        TInstancedStruct<FPoint> SingleObservation;
-		TInstancedStruct<FPoint> SingleAction;
-        
-        for (const TInstancedStruct<FPoint>& Observation : InObservations)
+        OutActions.SetNum(InObservations.Num());
+        for (int32 Index = 0; Index < InObservations.Num(); ++Index)
         {
-			
-			if (!this->Think(Observation, SingleAction))
-			{
-				return false;
+            if (!this->Think(InObservations[Index], OutActions[Index]))
+            {
+                return false;
             }
-            OutActions.Add(SingleAction);
         }
-		return true;
+        return true;
     }
 
     /**

@@ -12,10 +12,10 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Type
 
 from cyclopts import App
-from schola.scripts.common.command_template import MetaNoAlgCommand
+from schola.scripts.common.command_template import ScholaCommandTemplate
 from schola.scripts.rllib.eval.settings import RllibEvalScriptSettings
 
 if not logging.getLogger().handlers:
@@ -334,10 +334,11 @@ def main(args: RllibEvalScriptSettings) -> Dict[str, Any]:
 app = App(name="eval", help="Evaluate a trained RLlib policy from a checkpoint")
 
 
-class RllibEvalCommand(MetaNoAlgCommand[RllibEvalScriptSettings]):
-    """Cyclopts wiring for ``schola rllib eval``."""
+class RllibEvalCommand(ScholaCommandTemplate[RllibEvalScriptSettings]):
 
-    pass
+    @property
+    def algorithm_table(self) -> Dict[str, Type[Any]]:
+        return {}
 
 
 app = RllibEvalCommand(app, RllibEvalScriptSettings, main, logger).make()

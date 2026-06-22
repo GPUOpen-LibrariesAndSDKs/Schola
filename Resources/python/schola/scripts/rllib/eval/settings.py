@@ -34,7 +34,7 @@ class RllibEvalScriptSettings:
     n_eval_episodes: Annotated[
         int, Parameter(validator=validators.Number(gte=1), group="Evaluation Arguments")
     ] = 10
-    "Requested number of evaluation episodes; applied when the restored ``Algorithm`` config exposes ``evaluation_duration`` / ``evaluation_duration_unit``."
+    "Number of episodes ``eval_main`` samples (each env runner may take more than one per round)."
 
     resource_settings: Annotated[
         ResourceSettings, Parameter(group="Resource Arguments", name="*")

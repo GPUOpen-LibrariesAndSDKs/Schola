@@ -13,7 +13,7 @@ from typing import Any, Callable, Dict, Optional, Tuple, Type, Union
 from schola.scripts.common.settings import (
     get_activation_function,
 )
-from schola.scripts.common.command_template import MetaAlgCommand
+from schola.scripts.common.command_template import ScholaCommandTemplate
 
 from schola.scripts.rllib.settings import (
     APPOSettings,
@@ -419,13 +419,13 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
     return results
 
 
-class RllibTrainCommand(MetaAlgCommand[RllibScriptSettings]):
+class RllibTrainCommand(ScholaCommandTemplate[RllibScriptSettings]):
     """
-    ``MetaAlgCommand`` configuration for Ray RLlib (PPO, SAC, IMPALA, APPO).
+    ``ScholaCommandTemplate`` configuration for Ray RLlib (PPO, SAC, IMPALA, APPO).
 
     See Also
     --------
-    MetaAlgCommand
+    ScholaCommandTemplate
     """
 
     @property

@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Annotated, Any, Dict, Type, Union
 from unittest.mock import MagicMock
@@ -18,8 +18,9 @@ from schola.scripts.common.settings import (
     ExternalSimulatorConfig,
     GrpcProtocolConfig,
     UnrealExecutableSimulatorConfig,
+    UnrealProjectSimulatorConfig,
 )
-from schola.scripts.common.command_template import MetaAlgCommand, MetaNoAlgCommand
+from schola.scripts.common.command_template import ScholaCommandTemplate
 
 # --- Fake script / algorithm types (minimal stand-ins for SB3/RLlib settings) ---
 
@@ -45,30 +46,69 @@ class FakeAlgoBeta:
 
 @dataclass
 class FakeScriptSettings:
-    """Minimal script container compatible with ``MetaAlgCommand`` wiring."""
+    """Minimal script container compatible with ``ScholaCommandTemplate`` wiring."""
 
-    environment_settings: EnvironmentSettings = field(
-        default_factory=lambda: EnvironmentSettings(
-            protocol_settings=GrpcProtocolConfig(),
-        )
-    )
+    environment_settings: EnvironmentSettings = field(default_factory=EnvironmentSettings)
+
     algorithm_settings: Annotated[
         Union[FakeAlgoAlpha, FakeAlgoBeta], Parameter(show=False, parse=False)
     ] = field(default_factory=FakeAlgoAlpha)
 
+    base_level_parameter: int = 1
 
-@dataclass
-class FakeNoAlgScriptSettings:
-    """Script settings without an algorithm subcommand (``MetaNoAlgCommand``)."""
+FULL_ALGORITHM_TABLE: Dict[str, Type[Any]] = {
+    "alpha": FakeAlgoAlpha,
+    "beta": FakeAlgoBeta,
+}
+FULL_SIMULATOR_TABLE: Dict[str, Type[Any]] = {
+    "executable": UnrealExecutableSimulatorConfig,
+    "project": UnrealProjectSimulatorConfig,
+    "external": ExternalSimulatorConfig,
+}
+FULL_SIMULATOR_KEYS: tuple[str, ...] = tuple(FULL_SIMULATOR_TABLE.keys())
 
-    environment_settings: EnvironmentSettings = field(
-        default_factory=lambda: EnvironmentSettings(
-            protocol_settings=GrpcProtocolConfig(),
-        )
-    )
+
+def _make_meta_alg_command_class(
+    algorithm_keys: tuple[str, ...],
+    simulator_keys: tuple[str, ...],
+) -> Type[ScholaCommandTemplate[FakeScriptSettings]]:
+    """Build a ``ScholaCommandTemplate`` subclass with a chosen number of algorithms / simulators."""
+
+    alg_table = {k: FULL_ALGORITHM_TABLE[k] for k in algorithm_keys}
+    sim_table = {k: FULL_SIMULATOR_TABLE[k] for k in simulator_keys}
+
+    class _DynamicScholaCommandTemplate(ScholaCommandTemplate[FakeScriptSettings]):
+        @property
+        def algorithm_table(self) -> Dict[str, Type[Any]]:
+            return alg_table
+
+        @property
+        def algorithm_help(self) -> Dict[str, str]:
+            return {k: f"Test help for {k}." for k in algorithm_keys}
+
+        @property
+        def simulator_table(self) -> Dict[str, Type[Any]]:
+            return sim_table
+
+    return _DynamicScholaCommandTemplate
 
 
-class FakeMetaAlgCommand(MetaAlgCommand[FakeScriptSettings]):
+def _build_meta_alg_app(
+    mock_main: MagicMock,
+    algorithm_keys: tuple[str, ...],
+    simulator_keys: tuple[str, ...],
+    *,
+    app_name: str = "train-param",
+) -> Any:
+    app = App(name=app_name, help="Parameterized ScholaCommandTemplate tests")
+    logger = logging.getLogger(f"test_command_template.{app_name}")
+    if not logger.handlers:
+        logger.addHandler(logging.NullHandler())
+    cls = _make_meta_alg_command_class(algorithm_keys, simulator_keys)
+    return cls(app, FakeScriptSettings, mock_main, logger).make().meta
+
+
+class FakeScholaCommandTemplate(ScholaCommandTemplate[FakeScriptSettings]):
     @property
     def algorithm_table(self) -> Dict[str, Type[Any]]:
         return {
@@ -95,20 +135,31 @@ def meta_app(mock_main: MagicMock):
     app = App(name="train-fake", help="Fake train CLI for template tests")
     logger = logging.getLogger("test_command_template")
     logger.addHandler(logging.NullHandler())
-    built = FakeMetaAlgCommand(app, FakeScriptSettings, mock_main, logger).make()
+    built = FakeScholaCommandTemplate(app, FakeScriptSettings, mock_main, logger).make()
     # ``make()`` returns ``app.meta``; config YAML handling lives on ``app.meta.meta.default``.
     return built.meta
 
 
 @pytest.fixture
 def no_alg_meta_app(mock_main: MagicMock):
-    """``MetaNoAlgCommand``: entry is ``app.meta.meta`` (config handler outermost)."""
+    """``ScholaCommandTemplate`` with no algorithms: entry is ``app.meta.meta`` (config handler outermost)."""
     app = App(name="train-no-alg-fake", help="Fake no-algorithm train CLI")
     logger = logging.getLogger("test_command_template_no_alg")
     logger.addHandler(logging.NullHandler())
-    built = MetaNoAlgCommand(app, FakeNoAlgScriptSettings, mock_main, logger).make()
-    return built.meta
+    class FakeScholaCommand(ScholaCommandTemplate[FakeScriptSettings]):
+        @property
+        def simulator_table(self) -> Dict[str, Type[Any]]:
+            return {
+                "executable": UnrealExecutableSimulatorConfig,
+                "external": ExternalSimulatorConfig,
+            }
 
+        @property
+        def algorithm_table(self) -> Dict[str, Type[Any]]:
+            return {}
+
+    built = FakeScholaCommand(app, FakeScriptSettings, mock_main, logger).make()
+    return built.meta
 
 def test_yaml_split_meta_no_alg_config_handler():
     """Like ``make_train_config_handler``: only ``environment.simulator`` is removed; ``algorithm`` stays."""
@@ -132,7 +183,7 @@ def test_no_alg_cli_default_external_simulator(no_alg_meta_app, mock_main: Magic
 
     mock_main.assert_called_once()
     args = mock_main.call_args[0][0]
-    assert isinstance(args, FakeNoAlgScriptSettings)
+    assert isinstance(args, FakeScriptSettings)
     assert isinstance(
         args.environment_settings.simulator_settings, ExternalSimulatorConfig
     )
@@ -327,6 +378,284 @@ def test_config_file_without_optional_simulator_key(
     assert isinstance(args.algorithm_settings, FakeAlgoAlpha)
 
 
+_EXE_PLACEHOLDER = "__EXE_PATH__"
+
+
+@dataclass(frozen=True, slots=True)
+class MetaAlgCliTestParameters:
+    """Row for ``test_meta_alg_cli_algorithm_simulator_count_matrix``."""
+
+    case_id: str
+    algorithm_keys: tuple[str, ...]
+    simulator_keys: tuple[str, ...]
+    cli_tokens: list[str]
+    expected_sim_settings: FakeScriptSettings
+
+
+@dataclass(frozen=True, slots=True)
+class MetaAlgConfigTestParameters:
+    """Row for ``test_meta_alg_config_algorithm_simulator_count_matrix``."""
+
+    case_id: str
+    algorithm_keys: tuple[str, ...]
+    simulator_keys: tuple[str, ...]
+    config_doc: Dict[str, Any]
+    cli_tokens: list[str]
+    expected_sim_settings: FakeScriptSettings
+
+
+_META_ALG_CLI_ALGORITHM_SIMULATOR_COUNT_MATRIX: tuple[MetaAlgCliTestParameters, ...] = (
+    MetaAlgCliTestParameters(
+        case_id="0_alg_0_sim",
+        algorithm_keys=(),
+        simulator_keys=(),
+        cli_tokens=["--base-level-parameter", "2"],
+        expected_sim_settings=FakeScriptSettings(base_level_parameter=2),
+    ),
+    MetaAlgCliTestParameters(
+        case_id="0_alg_1_sim",
+        algorithm_keys=(),
+        simulator_keys=("external",),
+        cli_tokens=[],
+        expected_sim_settings=FakeScriptSettings(),
+    ),
+    MetaAlgCliTestParameters(
+        case_id="0_alg_multi_sim_default_external",
+        algorithm_keys=(),
+        simulator_keys=FULL_SIMULATOR_KEYS,
+        cli_tokens=[],
+        expected_sim_settings=FakeScriptSettings(),
+    ),
+    MetaAlgCliTestParameters(
+        case_id="1_alg_0_sim",
+        algorithm_keys=("alpha",),
+        simulator_keys=(),
+        cli_tokens=["alpha"],
+        expected_sim_settings=FakeScriptSettings(),
+    ),
+    MetaAlgCliTestParameters(
+        case_id="1_alg_1_sim",
+        algorithm_keys=("alpha",),
+        simulator_keys=("external",),
+        cli_tokens=["alpha"],
+        expected_sim_settings=FakeScriptSettings(),
+    ),
+    MetaAlgCliTestParameters(
+        case_id="1_alg_multi_sim_default_external",
+        algorithm_keys=("alpha",),
+        simulator_keys=FULL_SIMULATOR_KEYS,
+        cli_tokens=["alpha"],
+        expected_sim_settings=FakeScriptSettings(),
+    ),
+    MetaAlgCliTestParameters(
+        case_id="multi_alg_0_sim",
+        algorithm_keys=("alpha", "beta"),
+        simulator_keys=(),
+        cli_tokens=["beta", "--beta-steps", "33"],
+        expected_sim_settings=FakeScriptSettings(
+            algorithm_settings=FakeAlgoBeta(beta_steps=33),
+        ),
+    ),
+    MetaAlgCliTestParameters(
+        case_id="multi_alg_1_sim",
+        algorithm_keys=("alpha", "beta"),
+        simulator_keys=("external",),
+        cli_tokens=["alpha"],
+        expected_sim_settings=FakeScriptSettings(),
+    ),
+    MetaAlgCliTestParameters(
+        case_id="multi_alg_multi_sim_executable",
+        algorithm_keys=("alpha", "beta"),
+        simulator_keys=FULL_SIMULATOR_KEYS,
+        cli_tokens=[
+            "alpha",
+            "executable",
+            "--executable-path",
+            _EXE_PLACEHOLDER,
+        ],
+        expected_sim_settings=FakeScriptSettings(
+            environment_settings=EnvironmentSettings(
+                simulator_settings=UnrealExecutableSimulatorConfig(
+                    executable_path=Path(_EXE_PLACEHOLDER),
+                ),
+            ),
+            algorithm_settings=FakeAlgoAlpha(),
+        ),
+    ),
+)
+
+
+_META_ALG_CONFIG_ALGORITHM_SIMULATOR_COUNT_MATRIX: tuple[
+    MetaAlgConfigTestParameters, ...
+] = (
+    MetaAlgConfigTestParameters(
+        case_id="cfg_0_alg_0_sim",
+        algorithm_keys=(),
+        simulator_keys=(),
+        config_doc={},
+        cli_tokens=[],
+        expected_sim_settings=FakeScriptSettings(),
+    ),
+    MetaAlgConfigTestParameters(
+        case_id="cfg_0_alg_1_sim",
+        algorithm_keys=(),
+        simulator_keys=("external",),
+        config_doc={"environment": {"simulator": {"external": {}}}},
+        cli_tokens=[],
+        expected_sim_settings=FakeScriptSettings(),
+    ),
+    MetaAlgConfigTestParameters(
+        case_id="cfg_0_alg_multi_sim",
+        algorithm_keys=(),
+        simulator_keys=FULL_SIMULATOR_KEYS,
+        config_doc={"environment": {"simulator": {"external": {}}}},
+        cli_tokens=["external"],
+        expected_sim_settings=FakeScriptSettings(),
+    ),
+    MetaAlgConfigTestParameters(
+        case_id="cfg_1_alg_0_sim",
+        algorithm_keys=("alpha",),
+        simulator_keys=(),
+        config_doc={"algorithm": {"alpha": {"alpha": 0.61, "extra": 4}}},
+        cli_tokens=["alpha"],
+        expected_sim_settings=FakeScriptSettings(
+            algorithm_settings=FakeAlgoAlpha(alpha=0.61, extra=4),
+        ),
+    ),
+    MetaAlgConfigTestParameters(
+        case_id="cfg_1_alg_1_sim",
+        algorithm_keys=("alpha",),
+        simulator_keys=("external",),
+        config_doc={
+            "algorithm": {"alpha": {"alpha": 0.62, "extra": 5}},
+            "environment": {"simulator": {"external": {}}},
+        },
+        cli_tokens=["alpha"],
+        expected_sim_settings=FakeScriptSettings(
+            algorithm_settings=FakeAlgoAlpha(alpha=0.62, extra=5),
+        ),
+    ),
+    MetaAlgConfigTestParameters(
+        case_id="cfg_1_alg_multi_sim",
+        algorithm_keys=("alpha",),
+        simulator_keys=FULL_SIMULATOR_KEYS,
+        config_doc={
+            "algorithm": {"alpha": {"alpha": 0.63, "extra": 6}},
+            "environment": {"simulator": {"external": {}}},
+        },
+        cli_tokens=["alpha", "external"],
+        expected_sim_settings=FakeScriptSettings(
+            algorithm_settings=FakeAlgoAlpha(alpha=0.63, extra=6),
+        ),
+    ),
+    MetaAlgConfigTestParameters(
+        case_id="cfg_multi_alg_0_sim",
+        algorithm_keys=("alpha", "beta"),
+        simulator_keys=(),
+        config_doc={"algorithm": {"alpha": {"alpha": 0.64, "extra": 8}}},
+        cli_tokens=["alpha"],
+        expected_sim_settings=FakeScriptSettings(
+            algorithm_settings=FakeAlgoAlpha(alpha=0.64, extra=8),
+        ),
+    ),
+    MetaAlgConfigTestParameters(
+        case_id="cfg_multi_alg_1_sim",
+        algorithm_keys=("alpha", "beta"),
+        simulator_keys=("external",),
+        config_doc={
+            "algorithm": {"beta": {"beta_steps": 55}},
+        },
+        cli_tokens=["beta"],
+        expected_sim_settings=FakeScriptSettings(
+            algorithm_settings=FakeAlgoBeta(beta_steps=55),
+        ),
+    ),
+    MetaAlgConfigTestParameters(
+        case_id="cfg_multi_alg_multi_sim",
+        algorithm_keys=("alpha", "beta"),
+        simulator_keys=FULL_SIMULATOR_KEYS,
+        config_doc={
+            "algorithm": {"alpha": {"alpha": 0.66, "extra": 9}},
+            "environment": {"simulator": {"external": {}}},
+        },
+        cli_tokens=["alpha", "external"],
+        expected_sim_settings=FakeScriptSettings(
+            algorithm_settings=FakeAlgoAlpha(alpha=0.66, extra=9),
+        ),
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    "case",
+    _META_ALG_CLI_ALGORITHM_SIMULATOR_COUNT_MATRIX,
+    ids=lambda c: c.case_id,
+)
+def test_meta_alg_cli_algorithm_simulator_count_matrix(
+    mock_main: MagicMock,
+    tmp_path: Path,
+    case: MetaAlgCliTestParameters,
+) -> None:
+    """Every count of algorithms (0 / 1 / 2+) × simulators (0 / 1 / 3) routes to ``main`` as expected."""
+    exe = tmp_path / "FakeGame.exe"
+    exe.write_bytes(b"")
+    resolved_cli = [
+        str(exe) if t == _EXE_PLACEHOLDER else t for t in case.cli_tokens
+    ]
+    meta = _build_meta_alg_app(
+        mock_main,
+        case.algorithm_keys,
+        case.simulator_keys,
+        app_name=f"cli-{case.algorithm_keys}-{case.simulator_keys}",
+    )
+    meta(resolved_cli, result_action="return_value", exit_on_error=False)
+
+    mock_main.assert_called_once()
+    args: FakeScriptSettings = mock_main.call_args[0][0]
+    expected = case.expected_sim_settings
+    sim = expected.environment_settings.simulator_settings
+    if isinstance(sim, UnrealExecutableSimulatorConfig) and sim.executable_path == Path(
+        _EXE_PLACEHOLDER
+    ):
+        expected = replace(
+            expected,
+            environment_settings=replace(
+                expected.environment_settings,
+                simulator_settings=UnrealExecutableSimulatorConfig(
+                    executable_path=exe,
+                ),
+            ),
+        )
+    assert args == expected
+
+
+@pytest.mark.parametrize(
+    "case",
+    _META_ALG_CONFIG_ALGORITHM_SIMULATOR_COUNT_MATRIX,
+    ids=lambda c: c.case_id,
+)
+def test_meta_alg_config_algorithm_simulator_count_matrix(
+    mock_main: MagicMock,
+    tmp_path: Path,
+    case: MetaAlgConfigTestParameters,
+) -> None:
+    """``--config-file`` merges correctly for every algorithm × simulator count combination."""
+    cfg = tmp_path / "matrix.yaml"
+    cfg.write_text(yaml.safe_dump(case.config_doc), encoding="utf-8")
+    meta = _build_meta_alg_app(
+        mock_main,
+        case.algorithm_keys,
+        case.simulator_keys,
+        app_name=f"cfg-{case.algorithm_keys}-{case.simulator_keys}",
+    )
+    cli = ["--config-file", str(cfg), *case.cli_tokens]
+    meta(cli, result_action="return_value", exit_on_error=False)
+
+    mock_main.assert_called_once()
+    args: FakeScriptSettings = mock_main.call_args[0][0]
+    assert args == case.expected_sim_settings
+
+
 def _write_invalid_yaml(path: Path) -> None:
     """YAML that ``yaml.safe_load`` rejects (nested mapping on one line)."""
     path.write_text("foo: bar: baz\n", encoding="utf-8")
@@ -363,7 +692,7 @@ def test_invalid_yaml_no_alg_config_file_logs_error_with_details(
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
 ):
-    """``MetaNoAlgCommand``: invalid YAML still logs a detailed error before empty config."""
+    """``MetalgCommand`` with no algorithms: invalid YAML still logs a detailed error before empty config."""
     cfg = tmp_path / "bad_no_alg.yaml"
     _write_invalid_yaml(cfg)
 

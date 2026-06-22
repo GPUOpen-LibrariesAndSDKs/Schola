@@ -9,7 +9,7 @@ import signal
 from typing import List, Tuple, cast, Any
 
 from cyclopts import App
-from schola.scripts.common.command_template import MetaAlgCommand
+from schola.scripts.common.command_template import ScholaCommandTemplate
 from schola.scripts.sb3.settings import BasePPOSettings, BaseSACSettings
 from schola.scripts.sb3.eval.settings import Sb3EvalScriptSettings
 
@@ -133,13 +133,13 @@ def main(args: Sb3EvalScriptSettings) -> Tuple[float, float]:
 app = App(name="eval", help="Evaluate a trained Stable-Baselines3 policy")
 
 
-class MetaEvalSB3Command(MetaAlgCommand[Sb3EvalScriptSettings]):
+class MetaEvalSB3Command(ScholaCommandTemplate[Sb3EvalScriptSettings]):
     """
     ``MetaEvalSB3Command`` configuration for Stable-Baselines3 (PPO and SAC).
 
     See Also
     --------
-    MetaAlgCommand
+    ScholaCommandTemplate
     """
 
     @property

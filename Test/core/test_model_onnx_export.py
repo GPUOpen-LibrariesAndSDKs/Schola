@@ -2,7 +2,6 @@
 
 """Unit tests for ONNX export helpers in ``schola.core.model``."""
 
-import numpy as np
 import onnx
 from onnx import helper, TensorProto
 import pytest
@@ -11,7 +10,6 @@ import torch as th
 from schola.core.model import (
     emulate_nne_seq_dim,
     fix_lstm_output_shapes_for_onnx,
-    fix_slice_nodes_for_onnx,
     patch_lstm_layers_for_onnx_export,
     reshape_lstm_output_hook,
     validate_exported_onnx_state_shapes,
@@ -67,27 +65,6 @@ def test_patch_lstm_layers_for_onnx_export_registers_all_lstms():
     finally:
         for handle in handles:
             handle.remove()
-
-
-def test_fix_slice_nodes_for_onnx_promotes_scalar_initializer():
-    from unittest.mock import MagicMock
-
-    model = MagicMock()
-    node = MagicMock()
-    node.op_type = "Slice"
-    initializer = MagicMock()
-    initializer.is_initializer.return_value = True
-    initializer.shape = MagicMock(rank=MagicMock(return_value=0))
-    initializer.name = "starts"
-    initializer.const_value = MagicMock()
-    initializer.const_value.numpy.return_value = np.array(0, dtype=np.int64)
-    node.inputs = [initializer]
-    model.graph.all_nodes.return_value = [node]
-
-    fix_slice_nodes_for_onnx(model)
-
-    assert initializer.shape == ir.Shape((1,))
-    assert initializer.const_value.shape == ir.Shape((1,))
 
 
 def test_fix_lstm_output_shapes_unblocks_shape_inference():

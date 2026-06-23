@@ -33,6 +33,7 @@ from functools import cached_property
 from schola.core.utils.dict_helpers import *
 from itertools import accumulate
 import onnx_ir as ir
+import onnx_ir.passes.common.shape_inference as onnx_shape_inference
 
 logger = logging.getLogger(__name__)
 
@@ -128,15 +129,17 @@ def validate_exported_onnx_state_shapes(
     """
     input_shapes: Dict[str, List[Union[str, int]]] = {}
     for graph_input in onnx_model.graph.inputs:
-        if graph_input.name not in input_state_metadata:
+        input_name = graph_input.name
+        if input_name is None or input_name not in input_state_metadata:
             continue
-        input_shapes[graph_input.name] = _ir_tensor_dims(graph_input.shape)
+        input_shapes[input_name] = _ir_tensor_dims(graph_input.shape)
 
     output_shapes: Dict[str, List[Union[str, int]]] = {}
     for graph_output in onnx_model.graph.outputs:
-        if not graph_output.name.startswith("state_out_"):
+        output_name = graph_output.name
+        if output_name is None or not output_name.startswith("state_out_"):
             continue
-        output_shapes[graph_output.name] = _ir_tensor_dims(graph_output.shape)
+        output_shapes[output_name] = _ir_tensor_dims(graph_output.shape)
 
     if set(input_shapes) != {name for name in input_state_metadata}:
         missing = set(input_state_metadata) - set(input_shapes)
@@ -601,11 +604,10 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
             assert (
                 onnx_program is not None
             ), "Expected ONNX program to be generated after calling th.onnx.export"
-            fix_slice_nodes_for_onnx(onnx_program.model)
             fix_lstm_output_shapes_for_onnx(onnx_program.model)
 
             try:
-                ir.passes.common.shape_inference.infer_shapes(onnx_program.model)
+                onnx_shape_inference.infer_shapes(onnx_program.model)
             except Exception as exc:
                 logger.warning(
                     "ONNX shape inference failed after export; validating state I/O "
@@ -647,7 +649,9 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
         onnx_program.save(export_path)
 
 
-def patch_lstm_layers_for_onnx_export(module: th.nn.Module) -> List[th.nn.LSTM]:
+def patch_lstm_layers_for_onnx_export(
+    module: th.nn.Module,
+) -> List[th.utils.hooks.RemovableHandle]:
     """
     Attach forward hooks so ONNX-exported LSTM hidden states match PyTorch.
 
@@ -659,9 +663,9 @@ def patch_lstm_layers_for_onnx_export(module: th.nn.Module) -> List[th.nn.LSTM]:
 
     Returns
     -------
-    list of torch.nn.LSTM
-        LSTM modules that were hooked (the same layer objects ``register_forward_hook``
-        was called on).
+    list of torch.utils.hooks.RemovableHandle
+        Hook handles to remove after export (from ``register_forward_hook`` on each
+        nested ``torch.nn.LSTM``).
 
     Notes
     -----
@@ -716,40 +720,6 @@ def reshape_lstm_output_hook(
     cn = cn.reshape(layer_dim, batch_size, lstm.hidden_size)
 
     return x_out, (hn, cn)
-
-
-def fix_slice_nodes_for_onnx(model: ir.Model) -> None:
-    """
-    Fix Slice nodes produced by ``torch.onnx.export`` that use invalid 0-D tensor inputs.
-
-    Parameters
-    ----------
-    model : onnx_ir.ir.Model
-        ONNX IR model to mutate in place.
-
-    """
-    # Create a mapping of initializer names to their values
-    fixed_values = set()
-    # Find all Slice nodes
-    for node in model.graph.all_nodes():
-        if node.op_type == "Slice":
-            for i, node_input in enumerate(node.inputs):
-                if node_input is None:
-                    continue
-
-                if node_input.is_initializer() and (
-                    node_input.shape is None or node_input.shape.rank() == 0
-                ):
-                    node_input.shape = ir.Shape((1,))
-                    if node_input.const_value is not None:
-                        node_input.const_value = ir.tensor(
-                            node_input.const_value.numpy().reshape((1,)),
-                            name=node_input.const_value.name,
-                        )
-                    fixed_values.add(node_input.name)
-
-    if fixed_values:
-        logger.info("Fixed %s slice initializer(s): %s", len(fixed_values), fixed_values)
 
 
 def fix_lstm_output_shapes_for_onnx(model: ir.Model) -> None:

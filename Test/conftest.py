@@ -17,7 +17,11 @@ import pytest
 from schola.core.protocols.base_protocol import BaseRLProtocol
 from schola.core.simulators.base_simulator import BaseSimulator
 from schola.core.utils.dict_helpers import map_dict
-from schola.core.model import StateMetadata
+from schola.core.model import (
+    StateMetadata,
+    _proto_tensor_dims,
+    emulate_nne_seq_dim,
+)
 from schola.gym import env
 
 
@@ -352,6 +356,45 @@ def onnx_model_checker():
             assert found_metadata == len(
                 metadata
             ), f"Expected to find metadata for {len(metadata)} state inputs. Found {found_metadata}"
+
+        if metadata is not None:
+            for inp_name, inp_metadata in metadata.items():
+                state_metadata = StateMetadata(
+                    has_seq_dim=inp_metadata.get("has_seq_dim", "False") == "True",
+                    max_seq_len=(
+                        int(inp_metadata["max_seq_len"])
+                        if "max_seq_len" in inp_metadata
+                        else None
+                    ),
+                    seq_dim=(
+                        int(inp_metadata["seq_dim"])
+                        if "seq_dim" in inp_metadata
+                        else None
+                    ),
+                )
+                in_shape = _proto_tensor_dims(
+                    next(i for i in model.graph.input if i.name == inp_name)
+                )
+                out_name = inp_name.replace("state_in_", "state_out_", 1)
+                out_shape = _proto_tensor_dims(
+                    next(o for o in model.graph.output if o.name == out_name)
+                )
+                assert (
+                    in_shape == out_shape
+                ), f"State input/output shapes must match for '{inp_name}'"
+                inferred_seq_dim = emulate_nne_seq_dim(in_shape)
+                if state_metadata.has_seq_dim:
+                    assert inferred_seq_dim == state_metadata.seq_dim, (
+                        f"Unreal NNE would infer seq_dim={inferred_seq_dim} for "
+                        f"'{inp_name}' shape {in_shape}, expected "
+                        f"{state_metadata.seq_dim}"
+                    )
+                else:
+                    assert inferred_seq_dim == -1, (
+                        f"State tensor '{inp_name}' shape {in_shape} has extra dynamic "
+                        f"axis at index {inferred_seq_dim}; only batch may be dynamic "
+                        "when has_seq_dim=False"
+                    )
         # Run one step of inference on the model and check that the outputs match the expected shapes/spaces
 
         input_data = batched_observation_space.sample()
@@ -389,5 +432,23 @@ def onnx_model_checker():
                 batch_size,
                 *state_shapes[state_name[len("state_out_") :]],
             ), f"Expected output state '{state_name}' to have shape {state_shapes[state_name[len('state_out_'):]]}. Got {state.shape}"
+
+        if output_states:
+            recurrent_inputs = dict(input_data)
+            for state_name, state_value in output_states.items():
+                recurrent_inputs[
+                    state_name.replace("state_out_", "state_in_", 1)
+                ] = state_value.astype(np.float32)
+            second_pass_outputs = ort_sess.run(None, recurrent_inputs)
+            second_pass_states = {
+                k: v
+                for k, v in zip(output_names, second_pass_outputs)
+                if k.startswith("state_out_")
+            }
+            for state_name, state in second_pass_states.items():
+                assert state.shape == output_states[state_name].shape, (
+                    f"Second recurrent pass changed shape for '{state_name}': "
+                    f"{output_states[state_name].shape} -> {state.shape}"
+                )
 
     return _check_onnx_model

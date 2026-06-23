@@ -20,6 +20,7 @@ from typing import (
     Set,
     Tuple,
     TypeVar,
+    Union,
 )
 import onnx
 import torch as th
@@ -61,6 +62,123 @@ class StateMetadata:
             output_dict["max_seq_len"] = str(self.max_seq_len)
             output_dict["seq_dim"] = str(self.seq_dim)
         return output_dict
+
+
+def _dim_to_repr(dim: Any) -> Union[str, int]:
+    """Normalize an ONNX / IR dimension to a string symbolic name or integer."""
+    if isinstance(dim, int):
+        return dim
+    return str(dim)
+
+
+def _is_dynamic_dim_repr(dim_repr: Union[str, int]) -> bool:
+    """Return whether a dimension is unresolved (symbolic or -1)."""
+    return isinstance(dim_repr, str) or dim_repr < 0
+
+
+def _proto_tensor_dims(tensor: Any) -> List[Union[str, int]]:
+    """Read symbolic or integer dimensions from an ONNX ``ValueInfoProto``."""
+    dims: List[Union[str, int]] = []
+    for dim in tensor.type.tensor_type.shape.dim:
+        if dim.dim_param:
+            dims.append(dim.dim_param)
+        elif dim.dim_value:
+            dims.append(dim.dim_value)
+        else:
+            dims.append(-1)
+    return dims
+
+
+def _ir_tensor_dims(shape: Optional[ir.Shape]) -> List[Union[str, int]]:
+    """Read symbolic or integer dimensions from an ONNX IR shape."""
+    if shape is None:
+        return []
+    return [_dim_to_repr(dim) for dim in shape.dims]
+
+
+def emulate_nne_seq_dim(
+    shape: Iterable[Union[str, int]], *, fix_batch_to_1: bool = True
+) -> int:
+    """
+    Emulate ``FNNEStateBuffer`` sequence-axis inference via ``FindLast(-1)``.
+
+    Unreal fixes ``Shape[0] = 1`` then searches backward for the last
+    unresolved (-1 / symbolic) dimension.
+    """
+    resolved = list(shape)
+    if fix_batch_to_1 and resolved:
+        resolved[0] = 1
+    for index in range(len(resolved) - 1, -1, -1):
+        if _is_dynamic_dim_repr(resolved[index]):
+            return index
+    return -1
+
+
+def validate_exported_onnx_state_shapes(
+    onnx_model: ir.Model,
+    input_state_metadata: Dict[str, StateMetadata],
+) -> None:
+    """
+    Validate recurrent state tensor shapes against embedded ``StateMetadata``.
+
+    Raises
+    ------
+    ValueError
+        If state I/O shapes are inconsistent or would be misread by Unreal NNE.
+    """
+    input_shapes: Dict[str, List[Union[str, int]]] = {}
+    for graph_input in onnx_model.graph.inputs:
+        if graph_input.name not in input_state_metadata:
+            continue
+        input_shapes[graph_input.name] = _ir_tensor_dims(graph_input.shape)
+
+    output_shapes: Dict[str, List[Union[str, int]]] = {}
+    for graph_output in onnx_model.graph.outputs:
+        if not graph_output.name.startswith("state_out_"):
+            continue
+        output_shapes[graph_output.name] = _ir_tensor_dims(graph_output.shape)
+
+    if set(input_shapes) != {name for name in input_state_metadata}:
+        missing = set(input_state_metadata) - set(input_shapes)
+        raise ValueError(
+            "Exported ONNX model is missing state inputs declared in metadata: "
+            f"{sorted(missing)}"
+        )
+
+    for input_name, metadata in input_state_metadata.items():
+        in_shape = input_shapes[input_name]
+        out_name = input_name.replace("state_in_", "state_out_", 1)
+        out_shape = output_shapes.get(out_name)
+        if out_shape is None:
+            raise ValueError(
+                f"Exported ONNX model is missing matching state output '{out_name}' "
+                f"for input '{input_name}'"
+            )
+        if in_shape != out_shape:
+            raise ValueError(
+                f"State input/output shapes must match for recurrent round-trip. "
+                f"'{input_name}' has {in_shape} but '{out_name}' has {out_shape}"
+            )
+
+        inferred_seq_dim = emulate_nne_seq_dim(in_shape)
+        if metadata.has_seq_dim:
+            if metadata.seq_dim is None:
+                raise ValueError(
+                    f"State metadata for '{input_name}' sets has_seq_dim=True "
+                    "but omits seq_dim"
+                )
+            if inferred_seq_dim != metadata.seq_dim:
+                raise ValueError(
+                    f"State tensor '{input_name}' shape {in_shape} would be read by "
+                    f"Unreal NNE with seq_dim={inferred_seq_dim}, but metadata "
+                    f"declares seq_dim={metadata.seq_dim}"
+                )
+        elif inferred_seq_dim != -1:
+            raise ValueError(
+                f"State tensor '{input_name}' shape {in_shape} leaves dynamic axis "
+                f"{inferred_seq_dim} after fixing batch to 1, but has_seq_dim=False. "
+                "Only the batch dimension may be dynamic for LSTM state I/O."
+            )
 
 
 class StatefulModelMixin:
@@ -485,13 +603,24 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
             ), "Expected ONNX program to be generated after calling th.onnx.export"
             fix_slice_nodes_for_onnx(onnx_program.model)
 
-            ir.passes.common.shape_inference.infer_shapes(onnx_program.model)
+            try:
+                ir.passes.common.shape_inference.infer_shapes(onnx_program.model)
+            except Exception as exc:
+                logger.warning(
+                    "ONNX shape inference failed after export; validating state I/O "
+                    "shapes before returning: %s",
+                    exc,
+                )
             # Embed state metadata on each state input's doc_string
             for inp in onnx_program.model.graph.inputs:
                 if inp.name in self.input_state_metadata:
                     inp.metadata_props.update(
                         self.input_state_metadata[inp.name].to_dict()
                     )
+            if self.input_state_metadata:
+                validate_exported_onnx_state_shapes(
+                    onnx_program.model, self.input_state_metadata
+                )
             return onnx_program
 
     def save_as_onnx(
@@ -578,9 +707,12 @@ def reshape_lstm_output_hook(
     bidirectional_modifier = 2 if lstm.bidirectional else 1
     layer_dim = bidirectional_modifier * lstm.num_layers
 
-    # This is a no-op on pytorch, but on ONNX the output has an extra dimension that we need to squeeze to match the pytorch output
-    hn = hn.reshape(layer_dim, -1, lstm.hidden_size)
-    cn = cn.reshape(layer_dim, -1, lstm.hidden_size)
+    # Tie the batch axis to the traced input batch size instead of -1 so the
+    # exported graph does not leak an extra unresolved dimension that Unreal NNE
+    # would misread as a sequence axis via FindLast(-1).
+    batch_size = x_in.shape[0]
+    hn = hn.reshape(layer_dim, batch_size, lstm.hidden_size)
+    cn = cn.reshape(layer_dim, batch_size, lstm.hidden_size)
 
     return x_out, (hn, cn)
 
@@ -615,4 +747,5 @@ def fix_slice_nodes_for_onnx(model: ir.Model) -> None:
                         )
                     fixed_values.add(node_input.name)
 
-    logger.warning("Fixed %s slice nodes: %s", len(fixed_values), fixed_values)
+    if fixed_values:
+        logger.info("Fixed %s slice initializer(s): %s", len(fixed_values), fixed_values)

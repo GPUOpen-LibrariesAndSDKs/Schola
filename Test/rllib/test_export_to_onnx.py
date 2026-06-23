@@ -106,8 +106,18 @@ class ExportParams:
     @property
     def state_shapes(self) -> Dict[str, Tuple[int, ...]]:
         layer_dim = self.num_layers * (2 if self.bidirectional else 1)
+        hidden_size = 64
         if self.use_lstm:
-            return {"actor_h": (layer_dim, 64), "actor_c": (layer_dim, 64)}
+            # RLlib's new API stack exports actor state as (1, hidden) tensors.
+            if self.new_stack:
+                return {
+                    "actor_h": (1, hidden_size),
+                    "actor_c": (1, hidden_size),
+                }
+            return {
+                "actor_h": (layer_dim, hidden_size),
+                "actor_c": (layer_dim, hidden_size),
+            }
         elif self.use_attention:
             # layer index is represented as the key in the state dict
             return {"0": (self.max_seq_len, 32)}
@@ -344,8 +354,32 @@ class TestExportFunctions:
         [
             # Check different observation spaces with box action space
             ExportParams("ppo", box_obs_space, box_action_space, new_stack=False),
-            # TestExportParams("ppo", box_obs_space, box_action_space, use_attention=True, new_stack=False),
-            # TestExportParams("ppo", dict_obs_space, dict_action_space, use_attention=True, new_stack=False),
+            pytest.param(
+                ExportParams(
+                    "ppo",
+                    box_obs_space,
+                    box_action_space,
+                    use_attention=True,
+                    new_stack=False,
+                ),
+                marks=pytest.mark.xfail(
+                    reason="Old-stack attention export is not yet compatible with torch.onnx dynamo",
+                    strict=False,
+                ),
+            ),
+            pytest.param(
+                ExportParams(
+                    "ppo",
+                    dict_obs_space,
+                    dict_action_space,
+                    use_attention=True,
+                    new_stack=False,
+                ),
+                marks=pytest.mark.xfail(
+                    reason="Old-stack attention export is not yet compatible with torch.onnx dynamo",
+                    strict=False,
+                ),
+            ),
             ExportParams("ppo", discrete_obs_space, box_action_space, new_stack=False),
             ExportParams("ppo", dict_obs_space, dict_action_space, new_stack=False),
             ExportParams(
@@ -391,6 +425,20 @@ class TestExportFunctions:
             # Test ppo with LSTM enabled
             ExportParams("ppo", dict_obs_space, dict_action_space, use_lstm=True),
             ExportParams("ppo", box_obs_space, box_action_space, use_lstm=True),
+            ExportParams(
+                "ppo",
+                box_obs_space,
+                box_action_space,
+                use_lstm=True,
+                num_layers=2,
+            ),
+            ExportParams(
+                "ppo",
+                box_obs_space,
+                box_action_space,
+                use_lstm=True,
+                bidirectional=True,
+            ),
             ExportParams("ppo", dict_obs_space, dict_action_space),
             # SAC - only supports Box action spaces (no Dict wrapping)
             ExportParams("sac", box_obs_space, box_action_space),

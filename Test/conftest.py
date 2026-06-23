@@ -336,6 +336,33 @@ def onnx_model_checker():
             f"state_out_{k}" for k in state_shapes.keys()
         }, "Output names should be the keys of the action space or 'state_out'"
 
+        allowed_dynamic_dims = {"batch_size"}
+        if metadata is not None and any(
+            props.get("has_seq_dim") == "True" for props in metadata.values()
+        ):
+            allowed_dynamic_dims.add("seq_len")
+
+        def _assert_resolved_io_dims(tensor, tensor_name: str) -> None:
+            dims = _proto_tensor_dims(tensor)
+            for dim_index, dim_repr in enumerate(dims):
+                is_dynamic = isinstance(dim_repr, str) or dim_repr < 0
+                if not is_dynamic:
+                    continue
+                assert dim_repr in allowed_dynamic_dims, (
+                    f"ONNX tensor '{tensor_name}' dimension {dim_index} is unresolved "
+                    f"({dim_repr!r}); allowed dynamic dims are "
+                    f"{sorted(allowed_dynamic_dims)}"
+                )
+                assert not str(dim_repr).startswith("unk__"), (
+                    f"ONNX tensor '{tensor_name}' contains auto-generated symbolic "
+                    f"dimension {dim_repr!r}"
+                )
+
+        for graph_input in model.graph.input:
+            _assert_resolved_io_dims(graph_input, graph_input.name)
+        for graph_output in model.graph.output:
+            _assert_resolved_io_dims(graph_output, graph_output.name)
+
         # check the metadata of the model (embedded on state inputs)
         if metadata is not None:
             found_metadata = 0

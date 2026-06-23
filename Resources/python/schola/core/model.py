@@ -32,8 +32,10 @@ from torch.export import Dim
 from functools import cached_property
 from schola.core.utils.dict_helpers import *
 from itertools import accumulate
+import numpy as np
 import onnx_ir as ir
-import onnx_ir.passes.common.shape_inference as onnx_shape_inference
+import onnx_ir.passes.common.shape_inference
+import onnxscript.optimizer
 
 logger = logging.getLogger(__name__)
 
@@ -594,7 +596,7 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
                 dynamic_shapes=(input_shapes,),
                 dynamo=True,
                 report=False,
-                optimize=True,
+                optimize=False,
                 verbose=False,
             )
 
@@ -604,16 +606,26 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
             assert (
                 onnx_program is not None
             ), "Expected ONNX program to be generated after calling th.onnx.export"
+            fix_slice_nodes_for_onnx(onnx_program.model)
             fix_lstm_output_shapes_for_onnx(onnx_program.model)
-
-            try:
-                onnx_shape_inference.infer_shapes(onnx_program.model)
-            except Exception as exc:
-                logger.warning(
-                    "ONNX shape inference failed after export; validating state I/O "
-                    "shapes before returning: %s",
-                    exc,
-                )
+            onnx_ir.passes.common.shape_inference.infer_shapes(
+                onnx_program.model
+            )
+            normalize_shape_slices_to_gather(onnx_program.model)
+            fold_static_shape_gather_constants(onnx_program.model)
+            onnxscript.optimizer.optimize(onnx_program.model)
+            onnx_ir.passes.common.shape_inference.infer_shapes(
+                onnx_program.model
+            )
+            allowed_dynamic_dims = {"batch_size"}
+            if any(
+                metadata.has_seq_dim
+                for metadata in self.input_state_metadata.values()
+            ):
+                allowed_dynamic_dims.add("seq_len")
+            assert_shapes_fully_resolved(
+                onnx_program.model, allowed_dynamic_dims
+            )
             # Embed state metadata on each state input's doc_string
             for inp in onnx_program.model.graph.inputs:
                 if inp.name in self.input_state_metadata:
@@ -722,6 +734,230 @@ def reshape_lstm_output_hook(
     return x_out, (hn, cn)
 
 
+def fix_slice_nodes_for_onnx(model: ir.Model) -> None:
+    """
+    Fix Slice nodes produced by ``torch.onnx.export`` that use invalid 0-D tensor inputs.
+
+    Parameters
+    ----------
+    model : onnx_ir.ir.Model
+        ONNX IR model to mutate in place.
+    """
+    fixed_values: Set[str] = set()
+    for node in model.graph.all_nodes():
+        if node.op_type != "Slice":
+            continue
+        for node_input in node.inputs:
+            if node_input is None:
+                continue
+            if node_input.is_initializer() and (
+                node_input.shape is None or node_input.shape.rank() == 0
+            ):
+                node_input.shape = ir.Shape((1,))
+                if node_input.const_value is not None:
+                    node_input.const_value = ir.tensor(
+                        node_input.const_value.numpy().reshape((1,)),
+                        name=node_input.const_value.name,
+                    )
+                if node_input.name is not None:
+                    fixed_values.add(node_input.name)
+
+    if fixed_values:
+        logger.info("Fixed %s slice initializer(s): %s", len(fixed_values), fixed_values)
+
+
+def _static_int_values(value: ir.Value) -> Optional[np.ndarray]:
+    """Return flattened integer values from an initializer or Constant output."""
+    if value is None:
+        return None
+    if value.const_value is not None:
+        return value.const_value.numpy().reshape(-1)
+    producer = value.producer()
+    if producer is None or producer.op_type != "Constant":
+        return None
+    constant_attr = producer.attributes.get("value")
+    if constant_attr is None:
+        return None
+    constant_tensor = constant_attr.as_tensor()
+    if constant_tensor is None:
+        return None
+    return constant_tensor.numpy().reshape(-1)
+
+
+def _slice_step_is_one(node: ir.Node) -> bool:
+    """Return whether a Slice node uses step 1 (or leaves step unspecified)."""
+    if len(node.inputs) <= 4:
+        return True
+    steps = node.inputs[4]
+    if steps is None:
+        return True
+    step_values = _static_int_values(steps)
+    if step_values is None:
+        return False
+    return len(step_values) == 1 and step_values[0] == 1
+
+
+def normalize_shape_slices_to_gather(model: ir.Model) -> None:
+    """
+    Rewrite ``Slice(Shape(x), k, k + 1)`` into ``Gather(Shape(x), [k])``.
+
+    onnxscript's symbolic constant folder handles ``Gather`` on ``Shape`` outputs but
+    not ``Slice``, so this rewrite lets a later ``optimizer.optimize`` fold shape
+    arithmetic such as ``1 * 64`` and resolve auto-generated ``unk__*`` dims.
+    """
+    rewritten = 0
+    for node in list(model.graph.all_nodes()):
+        if node.op_type != "Slice":
+            continue
+        data_input = node.inputs[0]
+        producer = data_input.producer() if data_input is not None else None
+        if producer is None or producer.op_type != "Shape":
+            continue
+        if len(node.inputs) < 3:
+            continue
+        starts_input, ends_input = node.inputs[1], node.inputs[2]
+        if starts_input is None or ends_input is None:
+            continue
+        start_values = _static_int_values(starts_input)
+        end_values = _static_int_values(ends_input)
+        if start_values is None or end_values is None:
+            continue
+        if len(start_values) != 1 or len(end_values) != 1:
+            continue
+        if end_values[0] != start_values[0] + 1:
+            continue
+        if not _slice_step_is_one(node):
+            continue
+
+        gather_index = int(start_values[0])
+        slice_output = node.outputs[0]
+        if slice_output is None or slice_output.name is None:
+            continue
+        indices_name = f"{slice_output.name}_gather_idx"
+        indices_value = ir.val(
+            indices_name,
+            const_value=ir.tensor(
+                np.array([gather_index], dtype=np.int64),
+                name=indices_name,
+            ),
+        )
+        model.graph.register_initializer(indices_value)
+        node.op_type = "Gather"
+        node.resize_inputs(2)
+        node.replace_input_with(1, indices_value)
+        rewritten += 1
+
+    if rewritten:
+        logger.info(
+            "Rewrote %s Shape slice(s) to Gather for ONNX optimization",
+            rewritten,
+        )
+
+
+def fold_static_shape_gather_constants(model: ir.Model) -> None:
+    """
+    Replace ``Gather(Shape(x), [k])`` with scalar constants when ``x``'s
+    ``k``-th dimension is a known integer.
+
+    onnxscript's optimizer does not always fold these gathers before reshape
+    shape tensors are built, which leaves ``unk__*`` on LSTM collapse reshapes.
+    """
+    folded = 0
+    for node in list(model.graph.all_nodes()):
+        if node.op_type != "Gather" or len(node.inputs) < 2:
+            continue
+        shape_value, indices_value = node.inputs[0], node.inputs[1]
+        shape_node = shape_value.producer() if shape_value is not None else None
+        if shape_node is None or shape_node.op_type != "Shape":
+            continue
+        shaped_input = shape_node.inputs[0]
+        if shaped_input is None or shaped_input.shape is None:
+            continue
+        indices = _static_int_values(indices_value)
+        if indices is None or len(indices) != 1:
+            continue
+        dim_index = int(indices[0])
+        if dim_index < 0 or dim_index >= shaped_input.shape.rank():
+            continue
+        dim_repr = _dim_to_repr(shaped_input.shape.dims[dim_index])
+        if _is_dynamic_dim_repr(dim_repr):
+            continue
+
+        gather_output = node.outputs[0]
+        if gather_output is None or gather_output.name is None:
+            continue
+        constant_name = f"{gather_output.name}_folded"
+        constant_value = ir.val(
+            constant_name,
+            const_value=ir.tensor(
+                np.array([int(dim_repr)], dtype=np.int64),
+                name=constant_name,
+            ),
+        )
+        model.graph.register_initializer(constant_value)
+        gather_output.replace_all_uses_with(constant_value)
+        folded += 1
+
+    if folded:
+        logger.info("Folded %s static Shape gather(s) to constants", folded)
+
+
+def assert_shapes_fully_resolved(
+    model: ir.Model, allowed_dynamic_dims: Set[str]
+) -> None:
+    """
+    Raise if any graph tensor shape still contains unknown or disallowed symbolic dims.
+
+    Checks graph I/O and every intermediate node output so partially-resolved
+    tensors such as LSTM reshape intermediates cannot slip through validation.
+
+    Parameters
+    ----------
+    model : onnx_ir.ir.Model
+        ONNX IR model to validate.
+    allowed_dynamic_dims : set of str
+        Symbolic dimension names that may remain dynamic (for example
+        ``batch_size`` or ``seq_len``).
+    """
+    checked: Set[str] = set()
+
+    def check_value(value: ir.Value) -> None:
+        value_name = value.name
+        if value_name is None or value_name in checked:
+            return
+        checked.add(value_name)
+        if value.shape is None:
+            raise ValueError(
+                f"Exported ONNX tensor '{value_name}' has no resolved shape"
+            )
+        for dim_index, dim in enumerate(value.shape.dims):
+            dim_repr = _dim_to_repr(dim)
+            if not _is_dynamic_dim_repr(dim_repr):
+                continue
+            if isinstance(dim_repr, str) and dim_repr.startswith("unk"):
+                raise ValueError(
+                    "Exported ONNX tensor "
+                    f"'{value_name}' dimension {dim_index} uses auto-generated "
+                    f"symbolic name {dim_repr!r}"
+                )
+            if dim_repr not in allowed_dynamic_dims:
+                raise ValueError(
+                    "Exported ONNX tensor "
+                    f"'{value_name}' dimension {dim_index} is unresolved "
+                    f"({dim_repr!r}); allowed dynamic dims are "
+                    f"{sorted(allowed_dynamic_dims)}"
+                )
+
+    for graph_input in model.graph.inputs:
+        check_value(graph_input)
+    for graph_output in model.graph.outputs:
+        check_value(graph_output)
+    for node in model.graph.all_nodes():
+        for value in node.outputs:
+            if value is not None:
+                check_value(value)
+
+
 def fix_lstm_output_shapes_for_onnx(model: ir.Model) -> None:
     """
     Drop conflicting rank-4 annotations on ONNX ``LSTM`` hidden/cell outputs.
@@ -737,20 +973,38 @@ def fix_lstm_output_shapes_for_onnx(model: ir.Model) -> None:
     ----------
     model : onnx_ir.ir.Model
         ONNX IR model to mutate in place.
+
+    Raises
+    ------
+    ValueError
+        If an ``LSTM`` node does not expose the expected ``(Y, Y_h, Y_c)`` outputs
+        or if ``Y_h`` / ``Y_c`` carry an unexpected rank annotation.
     """
     cleared = 0
     for node in model.graph.all_nodes():
         if node.op_type != "LSTM":
             continue
-        # Outputs are (Y, Y_h, Y_c); only the hidden/cell states are mis-ranked.
-        for state_output in node.outputs[1:]:
-            if (
-                state_output is not None
-                and state_output.shape is not None
-                and state_output.shape.rank() == 4
-            ):
-                state_output.shape = None
-                cleared += 1
+        if len(node.outputs) != 3:
+            raise ValueError(
+                f"Expected LSTM node {node.name!r} to have exactly 3 outputs, "
+                f"got {len(node.outputs)}"
+            )
+        y_output, y_h_output, y_c_output = node.outputs
+        if y_output is None or y_h_output is None or y_c_output is None:
+            raise ValueError(
+                f"LSTM node {node.name!r} must expose Y, Y_h, and Y_c outputs"
+            )
+        for state_name, state_output in (("Y_h", y_h_output), ("Y_c", y_c_output)):
+            if state_output.shape is None:
+                continue
+            if state_output.shape.rank() != 4:
+                raise ValueError(
+                    f"LSTM node {node.name!r} has unexpected {state_name} rank "
+                    f"{state_output.shape.rank()}; expected rank 4 before clearing "
+                    "mis-ranked annotations"
+                )
+            state_output.shape = None
+            cleared += 1
 
     if cleared:
         logger.info("Cleared %s mis-ranked LSTM state output annotation(s)", cleared)

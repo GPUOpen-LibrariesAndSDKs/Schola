@@ -42,28 +42,32 @@ Load an Onnx Model into Unreal Engine
 -------------------------------------
 
 Schola can export ONNX models directly into your project's ``Content`` folder during training.
-When at least one Neural Network Engine (NNE) runtime plugin (for example
-``NNERuntimeORT`` or ``NNERuntimeBasicCpu``) is enabled, the Schola editor automatically imports
-any ``.onnx`` file written under ``Content`` and creates a corresponding ``UNNEModelData`` asset
-in the Content Browser.
+Unreal Engine's built-in Auto Reimport system can monitor that folder and import or re-import
+``.onnx`` files as ``UNNEModelData`` assets when they are written.
 
-To use auto-import:
+To use Unreal's Auto Reimport for ONNX exports:
 
-1. Set your training run's ``CheckpointDir`` to a folder inside ``Content`` (for example
-   ``Content/Schola/Models``).
-2. Enable ``Export to ONNX`` in the checkpoint settings.
-3. Run training from the editor. When export completes, the ONNX asset appears in the matching
-   Content Browser folder without manual drag-and-drop.
+1. Enable at least one Neural Network Engine (NNE) runtime plugin, such as ``NNERuntimeORT`` or
+   ``NNERuntimeBasicCpu``, so Unreal's NNE ONNX importer is available.
+2. Open **Editor Preferences > Loading & Saving > Auto Reimport**.
+3. Enable **Monitor Content Directories**.
+4. In **Directories to Monitor**, add your project content directory. You can use the virtual path
+   ``/Game/`` or the absolute path to your project's ``Content`` folder. If you use an absolute
+   path, set the mount point to ``/Game/``.
+5. Add an include wildcard for ``*.onnx`` so the monitor is scoped to ONNX model exports.
+6. Ensure **Auto Create Assets** is enabled if you want newly-created ``.onnx`` files to create
+   ``UNNEModelData`` assets automatically.
+7. Set your training run's ``CheckpointDir`` to a folder inside ``Content`` (for example
+   ``Content/Schola/Models``), enable ``Export to ONNX``, and run training from the editor.
 
-To update an existing ONNX asset, overwrite the source ``.onnx`` file on disk in the same
-``Content`` folder, for example by running another training export or replacing the file in your
-file explorer. The Schola watcher will re-import the updated file. Dragging and dropping a
-replacement file over an existing ``UNNEModelData`` asset uses Unreal's manual import path instead
-of Schola's watcher and may prompt for source-file metadata.
+When export completes, Unreal imports the ONNX file into the matching Content Browser folder. To
+update an existing ONNX asset, overwrite the source ``.onnx`` file on disk in the same ``Content``
+folder, for example by running another training export or replacing the file in your file explorer.
+Unreal's Auto Reimport system will detect the change and re-import the asset.
 
-If no NNE runtime plugin is enabled, Schola logs a one-time warning and does not start its
-``Content`` auto-import watcher. You can still import manually by dragging and dropping the
-``.onnx`` file into the Content Browser if Unreal's native NNE editor importer is available.
+If no NNE runtime plugin is enabled, Unreal may report ``Unknown extension 'onnx'`` because no ONNX
+import factory is registered. Enable an NNE runtime plugin and restart the editor before importing
+or auto-reimporting ONNX models.
 
 
 Setting up Your Unreal Engine Level

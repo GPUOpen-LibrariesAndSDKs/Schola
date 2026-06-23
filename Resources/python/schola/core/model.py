@@ -1,4 +1,4 @@
-# Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
+# Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
 """
 ONNX export metadata, ``ScholaModel``, and related helpers for policies trained with Schola.
@@ -602,6 +602,7 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
                 onnx_program is not None
             ), "Expected ONNX program to be generated after calling th.onnx.export"
             fix_slice_nodes_for_onnx(onnx_program.model)
+            fix_lstm_output_shapes_for_onnx(onnx_program.model)
 
             try:
                 ir.passes.common.shape_inference.infer_shapes(onnx_program.model)
@@ -707,7 +708,7 @@ def reshape_lstm_output_hook(
     bidirectional_modifier = 2 if lstm.bidirectional else 1
     layer_dim = bidirectional_modifier * lstm.num_layers
 
-    # Tie the batch axis to the traced input batch size instead of -1 so the
+    # Tie the batch axis to the traced input batch size so the
     # exported graph does not leak an extra unresolved dimension that Unreal NNE
     # would misread as a sequence axis via FindLast(-1).
     batch_size = x_in.shape[0]
@@ -749,3 +750,37 @@ def fix_slice_nodes_for_onnx(model: ir.Model) -> None:
 
     if fixed_values:
         logger.info("Fixed %s slice initializer(s): %s", len(fixed_values), fixed_values)
+
+
+def fix_lstm_output_shapes_for_onnx(model: ir.Model) -> None:
+    """
+    Drop conflicting rank-4 annotations on ONNX ``LSTM`` hidden/cell outputs.
+
+    ``torch.onnx.export`` annotates the LSTM ``Y_h``/``Y_c`` outputs as rank-4
+    ``[num_layers, num_directions, batch, hidden]``, but the ONNX ``LSTM`` spec
+    requires them to be rank-3 ``[num_directions * num_layers, batch, hidden]``.
+    That rank mismatch makes ``onnx.shape_inference`` abort on the whole graph,
+    leaving every tensor downstream of the LSTM with an unresolved shape. Clearing the bad annotations
+    lets shape inference recompute spec-correct shapes and propagate them.
+
+    Parameters
+    ----------
+    model : onnx_ir.ir.Model
+        ONNX IR model to mutate in place.
+    """
+    cleared = 0
+    for node in model.graph.all_nodes():
+        if node.op_type != "LSTM":
+            continue
+        # Outputs are (Y, Y_h, Y_c); only the hidden/cell states are mis-ranked.
+        for state_output in node.outputs[1:]:
+            if (
+                state_output is not None
+                and state_output.shape is not None
+                and state_output.shape.rank() == 4
+            ):
+                state_output.shape = None
+                cleared += 1
+
+    if cleared:
+        logger.info("Cleared %s mis-ranked LSTM state output annotation(s)", cleared)

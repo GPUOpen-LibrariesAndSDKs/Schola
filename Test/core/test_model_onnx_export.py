@@ -1,4 +1,4 @@
-# Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
+# Copyright (c) 2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
 """Unit tests for ONNX export helpers in ``schola.core.model``."""
 
@@ -10,6 +10,7 @@ import torch as th
 
 from schola.core.model import (
     emulate_nne_seq_dim,
+    fix_lstm_output_shapes_for_onnx,
     fix_slice_nodes_for_onnx,
     patch_lstm_layers_for_onnx_export,
     reshape_lstm_output_hook,
@@ -17,6 +18,7 @@ from schola.core.model import (
     StateMetadata,
 )
 import onnx_ir as ir
+import onnx_ir.passes.common.shape_inference  # noqa: F401
 
 
 def test_emulate_nne_seq_dim_lstm_state():
@@ -86,3 +88,41 @@ def test_fix_slice_nodes_for_onnx_promotes_scalar_initializer():
 
     assert initializer.shape == ir.Shape((1,))
     assert initializer.const_value.shape == ir.Shape((1,))
+
+
+def test_fix_lstm_output_shapes_unblocks_shape_inference():
+    # Build a minimal graph with an LSTM whose Y_h/Y_c are mis-annotated as
+    # rank-4, which makes onnx shape inference abort and leaves the downstream
+    # tensor with no resolved shape.
+    x = helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, "batch", 4])
+    w = helper.make_tensor_value_info("w", TensorProto.FLOAT, [1, 32, 4])
+    r = helper.make_tensor_value_info("r", TensorProto.FLOAT, [1, 32, 8])
+    y = helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 1, "batch", 8])
+    y_h = helper.make_tensor_value_info("Y_h", TensorProto.FLOAT, [1, 1, "batch", 8])
+    y_c = helper.make_tensor_value_info("Y_c", TensorProto.FLOAT, [1, 1, "batch", 8])
+    relu_out = helper.make_tensor_value_info("relu", TensorProto.FLOAT, None)
+
+    lstm_node = helper.make_node(
+        "LSTM", ["x", "w", "r"], ["Y", "Y_h", "Y_c"], hidden_size=8
+    )
+    relu_node = helper.make_node("Relu", ["Y_h"], ["relu"])
+    graph = helper.make_graph(
+        [lstm_node, relu_node],
+        "lstm_graph",
+        [x, w, r],
+        [y, relu_out],
+        value_info=[y_h, y_c],
+    )
+    model_proto = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 21)])
+    model = ir.from_proto(model_proto)
+
+    fix_lstm_output_shapes_for_onnx(model)
+
+    lstm = next(n for n in model.graph.all_nodes() if n.op_type == "LSTM")
+    # Y (rank-4, spec-correct) is preserved; Y_h/Y_c rank-4 annotations cleared.
+    assert lstm.outputs[0].shape is not None
+    assert lstm.outputs[1].shape is None
+    assert lstm.outputs[2].shape is None
+
+    # Shape inference should now succeed instead of aborting.
+    ir.passes.common.shape_inference.infer_shapes(model)

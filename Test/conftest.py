@@ -1,4 +1,4 @@
-# Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
+# Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
 """Root pytest fixtures and helpers for the Schola plugin Python tests."""
 
@@ -433,7 +433,14 @@ def onnx_model_checker():
                 *state_shapes[state_name[len("state_out_") :]],
             ), f"Expected output state '{state_name}' to have shape {state_shapes[state_name[len('state_out_'):]]}. Got {state.shape}"
 
-        if output_states:
+        # For stateful models, run a second recurrent pass by feeding each
+        # state_out back into the matching state_in. This exercises the
+        # recurrent round-trip that Unreal NNE performs every tick and that a
+        # single forward pass cannot catch.
+        if state_shapes:
+            assert (
+                output_states
+            ), "Stateful model produced no state outputs to feed back for the second pass"
             recurrent_inputs = dict(input_data)
             for state_name, state_value in output_states.items():
                 recurrent_inputs[
@@ -445,10 +452,22 @@ def onnx_model_checker():
                 for k, v in zip(output_names, second_pass_outputs)
                 if k.startswith("state_out_")
             }
+            second_pass_actions = {
+                k: v
+                for k, v in zip(output_names, second_pass_outputs)
+                if not k.startswith("state_out_")
+            }
             for state_name, state in second_pass_states.items():
                 assert state.shape == output_states[state_name].shape, (
                     f"Second recurrent pass changed shape for '{state_name}': "
                     f"{output_states[state_name].shape} -> {state.shape}"
                 )
+                assert np.all(
+                    np.isfinite(state)
+                ), f"Second recurrent pass produced non-finite values for '{state_name}'"
+            for action_name, action in second_pass_actions.items():
+                assert action_space.spaces[action_name].contains(
+                    action
+                ), f"Second-pass action '{action_name}' not in action space. Got {action}"
 
     return _check_onnx_model

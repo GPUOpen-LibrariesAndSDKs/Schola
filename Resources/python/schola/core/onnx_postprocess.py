@@ -6,9 +6,9 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
-from typing import cast
 
 import numpy as np
+import numpy.typing as npt
 import onnx_ir as ir
 import onnx_ir.passes.common.shape_inference
 import onnxscript.optimizer
@@ -22,6 +22,16 @@ from schola.core.onnx_validation import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _flatten_int64(values: object) -> npt.NDArray[np.int64]:
+    """Coerce ONNX tensor payload values to a flattened int64 vector."""
+    return np.asarray(values, dtype=np.int64).ravel()
+
+
+def _scalar_int64(values: object) -> npt.NDArray[np.int64]:
+    """Coerce ONNX tensor payload values to a length-1 int64 vector."""
+    return np.array(values, dtype=np.int64, ndmin=1)
 
 
 def postprocess_exported_onnx(
@@ -116,7 +126,7 @@ def fix_slice_nodes_for_onnx(model: ir.Model) -> None:
                 node_input.shape = ir.Shape((1,))
                 if node_input.const_value is not None:
                     node_input.const_value = ir.tensor(
-                        node_input.const_value.numpy().reshape((1,)),
+                        _scalar_int64(node_input.const_value.numpy()),
                         name=node_input.const_value.name,
                     )
                 if node_input.name is not None:
@@ -128,12 +138,12 @@ def fix_slice_nodes_for_onnx(model: ir.Model) -> None:
         )
 
 
-def _static_int_values(value: ir.Value | None) -> np.ndarray | None:
+def _static_int_values(value: ir.Value | None) -> npt.NDArray[np.int64] | None:
     """Return flattened integer values from an initializer or Constant output."""
     if value is None:
         return None
     if value.const_value is not None:
-        return value.const_value.numpy().reshape(-1)
+        return _flatten_int64(value.const_value.numpy())
     producer = value.producer()
     if producer is None or producer.op_type != "Constant":
         return None
@@ -141,7 +151,7 @@ def _static_int_values(value: ir.Value | None) -> np.ndarray | None:
     if constant_attr is None:
         return None
     constant_tensor = constant_attr.as_tensor()
-    return constant_tensor.numpy().reshape(-1)
+    return _flatten_int64(constant_tensor.numpy())
 
 
 def _slice_step_is_one(node: ir.Node) -> bool:
@@ -196,7 +206,7 @@ def normalize_shape_slices_to_gather(model: ir.Model) -> None:
         indices_value = ir.val(
             indices_name,
             const_value=ir.tensor(
-                start_values.reshape(-1)[:1].astype(np.int64),
+                start_values[:1],
                 name=indices_name,
             ),
         )
@@ -232,7 +242,7 @@ def fold_static_shape_gather_constants(model: ir.Model) -> None:
         indices = _static_int_values(indices_value)
         if indices is None or len(indices) != 1:
             continue
-        dim_index = cast(np.int64, indices.astype(np.int64).reshape(-1)[0])
+        dim_index = indices.item()
         if dim_index < 0 or dim_index >= shaped_input.shape.rank():
             continue
         dim_repr = dim_to_repr(shaped_input.shape.dims[dim_index])

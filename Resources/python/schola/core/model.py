@@ -10,7 +10,9 @@ import pathlib
 from collections.abc import Iterator
 from functools import cached_property
 from itertools import accumulate
-from typing import cast, override
+from typing import cast
+
+from typing_extensions import override
 
 import gymnasium as gym
 from gymnasium.spaces import Box, MultiDiscrete, Space, flatdim

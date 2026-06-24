@@ -328,9 +328,7 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
                 f"Expected MultiDiscrete action space for {space_name!r}, got {type(space)}"
             )
         nvec = space.nvec
-        split_indices: list[int] = list(
-            accumulate(cast(list[int], nvec[:-1].tolist()))
-        )
+        split_indices: list[int] = list(accumulate(cast(list[int], nvec[:-1].tolist())))
         index_tensors: list[th.Tensor] = []
         for tensor in logits.tensor_split(split_indices):
             max_indices = tensor.argmax()

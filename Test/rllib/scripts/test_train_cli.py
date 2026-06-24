@@ -189,6 +189,7 @@ def test_ppo_default_arguments(mock_app, mock_main):
     assert args.training_settings.timesteps == 3000
     assert args.training_settings.learning_rate == 0.0003
     assert args.training_settings.gamma == 0.99
+    assert args.training_settings.seed is None
 
     # Verify default simulator is external and num_simulators defaults to 1
     from schola.scripts.common.settings import ExternalSimulatorConfig
@@ -230,6 +231,15 @@ def test_ppo_custom_training_parameters(mock_app, mock_main):
     assert args.training_settings.minibatch_size == 64
     assert args.training_settings.train_batch_size_per_learner == 256
     assert args.training_settings.num_epochs == 10
+
+
+def test_ppo_seed_argument(mock_app, mock_main):
+    """Test PPO command accepts --seed for reproducible training."""
+    mock_app.meta(["ppo", "--seed", "42"], result_action="return_value")
+
+    mock_main.assert_called_once()
+    args: RllibScriptSettings = mock_main.call_args[0][0]
+    assert args.training_settings.seed == 42
 
 
 def test_ppo_custom_algorithm_parameters(mock_app, mock_main):

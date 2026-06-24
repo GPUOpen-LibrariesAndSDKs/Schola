@@ -5,10 +5,9 @@ Script to train an rllib model using Schola.
 """
 
 import logging
-import signal
 
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Tuple, Type, Union
+from typing import Any, Dict, Optional, Tuple, Type, Union
 
 from schola.scripts.common.settings import (
     get_activation_function,
@@ -153,52 +152,6 @@ def _make_stop_criterion(
     }
 
 
-def _discover_env_metadata(
-    args: RllibScriptSettings,
-) -> "Tuple[list, dict, Callable, Dict[str, Any]]":
-    """
-    Discover policy metadata by briefly standing up a temporary environment.
-
-    Returns ``(agent_ids, agent_types, policy_mapping_fn, env_config)``, which
-    RLlib needs before building its training config. On any failure (including
-    ``KeyboardInterrupt``) the protocol and simulator are released before the
-    exception is re-raised, so a launched Unreal process is never leaked.
-    """
-    from schola.rllib.env import RayVecEnv
-    from schola.scripts.rllib.utils import build_env_config
-
-    sim_args = args.environment_settings.simulator_settings
-    protocol_args = args.environment_settings.protocol_settings
-
-    # Space discovery: connect to a running UE instance to learn
-    # observation/action shapes.  For ExternalSimulator the UE process is
-    # already running; for other simulators we launch one temporarily.
-    primary_sim = sim_args.make()
-    discovery_protocol = protocol_args.make()
-    try:
-        tmp_env = RayVecEnv(
-            discovery_protocol,
-            primary_sim,
-            verbosity=args.logging_settings.schola_verbosity,
-        )
-        agent_ids = sorted(tmp_env.possible_agents)
-        agent_types = dict(tmp_env.agent_types)
-        policy_mapping_fn = tmp_env.make_policy_mapping_fn()
-        env_config = build_env_config(args.environment_settings, primary_sim)
-    except (Exception, KeyboardInterrupt) as e:
-        # Release the raw protocol/simulator (tmp_env may not have been bound)
-        # so a launched Unreal process is never leaked, including on Ctrl-C.
-        if isinstance(e, KeyboardInterrupt):
-            logger.info("Ctrl-C received. Shutting down gracefully;")
-            signal.signal(signal.SIGINT, signal.SIG_IGN)  # Protect cleanup phase
-        discovery_protocol.close()
-        primary_sim.stop()
-        raise
-
-    tmp_env.close()
-    return agent_ids, agent_types, policy_mapping_fn, env_config
-
-
 # forward declare here for type hinting with no load
 def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
     """
@@ -227,10 +180,14 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
     from schola.rllib.export import export_onnx_from_policy
     from ray.rllib.policy.policy import Policy
     from ray.rllib.core.rl_module.rl_module import RLModuleSpec, RLModule
-    from schola.rllib.env_runner import (
-        ScholaEnvRunner,
-        schola_env_to_module_flatten_connector,
+    from schola.rllib.connectors import schola_env_to_module_flatten_connector
+    from schola.rllib.env_runner import ScholaEnvRunner
+    from schola.rllib.policy_mapping import (
+        build_policy_mapping_record,
+        write_policy_mapping_sidecar,
     )
+    from schola.rllib.checkpoint import algorithm_checkpoint_dir
+    from schola.scripts.rllib.utils import discover_env_metadata
     from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 
     sim_args = args.environment_settings.simulator_settings
@@ -240,13 +197,23 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
 
     # Discover policy metadata + env_config via a temporary environment that is
     # always cleaned up, even if construction fails (no leaked Unreal process).
-    agent_ids, agent_types, policy_mapping_fn, env_config = _discover_env_metadata(args)
+    agent_ids, agent_types, policy_mapping_fn, env_config = discover_env_metadata(
+        args.environment_settings,
+        schola_verbosity=args.logging_settings.schola_verbosity,
+    )
 
     policies = {}
     for agent_id in agent_ids:
         policy_id = policy_mapping_fn(agent_id)
         if policy_id not in policies:
             policies[policy_id] = PolicySpec()
+
+    policy_mapping_record = build_policy_mapping_record(
+        agent_ids=agent_ids,
+        agent_types=agent_types,
+        policy_mapping_fn=policy_mapping_fn,
+        module_ids=policies.keys(),
+    )
 
     typed_policy_ids = {
         agent_id: agent_type.strip()
@@ -389,6 +356,11 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
             callbacks=callbacks,
         )
         last_checkpoint = results.get_last_checkpoint() if ckpt.should_persist else None
+        if last_checkpoint is not None:
+            write_policy_mapping_sidecar(
+                algorithm_checkpoint_dir(Path(str(last_checkpoint))),
+                policy_mapping_record,
+            )
         logger.info("Training complete")
     finally:
         # Always shutdown ray and release the environment from training even if there is an error

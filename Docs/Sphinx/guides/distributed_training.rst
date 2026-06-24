@@ -127,10 +127,8 @@ The ``env_config`` dictionary is serialized and sent to every remote worker. Wor
 
    from ray.rllib.algorithms.ppo import PPOConfig
    from ray.rllib.policy.policy import PolicySpec
-   from schola.rllib.env_runner import (
-       ScholaEnvRunner,
-       schola_env_to_module_flatten_connector,
-   )
+   from schola.rllib.connectors import schola_env_to_module_flatten_connector
+   from schola.rllib.env_runner import ScholaEnvRunner
 
    config = (
        PPOConfig()

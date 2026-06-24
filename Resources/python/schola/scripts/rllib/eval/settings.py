@@ -36,9 +36,9 @@ class RllibEvalScriptSettings:
     ] = 10
     "Number of episodes ``eval_main`` samples (each env runner may take more than one per round)."
 
-    policy_map: Annotated[
-        Dict[str, str], Parameter(group="Evaluation Arguments")
-    ] = field(default_factory=dict)
+    policy_map: Annotated[Dict[str, str], Parameter(group="Evaluation Arguments")] = (
+        field(default_factory=dict)
+    )
     "Optional agent-to-policy overrides (for example ``--policy-map agent_0=Pawn``)."
 
     resource_settings: Annotated[

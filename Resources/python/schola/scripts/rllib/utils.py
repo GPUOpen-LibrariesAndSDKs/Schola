@@ -45,7 +45,9 @@ def discover_env_metadata(
         if isinstance(exc, KeyboardInterrupt):
             import logging
 
-            logging.getLogger(__name__).info("Ctrl-C received. Shutting down gracefully;")
+            logging.getLogger(__name__).info(
+                "Ctrl-C received. Shutting down gracefully;"
+            )
             signal.signal(signal.SIGINT, signal.SIG_IGN)
         discovery_protocol.close()
         primary_sim.stop()

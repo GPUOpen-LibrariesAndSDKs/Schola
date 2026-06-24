@@ -3,7 +3,7 @@
 """Root pytest fixtures and helpers for the Schola plugin Python tests."""
 
 from concurrent import futures
-from typing import Callable, List
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from unittest.mock import MagicMock
 import grpc
 
@@ -11,16 +11,17 @@ import gymnasium as gym
 import numpy as np
 import pytest
 from functools import cache
-from typing import Dict, List, Optional, Any, Tuple
-import pytest
 
 from schola.core.protocols.base_protocol import BaseRLProtocol
 from schola.core.simulators.base_simulator import BaseSimulator
 from schola.core.utils.dict_helpers import map_dict
-from schola.core.model import (
-    StateMetadata,
-    _proto_tensor_dims,
-    emulate_nne_seq_dim,
+from schola.core.model import StateMetadata
+from schola.core.onnx_validation import (
+    allowed_dynamic_dims_for_state_metadata,
+    check_resolved_dims,
+    state_out_name_for_input,
+    tensor_dims_from_value_info,
+    validate_onnx_state_shape_rules,
 )
 from schola.gym import env
 
@@ -293,7 +294,6 @@ def gym_id_and_wrappers(request):
 from gymnasium.spaces import flatdim, flatten_space, unflatten
 from gymnasium.vector.utils import batch_space
 import onnx
-import numpy as np
 import onnxruntime as ort
 
 
@@ -336,32 +336,42 @@ def onnx_model_checker():
             f"state_out_{k}" for k in state_shapes.keys()
         }, "Output names should be the keys of the action space or 'state_out'"
 
-        allowed_dynamic_dims = {"batch_size"}
-        if metadata is not None and any(
-            props.get("has_seq_dim") == "True" for props in metadata.values()
-        ):
-            allowed_dynamic_dims.add("seq_len")
-
-        def _assert_resolved_io_dims(tensor, tensor_name: str) -> None:
-            dims = _proto_tensor_dims(tensor)
-            for dim_index, dim_repr in enumerate(dims):
-                is_dynamic = isinstance(dim_repr, str) or dim_repr < 0
-                if not is_dynamic:
-                    continue
-                assert dim_repr in allowed_dynamic_dims, (
-                    f"ONNX tensor '{tensor_name}' dimension {dim_index} is unresolved "
-                    f"({dim_repr!r}); allowed dynamic dims are "
-                    f"{sorted(allowed_dynamic_dims)}"
+        state_metadata_objects: Dict[str, StateMetadata] = {}
+        if metadata is not None:
+            state_metadata_objects = {
+                inp_name: StateMetadata(
+                    has_seq_dim=props.get("has_seq_dim", "False") == "True",
+                    max_seq_len=(
+                        int(props["max_seq_len"]) if "max_seq_len" in props else None
+                    ),
+                    seq_dim=(int(props["seq_dim"]) if "seq_dim" in props else None),
                 )
-                assert not str(dim_repr).startswith("unk__"), (
-                    f"ONNX tensor '{tensor_name}' contains auto-generated symbolic "
-                    f"dimension {dim_repr!r}"
-                )
+                for inp_name, props in metadata.items()
+            }
+        allowed_dynamic_dims = (
+            allowed_dynamic_dims_for_state_metadata(state_metadata_objects)
+            if state_metadata_objects
+            else {"batch_size"}
+        )
 
         for graph_input in model.graph.input:
-            _assert_resolved_io_dims(graph_input, graph_input.name)
+            try:
+                check_resolved_dims(
+                    tensor_dims_from_value_info(graph_input),
+                    graph_input.name,
+                    allowed_dynamic_dims,
+                )
+            except ValueError as exc:
+                raise AssertionError(str(exc)) from exc
         for graph_output in model.graph.output:
-            _assert_resolved_io_dims(graph_output, graph_output.name)
+            try:
+                check_resolved_dims(
+                    tensor_dims_from_value_info(graph_output),
+                    graph_output.name,
+                    allowed_dynamic_dims,
+                )
+            except ValueError as exc:
+                raise AssertionError(str(exc)) from exc
 
         # check the metadata of the model (embedded on state inputs)
         if metadata is not None:
@@ -384,44 +394,29 @@ def onnx_model_checker():
                 metadata
             ), f"Expected to find metadata for {len(metadata)} state inputs. Found {found_metadata}"
 
-        if metadata is not None:
-            for inp_name, inp_metadata in metadata.items():
-                state_metadata = StateMetadata(
-                    has_seq_dim=inp_metadata.get("has_seq_dim", "False") == "True",
-                    max_seq_len=(
-                        int(inp_metadata["max_seq_len"])
-                        if "max_seq_len" in inp_metadata
-                        else None
-                    ),
-                    seq_dim=(
-                        int(inp_metadata["seq_dim"])
-                        if "seq_dim" in inp_metadata
-                        else None
-                    ),
-                )
-                in_shape = _proto_tensor_dims(
+        if state_metadata_objects:
+            input_shapes = {
+                inp_name: tensor_dims_from_value_info(
                     next(i for i in model.graph.input if i.name == inp_name)
                 )
-                out_name = inp_name.replace("state_in_", "state_out_", 1)
-                out_shape = _proto_tensor_dims(
-                    next(o for o in model.graph.output if o.name == out_name)
+                for inp_name in state_metadata_objects
+            }
+            output_shapes = {
+                state_out_name_for_input(inp_name): tensor_dims_from_value_info(
+                    next(
+                        o
+                        for o in model.graph.output
+                        if o.name == state_out_name_for_input(inp_name)
+                    )
                 )
-                assert (
-                    in_shape == out_shape
-                ), f"State input/output shapes must match for '{inp_name}'"
-                inferred_seq_dim = emulate_nne_seq_dim(in_shape)
-                if state_metadata.has_seq_dim:
-                    assert inferred_seq_dim == state_metadata.seq_dim, (
-                        f"Unreal NNE would infer seq_dim={inferred_seq_dim} for "
-                        f"'{inp_name}' shape {in_shape}, expected "
-                        f"{state_metadata.seq_dim}"
-                    )
-                else:
-                    assert inferred_seq_dim == -1, (
-                        f"State tensor '{inp_name}' shape {in_shape} has extra dynamic "
-                        f"axis at index {inferred_seq_dim}; only batch may be dynamic "
-                        "when has_seq_dim=False"
-                    )
+                for inp_name in state_metadata_objects
+            }
+            try:
+                validate_onnx_state_shape_rules(
+                    input_shapes, output_shapes, state_metadata_objects
+                )
+            except ValueError as exc:
+                raise AssertionError(str(exc)) from exc
         # Run one step of inference on the model and check that the outputs match the expected shapes/spaces
 
         input_data = batched_observation_space.sample()
@@ -470,9 +465,9 @@ def onnx_model_checker():
             ), "Stateful model produced no state outputs to feed back for the second pass"
             recurrent_inputs = dict(input_data)
             for state_name, state_value in output_states.items():
-                recurrent_inputs[
-                    state_name.replace("state_out_", "state_in_", 1)
-                ] = state_value.astype(np.float32)
+                recurrent_inputs[state_name.replace("state_out_", "state_in_", 1)] = (
+                    state_value.astype(np.float32)
+                )
             second_pass_outputs = ort_sess.run(None, recurrent_inputs)
             second_pass_states = {
                 k: v

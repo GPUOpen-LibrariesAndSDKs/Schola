@@ -1,23 +1,27 @@
 # Copyright (c) 2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
-"""Unit tests for ONNX export helpers in ``schola.core.model``."""
+"""Unit tests for ONNX export helpers in ``schola.core.onnx_*``."""
 
 from onnx import helper, TensorProto
 import pytest
 import torch as th
 import numpy as np
 
-from schola.core.model import (
+from schola.core.model import StateMetadata
+from schola.core.onnx_postprocess import (
     assert_shapes_fully_resolved,
-    emulate_nne_seq_dim,
     fix_lstm_output_shapes_for_onnx,
     fix_slice_nodes_for_onnx,
     fold_static_shape_gather_constants,
     normalize_shape_slices_to_gather,
     patch_lstm_layers_for_onnx_export,
+    postprocess_exported_onnx,
     reshape_lstm_output_hook,
+)
+from schola.core.onnx_validation import (
+    emulate_nne_seq_dim,
+    tensor_dims_from_value_info,
     validate_exported_onnx_state_shapes,
-    StateMetadata,
 )
 import onnx_ir as ir
 import onnx_ir.passes.common.shape_inference  # noqa: F401
@@ -48,10 +52,22 @@ def test_validate_exported_onnx_state_shapes_rejects_leaked_dynamic_dim():
         validate_exported_onnx_state_shapes(model, metadata)
 
 
-def test_reshape_lstm_output_hook_uses_input_batch_axis():
+def test_reshape_lstm_output_hook_uses_batch_first_axis():
     lstm = th.nn.LSTM(input_size=4, hidden_size=8, batch_first=True)
     lstm.eval()
     x = th.randn(3, 2, 4)
+    h0 = th.zeros(1, 3, 8)
+    c0 = th.zeros(1, 3, 8)
+    out, state = lstm(x, (h0, c0))
+    _, (hn, cn) = reshape_lstm_output_hook(lstm, (x, (h0, c0)), (out, state))
+    assert hn.shape == (1, 3, 8)
+    assert cn.shape == (1, 3, 8)
+
+
+def test_reshape_lstm_output_hook_uses_seq_axis_when_not_batch_first():
+    lstm = th.nn.LSTM(input_size=4, hidden_size=8, batch_first=False)
+    lstm.eval()
+    x = th.randn(2, 3, 4)
     h0 = th.zeros(1, 3, 8)
     c0 = th.zeros(1, 3, 8)
     out, state = lstm(x, (h0, c0))
@@ -71,31 +87,36 @@ def test_patch_lstm_layers_for_onnx_export_registers_all_lstms():
             handle.remove()
 
 
-def test_fix_slice_nodes_for_onnx_promotes_scalar_initializer():
-    from unittest.mock import MagicMock
+def test_tensor_dims_from_value_info_handles_zero_dim():
+    tensor = helper.make_tensor_value_info("x", TensorProto.FLOAT, [0, 4])
+    assert tensor_dims_from_value_info(tensor) == [0, 4]
 
-    model = MagicMock()
-    node = MagicMock()
-    node.op_type = "Slice"
-    initializer = MagicMock()
-    initializer.is_initializer.return_value = True
-    initializer.shape = MagicMock(rank=MagicMock(return_value=0))
-    initializer.name = "starts"
-    initializer.const_value = MagicMock()
-    initializer.const_value.numpy.return_value = np.array(0, dtype=np.int64)
-    node.inputs = [initializer]
-    model.graph.all_nodes.return_value = [node]
+
+def test_fix_slice_nodes_for_onnx_promotes_scalar_initializer():
+    starts = helper.make_tensor("starts", TensorProto.INT64, [], [0])
+    x = helper.make_tensor_value_info("x", TensorProto.FLOAT, [4])
+    out = helper.make_tensor_value_info("out", TensorProto.FLOAT, None)
+    slice_node = helper.make_node("Slice", ["x", "starts"], ["out"])
+    graph = helper.make_graph(
+        [slice_node], "slice_graph", [x], [out], initializer=[starts]
+    )
+    model = ir.from_proto(
+        helper.make_model(graph, opset_imports=[helper.make_opsetid("", 21)])
+    )
+    slice_node = next(
+        node for node in model.graph.all_nodes() if node.op_type == "Slice"
+    )
+    starts_value = slice_node.inputs[1]
+    assert starts_value is not None
 
     fix_slice_nodes_for_onnx(model)
 
-    assert initializer.shape == ir.Shape((1,))
-    assert initializer.const_value.shape == ir.Shape((1,))
+    assert starts_value.shape == ir.Shape((1,))
+    assert starts_value.const_value.shape == ir.Shape((1,))
 
 
 def _make_shape_slice_reshape_model(use_constant_nodes: bool = False):
-    x = helper.make_tensor_value_info(
-        "x", TensorProto.FLOAT, [1, "batch_size", 1, 64]
-    )
+    x = helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, "batch_size", 1, 64])
     out = helper.make_tensor_value_info("out", TensorProto.FLOAT, None)
 
     def make_slice_tensors(name: str, start: int, end: int):
@@ -111,9 +132,7 @@ def _make_shape_slice_reshape_model(use_constant_nodes: bool = False):
     if use_constant_nodes:
         nodes = [
             helper.make_node("Shape", ["x"], ["shape"]),
-            helper.make_node(
-                "Constant", [], ["batch_starts"], value=batch_st
-            ),
+            helper.make_node("Constant", [], ["batch_starts"], value=batch_st),
             helper.make_node("Constant", [], ["batch_ends"], value=batch_en),
             helper.make_node("Constant", [], ["one_starts"], value=one_st),
             helper.make_node("Constant", [], ["one_ends"], value=one_en),
@@ -132,7 +151,9 @@ def _make_shape_slice_reshape_model(use_constant_nodes: bool = False):
     else:
         nodes = [
             helper.make_node("Shape", ["x"], ["shape"]),
-            helper.make_node("Slice", ["shape", "batch_starts", "batch_ends"], ["batch"]),
+            helper.make_node(
+                "Slice", ["shape", "batch_starts", "batch_ends"], ["batch"]
+            ),
             helper.make_node("Slice", ["shape", "one_starts", "one_ends"], ["one"]),
             helper.make_node("Slice", ["shape", "hid_starts", "hid_ends"], ["hid"]),
             helper.make_node("Mul", ["one", "hid"], ["mul"]),
@@ -191,7 +212,9 @@ def test_normalize_shape_slices_to_gather_rewrites_shape_slices():
 
     assert not any(node.op_type == "Slice" for node in model.graph.all_nodes())
     assert sum(node.op_type == "Gather" for node in model.graph.all_nodes()) == 3
-    shape_node = next(node for node in model.graph.all_nodes() if node.op_type == "Shape")
+    shape_node = next(
+        node for node in model.graph.all_nodes() if node.op_type == "Shape"
+    )
     for gather_node in model.graph.all_nodes():
         if gather_node.op_type != "Gather":
             continue
@@ -251,7 +274,7 @@ def test_fix_lstm_output_shapes_raises_on_unexpected_state_rank():
     w = helper.make_tensor_value_info("w", TensorProto.FLOAT, [1, 32, 4])
     r = helper.make_tensor_value_info("r", TensorProto.FLOAT, [1, 32, 8])
     y = helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, "batch", 8])
-    y_h = helper.make_tensor_value_info("Y_h", TensorProto.FLOAT, [1, "batch", 8])
+    y_h = helper.make_tensor_value_info("Y_h", TensorProto.FLOAT, [1, "batch"])
     y_c = helper.make_tensor_value_info("Y_c", TensorProto.FLOAT, [1, 1, "batch", 8])
     lstm_node = helper.make_node("LSTM", ["x", "w", "r"], ["Y", "Y_h", "Y_c"])
     graph = helper.make_graph(
@@ -266,6 +289,33 @@ def test_fix_lstm_output_shapes_raises_on_unexpected_state_rank():
     )
     with pytest.raises(ValueError, match="unexpected Y_h rank"):
         fix_lstm_output_shapes_for_onnx(model)
+
+
+def test_fix_lstm_output_shapes_preserves_rank3_annotations():
+    x = helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, "batch", 4])
+    w = helper.make_tensor_value_info("w", TensorProto.FLOAT, [1, 32, 4])
+    r = helper.make_tensor_value_info("r", TensorProto.FLOAT, [1, 32, 8])
+    y = helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, "batch", 8])
+    y_h = helper.make_tensor_value_info("Y_h", TensorProto.FLOAT, [1, "batch", 8])
+    y_c = helper.make_tensor_value_info("Y_c", TensorProto.FLOAT, [1, 1, "batch", 8])
+    lstm_node = helper.make_node("LSTM", ["x", "w", "r"], ["Y", "Y_h", "Y_c"])
+    graph = helper.make_graph(
+        [lstm_node],
+        "lstm_graph",
+        [x, w, r],
+        [y],
+        value_info=[y_h, y_c],
+    )
+    model = ir.from_proto(
+        helper.make_model(graph, opset_imports=[helper.make_opsetid("", 21)])
+    )
+
+    fix_lstm_output_shapes_for_onnx(model)
+
+    lstm = next(n for n in model.graph.all_nodes() if n.op_type == "LSTM")
+    assert lstm.outputs[1].shape is not None
+    assert lstm.outputs[1].shape.rank() == 3
+    assert lstm.outputs[2].shape is None
 
 
 def test_fix_lstm_output_shapes_unblocks_shape_inference():
@@ -304,3 +354,17 @@ def test_fix_lstm_output_shapes_unblocks_shape_inference():
 
     # Shape inference should now succeed instead of aborting.
     ir.passes.common.shape_inference.infer_shapes(model)
+
+
+def test_postprocess_exported_onnx_runs_full_pipeline():
+    model = _make_shape_slice_reshape_model()
+    postprocess_exported_onnx(
+        model,
+        state_metadata={},
+        allowed_dynamic_dims={"batch_size"},
+    )
+    assert not any(
+        str(dim).startswith("unk")
+        for graph_input in model.graph.inputs
+        for dim in (graph_input.shape.dims if graph_input.shape else [])
+    )

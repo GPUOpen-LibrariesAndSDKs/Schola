@@ -22,7 +22,8 @@ import torch as th
 from ray.rllib.policy.sample_batch import SampleBatch
 import os
 import numpy as np
-from schola.core.model import *
+from schola.core.model import ScholaModel, StateMetadata
+from schola.core.utils.dict_helpers import DIterator, NestedDict, kfilter_dict
 import gymnasium as gym
 from gymnasium import spaces
 import copy

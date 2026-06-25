@@ -189,7 +189,7 @@ def test_ppo_default_arguments(mock_app, mock_main):
     assert args.training_settings.timesteps == 3000
     assert args.training_settings.learning_rate == 0.0003
     assert args.training_settings.gamma == 0.99
-    assert args.training_settings.seed is None
+    assert args.environment_settings.seed is None
 
     # Verify default simulator is external and num_simulators defaults to 1
     from schola.scripts.common.settings import ExternalSimulatorConfig
@@ -239,7 +239,7 @@ def test_ppo_seed_argument(mock_app, mock_main):
 
     mock_main.assert_called_once()
     args: RllibScriptSettings = mock_main.call_args[0][0]
-    assert args.training_settings.seed == 42
+    assert args.environment_settings.seed == 42
 
 
 def test_ppo_custom_algorithm_parameters(mock_app, mock_main):

@@ -61,9 +61,6 @@ class TrainingSettings:
     ] = 0.99
     "The discount factor for the reinforcement learning algorithm. This is used to calculate the present value of future rewards. A value of 0.99 means that future rewards are discounted by 1% for each time step into the future. This helps to balance the importance of immediate versus future rewards in the training process. A value closer to 1.0 will prioritize future rewards more heavily, while a value closer to 0 will prioritize immediate rewards."
 
-    seed: Optional[int] = None
-    "Random seed for reproducible training. When set, RLlib seeds workers and passes the seed into environment resets (forwarded to the simulator via SeedEnvironment). If None, training uses non-deterministic randomness."
-
     @property
     def name(self) -> str:
         return "Training Settings"

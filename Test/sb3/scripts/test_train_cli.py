@@ -105,6 +105,17 @@ def test_ppo_cli_default_args(mock_app, mock_main):
     assert args.algorithm_settings.ent_coef == 0.0
     assert args.algorithm_settings.vf_coef == 0.5
     assert args.algorithm_settings.target_kl is None
+    assert args.environment_settings.seed is None
+
+
+def test_ppo_seed_argument(mock_app, mock_main):
+    """Test PPO command accepts --seed under Environment Arguments."""
+    command, bound, _ = mock_app.parse_args(["ppo", "--seed", "42"], exit_on_error=False)
+    command(*bound.args, **bound.kwargs)
+
+    mock_main.assert_called_once()
+    args = mock_main.call_args[0][0]
+    assert args.environment_settings.seed == 42
 
 
 def test_ppo_cli_custom_args(mock_app, mock_main):

@@ -350,7 +350,7 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
         )
         .debugging(
             log_level=args.logging_settings.rllib_log_level,
-            seed=args.training_settings.seed,
+            seed=args.environment_settings.seed,
         )
     )  # type: ignore
 

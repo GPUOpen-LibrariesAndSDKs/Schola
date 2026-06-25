@@ -8,7 +8,10 @@ import logging
 from pathlib import Path
 import subprocess
 import sys
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
+
+from typing_extensions import override
+
 from schola.core.simulators.unreal.base_simulator import BaseUnrealSimulator
 
 logger = logging.getLogger(__name__)
@@ -55,15 +58,24 @@ class UnrealExecutable(BaseUnrealSimulator):
         The map to load.  Defaults to the default map in the Unreal Engine project
     """
 
+    executable_path: Path
+    headless_mode: bool
+    display_logs: bool
+    set_fps: int | None
+    env_process: subprocess.Popen[bytes] | None
+    disable_script: bool
+    map: str | None
+    extra_args: list[str]
+
     def __init__(
         self,
-        executable_path: Union[str, Path],
+        executable_path: str | Path,
         headless_mode: bool = False,
-        map: Optional[str] = None,
+        map: str | None = None,
         display_logs: bool = True,
-        set_fps: Optional[int] = None,
+        set_fps: int | None = None,
         disable_script: bool = True,
-        extra_args: Optional[List[str]] = None,
+        extra_args: list[str] | None = None,
         validate_path: bool = True,
     ):
         super().__init__()
@@ -110,7 +122,7 @@ class UnrealExecutable(BaseUnrealSimulator):
             validate_path=False,
         )
 
-    def get_executable_args(self) -> Dict[str, Any]:
+    def get_executable_args(self) -> dict[str, Any]:
         """
         Get kwargs that can be used to instantiate a new UnrealExecutable with the same launch settings.
 
@@ -130,7 +142,7 @@ class UnrealExecutable(BaseUnrealSimulator):
             "validate_path": False,
         }
 
-    def spawn_executables(self, count: int) -> List["UnrealExecutable"]:
+    def spawn_executables(self, count: int) -> list["UnrealExecutable"]:
         """
         Return a list of count new UnrealExecutable instances with the same launch settings.
 
@@ -146,7 +158,7 @@ class UnrealExecutable(BaseUnrealSimulator):
         """
         return [self.spawn_executable() for _ in range(count)]
 
-    def make_args(self) -> List[str]:
+    def make_args(self) -> list[str]:
         """
         Make the arguments supplied to the Unreal Engine Executable.
 
@@ -196,7 +208,8 @@ class UnrealExecutable(BaseUnrealSimulator):
             )
         return self.executable_path
 
-    def start(self, protocol_properties: Dict[str, Any]) -> None:
+    @override
+    def start(self, protocol_properties: dict[str, Any]) -> None:
         """
         Start the Unreal Engine process.
 
@@ -219,6 +232,7 @@ class UnrealExecutable(BaseUnrealSimulator):
         self.env_process = subprocess.Popen(args)
         logger.info("Executable launched with PID: %s", self.env_process.pid)
 
+    @override
     def stop(self) -> None:
         """
         Close the connection to the Unreal Engine. Kills the Unreal Engine process if it is running.
@@ -244,6 +258,7 @@ class UnrealExecutable(BaseUnrealSimulator):
                             ["kill", "-9", str(self.env_process.pid)], check=False
                         )
 
+    @override
     def __bool__(self) -> bool:
         # We have a process, and it hasn't completed yet
         return (self.env_process is not None) and (self.env_process.poll() is None)

@@ -4,10 +4,10 @@ Base Class for Unreal Connections
 """
 
 import sys
-from typing import Any, Dict, List, Optional, Tuple, TypedDict
-import grpc
-import socket
+from typing import Any
+
 import gymnasium as gym
+from typing_extensions import override
 
 if sys.version_info >= (3, 11):
     from enum import StrEnum
@@ -65,7 +65,7 @@ class BaseProtocol:
         """
         ...
 
-    def send_startup_msg(self, *args, **kwargs):
+    def send_startup_msg(self, *args: Any, **kwargs: Any) -> Any:
         """
         Send the initial startup message to Unreal Engine.
 
@@ -98,7 +98,7 @@ class BaseProtocol:
         ...
 
     @property
-    def properties(self) -> Dict[str, Any]:
+    def properties(self) -> dict[str, Any]:
         """
         Get protocol-specific properties.
 
@@ -135,7 +135,7 @@ class BaseProtocolMixin:
         ...
 
     @property
-    def mixin_properties(self) -> Dict[str, Any]:
+    def mixin_properties(self) -> dict[str, Any]:
         """
         Get mixin-specific properties.
 
@@ -155,9 +155,14 @@ class BaseRLProtocol(BaseProtocol):
     including reset, step, and action messaging.
     """
 
+    @override
     def send_startup_msg(
-        self, auto_reset_type: AutoResetType = AutoResetType.SAME_STEP
-    ):
+        self,
+        auto_reset_type: AutoResetType = AutoResetType.SAME_STEP,
+        /,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
         """
         Send the startup message with auto-reset configuration.
 
@@ -168,13 +173,16 @@ class BaseRLProtocol(BaseProtocol):
         """
         ...
 
+    @override
     def get_definition(
         self,
-    ) -> Tuple[
-        List[List[str]],
-        List[Dict[str, str]],
-        Dict[int, Dict[str, gym.Space[Any]]],
-        Dict[int, Dict[str, gym.Space[Any]]],
+        *args: Any,
+        **kwargs: Any,
+    ) -> tuple[
+        list[list[str]],
+        list[dict[str, str]],
+        dict[int, dict[str, gym.Space[Any]]],
+        dict[int, dict[str, gym.Space[Any]]],
     ]:
         """
         Get the environment definition from Unreal Engine.
@@ -191,8 +199,8 @@ class BaseRLProtocol(BaseProtocol):
         ...
 
     def send_reset_msg(
-        self, seeds: Optional[List[Any]] = None, options: Optional[List[Any]] = None
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Dict[str, str]]]]:
+        self, seeds: list[Any] | None = None, options: list[Any] | None = None
+    ) -> tuple[list[dict[str, Any]], list[dict[str, dict[str, str]]]]:
         """
         Send a reset message to restart the environment.
 
@@ -213,15 +221,17 @@ class BaseRLProtocol(BaseProtocol):
         ...
 
     def send_action_msg(
-        self, actions: Dict[int, Dict[str, Any]], action_space: Dict[str, gym.Space[Any]]
-    ) -> Tuple[
-        List[Dict[str, Any]],
-        List[Dict[str, float]],
-        List[Dict[str, bool]],
-        List[Dict[str, bool]],
-        List[Dict[str, str]],
-        Dict[int, Dict[str, Any]],
-        Dict[int, Dict[str, str]],
+        self,
+        actions: dict[int, dict[str, Any]],
+        action_space: dict[str, gym.Space[Any]],
+    ) -> tuple[
+        list[dict[str, Any]],
+        list[dict[str, float]],
+        list[dict[str, bool]],
+        list[dict[str, bool]],
+        list[dict[str, str]],
+        dict[int, dict[str, Any]],
+        dict[int, dict[str, str]],
     ]:
         """
         Send actions to the environment and receive the next state.
@@ -259,9 +269,10 @@ class BaseImitationProtocol(BaseProtocol):
     Call SendStartupMsg to start collecting data.
     """
 
+    @override
     def send_startup_msg(
-        self, seeds: Optional[List[Any]] = None, options: Optional[List[Any]] = None
-    ):
+        self, seeds: list[Any] | None = None, options: list[Any] | None = None
+    ) -> Any:
         """
         Send the startup message for imitation learning data collection.
 
@@ -279,13 +290,16 @@ class BaseImitationProtocol(BaseProtocol):
         """
         ...
 
+    @override
     def get_definition(
         self,
-    ) -> Tuple[
-        List[List[str]],
-        Dict[int, Dict[str, str]],
-        Dict[int, Dict[str, gym.Space[Any]]],
-        Dict[int, Dict[str, gym.Space[Any]]],
+        *args: Any,
+        **kwargs: Any,
+    ) -> tuple[
+        list[list[str]],
+        dict[int, dict[str, str]],
+        dict[int, dict[str, gym.Space[Any]]],
+        dict[int, dict[str, gym.Space[Any]]],
     ]:
         """
         Get the environment definition for imitation learning.
@@ -303,15 +317,15 @@ class BaseImitationProtocol(BaseProtocol):
 
     def get_data(
         self,
-    ) -> Tuple[
-        List[Dict[str, Any]],
-        List[float],
-        List[Dict[str, bool]],
-        List[Dict[str, bool]],
-        List[Dict[str, str]],
-        Dict[int, Dict[str, Any]],
-        Dict[int, Dict[str, str]],
-        Dict[int, Dict[str, Any]],
+    ) -> tuple[
+        list[dict[str, Any]],
+        list[float],
+        list[dict[str, bool]],
+        list[dict[str, bool]],
+        list[dict[str, str]],
+        dict[int, dict[str, Any]],
+        dict[int, dict[str, str]],
+        dict[int, dict[str, Any]],
     ]:
         """
         Get demonstration data from the environment.

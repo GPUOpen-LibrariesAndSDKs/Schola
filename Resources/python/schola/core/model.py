@@ -1,33 +1,19 @@
 # Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
+# pyright: reportExplicitAny=false, reportUnknownMemberType=false, reportUnknownArgumentType=false, reportUnknownVariableType=false, reportUnknownLambdaType=false, reportAny=false
 
 """
 ONNX export metadata, ``ScholaModel``, and related helpers for policies trained with Schola.
 """
 
-from dataclasses import dataclass, field
-import json
+from dataclasses import dataclass
 import logging
 import pathlib
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Iterable,
-    Iterator,
-    List,
-    Literal,
-    Optional,
-    Set,
-    Tuple,
-    TypeVar,
-    cast,
-)
-import onnx
-import torch as th
+from typing import Any, cast
+from typing_extensions import override
 
+import torch as th
 import gymnasium as gym
 from gymnasium.spaces import Box, MultiDiscrete, flatdim
-import numpy as np
 from torch.export import Dim
 from functools import cached_property
 from schola.core.utils.dict_helpers import *
@@ -45,16 +31,16 @@ class StateMetadata:
     """
 
     has_seq_dim: bool = False  # whether the state input has a sequence dimension
-    max_seq_len: Optional[int] = None  # maximum sequence length for the state input
-    seq_dim: Optional[int] = None  # index of the sequence dimension
+    max_seq_len: int | None = None  # maximum sequence length for the state input
+    seq_dim: int | None = None  # index of the sequence dimension
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, str]:
         """
         Serialize state metadata to string values for ONNX ``metadata_props``.
 
         Returns
         -------
-        Dict[str, Any]
+        dict[str, str]
             Keys ``has_seq_dim`` and, when sequential, ``max_seq_len`` and ``seq_dim``.
         """
         output_dict = {"has_seq_dim": str(self.has_seq_dim)}
@@ -118,19 +104,19 @@ class StatefulModelMixin:
         )
 
     @cached_property
-    def input_state_dict(self) -> Dict[str, th.Tensor]:
+    def input_state_dict(self) -> dict[str, th.Tensor]:
         """
         Flattened state inputs keyed as ``state_in/...`` for export and ONNX naming.
 
         Returns
         -------
-        Dict[str, torch.Tensor]
+        dict[str, torch.Tensor]
             Flattened state inputs keyed as ``state_in/...`` for export and ONNX naming.
         """
         return flatten_dict(self.initial_state_dict, "state_in")
 
     @cached_property
-    def input_state_keys(self) -> List[str]:
+    def input_state_keys(self) -> list[str]:
         """
         Keys of ``input_state_dict`` for export and ONNX naming.
 
@@ -142,7 +128,7 @@ class StatefulModelMixin:
         return list(self.input_state_dict.keys())
 
     @cached_property
-    def output_state_keys(self) -> List[str]:
+    def output_state_keys(self) -> list[str]:
         """
         Keys of ``output_state_dict`` for export and ONNX naming.
 
@@ -154,13 +140,13 @@ class StatefulModelMixin:
         return list(flattened_key_iterator(self.initial_state_dict, "state_out"))
 
     @cached_property
-    def input_state_metadata(self) -> Dict[str, StateMetadata]:
+    def input_state_metadata(self) -> dict[str, StateMetadata]:
         """
         Flattened metadata for each ONNX state input name.
 
         Returns
         -------
-        Dict[str, StateMetadata]
+        dict[str, StateMetadata]
             Flattened metadata for each ONNX state input name.
         """
         return flatten_dict(self.state_metadata, "state_in")
@@ -193,13 +179,15 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
         The observation space of the model.
     action_space : gym.spaces.Dict
         The action space of the ScholaModel.
-    flat_dims : Dict[str, int]
+    flat_dims : dict[str, int]
         A dictionary of the flat dimensions of the action spaces. Used to convert logits outputs to the correct output shapes.
     """
 
-    def __init__(self, observation_space: gym.Space[Any], action_space: gym.Space[Any]):
+    def __init__(
+        self, observation_space: gym.Space[Any], action_space: gym.Space[Any]
+    ) -> None:
         super().__init__()
-        self.observation_space_is_natively_dict = True
+        self.observation_space_is_natively_dict: bool = True
         # The Schola model operates on named inputs/outputs so we need to wrap the observation/action spaces in a Dict if they are not already
         if not isinstance(observation_space, gym.spaces.Dict):
             self.observation_space_is_natively_dict = False
@@ -208,12 +196,12 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
         if not isinstance(action_space, gym.spaces.Dict):
             action_space = gym.spaces.Dict({"action": action_space})
 
-        self.observation_space = observation_space
-        self.action_space = action_space
-        self.flat_dims = self.get_logit_dimensions()
+        self.observation_space: gym.spaces.Dict = observation_space
+        self.action_space: gym.spaces.Dict = action_space
+        self.flat_dims: dict[str, int] = self.get_logit_dimensions()
 
     @cached_property
-    def input_obs_keys(self) -> List[str]:
+    def input_obs_keys(self) -> list[str]:
         """
         Keys of ``observation_space`` in forward / export input order.
 
@@ -225,7 +213,7 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
         return list(self.observation_space.keys())
 
     @cached_property
-    def output_action_keys(self) -> List[str]:
+    def output_action_keys(self) -> list[str]:
         """
         Returns
         -------
@@ -234,22 +222,23 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
         """
         return list(self.action_space.keys())
 
-    def forward(self, *args: th.Tensor) -> Tuple[th.Tensor, ...]:
+    @override
+    def forward(self, *args: th.Tensor) -> tuple[th.Tensor, ...]:
         raise NotImplementedError("forward method must be implemented in subclass")
 
-    def get_logit_dimensions(self) -> Dict[str, int]:
+    def get_logit_dimensions(self) -> dict[str, int]:
         """
         Get the flat dimensions of the action spaces.
         Returns
         -------
-        Dict[str, int]
+        dict[str, int]
             Flat size per action dict key (``gymnasium.spaces.flatdim`` on each subspace).
         """
         return {k: flatdim(v) for k, v in self.action_space.items()}
 
     # utility functions for converting logits to outputs
     def make_box_output(
-        self, logits: th.Tensor, space_name: str = "action"
+        self, logits: th.Tensor, _space_name: str = "action"
     ) -> th.Tensor:
         """
         Map logits to a :class:`gymnasium.spaces.Box` action slice (identity for Box).
@@ -269,7 +258,7 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
         return logits
 
     def make_discrete_output(
-        self, logits: th.Tensor, space_name: str = "action"
+        self, logits: th.Tensor, _space_name: str = "action"
     ) -> th.Tensor:
         """
         Map logits to a :class:`gymnasium.spaces.Discrete` action (argmax).
@@ -289,7 +278,7 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
         return logits.argmax()
 
     def make_multi_binary_output(
-        self, logits: th.Tensor, space_name: str = "action"
+        self, logits: th.Tensor, _space_name: str = "action"
     ) -> th.Tensor:
         """
         Map logits to a :class:`gymnasium.spaces.MultiBinary` action.
@@ -361,17 +350,17 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
         space = self.action_space.spaces[space_name]
         # space name is so that things can be looked up later when implementing in a child class
         if isinstance(space, Box):
-            return self.make_box_output(logits, space_name=space_name)
+            return self.make_box_output(logits, _space_name=space_name)
         if isinstance(space, gym.spaces.Discrete):
-            return self.make_discrete_output(logits, space_name=space_name)
+            return self.make_discrete_output(logits, _space_name=space_name)
         elif isinstance(space, gym.spaces.MultiDiscrete):
             return self.make_multi_discrete_output(logits, space_name=space_name)
         elif isinstance(space, gym.spaces.MultiBinary):
-            return self.make_multi_binary_output(logits, space_name=space_name)
+            return self.make_multi_binary_output(logits, _space_name=space_name)
         else:
             raise ValueError(f"Unsupported space type: {type(space)}")
 
-    def make_outputs(self, logits: th.Tensor) -> List[th.Tensor]:
+    def make_outputs(self, logits: th.Tensor) -> list[th.Tensor]:
         """
         Split concatenated logits and produce one output tensor per action key.
 
@@ -418,13 +407,13 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
         th.onnx.ONNXProgram
             The ONNX program generated with torch dynamo export.
         """
-        self.eval()
+        _ = self.eval()
         # make directories if they don't exist
         obs_inputs = []
         batch_dim = Dim("batch_size")
         seq_dim = Dim("seq_len")
 
-        for obs_space_name, obs_space in self.observation_space.spaces.items():
+        for _obs_space_name, obs_space in self.observation_space.spaces.items():
             # Just flatten discrete and boolean spaces
             # add the batch dimension to the sample
             obs_inputs.append(th.as_tensor(obs_space.sample()).unsqueeze(0))
@@ -520,7 +509,7 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
 
 def patch_lstm_layers_for_onnx_export(
     module: th.nn.Module,
-) -> List[th.utils.hooks.RemovableHandle]:
+) -> list[th.utils.hooks.RemovableHandle]:
     """
     Attach forward hooks so ONNX-exported LSTM hidden states match PyTorch.
 
@@ -549,9 +538,9 @@ def patch_lstm_layers_for_onnx_export(
 
 def reshape_lstm_output_hook(
     lstm: th.nn.LSTM,
-    args: Tuple[th.Tensor, Tuple[th.Tensor, th.Tensor]],
-    output: Tuple[th.Tensor, Tuple[th.Tensor, th.Tensor]],
-) -> Tuple[th.Tensor, Tuple[th.Tensor, th.Tensor]]:
+    args: tuple[th.Tensor, tuple[th.Tensor, th.Tensor]],
+    output: tuple[th.Tensor, tuple[th.Tensor, th.Tensor]],
+) -> tuple[th.Tensor, tuple[th.Tensor, th.Tensor]]:
     """
     Reshape LSTM hidden states during ONNX export so ``hn`` / ``cn`` match PyTorch layouts.
 
@@ -575,7 +564,7 @@ def reshape_lstm_output_hook(
     -----
     This hook is only used for ONNX export, and is not used for normal forward passes.
     """
-    x_in, _ = args
+    _x_in, _ = args
     x_out, (hn, cn) = output
 
     bidirectional_modifier = 2 if lstm.bidirectional else 1
@@ -599,11 +588,11 @@ def fix_slice_nodes_for_onnx(model: ir.Model) -> None:
 
     """
     # Create a mapping of initializer names to their values
-    fixed_values = set()
+    fixed_values: set[str] = set()
     # Find all Slice nodes
     for node in model.graph.all_nodes():
         if node.op_type == "Slice":
-            for i, node_input in enumerate(node.inputs):
+            for _i, node_input in enumerate(node.inputs):
                 if node_input is None:
                     continue
 
@@ -616,6 +605,7 @@ def fix_slice_nodes_for_onnx(model: ir.Model) -> None:
                             node_input.const_value.numpy().reshape((1,)),
                             name=node_input.const_value.name,
                         )
-                    fixed_values.add(node_input.name)
+                    if node_input.name is not None:
+                        fixed_values.add(node_input.name)
 
     logger.warning("Fixed %s slice nodes: %s", len(fixed_values), fixed_values)

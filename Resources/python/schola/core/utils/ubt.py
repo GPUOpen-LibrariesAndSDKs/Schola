@@ -9,7 +9,7 @@ from pathlib import Path
 import platform
 import subprocess
 from dataclasses import dataclass, field
-from typing import List, Literal, Optional, Union, cast
+from typing import Literal
 
 
 def get_unreal_platform() -> Literal["Win64", "Linux"]:
@@ -35,9 +35,9 @@ class UBTCommand:
     Dataclass for constructing Unreal Build Tool (UBT) command line arguments.
     """
 
-    ubt_path: Union[Path, str]  # Path to the Unreal Build Tool executable
-    project_file: Union[Path, str]  # Path to the .uproject file
-    target_platform: Optional[str] = (
+    ubt_path: Path | str  # Path to the Unreal Build Tool executable
+    project_file: Path | str  # Path to the .uproject file
+    target_platform: str | None = (
         get_unreal_platform()
     )  # Target platform (e.g., Win64, Linux)
     should_package: bool = True  # Whether to package the build
@@ -56,26 +56,26 @@ class UBTCommand:
     )
     no_debug_info: bool = True  # Exclude debug info (-nodebuginfo)
     unattended: bool = True  # Run in unattended mode (-unattended)
-    staging_dir: Optional[Union[Path, str]] = None  # Directory to stage build output
+    staging_dir: Path | str | None = None  # Directory to stage build output
     force_monolithic: bool = (
         False  # Build as a monolithic executable (-ForceMonolithic)
     )
-    maps: List[str] = field(default_factory=list)  # List of maps to cook/package
+    maps: list[str] = field(default_factory=list)  # List of maps to cook/package
     all_maps: bool = (
         True  # Whether to cook all maps (-AllMaps). If False, maps must be set. If True, maps will be ignored.
     )
     stdout: bool = True  # Whether to route build process output to stdout
 
-    def build_args(self) -> List[str]:
+    def build_args(self) -> list[str]:
         """
         Build and return the complete list of UBT command line arguments.
 
         Returns
         -------
-        List[str]
+        list[str]
             The complete list of UBT command line arguments.
         """
-        args: List[str] = [str(self.ubt_path), "BuildCookRun"]
+        args: list[str] = [str(self.ubt_path), "BuildCookRun"]
 
         if self.target_platform:
             args.append(f"-platform={self.target_platform}")
@@ -142,7 +142,7 @@ class UBTCommand:
         return subprocess.run(self.build_args(), capture_output=True, text=True)
 
 
-def get_ue_version(project_file: Path) -> str:
+def get_ue_version(project_file: Path) -> str | None:
     """
     Extract the Unreal Engine version from a .uproject file.
 
@@ -160,13 +160,16 @@ def get_ue_version(project_file: Path) -> str:
         # read the file as JSON
         import json
 
-        project_data = json.load(f)
-    # extract the engine version
-    ue_version = project_data.get("EngineAssociation", None)
-    return ue_version
+        loaded = json.load(f)
+    if not isinstance(loaded, dict):
+        return None
+    engine_association = loaded.get("EngineAssociation")
+    if isinstance(engine_association, str):
+        return engine_association
+    return None
 
 
-def get_project_file(project_folder: Path) -> Optional[Path]:
+def get_project_file(project_folder: Path) -> Path | None:
     """
     Find the .uproject file in a project folder.
 
@@ -186,7 +189,7 @@ def get_project_file(project_folder: Path) -> Optional[Path]:
     return None
 
 
-def get_engine_path_from_sln(sln_file: Path) -> Optional[Path]:
+def get_engine_path_from_sln(sln_file: Path) -> Path | None:
     """
     Extract the Unreal Engine path from a Visual Studio solution file.
 
@@ -210,7 +213,7 @@ def get_engine_path_from_sln(sln_file: Path) -> Optional[Path]:
     return None
 
 
-def get_sln_file_from_project(project_folder: Path) -> Optional[Path]:
+def get_sln_file_from_project(project_folder: Path) -> Path | None:
     """
     Find the Visual Studio solution file in a project folder.
 
@@ -230,9 +233,7 @@ def get_sln_file_from_project(project_folder: Path) -> Optional[Path]:
     return None
 
 
-def get_ubt_path(
-    sln_or_project_folder: Path, ue_version: str = "5.5"
-) -> Optional[Path]:
+def get_ubt_path(sln_or_project_folder: Path, ue_version: str = "5.5") -> Path | None:
     """
     Get the path to the Unreal Build Tool (UBT) RunUAT script.
 
@@ -296,9 +297,13 @@ def get_editor_executable_path(engine_path: Path) -> Path:
     return engine_path / "Engine" / "Binaries" / bin_dir / editor_tool
 
 
+# No caller passes extra kwargs today; **kwargs exists for optional UBTCommand overrides.
 def build_executable(
-    project_file: Path | str, build_dir: Path | str, ubt_path: Path | str, **kwargs
-):
+    project_file: Path | str,
+    build_dir: Path | str,
+    ubt_path: Path | str,
+    **kwargs,
+) -> subprocess.CompletedProcess[bytes]:
     """
     Build an Unreal Engine project executable using the Unreal Build Tool.
 
@@ -328,8 +333,8 @@ def build_executable(
 def quick_build_unreal_project(
     project_folder: Path | str,
     build_dir: Path | str,
-    ubt_path: Optional[Path | str] = None,
-):
+    ubt_path: Path | str | None = None,
+) -> Path:
     """
     Build function with reasonable defaults to build an Unreal Engine project and return the path to the executable.
 

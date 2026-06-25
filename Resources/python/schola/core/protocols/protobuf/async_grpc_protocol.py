@@ -3,14 +3,15 @@
 Async gRPC protocol for non-blocking connections to the gRPC server.
 """
 
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Literal
 
 import grpc
 import grpc.aio
 import gymnasium as gym
+from typing_extensions import override
+
 from schola.core.protocols.base_protocol import AutoResetType
 from schola.core.protocols.async_base_protocol import AsyncBaseRLProtocol
-import schola.generated.Definitions_pb2 as env_definitions
 import schola.generated.GymConnector_pb2 as util_messages
 import schola.generated.GymConnector_pb2_grpc as gym_grpc
 import schola.generated.State_pb2 as state
@@ -35,13 +36,14 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
     def __init__(
         self,
         url: str,
-        port: Optional[int] = None,
-        environment_start_timeout: Optional[int] = 45,
+        port: int | None = None,
+        environment_start_timeout: int | None = 45,
         credential_mode: Literal["local", "insecure"] = "local",
     ):
         super().__init__(url, port, environment_start_timeout, credential_mode)
-        self.channel: Optional[grpc.aio.Channel] = None
+        self.channel: grpc.aio.Channel | None = None
 
+    @override
     async def close(self) -> None:
         """
         Close the Unreal Connection. Method must be safe to call multiple times.
@@ -68,6 +70,7 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
         else:
             logger.debug("gRPC channel already closed")
 
+    @override
     async def start(self) -> None:
         """
         Open the Connection to Unreal Engine.
@@ -89,58 +92,71 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
             ).__aenter__()
         self._gym_stub = gym_grpc.GymServiceStub(self.channel)
 
+    @override
     async def send_startup_msg(
         self, auto_reset_type: AutoResetType = AutoResetType.SAME_STEP
-    ):
+    ) -> None:
         start_msg = self.prepare_start_msg(auto_reset_type)
 
         await self.gym_stub.StartGymConnector(
             start_msg, timeout=self.environment_start_timeout, wait_for_ready=True
         )
 
+    @override
     async def get_definition(
         self,
-    ) -> Tuple[
-        List[List[str]],
-        List[Dict[str, str]],
-        Dict[int, Dict[str, gym.Space[Any]]],
-        Dict[int, Dict[str, gym.Space[Any]]],
+    ) -> tuple[
+        list[list[str]],
+        list[dict[str, str]],
+        dict[int, dict[str, gym.Space[Any]]],
+        dict[int, dict[str, gym.Space[Any]]],
     ]:
-        training_defn: env_definitions.TrainingDefinition = (
-            await self.gym_stub.RequestTrainingDefinition(
-                util_messages.TrainingDefinitionRequest()
-            )
+        training_defn = await self.gym_stub.RequestTrainingDefinition(
+            util_messages.TrainingDefinitionRequest()
         )
 
         uids, agent_types, obs_spaces, act_spaces = from_proto(training_defn)
 
         return uids, agent_types, obs_spaces, act_spaces
 
+    @override
     async def send_reset_msg(
-        self, seeds: Optional[List[Any]] = None, options: Optional[List[Any]] = None
-    ):
-
+        self,
+        seeds: list[Any] | None = None,
+        options: list[Any] | None = None,
+    ) -> tuple[list[dict[str, Any]], list[dict[str, dict[str, str]]]]:
         # abort any inprogress stuff
         state_update = self.prepare_reset_msg(seeds, options)
         response: state.State = await self.gym_stub.UpdateState(state_update)
-        obs, info = from_proto(response.initial_state)  # type: ignore
+        obs, info = from_proto(response.initial_state)
         # Convert from Dict[Dict[envID, Dict[agentID, Any]]] to list[Dict[agentID, Any]]
         observations = [obs[env_id] for env_id in range(len(obs))]
         infos = [info[env_id] for env_id in range(len(info))]
         return observations, infos
 
+    @override
     async def send_action_msg(
-        self, actions: Dict[int, Dict[str, Any]], action_space: Dict[str, gym.Space[Any]]
-    ):
+        self,
+        actions: dict[int, dict[str, Any]],
+        action_space: dict[str, gym.Space[Any]],
+    ) -> tuple[
+        list[dict[str, Any]],
+        list[dict[str, float]],
+        list[dict[str, bool]],
+        list[dict[str, bool]],
+        list[dict[str, str]],
+        dict[int, dict[str, Any]],
+        dict[int, dict[str, str]],
+    ]:
         state_update = self.prepare_action_msg(actions, action_space)
 
         training_state: state.State = await self.gym_stub.UpdateState(state_update)
         observations, rewards, terminateds, truncateds, infos = from_proto(
-            training_state.training_state  # type: ignore
+            training_state.training_state
         )
 
         if training_state.HasField("initial_state"):
-            initial_obs, initial_info = from_proto(training_state.initial_state)  # type: ignore
+            initial_obs, initial_info = from_proto(training_state.initial_state)
         else:
             initial_obs, initial_info = {}, {}
 
@@ -155,6 +171,7 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
         )
 
     @property
+    @override
     def channel_connected(self) -> bool:
         """
         Returns whether the connection is active or not
@@ -166,6 +183,7 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
         """
         return self.channel is not None
 
+    @override
     def __bool__(self) -> bool:
         """
         Returns whether the connection is active or not
@@ -178,5 +196,6 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
         return (self.has_socket or self.is_started) and self.channel_connected
 
     @property
-    def properties(self) -> Dict[str, Any]:
+    @override
+    def properties(self) -> dict[str, Any]:
         return self.mixin_properties

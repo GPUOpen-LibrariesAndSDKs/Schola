@@ -5,8 +5,7 @@ Map Schola protobuf messages to Gymnasium spaces, points, and numpy buffers.
 """
 
 from functools import singledispatch
-from itertools import tee
-from typing import Any, Dict, List, Tuple, Union, cast
+from typing import Any, cast
 
 import gymnasium.spaces as spaces
 import schola.generated.Spaces_pb2 as proto_spaces
@@ -14,8 +13,8 @@ import schola.generated.Points_pb2 as proto_points
 import schola.generated.State_pb2 as state
 import schola.generated.Definitions_pb2 as definitions
 import schola.generated.ImitationState_pb2 as imitation_state_messages
-import schola.generated.ImitationConnector_pb2 as imitation_connector_messages
 import numpy as np
+from numpy.typing import NDArray
 import gymnasium as gym
 import schola.generated.DType_pb2 as proto_dtype
 
@@ -62,7 +61,7 @@ def dtype_from_proto(msg: proto_dtype.DType) -> np.dtype[Any]:
 
 
 @singledispatch
-def from_proto(msg) -> Any:
+def from_proto(_msg: object) -> Any:
     """
     Deserialize a protobuf message to Python objects.
 
@@ -108,9 +107,7 @@ def _(msg: proto_spaces.BoxSpace) -> spaces.Box:
     low_arr = np.asarray(low, dtype=dt).reshape(shape)
     high_arr = np.asarray(high, dtype=dt).reshape(shape)
 
-    return spaces.Box(
-        low=low_arr, high=high_arr, shape=shape, dtype=cast(Any, dt)
-    )
+    return spaces.Box(low=low_arr, high=high_arr, shape=shape, dtype=cast(Any, dt))
 
 
 @from_proto.register
@@ -157,13 +154,13 @@ def _(msg: proto_spaces.Space) -> gym.Space[Any]:
 
 
 @from_proto.register
-def _(msg: proto_points.BoxPoint) -> np.ndarray:
+def _(msg: proto_points.BoxPoint) -> NDArray[Any]:
     shape = msg.shape if len(msg.shape) > 0 else None
     return np.array(msg.values, dtype=dtype_from_proto(msg.dtype)).reshape(shape)
 
 
 @from_proto.register
-def _(msg: proto_points.MultiDiscretePoint) -> np.ndarray:
+def _(msg: proto_points.MultiDiscretePoint) -> NDArray[Any]:
     return np.array(msg.values, dtype=np.int64)
 
 
@@ -173,7 +170,7 @@ def _(msg: proto_points.DiscretePoint) -> int:
 
 
 @from_proto.register
-def _(msg: proto_points.MultiBinaryPoint) -> np.ndarray:
+def _(msg: proto_points.MultiBinaryPoint) -> NDArray[Any]:
     # np.bool was removed in NumPy 1.24; use bool/np.bool_ for compatibility
     return np.array(msg.values, dtype=np.bool_)
 
@@ -184,12 +181,12 @@ def _(msg: proto_points.TextPoint) -> str:
 
 
 @from_proto.register
-def _(msg: proto_points.DictPoint) -> Dict[str, Any]:
+def _(msg: proto_points.DictPoint) -> dict[str, Any]:
     return {key: from_proto(value) for key, value in msg.values.items()}
 
 
 @from_proto.register
-def _(msg: proto_points.Point) -> Union[Dict[str, Any], np.ndarray]:
+def _(msg: proto_points.Point) -> dict[str, Any] | NDArray[Any]:
     which = msg.WhichOneof("point")
     if which is None:
         raise ValueError(
@@ -200,12 +197,14 @@ def _(msg: proto_points.Point) -> Union[Dict[str, Any], np.ndarray]:
 
 # Initial State Deserialization
 @from_proto.register
-def _(msg: state.InitialAgentState) -> Tuple[np.ndarray, Dict[str, str]]:
-    return from_proto(msg.observations), dict(msg.info)
+def _(msg: state.InitialAgentState) -> tuple[NDArray[Any], dict[str, str]]:
+    observations = from_proto(msg.observations)
+    infos = dict(msg.info)
+    return observations, infos
 
 
 @from_proto.register
-def _(msg: state.InitialEnvironmentState) -> Tuple[Dict[str, Any], Dict[str, str]]:
+def _(msg: state.InitialEnvironmentState) -> tuple[dict[str, Any], dict[str, str]]:
     observations = {}
     infos = {}
     for agent_id, agent_state in msg.agent_states.items():
@@ -216,7 +215,7 @@ def _(msg: state.InitialEnvironmentState) -> Tuple[Dict[str, Any], Dict[str, str
 @from_proto.register
 def _(
     msg: state.InitialState,
-) -> Tuple[Dict[int, Dict[str, Any]], Dict[int, Dict[str, str]]]:
+) -> tuple[dict[int, dict[str, Any]], dict[int, dict[str, str]]]:
     observations = {}
     infos = {}
     for env_id, env_state in msg.environment_states.items():
@@ -228,7 +227,7 @@ def _(
 
 
 @from_proto.register
-def _(msg: state.AgentState) -> Tuple[Any, float, bool, bool, Dict[str, str]]:
+def _(msg: state.AgentState) -> tuple[Any, float, bool, bool, dict[str, str]]:
     observations = from_proto(msg.observations)
     infos = dict(msg.info)
     terminated = msg.terminated
@@ -239,12 +238,12 @@ def _(msg: state.AgentState) -> Tuple[Any, float, bool, bool, Dict[str, str]]:
 @from_proto.register
 def _(
     msg: state.EnvironmentState,
-) -> Tuple[
-    Dict[str, Any],
-    Dict[str, float],
-    Dict[str, bool],
-    Dict[str, bool],
-    Dict[str, Dict[str, str]],
+) -> tuple[
+    dict[str, Any],
+    dict[str, float],
+    dict[str, bool],
+    dict[str, bool],
+    dict[str, dict[str, str]],
 ]:
     observations = {}
     rewards = {}
@@ -265,12 +264,12 @@ def _(
 @from_proto.register
 def _(
     msg: state.TrainingState,
-) -> Tuple[
-    List[Dict[str, Any]],
-    List[Dict[str, float]],
-    List[Dict[str, bool]],
-    List[Dict[str, bool]],
-    List[Dict[str, Dict[str, str]]],
+) -> tuple[
+    list[dict[str, Any]],
+    list[dict[str, float]],
+    list[dict[str, bool]],
+    list[dict[str, bool]],
+    list[dict[str, dict[str, str]]],
 ]:
     observations = [{} for _ in range(len(msg.environment_states))]
     rewards = [{} for _ in range(len(msg.environment_states))]
@@ -292,7 +291,7 @@ def _(
 
 
 @from_proto.register
-def _(msg: definitions.AgentDefinition) -> Tuple[str, gym.Space[Any], gym.Space[Any]]:
+def _(msg: definitions.AgentDefinition) -> tuple[str, gym.Space[Any], gym.Space[Any]]:
 
     obs_space = from_proto(msg.obs_space)
     act_space = from_proto(msg.action_space)
@@ -304,9 +303,10 @@ def _(msg: definitions.AgentDefinition) -> Tuple[str, gym.Space[Any], gym.Space[
 @from_proto.register
 def _(
     msg: definitions.EnvironmentDefinition,
-) -> Tuple[List[str], Dict[str, str], Dict[str, gym.Space[Any]], Dict[str, gym.Space[Any]]]:
+) -> tuple[
+    list[str], dict[str, str], dict[str, gym.Space[Any]], dict[str, gym.Space[Any]]
+]:
     uids = [agent_id for agent_id in msg.agent_definitions]
-    # Create iterators for each of the fields with tee, before converting each to a dictionary with uids as keys,
     agent_types = {}
     obs_spaces = {}
     act_spaces = {}
@@ -322,17 +322,17 @@ def _(
 @from_proto.register
 def _(
     msg: definitions.TrainingDefinition,
-) -> Tuple[
-    List[List[str]],
-    Dict[int, Dict[str, str]],
-    Dict[int, Dict[str, gym.Space[Any]]],
-    Dict[int, Dict[str, gym.Space[Any]]],
+) -> tuple[
+    list[list[str]],
+    dict[int, dict[str, str]],
+    dict[int, dict[str, gym.Space[Any]]],
+    dict[int, dict[str, gym.Space[Any]]],
 ]:
 
     env_uids = [[] for _ in msg.environment_definitions]
-    obs_defns: Dict[int, Dict[str, gym.Space[Any]]] = {}
-    action_defns: Dict[int, Dict[str, gym.Space[Any]]] = {}
-    agent_types: Dict[int, Dict[str, str]] = {}
+    obs_defns: dict[int, dict[str, gym.Space[Any]]] = {}
+    action_defns: dict[int, dict[str, gym.Space[Any]]] = {}
+    agent_types: dict[int, dict[str, str]] = {}
 
     for env_id, env_defn in enumerate(msg.environment_definitions):
         (
@@ -351,7 +351,7 @@ def _(
 @from_proto.register
 def _(
     msg: imitation_state_messages.ImitationAgentState,
-) -> Tuple[np.ndarray, float, bool, bool, Dict[str, str], Any]:
+) -> tuple[NDArray[Any], float, bool, bool, dict[str, str], Any]:
     observations = from_proto(msg.observations)
     reward = msg.reward
     terminated = msg.terminated
@@ -364,13 +364,13 @@ def _(
 @from_proto.register
 def _(
     msg: imitation_state_messages.ImitationEnvironmentState,
-) -> Tuple[
-    Dict[str, Any],
-    Dict[str, float],
-    Dict[str, bool],
-    Dict[str, bool],
-    Dict[str, Dict[str, str]],
-    Dict[str, Any],
+) -> tuple[
+    dict[str, Any],
+    dict[str, float],
+    dict[str, bool],
+    dict[str, bool],
+    dict[str, dict[str, str]],
+    dict[str, Any],
 ]:
     observations = {}
     rewards = {}
@@ -393,13 +393,13 @@ def _(
 @from_proto.register
 def _(
     msg: imitation_state_messages.ImitationTrainingState,
-) -> Tuple[
-    List[Dict[str, Any]],
-    List[Dict[str, float]],
-    List[Dict[str, bool]],
-    List[Dict[str, bool]],
-    List[Dict[str, Dict[str, str]]],
-    List[Dict[str, Any]],
+) -> tuple[
+    list[dict[str, Any]],
+    list[dict[str, float]],
+    list[dict[str, bool]],
+    list[dict[str, bool]],
+    list[dict[str, dict[str, str]]],
+    list[dict[str, Any]],
 ]:
     observations = [{} for _ in range(len(msg.environment_states))]
     rewards = [{} for _ in range(len(msg.environment_states))]
@@ -422,15 +422,15 @@ def _(
 @from_proto.register
 def _(
     msg: imitation_state_messages.ImitationState,
-) -> Tuple[
-    List[Dict[str, Any]],
-    List[Dict[str, float]],
-    List[Dict[str, bool]],
-    List[Dict[str, bool]],
-    List[Dict[str, Dict[str, str]]],
-    Dict[int, Dict[str, Any]],
-    Dict[int, Dict[str, str]],
-    List[Dict[str, Any]],
+) -> tuple[
+    list[dict[str, Any]],
+    list[dict[str, float]],
+    list[dict[str, bool]],
+    list[dict[str, bool]],
+    list[dict[str, dict[str, str]]],
+    dict[int, dict[str, Any]],
+    dict[int, dict[str, str]],
+    list[dict[str, Any]],
 ]:
     # Deserialize training_state if present
     observations, rewards, terminateds, truncateds, infos, actions = from_proto(
@@ -453,10 +453,3 @@ def _(
         initial_infos,
         actions,
     )
-
-
-@from_proto.register
-def _(msg: state.InitialAgentState) -> Tuple[np.ndarray, Dict[str, str]]:
-    observations = from_proto(msg.observations)
-    infos = dict(msg.info)
-    return observations, infos

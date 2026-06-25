@@ -1,8 +1,7 @@
 # Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
+# pyright: reportAny=false, reportUnknownVariableType=false, reportUnknownArgumentType=false, reportUnusedImport=false
 
 """Tests for protobuf-to-numpy / Gymnasium deserialization helpers."""
-
-import pytest
 
 from schola.core.protocols.protobuf.deserialize import from_proto
 from schola.generated.Points_pb2 import *
@@ -102,7 +101,9 @@ class TestTextSpace:
         assert isinstance(space, spaces.Text), "Should deserialize to a Text space"
         assert space.max_length == 10, "max_length should be 10"
         assert space.min_length == 0, "min_length should be copied verbatim"
-        assert space.character_set == frozenset(), "empty charset should map to the empty set"
+        assert (
+            space.character_set == frozenset()
+        ), "empty charset should map to the empty set"
 
     def test_empty_charset_is_literal(self):
         """An explicit empty charset is the empty set (only the empty string is valid)."""
@@ -115,9 +116,7 @@ class TestTextSpace:
         space = from_proto(TextSpace(max_length=8, min_length=2, charset="abc"))
         assert space.max_length == 8, "max_length should be 8"
         assert space.min_length == 2, "min_length should be 2"
-        assert space.character_set == frozenset(
-            "abc"
-        ), "charset should be {a, b, c}"
+        assert space.character_set == frozenset("abc"), "charset should be {a, b, c}"
 
 
 class TestDictPoint:

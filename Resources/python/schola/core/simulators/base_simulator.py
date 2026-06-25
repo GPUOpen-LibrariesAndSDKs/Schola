@@ -4,8 +4,6 @@
 Abstract simulator base types shared by simulator backends.
 """
 
-from typing import Any, Dict, Tuple, Type
-
 from schola.core.protocols.async_base_protocol import AsyncBaseRLProtocol
 from schola.core.protocols.base_protocol import BaseProtocol
 
@@ -29,13 +27,13 @@ class BaseSimulator:
     that manage simulation instances (e.g. Unreal Editor, standalone executable, etc.).
     """
 
-    def start(self, protocol_properties: Dict[str, Any]) -> None:
+    def start(self, _protocol_properties: dict[str, object]) -> None:
         """
         Start the Simulator.
 
         Parameters
         ----------
-        protocol_properties : Dict[str, Any]
+        _protocol_properties : dict[str, object]
             Protocol-specific properties to pass to the simulator at startup. Simulator is responsible for passing these. (e.g. Port)
         """
         ...
@@ -49,25 +47,25 @@ class BaseSimulator:
         ...
 
     @property
-    def supported_protocols(self) -> Tuple[Type[BaseProtocol], ...]:
+    def supported_protocols(self) -> tuple[type[BaseProtocol], ...]:
         """
         Get the protocols supported by this simulator.
 
         Returns
         -------
-        Tuple[Type[BaseProtocol], ...]
+        tuple[type[BaseProtocol], ...]
             A tuple of protocol classes that this simulator supports.
         """
         return tuple()
 
     @property
-    def supported_async_protocols(self) -> Tuple[Type[AsyncBaseRLProtocol], ...]:
+    def supported_async_protocols(self) -> tuple[type[AsyncBaseRLProtocol], ...]:
         """
         Async RL protocol classes this simulator supports (see ``AsyncBaseRLProtocol``).
 
         Returns
         -------
-        Tuple[type, ...]
+        tuple[type, ...]
             Tuple of concrete async protocol types; empty if the simulator has no async support.
         """
         return tuple()

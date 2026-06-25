@@ -2,6 +2,7 @@
 """Tests for the RLlib eval CLI."""
 
 import logging
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -398,6 +399,10 @@ def test_apply_env_options_reaches_real_env_runner_group(
 
 @pytest.mark.xdist_group(name="ray-cluster")
 @pytest.mark.timeout(180)
+@pytest.mark.skipif(
+    sys.version_info < (3, 11),
+    reason="Ray eval config pickling with MagicMock stubs fails on Python 3.10",
+)
 def test_apply_env_config_rebuilds_real_eval_env_runner_group(
     build_eval_algo, ray_cluster, stub_protocol_class, stub_simulator_class
 ):

@@ -3,7 +3,11 @@
 Tests for schola.core.protocols.base_protocol module
 """
 
-import pytest
+# pyright: reportExplicitAny=false
+
+from typing import Any
+from typing_extensions import override
+import gymnasium as gym
 from schola.core.protocols.base_protocol import (
     AutoResetType,
     BaseProtocol,
@@ -40,23 +44,28 @@ class TestBaseProtocol:
 class ConcreteProtocol(BaseProtocol):
     """A concrete implementation of BaseProtocol for testing"""
 
-    def __init__(self):
-        self._active = False
-        self._definition = None
+    def __init__(self) -> None:
+        self._active: bool = False
+        self._definition: object | None = None
 
-    def close(self):
+    @override
+    def close(self) -> None:
         self._active = False
 
-    def start(self):
+    @override
+    def start(self) -> None:
         self._active = True
 
-    def __bool__(self):
+    @override
+    def __bool__(self) -> bool:
         return self._active
 
-    def send_startup_msg(self, *args, **kwargs):
+    @override
+    def send_startup_msg(self, *args: object, **kwargs: object) -> None:
         pass
 
-    def get_definition(self, *args, **kwargs):
+    @override
+    def get_definition(self, *args: object, **kwargs: object) -> object | None:
         return self._definition
 
 
@@ -67,18 +76,18 @@ class TestBaseProtocolImplementation:
         """Test that close method can be called"""
         protocol = ConcreteProtocol()
         protocol.start()
-        assert protocol._active
+        assert protocol
 
         protocol.close()
-        assert not protocol._active
+        assert not protocol
 
     def test_start_method_exists(self):
         """Test that start method can be called"""
         protocol = ConcreteProtocol()
-        assert not protocol._active
+        assert not protocol
 
         protocol.start()
-        assert protocol._active
+        assert protocol
 
     def test_bool_method(self):
         """Test __bool__ method"""
@@ -133,18 +142,22 @@ class TestBaseProtocolMixin:
 class ConcreteMixin(BaseProtocolMixin):
     """A concrete implementation of BaseProtocolMixin for testing"""
 
-    def __init__(self):
-        self.closed = False
-        self.started = False
+    def __init__(self) -> None:
+        self.closed: bool = False
+        self.started: bool = False
 
-    def on_close(self):
+    @override
+    def on_close(self) -> None:
         self.closed = True
 
-    def on_start(self):
+    @override
+    def on_start(self) -> None:
         self.started = True
 
     @property
-    def mixin_properties(self):
+    def mixin_properties(
+        self,
+    ) -> dict[str, str]:  # pyright: ignore[reportImplicitOverride]
         return {"test_prop": "test_value"}
 
 
@@ -178,29 +191,61 @@ class TestBaseProtocolMixinImplementation:
 class ConcreteRLProtocol(BaseRLProtocol):
     """A concrete implementation of BaseRLProtocol for testing"""
 
-    def __init__(self):
-        self._active = False
-        self.auto_reset = None
+    def __init__(self) -> None:
+        self._active: bool = False
+        self.auto_reset: AutoResetType | None = None
 
-    def close(self):
+    @override
+    def close(self) -> None:
         self._active = False
 
-    def start(self):
+    @override
+    def start(self) -> None:
         self._active = True
 
-    def __bool__(self):
+    @override
+    def __bool__(self) -> bool:
         return self._active
 
-    def send_startup_msg(self, auto_reset_type=AutoResetType.SAME_STEP):
+    @override
+    def send_startup_msg(
+        self, auto_reset_type: AutoResetType = AutoResetType.SAME_STEP
+    ) -> None:
         self.auto_reset = auto_reset_type
 
-    def get_definition(self):
+    @override
+    def get_definition(
+        self,
+    ) -> tuple[
+        list[list[str]],
+        list[dict[str, str]],
+        dict[int, dict[str, gym.Space[Any]]],
+        dict[int, dict[str, gym.Space[Any]]],
+    ]:
         return ([], [], {}, {})
 
-    def send_reset_msg(self, seeds=None, options=None):
+    @override
+    def send_reset_msg(
+        self,
+        seeds: list[Any] | None = None,
+        options: list[Any] | None = None,
+    ) -> tuple[list[dict[str, Any]], list[dict[str, dict[str, str]]]]:
         return ([], [])
 
-    def send_action_msg(self, actions, action_space):
+    @override
+    def send_action_msg(
+        self,
+        actions: dict[int, dict[str, Any]],
+        action_space: dict[str, gym.Space[Any]],
+    ) -> tuple[
+        list[dict[str, Any]],
+        list[dict[str, float]],
+        list[dict[str, bool]],
+        list[dict[str, bool]],
+        list[dict[str, str]],
+        dict[int, dict[str, Any]],
+        dict[int, dict[str, str]],
+    ]:
         return ([], [], [], [], [], {}, {})
 
 
@@ -251,7 +296,10 @@ class TestBaseRLProtocol:
         """Test send_action_msg returns tuple with 7 elements"""
         protocol = ConcreteRLProtocol()
 
-        result = protocol.send_action_msg({}, {})
+        result = protocol.send_action_msg(
+            actions={},
+            action_space={},
+        )
         assert isinstance(result, tuple)
         assert len(result) == 7
 
@@ -259,25 +307,53 @@ class TestBaseRLProtocol:
 class ConcreteImitationProtocol(BaseImitationProtocol):
     """A concrete implementation of BaseImitationProtocol for testing"""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        self._active: bool = False
+
+    @override
+    def close(self) -> None:
         self._active = False
 
-    def close(self):
-        self._active = False
-
-    def start(self):
+    @override
+    def start(self) -> None:
         self._active = True
 
-    def __bool__(self):
+    @override
+    def __bool__(self) -> bool:
         return self._active
 
-    def send_startup_msg(self, seeds=None, options=None):
+    @override
+    def send_startup_msg(
+        self,
+        seeds: list[Any] | None = None,
+        options: list[Any] | None = None,
+    ) -> None:
         pass
 
-    def get_definition(self):
+    @override
+    def get_definition(
+        self,
+    ) -> tuple[
+        list[list[str]],
+        dict[int, dict[str, str]],
+        dict[int, dict[str, gym.Space[Any]]],
+        dict[int, dict[str, gym.Space[Any]]],
+    ]:
         return ([], {}, {}, {})
 
-    def get_data(self):
+    @override
+    def get_data(
+        self,
+    ) -> tuple[
+        list[dict[str, Any]],
+        list[float],
+        list[dict[str, bool]],
+        list[dict[str, bool]],
+        list[dict[str, str]],
+        dict[int, dict[str, Any]],
+        dict[int, dict[str, str]],
+        dict[int, dict[str, Any]],
+    ]:
         return ([], [], [], [], [], {}, {}, {})
 
 

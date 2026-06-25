@@ -4,17 +4,18 @@
 Utility Functions and Classes for managing environment and agent ids.
 """
 
+from collections.abc import Iterable
 from functools import cached_property, singledispatchmethod
-from typing import List, Optional, Tuple, TypeVar, Dict, Iterable, Union, cast
+from typing import TypeVar, cast
 
 K = TypeVar("K")
 V = TypeVar("V")
 T = TypeVar("T")
-AgentTypes = Union[Dict[int, Dict[str, str]], List[Dict[str, str]]]
+AgentTypes = dict[int, dict[str, str]] | list[dict[str, str]]
 
 
 # A generic recursive dictionary type
-NestedDict = Dict[K, Union[V, "NestedDict[K, V]"]]
+NestedDict = dict[K, V | "NestedDict[K, V]"]
 
 
 def nested_get(dct: NestedDict[K, V], keys: Iterable[K], default: V) -> V:
@@ -39,9 +40,10 @@ def nested_get(dct: NestedDict[K, V], keys: Iterable[K], default: V) -> V:
     for key in keys:
         if not isinstance(curr_dct, dict):
             return default
-        if key not in curr_dct:
+        nested_dct = cast(dict[K, NestedDict[K, V] | V], curr_dct)
+        if key not in nested_dct:
             return default
-        curr_dct = curr_dct[key]
+        curr_dct = nested_dct[key]
     return cast(V, curr_dct)
 
 
@@ -64,17 +66,20 @@ class IdManager:
 
     """
 
+    ids: list[list[str]]
+    _agent_types: dict[int, dict[str, str]]
+
     def __init__(
         self,
-        ids: List[List[str]],
-        agent_types: Optional[AgentTypes] = None,
+        ids: list[list[str]],
+        agent_types: AgentTypes | None = None,
     ):
         self.ids = ids
         self._agent_types = self._normalize_agent_types(agent_types or {})
 
     def _get_agent_types_for_env(
         self, agent_types: AgentTypes, env_id: int
-    ) -> Dict[str, str]:
+    ) -> dict[str, str]:
         """
         Read one environment's agent types from either protocol metadata shape.
         """
@@ -86,7 +91,7 @@ class IdManager:
 
     def _normalize_agent_types(
         self, agent_types: AgentTypes
-    ) -> Dict[int, Dict[str, str]]:
+    ) -> dict[int, dict[str, str]]:
         """
         Normalize optional per-agent metadata to the managed environment/agent IDs.
 
@@ -104,7 +109,7 @@ class IdManager:
         }
 
     @property
-    def agent_types(self) -> Dict[int, Dict[str, str]]:
+    def agent_types(self) -> dict[int, dict[str, str]]:
         """
         Nested mapping of environment IDs to agent IDs to optional agent types.
         """
@@ -113,7 +118,7 @@ class IdManager:
             for env_id, agent_types in self._agent_types.items()
         }
 
-    def agent_types_for_env(self, env_id: int) -> Dict[str, str]:
+    def agent_types_for_env(self, env_id: int) -> dict[str, str]:
         """
         Get the agent type mapping for one managed environment.
         """
@@ -126,8 +131,8 @@ class IdManager:
         return self._agent_types.get(env_id, {}).get(agent_id, "")
 
     def flatten_dict_of_dicts(
-        self, nested_id_dict: Dict[int, Dict[str, T]], default: Optional[T] = None
-    ) -> List[T]:
+        self, nested_id_dict: dict[int, dict[str, T]], default: T | None = None
+    ) -> list[T | None]:
         """
         Flatten a dictionary of nested ids into a list of values.
 
@@ -143,15 +148,15 @@ class IdManager:
         List[T]
             A flattened list of the values found in the dictionary.
         """
-        output_list = [default for i in range(0, self.num_ids)]
+        output_list: list[T | None] = [default] * self.num_ids
         for first_id, nested_ids in nested_id_dict.items():
             for second_id, value in nested_ids.items():
                 output_list[self.id_map[first_id][second_id]] = value
-        return cast(List[T], output_list)
+        return output_list
 
     def flatten_list_of_dicts(
-        self, nested_id_list: List[Dict[str, T]], default: Optional[T] = None
-    ):
+        self, nested_id_list: list[dict[str, T]], default: T | None = None
+    ) -> list[T | None]:
         """
         Flatten a list of dictionaries with nested ids into a single list.
 
@@ -168,15 +173,15 @@ class IdManager:
         List[T]
             A flattened list of the values found in the nested structure. Ordered by UID.
         """
-        output_list = [default for i in range(0, self.num_ids)]
+        output_list: list[T | None] = [default] * self.num_ids
         for first_id, nested_ids in enumerate(nested_id_list):
             for second_id, value in nested_ids.items():
                 output_list[self.id_map[first_id][second_id]] = value
         return output_list
 
     def nest_list_to_dict_of_dicts(
-        self, id_list: Iterable[T], default: Optional[T] = None
-    ) -> Dict[int, Dict[str, Optional[T]]]:
+        self, id_list: Iterable[T], default: T | None = None
+    ) -> dict[int, dict[str, T | None]]:
         """
         Nest a list of values, indexed by flattened id, into a dictionary of nested ids.
 
@@ -197,12 +202,12 @@ class IdManager:
             for first_id, nested_ids in enumerate(self.ids)
         }
         for flat_id, body in enumerate(id_list):
-            first_id, second_id = self[flat_id]
+            first_id, second_id = self.id_list[flat_id]
             output_dict[first_id][second_id] = body
         return output_dict
 
     @singledispatchmethod
-    def __getitem__(self, key):
+    def __getitem__(self, key: object) -> tuple[int, str] | int:
         """
         Convert a key into a nested or flattened id, from a flattened or nested id respectively.
 
@@ -226,7 +231,7 @@ class IdManager:
         )
 
     @__getitem__.register
-    def _(self, key: int) -> Tuple[int, str]:
+    def _(self, key: int) -> tuple[int, str]:
         return self.id_list[key]
 
     @__getitem__.register(tuple)
@@ -234,7 +239,7 @@ class IdManager:
         assert len(key) == 2, "if supplying tuple key must supply a key of length 2"
         return self.id_map[key[0]][key[1]]
 
-    def get_nested_id(self, flat_id: int) -> Tuple[int, str]:
+    def get_nested_id(self, flat_id: int) -> tuple[int, str]:
         """
         Get the nested id from a flattened id.
 
@@ -248,7 +253,7 @@ class IdManager:
         Tuple[int,int]
             The nested id.
         """
-        return self[flat_id]
+        return self.id_list[flat_id]
 
     def get_flattened_id(self, first_id: int, second_id: str) -> int:
         """
@@ -266,10 +271,10 @@ class IdManager:
         int
             The flattened id.
         """
-        return self[first_id, second_id]
+        return self.id_map[first_id][second_id]
 
     @cached_property
-    def id_list(self) -> List[Tuple[int, str]]:
+    def id_list(self) -> list[tuple[int, str]]:
         """
         List of nested ids, for lookups from flattened id to nested ids.
 
@@ -278,14 +283,14 @@ class IdManager:
         List[Tuple[int, str]]
             List of nested ids.
         """
-        id_list = []
+        id_list: list[tuple[int, str]] = []
         for first_id, nested_ids in enumerate(self.ids):
             for second_id in nested_ids:
                 id_list.append((first_id, second_id))
         return id_list
 
     @cached_property
-    def id_map(self) -> List[Dict[str, int]]:
+    def id_map(self) -> list[dict[str, int]]:
         """
         List of dictionaries mapping nested ids to flattened ids.
 
@@ -294,7 +299,7 @@ class IdManager:
         List[Dict[int,str]]
             List of dictionaries mapping nested ids to flattened ids.
         """
-        id_map = [{} for first_id in self.ids]
+        id_map: list[dict[str, int]] = [{} for _ in self.ids]
         uid = 0
         for first_id, nested_ids in enumerate(self.ids):
             for second_id in nested_ids:
@@ -302,7 +307,7 @@ class IdManager:
                 uid += 1
         return id_map
 
-    def partial_get(self, first_id: int) -> List[str]:
+    def partial_get(self, first_id: int) -> list[str]:
         """
         Get the second ids for a given first id.
 

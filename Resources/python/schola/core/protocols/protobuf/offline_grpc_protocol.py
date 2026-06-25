@@ -3,8 +3,11 @@
 Base class for connections that use the gRPC server (imitation / offline).
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
+
 import grpc
+from typing_extensions import override
+
 from schola.generated.Definitions_pb2 import TrainingDefinition
 from schola.core.protocols.base_protocol import BaseImitationProtocol
 from schola.core.protocols.protobuf.deserialize import from_proto
@@ -28,13 +31,14 @@ class GrpcImitationProtocol(BaseImitationProtocol, SocketProtocolMixin):
     """
 
     def __init__(
-        self, url: str, port: Optional[int] = None, protocol_start_timeout: int = 45
+        self, url: str, port: int | None = None, protocol_start_timeout: int = 45
     ):
         super().__init__(url, port)
-        self.channel: Optional[grpc.Channel] = None
-        self.stub: Optional[imitation_grpc.ImitationConnectorServiceStub] = None
+        self.channel: grpc.Channel | None = None
+        self.stub: imitation_grpc.ImitationConnectorServiceStub | None = None
         self.protocol_start_timeout = protocol_start_timeout
 
+    @override
     def close(self) -> None:
         """
         Close the Unreal Connection. Method must be safe to call multiple times.
@@ -49,6 +53,7 @@ class GrpcImitationProtocol(BaseImitationProtocol, SocketProtocolMixin):
         else:
             logger.info("... gRPC channel already closed?")
 
+    @override
     def start(self) -> None:
         """
         Open the Connection to Unreal Engine.
@@ -60,17 +65,18 @@ class GrpcImitationProtocol(BaseImitationProtocol, SocketProtocolMixin):
         ).__enter__()
         self.stub = imitation_grpc.ImitationConnectorServiceStub(self.channel)
 
+    @override
     def send_startup_msg(
         self,
-        seeds: Optional[List[Any]] = None,
-        options: Optional[List[Dict[str, Any]]] = None,
-    ):
+        seeds: list[Any] | None = None,
+        options: list[Any] | None = None,
+    ) -> None:
         assert self.stub is not None
         start_msg = imitation_messages.ImitationConnectorStartRequest()
 
         if seeds is not None or options is not None:
-            resolved_seeds: List[Any]
-            resolved_options: List[Dict[str, Any]]
+            resolved_seeds: list[Any]
+            resolved_options: list[dict[str, Any]]
             if seeds is None:
                 resolved_seeds = [None] * len(options or [])
             else:
@@ -95,13 +101,14 @@ class GrpcImitationProtocol(BaseImitationProtocol, SocketProtocolMixin):
             start_msg, timeout=self.protocol_start_timeout, wait_for_ready=True
         )
 
+    @override
     def get_definition(
         self,
-    ) -> Tuple[
-        List[List[str]],
-        Dict[int, Dict[str, str]],
-        Dict[int, Dict[str, gym.Space[Any]]],
-        Dict[int, Dict[str, gym.Space[Any]]],
+    ) -> tuple[
+        list[list[str]],
+        dict[int, dict[str, str]],
+        dict[int, dict[str, gym.Space[Any]]],
+        dict[int, dict[str, gym.Space[Any]]],
     ]:
         assert self.stub is not None
         definition: TrainingDefinition = self.stub.RequestTrainingDefinition(
@@ -109,17 +116,18 @@ class GrpcImitationProtocol(BaseImitationProtocol, SocketProtocolMixin):
         )
         return from_proto(definition)
 
+    @override
     def get_data(
         self,
-    ) -> Tuple[
-        List[Dict[str, Any]],
-        List[float],
-        List[Dict[str, bool]],
-        List[Dict[str, bool]],
-        List[Dict[str, str]],
-        Dict[int, Dict[str, Any]],
-        Dict[int, Dict[str, str]],
-        Dict[int, Dict[str, Any]],
+    ) -> tuple[
+        list[dict[str, Any]],
+        list[float],
+        list[dict[str, bool]],
+        list[dict[str, bool]],
+        list[dict[str, str]],
+        dict[int, dict[str, Any]],
+        dict[int, dict[str, str]],
+        dict[int, dict[str, Any]],
     ]:
         assert self.stub is not None
         data_request = imitation_messages.ImitationStateRequest()
@@ -138,8 +146,9 @@ class GrpcImitationProtocol(BaseImitationProtocol, SocketProtocolMixin):
         bool
             Whether the connection is active or not
         """
-        return self.channel != None
+        return self.channel is not None
 
+    @override
     def __bool__(self) -> bool:
         """
         Returns whether the connection is active or not
@@ -152,5 +161,6 @@ class GrpcImitationProtocol(BaseImitationProtocol, SocketProtocolMixin):
         return self.has_socket and self.channel_connected
 
     @property
-    def properties(self) -> Dict[str, Any]:
+    @override
+    def properties(self) -> dict[str, Any]:
         return self.mixin_properties

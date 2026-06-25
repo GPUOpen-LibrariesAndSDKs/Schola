@@ -3,9 +3,12 @@
 Base Class for Unreal Connections
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
+
 import socket
-from .base_protocol import BaseProtocol, BaseProtocolMixin
+from typing_extensions import override
+
+from .base_protocol import BaseProtocolMixin
 
 
 class SocketProtocolMixin(BaseProtocolMixin):
@@ -17,13 +20,20 @@ class SocketProtocolMixin(BaseProtocolMixin):
     Used together with gRPC protocols so Unreal can open the reverse connection.
     """
 
-    def __init__(self, url: str, port: Optional[int] = None, client_only: bool = False):
+    url: str
+    port: int
+    tcp_socket: socket.socket | None
+    _client_only: bool
+    _started: bool
+
+    def __init__(self, url: str, port: int | None = None, client_only: bool = False):
         self.url = url
         self.port = 0 if port is None else port
         self.tcp_socket = None
         self._client_only = client_only
         self._started = False
 
+    @override
     def on_close(self) -> None:
         """
         Close the Unreal Connection. Method must be safe to call multiple times.
@@ -32,6 +42,7 @@ class SocketProtocolMixin(BaseProtocolMixin):
         if self.tcp_socket is not None:
             self.tcp_socket.close()
 
+    @override
     def on_start(self) -> None:
         """
         Bind the tcp_socket to discover a free port (local mode only).
@@ -43,9 +54,9 @@ class SocketProtocolMixin(BaseProtocolMixin):
         if self._client_only:
             if self.port == 0:
                 raise ValueError(
-                    "An explicit port is required when using a remote/insecure "
-                    "connection (client_only=True).  Set --port on the CLI "
-                    "or the 'port' field in GrpcProtocolConfig."
+                    "An explicit port is required when using a remote/insecure connection "
+                    + "(client_only=True). Set --port on the CLI or the 'port' field in "
+                    + "GrpcProtocolConfig."
                 )
             self._started = True
             return
@@ -91,5 +102,6 @@ class SocketProtocolMixin(BaseProtocolMixin):
         return self._started
 
     @property
-    def mixin_properties(self) -> Dict[str, Any]:
+    @override
+    def mixin_properties(self) -> dict[str, Any]:
         return {"Port": self.port}

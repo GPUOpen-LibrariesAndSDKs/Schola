@@ -3,9 +3,10 @@
 Asyncio versions of the base protocol classes for Unreal Connections.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import gymnasium as gym
+from typing_extensions import override
 
 from .base_protocol import AutoResetType
 
@@ -47,12 +48,20 @@ class AsyncBaseProtocol:
         """
         ...
 
-    async def send_startup_msg(self, *args, **kwargs) -> Any:
+    async def send_startup_msg(
+        self,
+        auto_reset_type: AutoResetType | None = None,
+        /,
+        *args: Any,
+        **kwargs: Any,
+    ) -> Any:
         """
         Send the initial startup message to Unreal Engine.
 
         Parameters
         ----------
+        auto_reset_type : AutoResetType, optional
+            Auto-reset behavior when supported by the concrete protocol.
         *args
             Variable length argument list.
         **kwargs
@@ -60,7 +69,7 @@ class AsyncBaseProtocol:
         """
         ...
 
-    async def get_definition(self, *args, **kwargs) -> Any:
+    async def get_definition(self, *args: Any, **kwargs: Any) -> Any:
         """
         Get the environment definition from Unreal Engine.
 
@@ -80,7 +89,7 @@ class AsyncBaseProtocol:
         ...
 
     @property
-    def properties(self) -> Dict[str, Any]:
+    def properties(self) -> dict[str, Any]:
         """
         Get protocol-specific properties.
 
@@ -117,7 +126,7 @@ class AsyncBaseProtocolMixin:
         ...
 
     @property
-    def mixin_properties(self) -> Dict[str, Any]:
+    def mixin_properties(self) -> dict[str, Any]:
         """
         Get mixin-specific properties.
 
@@ -137,8 +146,13 @@ class AsyncBaseRLProtocol(AsyncBaseProtocol):
     environments, including reset, step, and action messaging.
     """
 
+    @override
     async def send_startup_msg(
-        self, auto_reset_type: AutoResetType = AutoResetType.SAME_STEP
+        self,
+        auto_reset_type: AutoResetType = AutoResetType.SAME_STEP,
+        /,
+        *args: Any,
+        **kwargs: Any,
     ) -> None:
         """
         Send the startup message with auto-reset configuration.
@@ -150,13 +164,16 @@ class AsyncBaseRLProtocol(AsyncBaseProtocol):
         """
         ...
 
+    @override
     async def get_definition(
         self,
-    ) -> Tuple[
-        List[List[str]],
-        List[Dict[str, str]],
-        Dict[int, Dict[str, gym.Space[Any]]],
-        Dict[int, Dict[str, gym.Space[Any]]],
+        *args: Any,
+        **kwargs: Any,
+    ) -> tuple[
+        list[list[str]],
+        list[dict[str, str]],
+        dict[int, dict[str, gym.Space[Any]]],
+        dict[int, dict[str, gym.Space[Any]]],
     ]:
         """
         Get the environment definition from Unreal Engine.
@@ -173,8 +190,10 @@ class AsyncBaseRLProtocol(AsyncBaseProtocol):
         ...
 
     async def send_reset_msg(
-        self, seeds: Optional[List[Any]] = None, options: Optional[List[Any]] = None
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Dict[str, str]]]]:
+        self,
+        seeds: list[Any] | None = None,
+        options: list[Any] | None = None,
+    ) -> tuple[list[dict[str, Any]], list[dict[str, dict[str, str]]]]:
         """
         Send a reset message to restart the environment.
 
@@ -195,15 +214,17 @@ class AsyncBaseRLProtocol(AsyncBaseProtocol):
         ...
 
     async def send_action_msg(
-        self, actions: Dict[int, Dict[str, Any]], action_space: Dict[str, gym.Space[Any]]
-    ) -> Tuple[
-        List[Dict[str, Any]],
-        List[Dict[str, float]],
-        List[Dict[str, bool]],
-        List[Dict[str, bool]],
-        List[Dict[str, str]],
-        Dict[int, Dict[str, Any]],
-        Dict[int, Dict[str, str]],
+        self,
+        actions: dict[int, dict[str, Any]],
+        action_space: dict[str, gym.Space[Any]],
+    ) -> tuple[
+        list[dict[str, Any]],
+        list[dict[str, float]],
+        list[dict[str, bool]],
+        list[dict[str, bool]],
+        list[dict[str, str]],
+        dict[int, dict[str, Any]],
+        dict[int, dict[str, str]],
     ]:
         """
         Send actions to the environment and receive the next state.

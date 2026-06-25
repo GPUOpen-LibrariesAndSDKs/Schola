@@ -3,9 +3,12 @@
 Exceptions for making gRPC errors more interpretable, and a context manager that automatically converts gRPC errors into our custom exceptions.
 """
 
-import grpc
 import abc
 from contextlib import ContextDecorator
+from types import TracebackType
+from typing_extensions import override
+
+import grpc
 
 
 class ScholaException(Exception):
@@ -23,7 +26,7 @@ class WrappedGrpcException(ScholaException, metaclass=abc.ABCMeta):
 
     @classmethod
     @abc.abstractmethod
-    def comes_from(cls, exception):
+    def comes_from(cls, exception: grpc.RpcError) -> bool:
         """
         Return whether ``exception`` should be wrapped by this Schola exception type.
 
@@ -50,16 +53,18 @@ class NoServerError(WrappedGrpcException):
         Original gRPC error; retained for exception chaining when re-raised.
     """
 
-    def __init__(self, exception):
+    def __init__(self, exception: grpc.RpcError) -> None:
         super().__init__()
 
-    def __str__(self):
+    @override
+    def __str__(self) -> str:
         return (
             "No Server detected. Is Unreal Running? If it is, have you hit begin play?"
         )
 
     @classmethod
-    def comes_from(cls, exception):
+    @override
+    def comes_from(cls, exception: grpc.RpcError) -> bool:
         """
         Match ``UNAVAILABLE`` with a ``failed to connect to all addresses`` detail prefix.
 
@@ -73,9 +78,11 @@ class NoServerError(WrappedGrpcException):
         bool
             ``True`` if the error indicates no server at the configured address.
         """
+        details = exception.details()
         return (
             exception.code() == grpc.StatusCode.UNAVAILABLE
-            and exception.details().startswith("failed to connect to all addresses")
+            and details is not None
+            and details.startswith("failed to connect to all addresses")
         )
 
 
@@ -89,14 +96,16 @@ class UnrealCrashedError(WrappedGrpcException):
         Original gRPC error; retained for exception chaining when re-raised.
     """
 
-    def __init__(self, exception):
+    def __init__(self, exception: grpc.RpcError) -> None:
         super().__init__()
 
-    def __str__(self):
+    @override
+    def __str__(self) -> str:
         return "It looks like Unreal has stopped responding. Did you stop the running game?"
 
     @classmethod
-    def comes_from(cls, exception):
+    @override
+    def comes_from(cls, exception: grpc.RpcError) -> bool:
         """
         Match cancelled/unavailable/unknown statuses that indicate a dead or removed stream.
 
@@ -132,14 +141,16 @@ class MissingMethodError(WrappedGrpcException):
         Original gRPC error; retained for exception chaining when re-raised.
     """
 
-    def __init__(self, exception):
+    def __init__(self, exception: grpc.RpcError) -> None:
         super().__init__()
 
-    def __str__(self):
+    @override
+    def __str__(self) -> str:
         return "Expected an endpoint to exist in unreal but it doesn't. Check that your environment is configured correctly."
 
     @classmethod
-    def comes_from(cls, exception):
+    @override
+    def comes_from(cls, exception: grpc.RpcError) -> bool:
         """
         Match gRPC ``UNIMPLEMENTED`` (method or service missing on server).
 
@@ -166,7 +177,7 @@ class EnvironmentException(ScholaException):
         Explanation of the environment error.
     """
 
-    def __init__(self, message):
+    def __init__(self, message: str) -> None:
         super().__init__(message)
 
 
@@ -184,7 +195,12 @@ class ScholaErrorContextManager(ContextDecorator):
     def __enter__(self):
         pass
 
-    def __exit__(self, exc_type, exc_value, exc_tb):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
         """
         If ``exc_value`` is a :class:`grpc.RpcError` that matches a known Schola
         wrapper, replace it with that wrapper; otherwise propagate.
@@ -227,11 +243,12 @@ class NoAgentsException(ScholaException):
         Environment index in the Schola definition that had no agents.
     """
 
-    def __init__(self, env_id: int):
+    def __init__(self, env_id: int) -> None:
         super().__init__()
-        self.env_id = env_id
+        self.env_id: int = env_id
 
-    def __str__(self):
+    @override
+    def __str__(self) -> str:
         return f"Connected to Unreal successfully but Env:{self.env_id} has no agents. Please register at least one agent to each environment."
 
 
@@ -244,8 +261,9 @@ class NoEnvironmentsException(ScholaException):
     objects are present in the loaded map.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
-    def __str__(self):
+    @override
+    def __str__(self) -> str:
         return "Connected to Unreal successfully but received no Environment Definitions. Check that there is an environment object in your map."

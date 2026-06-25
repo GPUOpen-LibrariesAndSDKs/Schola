@@ -3,9 +3,8 @@
 Base Class for Unreal Connections
 """
 
-from typing import Any, Dict, List, Optional, Tuple, Type
-import grpc
-import socket
+from typing_extensions import override
+
 from schola.core.protocols.async_base_protocol import AsyncBaseRLProtocol
 from schola.core.protocols.base_protocol import BaseProtocol
 from schola.core.protocols.protobuf.async_grpc_protocol import AsyncGrpcProtocol
@@ -38,7 +37,8 @@ class BaseUnrealSimulator(BaseSimulator):
     def __init__(self): ...
 
     @property
-    def supported_protocols(self) -> Tuple[Type[BaseProtocol], ...]:
+    @override
+    def supported_protocols(self) -> tuple[type[BaseProtocol], ...]:
         """
         Synchronous gRPC protocol types supported by Unreal simulators.
 
@@ -50,7 +50,8 @@ class BaseUnrealSimulator(BaseSimulator):
         return (GrpcProtocol,)
 
     @property
-    def supported_async_protocols(self) -> Tuple[Type[AsyncBaseRLProtocol], ...]:
+    @override
+    def supported_async_protocols(self) -> tuple[type[AsyncBaseRLProtocol], ...]:
         """
         Asynchronous gRPC protocol types supported by Unreal simulators.
 

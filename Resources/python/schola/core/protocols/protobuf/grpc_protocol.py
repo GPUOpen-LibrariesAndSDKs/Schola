@@ -3,9 +3,12 @@
 Base class for connections that use the gRPC server.
 """
 
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+from typing import Any
+
 import grpc
 from gymnasium.vector.vector_env import AutoresetMode
+from typing_extensions import override
+
 from schola.core.protocols.base_protocol import AutoResetType, BaseRLProtocol
 from schola.core.protocols.protobuf.deserialize import from_proto
 from schola.core.protocols.protobuf.serialize import to_proto, fill_generic
@@ -28,11 +31,7 @@ def _coerce_auto_reset_type(
         return auto_reset_type
     if isinstance(auto_reset_type, AutoresetMode):
         return AutoResetType[auto_reset_type.name]
-    if isinstance(auto_reset_type, int):
-        return AutoResetType[util_messages.AutoResetType.Name(auto_reset_type)]
-    raise TypeError(
-        f"Unsupported auto_reset_type {auto_reset_type!r} ({type(auto_reset_type)})"
-    )
+    return AutoResetType[util_messages.AutoResetType.Name(auto_reset_type)]
 
 
 class BaseGrpcProtocol(SocketProtocolMixin):
@@ -49,17 +48,16 @@ class BaseGrpcProtocol(SocketProtocolMixin):
     def __init__(
         self,
         url: str,
-        port: Optional[int] = None,
-        environment_start_timeout: Optional[int] = 45,
-        credential_mode: Literal["local", "insecure"] = "local",
+        port: int | None = None,
+        environment_start_timeout: int | None = 45,
+        credential_mode: str = "local",
     ):
         super().__init__(url, port, client_only=(credential_mode == "insecure"))
         if credential_mode not in self.VALID_CREDENTIAL_MODES:
             raise ValueError(
-                f"credential_mode must be one of {self.VALID_CREDENTIAL_MODES}, "
-                f"got {credential_mode!r}"
+                f"credential_mode must be one of {self.VALID_CREDENTIAL_MODES}, got {credential_mode!r}"
             )
-        self._gym_stub: Optional[gym_grpc.GymServiceStub] = None  # type: ignore
+        self._gym_stub: gym_grpc.GymServiceStub | None = None
         self.environment_start_timeout = environment_start_timeout
         self.credential_mode = credential_mode
 
@@ -84,7 +82,9 @@ class BaseGrpcProtocol(SocketProtocolMixin):
         return start_msg
 
     def prepare_reset_msg(
-        self, seeds: Optional[List[Any]] = None, options: Optional[List[Any]] = None
+        self,
+        seeds: list[Any] | None = None,
+        options: list[Any] | None = None,
     ) -> state_updates.StateUpdate:
         state_update = state_updates.StateUpdate(reset=state_updates.Reset())
         reset_msg: state_updates.Reset = state_update.reset
@@ -101,7 +101,9 @@ class BaseGrpcProtocol(SocketProtocolMixin):
         return state_update
 
     def prepare_action_msg(
-        self, actions: Dict[int, Dict[str, Any]], action_space: Dict[str, gym.Space[Any]]
+        self,
+        actions: dict[int, dict[str, Any]],
+        action_space: dict[str, gym.Space[Any]],
     ) -> state_updates.StateUpdate:
         state_update = state_updates.StateUpdate(step=state_updates.Step())
         state_update.status = state_updates.CommunicatorStatus.GOOD
@@ -133,7 +135,7 @@ class BaseGrpcProtocol(SocketProtocolMixin):
         return (self.has_socket or self.is_started) and self.channel_connected
 
     @property
-    def properties(self) -> Dict[str, Any]:
+    def properties(self) -> dict[str, Any]:
         return self.mixin_properties
 
 
@@ -150,15 +152,16 @@ class GrpcProtocol(BaseGrpcProtocol, BaseRLProtocol):
     def __init__(
         self,
         url: str,
-        port: Optional[int] = None,
-        environment_start_timeout: Optional[int] = 45,
-        credential_mode: Literal["local", "insecure"] = "local",
+        port: int | None = None,
+        environment_start_timeout: int | None = 45,
+        credential_mode: str = "local",
         grpc_close_timeout: float = 5.0,
     ):
         super().__init__(url, port, environment_start_timeout, credential_mode)
         self.grpc_close_timeout = grpc_close_timeout
-        self.channel: Optional[grpc.Channel] = None
+        self.channel: grpc.Channel | None = None
 
+    @override
     def close(self) -> None:
         """
         Close the Unreal Connection. Method must be safe to call multiple times.
@@ -180,10 +183,11 @@ class GrpcProtocol(BaseGrpcProtocol, BaseRLProtocol):
             finally:
                 self.channel.close()
                 self.channel = None
-                self._gym_stub = None  # type: ignore
+                self._gym_stub = None
         else:
             logger.debug("gRPC channel already closed")
 
+    @override
     def start(self) -> None:
         """
         Open the Connection to Unreal Engine.
@@ -205,23 +209,24 @@ class GrpcProtocol(BaseGrpcProtocol, BaseRLProtocol):
             ).__enter__()
         self._gym_stub = gym_grpc.GymServiceStub(self.channel)
 
+    @override
     def send_startup_msg(
         self,
         auto_reset_type: AutoResetType | AutoresetMode | int = AutoResetType.SAME_STEP,
-    ):
-
+    ) -> None:
         start_msg = self.prepare_start_msg(auto_reset_type)
         self.gym_stub.StartGymConnector(
             start_msg, timeout=self.environment_start_timeout, wait_for_ready=True
         )
 
+    @override
     def get_definition(
         self,
-    ) -> Tuple[
-        List[List[str]],
-        List[Dict[str, str]],
-        Dict[int, Dict[str, gym.Space[Any]]],
-        Dict[int, Dict[str, gym.Space[Any]]],
+    ) -> tuple[
+        list[list[str]],
+        list[dict[str, str]],
+        dict[int, dict[str, gym.Space[Any]]],
+        dict[int, dict[str, gym.Space[Any]]],
     ]:
         training_defn: env_definitions.TrainingDefinition = (
             self.gym_stub.RequestTrainingDefinition(
@@ -233,10 +238,12 @@ class GrpcProtocol(BaseGrpcProtocol, BaseRLProtocol):
 
         return uids, agent_types, obs_spaces, act_spaces
 
+    @override
     def send_reset_msg(
-        self, seeds: Optional[List[Any]] = None, options: Optional[List[Any]] = None
-    ):
-
+        self,
+        seeds: list[Any] | None = None,
+        options: list[Any] | None = None,
+    ) -> tuple[list[dict[str, Any]], list[dict[str, dict[str, str]]]]:
         # abort any inprogress stuff
         state_update = self.prepare_reset_msg(seeds, options)
 
@@ -247,9 +254,20 @@ class GrpcProtocol(BaseGrpcProtocol, BaseRLProtocol):
         infos = [info[env_id] for env_id in range(len(info))]
         return observations, infos
 
+    @override
     def send_action_msg(
-        self, actions: Dict[int, Dict[str, Any]], action_space: Dict[str, gym.Space[Any]]
-    ):
+        self,
+        actions: dict[int, dict[str, Any]],
+        action_space: dict[str, gym.Space[Any]],
+    ) -> tuple[
+        list[dict[str, Any]],
+        list[dict[str, float]],
+        list[dict[str, bool]],
+        list[dict[str, bool]],
+        list[dict[str, str]],
+        dict[int, dict[str, Any]],
+        dict[int, dict[str, str]],
+    ]:
         state_update = self.prepare_action_msg(actions, action_space)
 
         training_state: state.State = self.gym_stub.UpdateState(state_update)
@@ -273,6 +291,7 @@ class GrpcProtocol(BaseGrpcProtocol, BaseRLProtocol):
         )
 
     @property
+    @override
     def channel_connected(self) -> bool:
         """
         Returns whether the connection is active or not

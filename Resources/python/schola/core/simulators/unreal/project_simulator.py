@@ -5,21 +5,21 @@ A connection builds an Unreal Project if Necessary and then launches a standalon
 """
 
 import logging
-from pathlib import Path
-from typing import Any, Dict, List, Optional
-from schola.core.simulators.unreal.executable_simulator import UnrealExecutable
-
-logger = logging.getLogger(__name__)
 import platform
 import tempfile
+from pathlib import Path
+from typing import Any
+
+from schola.core.simulators.unreal.executable_simulator import UnrealExecutable
 from schola.core.utils.ubt import (
     UBTCommand,
     get_project_file,
     get_ue_version,
     get_ubt_path,
     get_unreal_platform,
-    build_executable,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def is_valid_map_path(map_path: str) -> bool:
@@ -143,20 +143,22 @@ class UnrealProject(UnrealExecutable):
     """
 
     uproject_file: Path
+    build_dir: Path
+    ubt_path: Path | None
 
     def __init__(
         self,
         uproject_path: Path | str,
-        build_dir: Optional[Path | str] = None,
-        ubt_path: Optional[Path | str] = None,
+        build_dir: Path | str | None = None,
+        ubt_path: Path | str | None = None,
         use_cached_build: bool = False,
         headless_mode: bool = False,
-        map: Optional[str] = None,
+        map: str | None = None,
         display_logs: bool = True,
-        set_fps: Optional[int] = None,
+        set_fps: int | None = None,
         disable_script: bool = True,
-        extra_executable_args: Optional[List[str]] = None,
-        extra_ubt_args: Optional[Dict[str, Any]] = None,
+        extra_executable_args: list[str] | None = None,
+        extra_ubt_args: dict[str, Any] | None = None,
     ):
         # Convert to Path and resolve
         if isinstance(uproject_path, str):
@@ -251,10 +253,10 @@ class UnrealProject(UnrealExecutable):
         self,
         uproject_path: Path,
         build_dir: Path,
-        ubt_path: Optional[Path] = None,
-        _map: Optional[str] = None,
-        extra_ubt_args: Optional[Dict[str, Any]] = None,
-    ):
+        ubt_path: Path | None = None,
+        _map: str | None = None,
+        extra_ubt_args: dict[str, Any] | None = None,
+    ) -> None:
         """
         Build the Unreal project executable using the Unreal Build Tool.
 

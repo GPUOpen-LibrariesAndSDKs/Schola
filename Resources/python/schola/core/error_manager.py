@@ -51,7 +51,7 @@ class NoServerError(WrappedGrpcException):
     """
 
     def __init__(self, exception):
-        pass
+        super().__init__()
 
     def __str__(self):
         return (
@@ -90,7 +90,7 @@ class UnrealCrashedError(WrappedGrpcException):
     """
 
     def __init__(self, exception):
-        pass
+        super().__init__()
 
     def __str__(self):
         return "It looks like Unreal has stopped responding. Did you stop the running game?"
@@ -133,7 +133,7 @@ class MissingMethodError(WrappedGrpcException):
     """
 
     def __init__(self, exception):
-        pass
+        super().__init__()
 
     def __str__(self):
         return "Expected an endpoint to exist in unreal but it doesn't. Check that your environment is configured correctly."
@@ -228,6 +228,7 @@ class NoAgentsException(ScholaException):
     """
 
     def __init__(self, env_id: int):
+        super().__init__()
         self.env_id = env_id
 
     def __str__(self):
@@ -244,7 +245,7 @@ class NoEnvironmentsException(ScholaException):
     """
 
     def __init__(self):
-        pass
+        super().__init__()
 
     def __str__(self):
         return "Connected to Unreal successfully but received no Environment Definitions. Check that there is an environment object in your map."

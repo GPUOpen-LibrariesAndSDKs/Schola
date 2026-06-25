@@ -155,8 +155,8 @@ class AsyncBaseRLProtocol(AsyncBaseProtocol):
     ) -> Tuple[
         List[List[str]],
         List[Dict[str, str]],
-        Dict[int, Dict[str, gym.Space]],
-        Dict[int, Dict[str, gym.Space]],
+        Dict[int, Dict[str, gym.Space[Any]]],
+        Dict[int, Dict[str, gym.Space[Any]]],
     ]:
         """
         Get the environment definition from Unreal Engine.
@@ -173,7 +173,7 @@ class AsyncBaseRLProtocol(AsyncBaseProtocol):
         ...
 
     async def send_reset_msg(
-        self, seeds: Optional[List] = None, options: Optional[List] = None
+        self, seeds: Optional[List[Any]] = None, options: Optional[List[Any]] = None
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Dict[str, str]]]]:
         """
         Send a reset message to restart the environment.
@@ -195,7 +195,7 @@ class AsyncBaseRLProtocol(AsyncBaseProtocol):
         ...
 
     async def send_action_msg(
-        self, actions: Dict[int, Dict[str, Any]], action_space: Dict[str, gym.Space]
+        self, actions: Dict[int, Dict[str, Any]], action_space: Dict[str, gym.Space[Any]]
     ) -> Tuple[
         List[Dict[str, Any]],
         List[Dict[str, float]],

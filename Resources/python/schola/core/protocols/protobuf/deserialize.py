@@ -6,7 +6,7 @@ Map Schola protobuf messages to Gymnasium spaces, points, and numpy buffers.
 
 from functools import singledispatch
 from itertools import tee
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union, cast
 
 import gymnasium.spaces as spaces
 import schola.generated.Spaces_pb2 as proto_spaces
@@ -35,7 +35,7 @@ PROTO_DTYPE_TO_NUMPY_DTYPE_MAPPING = {
 }
 
 
-def dtype_from_proto(msg: proto_dtype.DType) -> np.dtype:
+def dtype_from_proto(msg: proto_dtype.DType) -> np.dtype[Any]:
     """
     Convert a protobuf DType message to a NumPy dtype.
 
@@ -58,7 +58,7 @@ def dtype_from_proto(msg: proto_dtype.DType) -> np.dtype:
         raise KeyError(
             f"DType {msg} not recognized. Valid DTypes are {list(PROTO_DTYPE_TO_NUMPY_DTYPE_MAPPING.keys())}"
         )
-    return PROTO_DTYPE_TO_NUMPY_DTYPE_MAPPING[msg]
+    return np.dtype(PROTO_DTYPE_TO_NUMPY_DTYPE_MAPPING[msg])
 
 
 @singledispatch
@@ -108,7 +108,9 @@ def _(msg: proto_spaces.BoxSpace) -> spaces.Box:
     low_arr = np.asarray(low, dtype=dt).reshape(shape)
     high_arr = np.asarray(high, dtype=dt).reshape(shape)
 
-    return spaces.Box(low=low_arr, high=high_arr, shape=shape, dtype=dt)
+    return spaces.Box(
+        low=low_arr, high=high_arr, shape=shape, dtype=cast(Any, dt)
+    )
 
 
 @from_proto.register
@@ -117,7 +119,7 @@ def _(msg: proto_spaces.MultiBinarySpace) -> spaces.MultiBinary:
 
 
 @from_proto.register
-def _(msg: proto_spaces.DiscreteSpace) -> spaces.Discrete:
+def _(msg: proto_spaces.DiscreteSpace) -> spaces.Discrete[Any]:
     return spaces.Discrete(msg.high)
 
 
@@ -142,7 +144,7 @@ def _(msg: proto_spaces.DictSpace) -> spaces.Dict:
 
 
 @from_proto.register
-def _(msg: proto_spaces.Space) -> gym.Space:
+def _(msg: proto_spaces.Space) -> gym.Space[Any]:
     which = msg.WhichOneof("space")
     if which is None:
         raise ValueError(
@@ -290,7 +292,7 @@ def _(
 
 
 @from_proto.register
-def _(msg: definitions.AgentDefinition) -> Tuple[str, gym.Space, gym.Space]:
+def _(msg: definitions.AgentDefinition) -> Tuple[str, gym.Space[Any], gym.Space[Any]]:
 
     obs_space = from_proto(msg.obs_space)
     act_space = from_proto(msg.action_space)
@@ -302,7 +304,7 @@ def _(msg: definitions.AgentDefinition) -> Tuple[str, gym.Space, gym.Space]:
 @from_proto.register
 def _(
     msg: definitions.EnvironmentDefinition,
-) -> Tuple[List[str], Dict[str, str], Dict[str, gym.Space], Dict[str, gym.Space]]:
+) -> Tuple[List[str], Dict[str, str], Dict[str, gym.Space[Any]], Dict[str, gym.Space[Any]]]:
     uids = [agent_id for agent_id in msg.agent_definitions]
     # Create iterators for each of the fields with tee, before converting each to a dictionary with uids as keys,
     agent_types = {}
@@ -323,13 +325,13 @@ def _(
 ) -> Tuple[
     List[List[str]],
     Dict[int, Dict[str, str]],
-    Dict[int, Dict[str, gym.Space]],
-    Dict[int, Dict[str, gym.Space]],
+    Dict[int, Dict[str, gym.Space[Any]]],
+    Dict[int, Dict[str, gym.Space[Any]]],
 ]:
 
     env_uids = [[] for _ in msg.environment_definitions]
-    obs_defns: Dict[int, Dict[str, gym.Space]] = {}
-    action_defns: Dict[int, Dict[str, gym.Space]] = {}
+    obs_defns: Dict[int, Dict[str, gym.Space[Any]]] = {}
+    action_defns: Dict[int, Dict[str, gym.Space[Any]]] = {}
     agent_types: Dict[int, Dict[str, str]] = {}
 
     for env_id, env_defn in enumerate(msg.environment_definitions):

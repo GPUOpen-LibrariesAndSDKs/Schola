@@ -8,8 +8,7 @@ from typing import Any, Dict, List, Literal, Optional, Tuple
 import grpc
 import grpc.aio
 import gymnasium as gym
-from gymnasium.vector.vector_env import AutoresetMode
-
+from schola.core.protocols.base_protocol import AutoResetType
 from schola.core.protocols.async_base_protocol import AsyncBaseRLProtocol
 import schola.generated.Definitions_pb2 as env_definitions
 import schola.generated.GymConnector_pb2 as util_messages
@@ -50,7 +49,7 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
         logger.debug("Close invoked")
         SocketProtocolMixin.on_close(self)
 
-        if self.channel_connected:
+        if self.channel is not None:
             try:
                 state_update = state_updates.StateUpdate(
                     status=state_updates.CommunicatorStatus.CLOSED
@@ -91,7 +90,7 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
         self._gym_stub = gym_grpc.GymServiceStub(self.channel)
 
     async def send_startup_msg(
-        self, auto_reset_type: AutoresetMode = AutoresetMode.SAME_STEP
+        self, auto_reset_type: AutoResetType = AutoResetType.SAME_STEP
     ):
         start_msg = self.prepare_start_msg(auto_reset_type)
 
@@ -104,8 +103,8 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
     ) -> Tuple[
         List[List[str]],
         List[Dict[str, str]],
-        Dict[int, Dict[str, gym.Space]],
-        Dict[int, Dict[str, gym.Space]],
+        Dict[int, Dict[str, gym.Space[Any]]],
+        Dict[int, Dict[str, gym.Space[Any]]],
     ]:
         training_defn: env_definitions.TrainingDefinition = (
             await self.gym_stub.RequestTrainingDefinition(
@@ -118,7 +117,7 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
         return uids, agent_types, obs_spaces, act_spaces
 
     async def send_reset_msg(
-        self, seeds: Optional[List] = None, options: Optional[List] = None
+        self, seeds: Optional[List[Any]] = None, options: Optional[List[Any]] = None
     ):
 
         # abort any inprogress stuff
@@ -131,7 +130,7 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
         return observations, infos
 
     async def send_action_msg(
-        self, actions: Dict[int, Dict[str, Any]], action_space: Dict[str, gym.Space]
+        self, actions: Dict[int, Dict[str, Any]], action_space: Dict[str, gym.Space[Any]]
     ):
         state_update = self.prepare_action_msg(actions, action_space)
 

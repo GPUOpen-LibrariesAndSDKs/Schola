@@ -32,7 +32,7 @@ class GrpcImitationProtocol(BaseImitationProtocol, SocketProtocolMixin):
     ):
         super().__init__(url, port)
         self.channel: Optional[grpc.Channel] = None
-        self.stub: imitation_grpc.ImitationConnectorServiceStub = None
+        self.stub: Optional[imitation_grpc.ImitationConnectorServiceStub] = None
         self.protocol_start_timeout = protocol_start_timeout
 
     def close(self) -> None:
@@ -42,9 +42,10 @@ class GrpcImitationProtocol(BaseImitationProtocol, SocketProtocolMixin):
         logger.info("... Close invoked")
         SocketProtocolMixin.on_close(self)
 
-        if self.channel_connected:
+        if self.channel is not None:
             self.channel.close()
             self.channel = None
+            self.stub = None
         else:
             logger.info("... gRPC channel already closed?")
 
@@ -61,20 +62,28 @@ class GrpcImitationProtocol(BaseImitationProtocol, SocketProtocolMixin):
 
     def send_startup_msg(
         self,
-        seeds: Optional[List] = None,
+        seeds: Optional[List[Any]] = None,
         options: Optional[List[Dict[str, Any]]] = None,
     ):
+        assert self.stub is not None
         start_msg = imitation_messages.ImitationConnectorStartRequest()
 
         if seeds is not None or options is not None:
-
-            if seeds is None and options is not None:
-                seeds = [None] * len(options)
-            if options is None and seeds is not None:
-                options = [{} for _ in range(len(seeds))]
+            resolved_seeds: List[Any]
+            resolved_options: List[Dict[str, Any]]
+            if seeds is None:
+                resolved_seeds = [None] * len(options or [])
+            else:
+                resolved_seeds = seeds
+            if options is None:
+                resolved_options = [{} for _ in range(len(resolved_seeds))]
+            else:
+                resolved_options = options
 
             # environments is a map, so we populate it like a dictionary
-            for env_id, (seed, option_dict) in enumerate(zip(seeds, options)):  # type: ignore
+            for env_id, (seed, option_dict) in enumerate(
+                zip(resolved_seeds, resolved_options)
+            ):
                 env_settings = start_msg.environments[env_id]
                 if seed is not None:
                     env_settings.seed = seed
@@ -91,15 +100,28 @@ class GrpcImitationProtocol(BaseImitationProtocol, SocketProtocolMixin):
     ) -> Tuple[
         List[List[str]],
         Dict[int, Dict[str, str]],
-        Dict[int, Dict[str, gym.Space]],
-        Dict[int, Dict[str, gym.Space]],
+        Dict[int, Dict[str, gym.Space[Any]]],
+        Dict[int, Dict[str, gym.Space[Any]]],
     ]:
+        assert self.stub is not None
         definition: TrainingDefinition = self.stub.RequestTrainingDefinition(
             imitation_messages.ImitationDefinitionRequest()
         )
         return from_proto(definition)
 
-    def get_data(self) -> List[Any]:
+    def get_data(
+        self,
+    ) -> Tuple[
+        List[Dict[str, Any]],
+        List[float],
+        List[Dict[str, bool]],
+        List[Dict[str, bool]],
+        List[Dict[str, str]],
+        Dict[int, Dict[str, Any]],
+        Dict[int, Dict[str, str]],
+        Dict[int, Dict[str, Any]],
+    ]:
+        assert self.stub is not None
         data_request = imitation_messages.ImitationStateRequest()
         data: imitation_state_messages.ImitationState = self.stub.RequestState(
             data_request

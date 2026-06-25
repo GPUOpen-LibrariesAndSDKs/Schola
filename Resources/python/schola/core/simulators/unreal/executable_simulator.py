@@ -66,6 +66,7 @@ class UnrealExecutable(BaseUnrealSimulator):
         extra_args: Optional[List[str]] = None,
         validate_path: bool = True,
     ):
+        super().__init__()
         if isinstance(executable_path, str):
             executable_path = Path(executable_path)
 

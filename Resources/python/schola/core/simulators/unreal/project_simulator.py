@@ -132,6 +132,8 @@ class UnrealProject(UnrealExecutable):
     ----------
     uproject_path : Path
         Path to the .uproject file
+    uproject_file : Path
+        Resolved path to the ``.uproject`` file
     build_dir : Path
         Directory where the built executable is staged
     ubt_path : Optional[Path]
@@ -139,6 +141,8 @@ class UnrealProject(UnrealExecutable):
     use_cached_build : bool
         Whether to use a cached build if it exists. If True, will only build if the executable does not exist.
     """
+
+    uproject_file: Path
 
     def __init__(
         self,
@@ -159,19 +163,21 @@ class UnrealProject(UnrealExecutable):
             uproject_path = Path(uproject_path)
 
         # If uproject_path is a directory, find the .uproject file in it
+        uproject_file: Path
         if uproject_path.is_dir():
-            self.uproject_file = get_project_file(uproject_path)
-            if self.uproject_file is None:
+            discovered_uproject = get_project_file(uproject_path)
+            if discovered_uproject is None:
                 raise FileNotFoundError(
                     f"No .uproject file found in directory: {uproject_path}"
                 )
+            uproject_file = discovered_uproject
         elif uproject_path.exists() and uproject_path.suffix == ".uproject":
-            self.uproject_file = uproject_path
+            uproject_file = uproject_path
         else:
             raise FileNotFoundError(
                 f"Not a valid .uproject file or directory containing a .uproject file: {uproject_path}"
             )
-        self.uproject_file = self.uproject_file.resolve()
+        self.uproject_file = uproject_file.resolve()
 
         # Set up build directory
         if build_dir is not None:
@@ -239,7 +245,7 @@ class UnrealProject(UnrealExecutable):
         str
             Name used for build outputs and executable discovery.
         """
-        return self.uproject_file.stem  # type: ignore
+        return self.uproject_file.stem
 
     def _build(
         self,
@@ -306,7 +312,7 @@ class UnrealProject(UnrealExecutable):
         if completed_build_process.returncode != 0:
             exception_message = f"Unreal build failed with return code {completed_build_process.returncode} and the following output:\n"
             if completed_build_process.stderr:
-                exception_message += f"stderr:\n {completed_build_process.stderr.decode('utf-8', errors='ignore')}\n"
+                exception_message += f"stderr:\n {completed_build_process.stderr}\n"
             if completed_build_process.stdout:
-                exception_message += f"stdout:\n {completed_build_process.stdout.decode('utf-8', errors='ignore')}\n"
+                exception_message += f"stdout:\n {completed_build_process.stdout}\n"
             raise Exception(exception_message)

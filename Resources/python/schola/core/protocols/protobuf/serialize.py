@@ -4,7 +4,7 @@
 Serialize Gymnasium spaces, transitions, and numpy data to Schola protobuf messages.
 """
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, cast
 import numpy as np
 
 from gymnasium.spaces import Box, Discrete, MultiDiscrete, MultiBinary
@@ -62,7 +62,7 @@ def dtype_to_proto(dtype: np.dtype) -> proto_dtype.DType:
 
 
 @singledispatch
-def to_proto(msg):
+def to_proto(msg: Any, /, *args: Any) -> Any:
     """
     Serialize Python objects to protobuf messages.
 
@@ -99,8 +99,8 @@ def to_proto(msg):
     )
 
 
-@to_proto.register
-def _(space: Box, action: np.ndarray) -> proto_points.BoxPoint:
+@to_proto.register(Box)
+def _to_proto_box(space: Box, action: np.ndarray) -> proto_points.BoxPoint:
     msg = proto_points.BoxPoint()
     msg.values.extend(action.flatten())
     msg.dtype = dtype_to_proto(space.dtype)
@@ -108,44 +108,46 @@ def _(space: Box, action: np.ndarray) -> proto_points.BoxPoint:
     return msg
 
 
-@to_proto.register
-def _(
-    space: MultiDiscrete, action: np.ndarray[int] | List[int]
+@to_proto.register(MultiDiscrete)
+def _to_proto_multi_discrete(
+    space: MultiDiscrete, action: np.ndarray | List[int]
 ) -> proto_points.MultiDiscretePoint:
     msg = proto_points.MultiDiscretePoint()
     msg.values.extend(action)
     return msg
 
 
-@to_proto.register
-def _(space: MultiBinary, action: np.ndarray | List[bool]):
+@to_proto.register(MultiBinary)
+def _to_proto_multi_binary(space: MultiBinary, action: np.ndarray | List[bool]):
     msg = proto_points.MultiBinaryPoint()
     msg.values.extend(bool(value) for value in np.asarray(action, dtype=np.bool_).flat)
     return msg
 
 
-@to_proto.register
-def _(space: spaces.Dict, action: Dict[str, Any]) -> proto_points.DictPoint:
+@to_proto.register(spaces.Dict)
+def _to_proto_dict(space: spaces.Dict, action: Dict[str, Any]) -> proto_points.DictPoint:
     msg = proto_points.DictPoint()
     for key, value in action.items():
         fill_generic(to_proto(space[key], action[key]), msg.values[key])
     return msg
 
 
-@to_proto.register
-def _(space: spaces.Discrete, action: int) -> proto_points.DiscretePoint:
+@to_proto.register(spaces.Discrete)
+def _to_proto_discrete(
+    space: spaces.Discrete[Any], action: int
+) -> proto_points.DiscretePoint:
     msg = proto_points.DiscretePoint(value=action)
     return msg
 
 
-@to_proto.register
-def _(space: spaces.Text, action: str) -> proto_points.TextPoint:
+@to_proto.register(spaces.Text)
+def _to_proto_text(space: spaces.Text, action: str) -> proto_points.TextPoint:
     msg = proto_points.TextPoint(value=action)
     return msg
 
 
 @singledispatch
-def space_to_proto(space):
+def space_to_proto(space: Any) -> Any:
     """
     Convert a Gymnasium space to a protobuf Space message.
 
@@ -174,14 +176,15 @@ def space_to_proto(space):
     )
 
 
-@space_to_proto.register
-def _(space: MultiBinary) -> proto_spaces.MultiBinarySpace:
-    msg = proto_spaces.MultiBinarySpace(shape=space.n)
+@space_to_proto.register(MultiBinary)
+def _space_to_proto_multi_binary(space: MultiBinary) -> proto_spaces.MultiBinarySpace:
+    shape = space.n if isinstance(space.n, int) else int(np.prod(space.n))
+    msg = proto_spaces.MultiBinarySpace(shape=shape)
     return msg
 
 
-@space_to_proto.register
-def _(space: Box) -> proto_spaces.BoxSpace:
+@space_to_proto.register(Box)
+def _space_to_proto_box(space: Box) -> proto_spaces.BoxSpace:
     msg = proto_spaces.BoxSpace()
     msg.shape_dimensions.extend(space.shape)
     # convert high/low arrays to one array of dimensions
@@ -195,21 +198,21 @@ def _(space: Box) -> proto_spaces.BoxSpace:
     return msg
 
 
-@space_to_proto.register
-def _(space: MultiDiscrete) -> proto_spaces.MultiDiscreteSpace:
+@space_to_proto.register(MultiDiscrete)
+def _space_to_proto_multi_discrete(space: MultiDiscrete) -> proto_spaces.MultiDiscreteSpace:
     msg = proto_spaces.MultiDiscreteSpace()
     msg.high.extend(space.nvec.astype(int))
     return msg
 
 
-@space_to_proto.register
-def _(space: Discrete) -> proto_spaces.DiscreteSpace:
-    msg = proto_spaces.DiscreteSpace(high=space.n)
+@space_to_proto.register(Discrete)
+def _space_to_proto_discrete(space: Discrete[Any]) -> proto_spaces.DiscreteSpace:
+    msg = proto_spaces.DiscreteSpace(high=int(space.n))
     return msg
 
 
-@space_to_proto.register
-def _(space: spaces.Text) -> proto_spaces.TextSpace:
+@space_to_proto.register(spaces.Text)
+def _space_to_proto_text(space: spaces.Text) -> proto_spaces.TextSpace:
     # sorted string of the space's character_set, which may be empty (the empty set).
     return proto_spaces.TextSpace(
         max_length=space.max_length,
@@ -218,8 +221,8 @@ def _(space: spaces.Text) -> proto_spaces.TextSpace:
     )
 
 
-@space_to_proto.register
-def _(space: spaces.Dict) -> proto_spaces.DictSpace:
+@space_to_proto.register(spaces.Dict)
+def _space_to_proto_dict(space: spaces.Dict) -> proto_spaces.DictSpace:
     msg = proto_spaces.DictSpace()
     for key, subspace in space.spaces.items():
         # cant use msg.spaces[key] = ... as it's not supported by protobuf
@@ -417,7 +420,7 @@ def _(point: proto_points.BoxPoint) -> proto_points.Point:
 
 @make_generic.register
 def _(point: proto_points.MultiBinaryPoint) -> proto_points.Point:
-    msg = proto_points.Point(binary_point=point)
+    msg = proto_points.Point(multi_binary_point=point)
     return msg
 
 

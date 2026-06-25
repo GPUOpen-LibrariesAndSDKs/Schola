@@ -9,7 +9,7 @@ from pathlib import Path
 import platform
 import subprocess
 from dataclasses import dataclass, field
-from typing import List, Literal, Optional, Union
+from typing import List, Literal, Optional, Union, cast
 
 
 def get_unreal_platform() -> Literal["Win64", "Linux"]:
@@ -75,7 +75,7 @@ class UBTCommand:
         List[str]
             The complete list of UBT command line arguments.
         """
-        args = [self.ubt_path, "BuildCookRun"]
+        args: List[str] = [str(self.ubt_path), "BuildCookRun"]
 
         if self.target_platform:
             args.append(f"-platform={self.target_platform}")
@@ -135,11 +135,11 @@ class UBTCommand:
 
         return args
 
-    def run(self) -> subprocess.CompletedProcess:
+    def run(self) -> subprocess.CompletedProcess[str]:
         """
         Run the UBT command.
         """
-        return subprocess.run(self.build_args(), capture_output=True)
+        return subprocess.run(self.build_args(), capture_output=True, text=True)
 
 
 def get_ue_version(project_file: Path) -> str:

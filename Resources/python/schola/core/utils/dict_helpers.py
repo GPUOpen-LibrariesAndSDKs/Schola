@@ -4,7 +4,7 @@ Utility Functions and Classes for manipulating dictionaries.
 """
 
 import itertools
-from typing import TypeVar, Iterator, Dict, Callable, Tuple, cast
+from typing import TypeVar, Iterator, Dict, Callable, Tuple, cast, Any
 
 V = TypeVar("V")
 Y = TypeVar("Y")
@@ -14,6 +14,7 @@ Z = TypeVar("Z")
 # Define a recursive type for a nested dictionary and nested dictionary iterator
 NestedIterator = Iterator[Tuple[K, V | "NestedIterator[K, V]"]]
 NestedDict = Dict[K, V | "NestedDict[K, V]"]
+_IteratorState = Iterator[Tuple[Any, Any]]
 
 
 def _flatten(
@@ -22,7 +23,7 @@ def _flatten(
     for key, value in _iterator:
         new_prefix = f"{prefix}_{key}" if prefix else key
         if isinstance(value, Iterator):
-            yield from _flatten(value, new_prefix)
+            yield from _flatten(cast(NestedIterator[str, V], value), new_prefix)
         else:
             yield (new_prefix, value)
 
@@ -30,7 +31,7 @@ def _flatten(
 def _no_prefix_flatten(_iterator: NestedIterator[str, V]) -> Iterator[Tuple[str, V]]:
     for key, value in _iterator:
         if isinstance(value, Iterator):
-            yield from _no_prefix_flatten(value)
+            yield from _no_prefix_flatten(cast(NestedIterator[str, V], value))
         else:
             yield (key, value)
 
@@ -45,7 +46,12 @@ def _kfilter(
                 yield (key, value)
             elif func(key) or any_key:  # need to keep checking keys
                 # evaluate here so that we don't output empty dictionaries
-                output_ = [(k, v) for k, v in _kfilter(func, value, any_key)]
+                output_ = [
+                    (k, v)
+                    for k, v in _kfilter(
+                        func, cast(NestedIterator[K, V], value), any_key
+                    )
+                ]
                 if len(output_) > 0:
                     yield (key, iter(output_))
         else:
@@ -57,7 +63,12 @@ def _map(
     func: Callable[[V], Y], _iterator: NestedIterator[K, V]
 ) -> NestedIterator[K, Y]:
     yield from (
-        (key, _map(func, value) if isinstance(value, Iterator) else func(value))
+        (
+            key,
+            _map(func, cast(NestedIterator[K, V], value))
+            if isinstance(value, Iterator)
+            else func(value),
+        )
         for key, value in _iterator
     )
 
@@ -66,7 +77,12 @@ def _kmap(
     func: Callable[[K], Y], _iterator: NestedIterator[K, V]
 ) -> NestedIterator[Y, V]:
     yield from (
-        (func(key), _kmap(func, value) if isinstance(value, Iterator) else value)
+        (
+            func(key),
+            _kmap(func, cast(NestedIterator[K, V], value))
+            if isinstance(value, Iterator)
+            else value,
+        )
         for key, value in _iterator
     )
 
@@ -77,7 +93,10 @@ def _unflatten(
     for key, value in _iterator:
         flat_prefix = f"{prefix}_{key}" if prefix else key
         if isinstance(value, Iterator):
-            yield (key, _unflatten(value, flat_dict, flat_prefix))
+            yield (
+                key,
+                _unflatten(cast(NestedIterator[str, V], value), flat_dict, flat_prefix),
+            )
         else:
             yield (key, flat_dict[flat_prefix])
 
@@ -85,7 +104,7 @@ def _unflatten(
 def _leaves(_iterator: NestedIterator[K, V]) -> Iterator[Tuple[K, V]]:
     for key, value in _iterator:
         if isinstance(value, Iterator):
-            yield from _leaves(value)
+            yield from _leaves(cast(NestedIterator[K, V], value))
         else:
             yield (key, value)
 
@@ -106,7 +125,7 @@ class DIterator(NestedIterator[K, V]):
     def __init__(self, source_dict: NestedDict[K, V]):
         self.source_dict = source_dict
         self._base_iterator = self._make_iterator(self.source_dict)
-        self._iterator: NestedIterator[K, V] = self._base_iterator
+        self._iterator: _IteratorState = self._base_iterator
 
     @staticmethod
     def _make_iterator(_dict: NestedDict[K, V]) -> NestedIterator[K, V]:
@@ -130,7 +149,7 @@ class DIterator(NestedIterator[K, V]):
         DIterator
             ``self`` with leaf type updated to ``Y`` (fluent).
         """
-        self._iterator = _map(func, self._iterator)  # type: ignore
+        self._iterator = _map(func, cast(NestedIterator[K, V], self._iterator))
         return cast("DIterator[K,Y]", self)
 
     def kmap(self, func: Callable[[K], Y]) -> "DIterator[Y,V]":
@@ -147,7 +166,7 @@ class DIterator(NestedIterator[K, V]):
         DIterator
             ``self`` with key type updated to ``Y`` (fluent).
         """
-        self._iterator = _kmap(func, self._iterator)  # type: ignore
+        self._iterator = _kmap(func, cast(NestedIterator[K, V], self._iterator))
         return cast("DIterator[Y,V]", self)
 
     def kfilter(
@@ -169,7 +188,9 @@ class DIterator(NestedIterator[K, V]):
         DIterator
             ``self`` filtered in place (fluent).
         """
-        self._iterator = _kfilter(func, self._iterator, any_key)  # type: ignore
+        self._iterator = _kfilter(
+            func, cast(NestedIterator[K, V], self._iterator), any_key
+        )
         return self
 
     def flatten(self, prefix: str = "") -> "DIterator[str,V]":
@@ -186,7 +207,9 @@ class DIterator(NestedIterator[K, V]):
         DIterator
             Iterator over ``(str, V)`` leaves with flattened string keys.
         """
-        self._iterator = _flatten(self._iterator, prefix)  # type: ignore
+        self._iterator = _flatten(
+            cast(NestedIterator[str, V], self._iterator), prefix
+        )
         return cast("DIterator[str,V]", self)
 
     def no_prefix_flatten(self) -> "DIterator[str,V]":
@@ -198,7 +221,9 @@ class DIterator(NestedIterator[K, V]):
         DIterator
             Iterator over ``(str, V)`` leaves using only the immediate key names.
         """
-        self._iterator = _no_prefix_flatten(self._iterator)  # type: ignore
+        self._iterator = _no_prefix_flatten(
+            cast(NestedIterator[str, V], self._iterator)
+        )
         return cast("DIterator[str,V]", self)
 
     def unflatten(
@@ -219,7 +244,9 @@ class DIterator(NestedIterator[K, V]):
         DIterator
             ``self`` with leaf values of type ``Z`` (fluent).
         """
-        self._iterator = _unflatten(self._iterator, flat_dict, prefix)  # type: ignore
+        self._iterator = _unflatten(
+            cast(NestedIterator[str, V], self._iterator), flat_dict, prefix
+        )
         return cast("DIterator[str,Z]", self)
 
     def chain(self, other: "DIterator[K,V]") -> "DIterator[K,V]":
@@ -231,12 +258,12 @@ class DIterator(NestedIterator[K, V]):
 
     @staticmethod
     def _to_dict(
-        _iterator: NestedIterator[K, V], prune: bool = False
+        _iterator: _IteratorState, prune: bool = False
     ) -> NestedDict[K, V]:
-        out = {}
+        out: NestedDict[K, V] = {}
         for key, value in _iterator:
             if isinstance(value, Iterator):
-                processed_value = DIterator._to_dict(value, prune)
+                processed_value = DIterator._to_dict(cast(_IteratorState, value), prune)
                 if processed_value or not prune:
                     out[key] = processed_value
             else:
@@ -274,7 +301,7 @@ class DIterator(NestedIterator[K, V]):
         tuple
             Leaf key and value pairs.
         """
-        yield from _leaves(self._iterator)
+        yield from _leaves(cast(NestedIterator[K, V], self._iterator))
 
     def keys(self) -> Iterator[K]:
         """
@@ -285,7 +312,7 @@ class DIterator(NestedIterator[K, V]):
         key
             Leaf key ``K``.
         """
-        yield from (key for key, _ in _leaves(self._iterator))
+        yield from (key for key, _ in _leaves(cast(NestedIterator[K, V], self._iterator)))
 
     def values(self) -> Iterator[V]:
         """
@@ -296,7 +323,9 @@ class DIterator(NestedIterator[K, V]):
         value
             Leaf value ``V``.
         """
-        yield from (value for _, value in _leaves(self._iterator))
+        yield from (
+            value for _, value in _leaves(cast(NestedIterator[K, V], self._iterator))
+        )
 
 
 def map_dict(func: Callable[[V], Y], input_dict: NestedDict[K, V]) -> NestedDict[K, Y]:

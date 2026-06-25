@@ -20,12 +20,13 @@ from typing import (
     Set,
     Tuple,
     TypeVar,
+    cast,
 )
 import onnx
 import torch as th
 
 import gymnasium as gym
-from gymnasium.spaces import Box, flatdim
+from gymnasium.spaces import Box, MultiDiscrete, flatdim
 import numpy as np
 from torch.export import Dim
 from functools import cached_property
@@ -196,7 +197,7 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
         A dictionary of the flat dimensions of the action spaces. Used to convert logits outputs to the correct output shapes.
     """
 
-    def __init__(self, observation_space: gym.Space, action_space: gym.Space):
+    def __init__(self, observation_space: gym.Space[Any], action_space: gym.Space[Any]):
         super().__init__()
         self.observation_space_is_natively_dict = True
         # The Schola model operates on named inputs/outputs so we need to wrap the observation/action spaces in a Dict if they are not already
@@ -326,7 +327,7 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
             One integer index per discrete component, stacked on dimension 0.
         """
         # take max over each section of the Multidiscrete space
-        nvec = self.action_space.spaces[space_name].nvec  # type: ignore
+        nvec = cast(MultiDiscrete, self.action_space.spaces[space_name]).nvec
         indices = list(accumulate(nvec[:-1]))
         index_tensors = []
         for tensor in logits.tensor_split(indices):
@@ -485,7 +486,7 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
             ), "Expected ONNX program to be generated after calling th.onnx.export"
             fix_slice_nodes_for_onnx(onnx_program.model)
 
-            ir.passes.common.shape_inference.infer_shapes(onnx_program.model)
+            cast(Any, ir.passes).common.shape_inference.infer_shapes(onnx_program.model)
             # Embed state metadata on each state input's doc_string
             for inp in onnx_program.model.graph.inputs:
                 if inp.name in self.input_state_metadata:
@@ -517,7 +518,9 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
         onnx_program.save(export_path)
 
 
-def patch_lstm_layers_for_onnx_export(module: th.nn.Module) -> List[th.nn.LSTM]:
+def patch_lstm_layers_for_onnx_export(
+    module: th.nn.Module,
+) -> List[th.utils.hooks.RemovableHandle]:
     """
     Attach forward hooks so ONNX-exported LSTM hidden states match PyTorch.
 
@@ -529,9 +532,9 @@ def patch_lstm_layers_for_onnx_export(module: th.nn.Module) -> List[th.nn.LSTM]:
 
     Returns
     -------
-    list of torch.nn.LSTM
-        LSTM modules that were hooked (the same layer objects ``register_forward_hook``
-        was called on).
+    list of torch.utils.hooks.RemovableHandle
+        Forward-hook handles registered on each nested LSTM (pass to
+        ``RemovableHandle.remove()`` after export).
 
     Notes
     -----

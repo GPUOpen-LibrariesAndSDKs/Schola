@@ -78,7 +78,7 @@ class BaseProtocol:
         """
         ...
 
-    def get_definition(self, *args, **kwargs):
+    def get_definition(self, *args: Any, **kwargs: Any) -> Any:
         """
         Get the environment definition from Unreal Engine.
 
@@ -173,8 +173,8 @@ class BaseRLProtocol(BaseProtocol):
     ) -> Tuple[
         List[List[str]],
         List[Dict[str, str]],
-        Dict[int, Dict[str, gym.Space]],
-        Dict[int, Dict[str, gym.Space]],
+        Dict[int, Dict[str, gym.Space[Any]]],
+        Dict[int, Dict[str, gym.Space[Any]]],
     ]:
         """
         Get the environment definition from Unreal Engine.
@@ -191,7 +191,7 @@ class BaseRLProtocol(BaseProtocol):
         ...
 
     def send_reset_msg(
-        self, seeds: Optional[List] = None, options: Optional[List] = None
+        self, seeds: Optional[List[Any]] = None, options: Optional[List[Any]] = None
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Dict[str, str]]]]:
         """
         Send a reset message to restart the environment.
@@ -213,7 +213,7 @@ class BaseRLProtocol(BaseProtocol):
         ...
 
     def send_action_msg(
-        self, actions: Dict[int, Dict[str, Any]], action_space: Dict[str, gym.Space]
+        self, actions: Dict[int, Dict[str, Any]], action_space: Dict[str, gym.Space[Any]]
     ) -> Tuple[
         List[Dict[str, Any]],
         List[Dict[str, float]],
@@ -260,7 +260,7 @@ class BaseImitationProtocol(BaseProtocol):
     """
 
     def send_startup_msg(
-        self, seeds: Optional[List] = None, options: Optional[List] = None
+        self, seeds: Optional[List[Any]] = None, options: Optional[List[Any]] = None
     ):
         """
         Send the startup message for imitation learning data collection.
@@ -284,8 +284,8 @@ class BaseImitationProtocol(BaseProtocol):
     ) -> Tuple[
         List[List[str]],
         Dict[int, Dict[str, str]],
-        Dict[int, Dict[str, gym.Space]],
-        Dict[int, Dict[str, gym.Space]],
+        Dict[int, Dict[str, gym.Space[Any]]],
+        Dict[int, Dict[str, gym.Space[Any]]],
     ]:
         """
         Get the environment definition for imitation learning.

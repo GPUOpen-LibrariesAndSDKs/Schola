@@ -29,8 +29,8 @@ class SocketProtocolMixin(BaseProtocolMixin):
         Close the Unreal Connection. Method must be safe to call multiple times.
         """
         self._started = False
-        if self.has_socket:
-            self.tcp_socket.close()  # type: ignore
+        if self.tcp_socket is not None:
+            self.tcp_socket.close()
 
     def on_start(self) -> None:
         """

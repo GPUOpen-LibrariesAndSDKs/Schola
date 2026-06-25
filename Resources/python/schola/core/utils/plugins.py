@@ -3,10 +3,10 @@
 Helpers for working with entry_point plugins for Schola
 """
 
-from typing import List
+from typing import Any, List, cast
 
 
-def get_plugins(group_name: str) -> List:
+def get_plugins(group_name: str) -> List[Any]:
     """
     Returns a list of plugins for a given group name.
 
@@ -26,5 +26,5 @@ def get_plugins(group_name: str) -> List:
     if hasattr(eps, "select"):
         discovered_plugins = eps.select(group=group_name)
     else:
-        discovered_plugins = eps.get(group_name, [])
+        discovered_plugins = cast(Any, eps).get(group_name, [])
     return [x.load() for x in discovered_plugins]

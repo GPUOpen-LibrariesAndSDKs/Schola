@@ -5,7 +5,7 @@ Utility Functions and Classes for managing environment and agent ids.
 """
 
 from functools import cached_property, singledispatchmethod
-from typing import List, Optional, Tuple, TypeVar, Dict, Iterable, Union
+from typing import List, Optional, Tuple, TypeVar, Dict, Iterable, Union, cast
 
 K = TypeVar("K")
 V = TypeVar("V")
@@ -14,7 +14,7 @@ AgentTypes = Union[Dict[int, Dict[str, str]], List[Dict[str, str]]]
 
 
 # A generic recursive dictionary type
-NestedDict = Dict[K, Union[V, "NestedDict[V]"]]
+NestedDict = Dict[K, Union[V, "NestedDict[K, V]"]]
 
 
 def nested_get(dct: NestedDict[K, V], keys: Iterable[K], default: V) -> V:
@@ -35,13 +35,14 @@ def nested_get(dct: NestedDict[K, V], keys: Iterable[K], default: V) -> V:
     V
         The value found in the dictionary, or the default value if the key is not found.
     """
-    curr_dct = dct
+    curr_dct: NestedDict[K, V] | V = dct
     for key in keys:
-        if key in curr_dct:
-            curr_dct = curr_dct[key]
-        else:
+        if not isinstance(curr_dct, dict):
             return default
-    return curr_dct
+        if key not in curr_dct:
+            return default
+        curr_dct = curr_dct[key]
+    return cast(V, curr_dct)
 
 
 class IdManager:
@@ -146,7 +147,7 @@ class IdManager:
         for first_id, nested_ids in nested_id_dict.items():
             for second_id, value in nested_ids.items():
                 output_list[self.id_map[first_id][second_id]] = value
-        return output_list
+        return cast(List[T], output_list)
 
     def flatten_list_of_dicts(
         self, nested_id_list: List[Dict[str, T]], default: Optional[T] = None
@@ -228,8 +229,8 @@ class IdManager:
     def _(self, key: int) -> Tuple[int, str]:
         return self.id_list[key]
 
-    @__getitem__.register
-    def _(self, key: tuple) -> int:
+    @__getitem__.register(tuple)
+    def _(self, key: tuple[int, str]) -> int:
         assert len(key) == 2, "if supplying tuple key must supply a key of length 2"
         return self.id_map[key[0]][key[1]]
 

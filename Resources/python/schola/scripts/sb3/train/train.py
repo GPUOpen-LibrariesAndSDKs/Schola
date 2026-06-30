@@ -235,6 +235,7 @@ def main(args: Sb3TrainScriptSettings) -> Optional[Tuple[float, float]]:
                     env=env,
                     verbose=args.logging_settings.sb3_verbosity,
                     policy_kwargs=policy_kwargs,
+                    seed=args.environment_settings.seed,
                     **asdict(args.algorithm_settings),
                 )
 
@@ -312,6 +313,9 @@ def main(args: Sb3TrainScriptSettings) -> Optional[Tuple[float, float]]:
             if args.environment_settings.env_options:
                 # Inherited from SB3's `set_options`
                 env.set_options(options=args.environment_settings.env_options)
+
+            if args.environment_settings.seed is not None:
+                env.seed(args.environment_settings.seed)
 
             model.learn(
                 total_timesteps=args.training_settings.timesteps,

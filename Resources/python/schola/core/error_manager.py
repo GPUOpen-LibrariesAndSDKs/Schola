@@ -6,7 +6,6 @@ Exceptions for making gRPC errors more interpretable, and a context manager that
 import abc
 from contextlib import ContextDecorator
 from types import TracebackType
-from typing_extensions import override
 
 import grpc
 
@@ -56,14 +55,12 @@ class NoServerError(WrappedGrpcException):
     def __init__(self, exception: grpc.RpcError):
         super().__init__()
 
-    @override
     def __str__(self) -> str:
         return (
             "No Server detected. Is Unreal Running? If it is, have you hit begin play?"
         )
 
     @classmethod
-    @override
     def comes_from(cls, exception: grpc.RpcError) -> bool:
         """
         Match ``UNAVAILABLE`` with a ``failed to connect to all addresses`` detail prefix.
@@ -99,12 +96,10 @@ class UnrealCrashedError(WrappedGrpcException):
     def __init__(self, exception: grpc.RpcError):
         super().__init__()
 
-    @override
     def __str__(self) -> str:
         return "It looks like Unreal has stopped responding. Did you stop the running game?"
 
     @classmethod
-    @override
     def comes_from(cls, exception: grpc.RpcError) -> bool:
         """
         Match cancelled/unavailable/unknown statuses that indicate a dead or removed stream.
@@ -144,12 +139,10 @@ class MissingMethodError(WrappedGrpcException):
     def __init__(self, exception: grpc.RpcError):
         super().__init__()
 
-    @override
     def __str__(self) -> str:
         return "Expected an endpoint to exist in unreal but it doesn't. Check that your environment is configured correctly."
 
     @classmethod
-    @override
     def comes_from(cls, exception: grpc.RpcError) -> bool:
         """
         Match gRPC ``UNIMPLEMENTED`` (method or service missing on server).
@@ -247,7 +240,6 @@ class NoAgentsException(ScholaException):
         super().__init__()
         self.env_id: int = env_id
 
-    @override
     def __str__(self) -> str:
         return f"Connected to Unreal successfully but Env:{self.env_id} has no agents. Please register at least one agent to each environment."
 
@@ -264,6 +256,5 @@ class NoEnvironmentsException(ScholaException):
     def __init__(self):
         super().__init__()
 
-    @override
     def __str__(self) -> str:
         return "Connected to Unreal successfully but received no Environment Definitions. Check that there is an environment object in your map."

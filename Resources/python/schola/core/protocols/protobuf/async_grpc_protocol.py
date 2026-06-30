@@ -8,7 +8,7 @@ from typing import Any, Literal
 import grpc
 import grpc.aio
 import gymnasium as gym
-from typing_extensions import override
+from gymnasium.vector.vector_env import AutoresetMode
 
 from schola.core.protocols.base_protocol import AutoResetType, DEFAULT_AUTO_RESET_TYPE
 from schola.core.protocols.async_base_protocol import AsyncBaseRLProtocol
@@ -43,7 +43,6 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
         super().__init__(url, port, environment_start_timeout, credential_mode)
         self.channel: grpc.aio.Channel | None = None
 
-    @override
     async def close(self) -> None:
         """
         Close the Unreal Connection. Method must be safe to call multiple times.
@@ -70,7 +69,6 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
         else:
             logger.debug("gRPC channel already closed")
 
-    @override
     async def start(self) -> None:
         """
         Open the Connection to Unreal Engine.
@@ -92,9 +90,9 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
             ).__aenter__()
         self._gym_stub = gym_grpc.GymServiceStub(self.channel)
 
-    @override
     async def send_startup_msg(
-        self, auto_reset_type: AutoResetType = DEFAULT_AUTO_RESET_TYPE
+        self,
+        auto_reset_type: AutoResetType | AutoresetMode | int = DEFAULT_AUTO_RESET_TYPE,
     ) -> None:
         start_msg = self.prepare_start_msg(auto_reset_type)
 
@@ -102,7 +100,6 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
             start_msg, timeout=self.environment_start_timeout, wait_for_ready=True
         )
 
-    @override
     async def get_definition(
         self,
     ) -> tuple[
@@ -119,7 +116,6 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
 
         return uids, agent_types, obs_spaces, act_spaces
 
-    @override
     async def send_reset_msg(
         self,
         seeds: list[Any] | None = None,
@@ -134,7 +130,6 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
         infos = [info[env_id] for env_id in range(len(info))]
         return observations, infos
 
-    @override
     async def send_action_msg(
         self,
         actions: dict[int, dict[str, Any]],
@@ -171,7 +166,6 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
         )
 
     @property
-    @override
     def channel_connected(self) -> bool:
         """
         Returns whether the connection is active or not
@@ -183,7 +177,6 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
         """
         return self.channel is not None
 
-    @override
     def __bool__(self) -> bool:
         """
         Returns whether the connection is active or not
@@ -196,6 +189,5 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
         return (self.has_socket or self.is_started) and self.channel_connected
 
     @property
-    @override
     def properties(self) -> dict[str, Any]:
         return self.mixin_properties

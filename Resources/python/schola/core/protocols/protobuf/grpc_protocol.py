@@ -7,7 +7,6 @@ from typing import Any, Literal
 
 import grpc
 from gymnasium.vector.vector_env import AutoresetMode
-from typing_extensions import override
 
 from schola.core.protocols.base_protocol import (
     AutoResetType,
@@ -54,6 +53,8 @@ class BaseGrpcProtocol(SocketProtocolMixin):
     Subclasses implement ``channel_connected`` and own the concrete ``grpc`` channel type.
     """
 
+    VALID_CREDENTIAL_MODES = ("local", "insecure")
+
     def __init__(
         self,
         url: str,
@@ -62,6 +63,11 @@ class BaseGrpcProtocol(SocketProtocolMixin):
         credential_mode: Literal["local", "insecure"] = "local",
     ):
         super().__init__(url, port, client_only=(credential_mode == "insecure"))
+        if credential_mode not in self.VALID_CREDENTIAL_MODES:
+            raise ValueError(
+                f"credential_mode must be one of {self.VALID_CREDENTIAL_MODES}, "
+                f"got {credential_mode!r}"
+            )
         self._gym_stub: gym_grpc.GymServiceStub | None = None
         self.environment_start_timeout = environment_start_timeout
         self.credential_mode = credential_mode
@@ -72,8 +78,10 @@ class BaseGrpcProtocol(SocketProtocolMixin):
         return self._gym_stub
 
     def prepare_start_msg(
-        self, auto_reset_type: AutoResetType
+        self,
+        auto_reset_type: AutoResetType | AutoresetMode | int,
     ) -> util_messages.GymConnectorStartRequest:
+        auto_reset_type = coerce_auto_reset_type(auto_reset_type)
         start_msg = util_messages.GymConnectorStartRequest()
 
         if auto_reset_type == AutoResetType.DISABLED:
@@ -165,7 +173,6 @@ class GrpcProtocol(BaseGrpcProtocol, BaseRLProtocol):
         self.grpc_close_timeout = grpc_close_timeout
         self.channel: grpc.Channel | None = None
 
-    @override
     def close(self) -> None:
         """
         Close the Unreal Connection. Method must be safe to call multiple times.
@@ -191,7 +198,6 @@ class GrpcProtocol(BaseGrpcProtocol, BaseRLProtocol):
         else:
             logger.debug("gRPC channel already closed")
 
-    @override
     def start(self) -> None:
         """
         Open the Connection to Unreal Engine.
@@ -213,17 +219,15 @@ class GrpcProtocol(BaseGrpcProtocol, BaseRLProtocol):
             ).__enter__()
         self._gym_stub = gym_grpc.GymServiceStub(self.channel)
 
-    @override
     def send_startup_msg(
         self,
-        auto_reset_type: AutoResetType = DEFAULT_AUTO_RESET_TYPE,
+        auto_reset_type: AutoResetType | AutoresetMode | int = DEFAULT_AUTO_RESET_TYPE,
     ) -> None:
         start_msg = self.prepare_start_msg(auto_reset_type)
         self.gym_stub.StartGymConnector(
             start_msg, timeout=self.environment_start_timeout, wait_for_ready=True
         )
 
-    @override
     def get_definition(
         self,
     ) -> tuple[
@@ -242,7 +246,6 @@ class GrpcProtocol(BaseGrpcProtocol, BaseRLProtocol):
 
         return uids, agent_types, obs_spaces, act_spaces
 
-    @override
     def send_reset_msg(
         self,
         seeds: list[Any] | None = None,
@@ -258,7 +261,6 @@ class GrpcProtocol(BaseGrpcProtocol, BaseRLProtocol):
         infos = [info[env_id] for env_id in range(len(info))]
         return observations, infos
 
-    @override
     def send_action_msg(
         self,
         actions: dict[int, dict[str, Any]],
@@ -295,7 +297,6 @@ class GrpcProtocol(BaseGrpcProtocol, BaseRLProtocol):
         )
 
     @property
-    @override
     def channel_connected(self) -> bool:
         """
         Returns whether the connection is active or not

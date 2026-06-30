@@ -11,7 +11,6 @@ lifecycle management: ``start`` and ``stop`` are no-ops.
 
 import logging
 
-from typing_extensions import override
 
 from schola.core.protocols.async_base_protocol import AsyncBaseRLProtocol
 from schola.core.protocols.base_protocol import BaseProtocol
@@ -63,25 +62,21 @@ class ExternalSimulator(BaseSimulator):
             args["readiness_timeout"] = self.readiness_timeout
         return args
 
-    @override
     def start(self, _protocol_properties: dict[str, object]) -> None:
         """No-op — the external orchestrator manages the process."""
         logger.debug(
             "ExternalSimulator.start() called (no-op); expecting UE to be reachable at the configured protocol address."
         )
 
-    @override
     def stop(self) -> None:
         """No-op — we don't own the process, so we don't kill it."""
         logger.debug("ExternalSimulator.stop() called (no-op).")
 
-    @override
     def __bool__(self) -> bool:
         """Assume the externally managed process is always running."""
         return True
 
     @property
-    @override
     def supported_protocols(self) -> tuple[type[BaseProtocol], ...]:
         """
         Synchronous protocol implementations compatible with this simulator.
@@ -96,7 +91,6 @@ class ExternalSimulator(BaseSimulator):
         return (GrpcProtocol,)
 
     @property
-    @override
     def supported_async_protocols(self) -> tuple[type[AsyncBaseRLProtocol], ...]:
         """
         Asynchronous protocol implementations compatible with this simulator.

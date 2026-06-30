@@ -6,7 +6,6 @@ Base class for connections that use the gRPC server (imitation / offline).
 from typing import Any
 
 import grpc
-from typing_extensions import override
 
 from schola.generated.Definitions_pb2 import TrainingDefinition
 from schola.core.protocols.base_protocol import BaseImitationProtocol
@@ -43,7 +42,6 @@ class GrpcImitationProtocol(BaseImitationProtocol, SocketProtocolMixin):
         assert self._stub is not None, "gRPC stub is not initialized"
         return self._stub
 
-    @override
     def close(self) -> None:
         """
         Close the Unreal Connection. Method must be safe to call multiple times.
@@ -58,7 +56,6 @@ class GrpcImitationProtocol(BaseImitationProtocol, SocketProtocolMixin):
         else:
             logger.info("... gRPC channel already closed?")
 
-    @override
     def start(self) -> None:
         """
         Open the Connection to Unreal Engine.
@@ -70,7 +67,6 @@ class GrpcImitationProtocol(BaseImitationProtocol, SocketProtocolMixin):
         ).__enter__()
         self._stub = imitation_grpc.ImitationConnectorServiceStub(self.channel)
 
-    @override
     def send_startup_msg(
         self,
         seeds: list[Any] | None = None,
@@ -105,7 +101,6 @@ class GrpcImitationProtocol(BaseImitationProtocol, SocketProtocolMixin):
             start_msg, timeout=self.protocol_start_timeout, wait_for_ready=True
         )
 
-    @override
     def get_definition(
         self,
     ) -> tuple[
@@ -119,7 +114,6 @@ class GrpcImitationProtocol(BaseImitationProtocol, SocketProtocolMixin):
         )
         return from_proto(definition)
 
-    @override
     def get_data(
         self,
     ) -> tuple[
@@ -150,7 +144,6 @@ class GrpcImitationProtocol(BaseImitationProtocol, SocketProtocolMixin):
         """
         return self.channel is not None
 
-    @override
     def __bool__(self) -> bool:
         """
         Returns whether the connection is active or not
@@ -163,6 +156,5 @@ class GrpcImitationProtocol(BaseImitationProtocol, SocketProtocolMixin):
         return self.has_socket and self.channel_connected
 
     @property
-    @override
     def properties(self) -> dict[str, Any]:
         return self.mixin_properties

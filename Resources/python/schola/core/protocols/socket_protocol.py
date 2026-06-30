@@ -6,7 +6,6 @@ Base Class for Unreal Connections
 from typing import Any
 
 import socket
-from typing_extensions import override
 
 from .base_protocol import BaseProtocolMixin
 
@@ -33,7 +32,6 @@ class SocketProtocolMixin(BaseProtocolMixin):
         self._client_only = client_only
         self._started = False
 
-    @override
     def on_close(self) -> None:
         """
         Close the Unreal Connection. Method must be safe to call multiple times.
@@ -42,7 +40,6 @@ class SocketProtocolMixin(BaseProtocolMixin):
         if self.tcp_socket is not None:
             self.tcp_socket.close()
 
-    @override
     def on_start(self) -> None:
         """
         Bind the tcp_socket to discover a free port (local mode only).
@@ -102,6 +99,5 @@ class SocketProtocolMixin(BaseProtocolMixin):
         return self._started
 
     @property
-    @override
     def mixin_properties(self) -> dict[str, Any]:
         return {"Port": self.port}

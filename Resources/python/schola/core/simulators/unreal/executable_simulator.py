@@ -10,7 +10,6 @@ import subprocess
 import sys
 from typing import Any
 
-from typing_extensions import override
 
 from schola.core.simulators.unreal.base_simulator import BaseUnrealSimulator
 
@@ -208,7 +207,6 @@ class UnrealExecutable(BaseUnrealSimulator):
             )
         return self.executable_path
 
-    @override
     def start(self, protocol_properties: dict[str, Any]) -> None:
         """
         Start the Unreal Engine process.
@@ -232,7 +230,6 @@ class UnrealExecutable(BaseUnrealSimulator):
         self.env_process = subprocess.Popen(args)
         logger.info("Executable launched with PID: %s", self.env_process.pid)
 
-    @override
     def stop(self) -> None:
         """
         Close the connection to the Unreal Engine. Kills the Unreal Engine process if it is running.
@@ -258,7 +255,6 @@ class UnrealExecutable(BaseUnrealSimulator):
                             ["kill", "-9", str(self.env_process.pid)], check=False
                         )
 
-    @override
     def __bool__(self) -> bool:
         # We have a process, and it hasn't completed yet
         return (self.env_process is not None) and (self.env_process.poll() is None)

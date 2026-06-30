@@ -7,7 +7,6 @@ import itertools
 from collections.abc import Callable, Iterator
 from typing import TypeVar, cast
 
-from typing_extensions import override
 
 V = TypeVar("V")
 Y = TypeVar("Y")
@@ -297,11 +296,9 @@ class DIterator(NestedIterator[K, V]):
         """
         return self._to_dict(self._iterator, prune)
 
-    @override
     def __iter__(self) -> NestedIterator[K, V]:
         return self.leaves()
 
-    @override
     def __next__(self) -> tuple[K, V | "NestedIterator[K, V]"]:
         key, value = next(self._iterator)
         return cast(tuple[K, V | NestedIterator[K, V]], (key, value))

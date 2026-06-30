@@ -9,7 +9,6 @@ from dataclasses import dataclass
 import logging
 import pathlib
 from typing import Any
-from typing_extensions import override
 
 import torch as th
 import gymnasium as gym
@@ -222,7 +221,6 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
         """
         return list(self.action_space.keys())
 
-    @override
     def forward(self, *args: th.Tensor) -> tuple[th.Tensor, ...]:
         raise NotImplementedError("forward method must be implemented in subclass")
 

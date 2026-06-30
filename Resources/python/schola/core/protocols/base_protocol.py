@@ -6,10 +6,10 @@ Base Class for Unreal Connections
 from __future__ import annotations
 
 import sys
+from abc import ABC, abstractmethod
 from typing import Any
 
 import gymnasium as gym
-from typing_extensions import override
 
 if sys.version_info >= (3, 11):
     from enum import StrEnum
@@ -33,7 +33,7 @@ DEFAULT_AUTO_RESET_TYPE = AutoResetType("SameStep")
 # Type Defs
 
 
-class BaseProtocol:
+class BaseProtocol(ABC):
     """
     Base class for all communication protocols with Schola.
 
@@ -41,6 +41,7 @@ class BaseProtocol:
     used to connect Python environments with simulations.
     """
 
+    @abstractmethod
     def close(self) -> None:
         """
         Close the protocol connection.
@@ -51,6 +52,7 @@ class BaseProtocol:
         """
         ...
 
+    @abstractmethod
     def start(self) -> None:
         """
         Start the protocol connection.
@@ -59,6 +61,7 @@ class BaseProtocol:
         """
         ...
 
+    @abstractmethod
     def __bool__(self) -> bool:
         """
         Returns whether the connection is active or not
@@ -70,6 +73,7 @@ class BaseProtocol:
         """
         ...
 
+    @abstractmethod
     def send_startup_msg(self, *args: Any, **kwargs: Any) -> Any:
         """
         Send the initial startup message to Unreal Engine.
@@ -83,6 +87,7 @@ class BaseProtocol:
         """
         ...
 
+    @abstractmethod
     def get_definition(self, *args: Any, **kwargs: Any) -> Any:
         """
         Get the environment definition from Unreal Engine.
@@ -152,7 +157,7 @@ class BaseProtocolMixin:
         return dict()
 
 
-class BaseRLProtocol(BaseProtocol):
+class BaseRLProtocol(BaseProtocol, ABC):
     """
     Base class for reinforcement learning protocols.
 
@@ -160,7 +165,7 @@ class BaseRLProtocol(BaseProtocol):
     including reset, step, and action messaging.
     """
 
-    @override
+    @abstractmethod
     def send_startup_msg(
         self,
         auto_reset_type: AutoResetType = DEFAULT_AUTO_RESET_TYPE,
@@ -178,7 +183,7 @@ class BaseRLProtocol(BaseProtocol):
         """
         ...
 
-    @override
+    @abstractmethod
     def get_definition(
         self,
         *args: Any,
@@ -203,6 +208,7 @@ class BaseRLProtocol(BaseProtocol):
         """
         ...
 
+    @abstractmethod
     def send_reset_msg(
         self, seeds: list[Any] | None = None, options: list[Any] | None = None
     ) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
@@ -225,6 +231,7 @@ class BaseRLProtocol(BaseProtocol):
         """
         ...
 
+    @abstractmethod
     def send_action_msg(
         self,
         actions: dict[int, dict[str, Any]],
@@ -263,7 +270,7 @@ class BaseRLProtocol(BaseProtocol):
         ...
 
 
-class BaseImitationProtocol(BaseProtocol):
+class BaseImitationProtocol(BaseProtocol, ABC):
     """
     Base class for imitation learning protocols.
 
@@ -274,7 +281,7 @@ class BaseImitationProtocol(BaseProtocol):
     Call SendStartupMsg to start collecting data.
     """
 
-    @override
+    @abstractmethod
     def send_startup_msg(
         self, seeds: list[Any] | None = None, options: list[Any] | None = None
     ) -> Any:
@@ -295,7 +302,7 @@ class BaseImitationProtocol(BaseProtocol):
         """
         ...
 
-    @override
+    @abstractmethod
     def get_definition(
         self,
         *args: Any,
@@ -320,6 +327,7 @@ class BaseImitationProtocol(BaseProtocol):
         """
         ...
 
+    @abstractmethod
     def get_data(
         self,
     ) -> tuple[

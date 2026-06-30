@@ -3,15 +3,15 @@
 Asyncio versions of the base protocol classes for Unreal Connections.
 """
 
+from abc import ABC, abstractmethod
 from typing import Any
 
 import gymnasium as gym
-from typing_extensions import override
 
 from .base_protocol import AutoResetType, DEFAULT_AUTO_RESET_TYPE
 
 
-class AsyncBaseProtocol:
+class AsyncBaseProtocol(ABC):
     """
     Async base class for all communication protocols with Schola.
 
@@ -19,6 +19,7 @@ class AsyncBaseProtocol:
     used to connect Python environments with simulations.
     """
 
+    @abstractmethod
     async def close(self) -> None:
         """
         Close the protocol connection asynchronously.
@@ -29,6 +30,7 @@ class AsyncBaseProtocol:
         """
         ...
 
+    @abstractmethod
     async def start(self) -> None:
         """
         Start the protocol connection asynchronously.
@@ -37,6 +39,7 @@ class AsyncBaseProtocol:
         """
         ...
 
+    @abstractmethod
     def __bool__(self) -> bool:
         """
         Returns whether the connection is active or not.
@@ -48,6 +51,7 @@ class AsyncBaseProtocol:
         """
         ...
 
+    @abstractmethod
     async def send_startup_msg(
         self,
         auto_reset_type: AutoResetType | None = None,
@@ -69,6 +73,7 @@ class AsyncBaseProtocol:
         """
         ...
 
+    @abstractmethod
     async def get_definition(self, *args: Any, **kwargs: Any) -> Any:
         """
         Get the environment definition from Unreal Engine.
@@ -138,7 +143,7 @@ class AsyncBaseProtocolMixin:
         return dict()
 
 
-class AsyncBaseRLProtocol(AsyncBaseProtocol):
+class AsyncBaseRLProtocol(AsyncBaseProtocol, ABC):
     """
     Async base class for reinforcement learning protocols.
 
@@ -146,7 +151,7 @@ class AsyncBaseRLProtocol(AsyncBaseProtocol):
     environments, including reset, step, and action messaging.
     """
 
-    @override
+    @abstractmethod
     async def send_startup_msg(
         self,
         auto_reset_type: AutoResetType = DEFAULT_AUTO_RESET_TYPE,
@@ -164,7 +169,7 @@ class AsyncBaseRLProtocol(AsyncBaseProtocol):
         """
         ...
 
-    @override
+    @abstractmethod
     async def get_definition(
         self,
         *args: Any,
@@ -189,6 +194,7 @@ class AsyncBaseRLProtocol(AsyncBaseProtocol):
         """
         ...
 
+    @abstractmethod
     async def send_reset_msg(
         self,
         seeds: list[Any] | None = None,
@@ -213,6 +219,7 @@ class AsyncBaseRLProtocol(AsyncBaseProtocol):
         """
         ...
 
+    @abstractmethod
     async def send_action_msg(
         self,
         actions: dict[int, dict[str, Any]],

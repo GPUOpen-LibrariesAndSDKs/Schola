@@ -21,15 +21,15 @@ class TestBaseProtocol:
     """Tests for BaseProtocol"""
 
     def test_properties_default(self):
-        """Test that properties returns empty dict by default"""
-        protocol = BaseProtocol()
+        """Test that the inherited properties default returns an empty dict"""
+        protocol = ConcreteProtocol()
 
         assert protocol.properties == {}
         assert isinstance(protocol.properties, dict)
 
     def test_properties_returns_new_dict(self):
         """Test that properties returns a new dict each time"""
-        protocol = BaseProtocol()
+        protocol = ConcreteProtocol()
 
         props1 = protocol.properties
         props2 = protocol.properties

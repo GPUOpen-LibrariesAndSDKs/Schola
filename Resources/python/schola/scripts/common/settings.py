@@ -393,7 +393,7 @@ class EnvironmentSettings:
     seed: Annotated[
         Optional[int], Parameter(group="Environment Arguments", alias="--seed")
     ] = None
-    "Unified random seed for simulator reset (SeedEnvironment on first reset) and framework RNG (RLlib workers / SB3 set_random_seed). If None, training uses non-deterministic randomness."
+    "Unified repeatable seed for simulator and framework RNG (e.g. RLlib workers). If None, SeedEnvironment is not called in Unreal, and framework RNG is left unseeded."
 
 
 @dataclass

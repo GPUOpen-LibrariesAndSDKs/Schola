@@ -8,7 +8,7 @@ ONNX export metadata, ``ScholaModel``, and related helpers for policies trained 
 from dataclasses import dataclass
 import logging
 import pathlib
-from typing import Any, cast
+from typing import Any
 from typing_extensions import override
 
 import torch as th
@@ -316,7 +316,11 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
             One integer index per discrete component, stacked on dimension 0.
         """
         # take max over each section of the Multidiscrete space
-        nvec = cast(MultiDiscrete, self.action_space.spaces[space_name]).nvec
+        space = self.action_space.spaces[space_name]
+        assert isinstance(
+            space, MultiDiscrete
+        ), f"Expected MultiDiscrete for space '{space_name}', got {type(space).__name__}"
+        nvec = space.nvec
         indices = list(accumulate(nvec[:-1]))
         index_tensors = []
         for tensor in logits.tensor_split(indices):
@@ -413,7 +417,7 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
         batch_dim = Dim("batch_size")
         seq_dim = Dim("seq_len")
 
-        for _obs_space_name, obs_space in self.observation_space.spaces.items():
+        for obs_space in self.observation_space.spaces.values():
             # Just flatten discrete and boolean spaces
             # add the batch dimension to the sample
             obs_inputs.append(th.as_tensor(obs_space.sample()).unsqueeze(0))
@@ -475,7 +479,8 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
             ), "Expected ONNX program to be generated after calling th.onnx.export"
             fix_slice_nodes_for_onnx(onnx_program.model)
 
-            cast(Any, ir.passes).common.shape_inference.infer_shapes(onnx_program.model)
+            ir_passes: Any = ir.passes
+            ir_passes.common.shape_inference.infer_shapes(onnx_program.model)
             # Embed state metadata on each state input's doc_string
             for inp in onnx_program.model.graph.inputs:
                 if inp.name in self.input_state_metadata:

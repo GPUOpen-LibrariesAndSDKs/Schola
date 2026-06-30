@@ -18,19 +18,19 @@ from numpy.typing import NDArray
 import gymnasium as gym
 import schola.generated.DType_pb2 as proto_dtype
 
-PROTO_DTYPE_TO_NUMPY_DTYPE_MAPPING = {
-    proto_dtype.DType.FLOAT16: np.float16,
-    proto_dtype.DType.FLOAT32: np.float32,
-    proto_dtype.DType.FLOAT64: np.float64,
-    proto_dtype.DType.UINT8: np.uint8,
-    proto_dtype.DType.UINT16: np.uint16,
-    proto_dtype.DType.UINT32: np.uint32,
-    proto_dtype.DType.UINT64: np.uint64,
-    proto_dtype.DType.INT8: np.int8,
-    proto_dtype.DType.INT16: np.int16,
-    proto_dtype.DType.INT32: np.int32,
-    proto_dtype.DType.INT64: np.int64,
-    proto_dtype.DType.BOOL: np.bool_,
+PROTO_DTYPE_TO_NUMPY_DTYPE_MAPPING: dict[int, np.dtype[Any]] = {
+    proto_dtype.DType.FLOAT16: np.dtype(np.float16),
+    proto_dtype.DType.FLOAT32: np.dtype(np.float32),
+    proto_dtype.DType.FLOAT64: np.dtype(np.float64),
+    proto_dtype.DType.UINT8: np.dtype(np.uint8),
+    proto_dtype.DType.UINT16: np.dtype(np.uint16),
+    proto_dtype.DType.UINT32: np.dtype(np.uint32),
+    proto_dtype.DType.UINT64: np.dtype(np.uint64),
+    proto_dtype.DType.INT8: np.dtype(np.int8),
+    proto_dtype.DType.INT16: np.dtype(np.int16),
+    proto_dtype.DType.INT32: np.dtype(np.int32),
+    proto_dtype.DType.INT64: np.dtype(np.int64),
+    proto_dtype.DType.BOOL: np.dtype(np.bool_),
 }
 
 
@@ -57,7 +57,7 @@ def dtype_from_proto(msg: proto_dtype.DType) -> np.dtype[Any]:
         raise KeyError(
             f"DType {msg} not recognized. Valid DTypes are {list(PROTO_DTYPE_TO_NUMPY_DTYPE_MAPPING.keys())}"
         )
-    return np.dtype(PROTO_DTYPE_TO_NUMPY_DTYPE_MAPPING[msg])
+    return PROTO_DTYPE_TO_NUMPY_DTYPE_MAPPING[msg]
 
 
 @singledispatch
@@ -116,7 +116,7 @@ def _(msg: proto_spaces.MultiBinarySpace) -> spaces.MultiBinary:
 
 
 @from_proto.register
-def _(msg: proto_spaces.DiscreteSpace) -> spaces.Discrete[Any]:
+def _(msg: proto_spaces.DiscreteSpace) -> spaces.Discrete[np.int64]:
     return spaces.Discrete(msg.high)
 
 

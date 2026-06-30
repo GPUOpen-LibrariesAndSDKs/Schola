@@ -3,6 +3,8 @@
 Base Class for Unreal Connections
 """
 
+from __future__ import annotations
+
 import sys
 from typing import Any
 
@@ -23,6 +25,9 @@ class AutoResetType(StrEnum):
     DISABLED = "Disabled"
     SAME_STEP = "SameStep"
     NEXT_STEP = "NextStep"
+
+
+DEFAULT_AUTO_RESET_TYPE = AutoResetType("SameStep")
 
 
 # Type Defs
@@ -158,7 +163,7 @@ class BaseRLProtocol(BaseProtocol):
     @override
     def send_startup_msg(
         self,
-        auto_reset_type: AutoResetType = AutoResetType.SAME_STEP,
+        auto_reset_type: AutoResetType = DEFAULT_AUTO_RESET_TYPE,
         /,
         *args: Any,
         **kwargs: Any,
@@ -180,7 +185,7 @@ class BaseRLProtocol(BaseProtocol):
         **kwargs: Any,
     ) -> tuple[
         list[list[str]],
-        list[dict[str, str]],
+        dict[int, dict[str, str]],
         dict[int, dict[str, gym.Space[Any]]],
         dict[int, dict[str, gym.Space[Any]]],
     ]:
@@ -189,10 +194,10 @@ class BaseRLProtocol(BaseProtocol):
 
         Returns
         -------
-        Tuple[List[List[str]], List[Dict[str, str]], Dict[int, Dict[str, gym.Space]], Dict[int, Dict[str, gym.Space]]]
+        Tuple[List[List[str]], Dict[int, Dict[str, str]], Dict[int, Dict[str, gym.Space]], Dict[int, Dict[str, gym.Space]]]
             A tuple containing:
             - List of agent IDs per environment
-            - List of agent groups per environment (used for grouping agents)
+            - Agent types indexed by environment and agent
             - Observation spaces for each environment and agent
             - Action spaces for each environment and agent
         """
@@ -200,7 +205,7 @@ class BaseRLProtocol(BaseProtocol):
 
     def send_reset_msg(
         self, seeds: list[Any] | None = None, options: list[Any] | None = None
-    ) -> tuple[list[dict[str, Any]], list[dict[str, dict[str, str]]]]:
+    ) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
         """
         Send a reset message to restart the environment.
 
@@ -213,7 +218,7 @@ class BaseRLProtocol(BaseProtocol):
 
         Returns
         -------
-        Tuple[List[Dict[str, Any]], List[Dict[str, Dict[str,str]]]]
+        Tuple[List[Dict[str, Any]], List[Dict[str, str]]]
             A tuple containing:
             - List of initial observations for each environment
             - List of initial info dicts for each environment
@@ -229,7 +234,7 @@ class BaseRLProtocol(BaseProtocol):
         list[dict[str, float]],
         list[dict[str, bool]],
         list[dict[str, bool]],
-        list[dict[str, str]],
+        list[dict[str, dict[str, str]]],
         dict[int, dict[str, Any]],
         dict[int, dict[str, str]],
     ]:
@@ -245,7 +250,7 @@ class BaseRLProtocol(BaseProtocol):
 
         Returns
         -------
-        Tuple[List[Dict[str,Any]], List[Dict[str,float]], List[Dict[str,bool]], List[Dict[str,bool]], List[Dict[str,str]], Dict[int,Dict[str, Any]], Dict[int,Dict[str, str]]]
+        Tuple[List[Dict[str,Any]], List[Dict[str,float]], List[Dict[str,bool]], List[Dict[str,bool]], List[Dict[str,Dict[str,str]]], Dict[int,Dict[str, Any]], Dict[int,Dict[str, str]]]
             A tuple containing:
             - Observations for each environment
             - Rewards for each environment
@@ -319,20 +324,20 @@ class BaseImitationProtocol(BaseProtocol):
         self,
     ) -> tuple[
         list[dict[str, Any]],
-        list[float],
+        list[dict[str, float]],
         list[dict[str, bool]],
         list[dict[str, bool]],
-        list[dict[str, str]],
+        list[dict[str, dict[str, str]]],
         dict[int, dict[str, Any]],
         dict[int, dict[str, str]],
-        dict[int, dict[str, Any]],
+        list[dict[str, Any]],
     ]:
         """
         Get demonstration data from the environment.
 
         Returns
         -------
-        Tuple[List[Dict[str,Any]], List[float], List[Dict[str,bool]], List[Dict[str,bool]], List[Dict[str,str]], Dict[int,Dict[str, Any]], Dict[int,Dict[str, str]], Dict[int, Dict[str,Any]]]
+        Tuple[List[Dict[str,Any]], List[Dict[str,float]], List[Dict[str,bool]], List[Dict[str,bool]], List[Dict[str,Dict[str,str]]], Dict[int,Dict[str, Any]], Dict[int,Dict[str, str]], List[Dict[str,Any]]]
             A tuple containing:
             - Observations for each timestep
             - Rewards for each timestep

@@ -35,8 +35,13 @@ class GrpcImitationProtocol(BaseImitationProtocol, SocketProtocolMixin):
     ):
         super().__init__(url, port)
         self.channel: grpc.Channel | None = None
-        self.stub: imitation_grpc.ImitationConnectorServiceStub | None = None
+        self._stub: imitation_grpc.ImitationConnectorServiceStub | None = None
         self.protocol_start_timeout = protocol_start_timeout
+
+    @property
+    def stub(self) -> imitation_grpc.ImitationConnectorServiceStub:
+        assert self._stub is not None, "gRPC stub is not initialized"
+        return self._stub
 
     @override
     def close(self) -> None:
@@ -49,7 +54,7 @@ class GrpcImitationProtocol(BaseImitationProtocol, SocketProtocolMixin):
         if self.channel is not None:
             self.channel.close()
             self.channel = None
-            self.stub = None
+            self._stub = None
         else:
             logger.info("... gRPC channel already closed?")
 
@@ -63,7 +68,7 @@ class GrpcImitationProtocol(BaseImitationProtocol, SocketProtocolMixin):
         self.channel = grpc.secure_channel(
             self.address, grpc.local_channel_credentials()
         ).__enter__()
-        self.stub = imitation_grpc.ImitationConnectorServiceStub(self.channel)
+        self._stub = imitation_grpc.ImitationConnectorServiceStub(self.channel)
 
     @override
     def send_startup_msg(
@@ -71,7 +76,6 @@ class GrpcImitationProtocol(BaseImitationProtocol, SocketProtocolMixin):
         seeds: list[Any] | None = None,
         options: list[Any] | None = None,
     ) -> None:
-        assert self.stub is not None
         start_msg = imitation_messages.ImitationConnectorStartRequest()
 
         if seeds is not None or options is not None:
@@ -110,7 +114,6 @@ class GrpcImitationProtocol(BaseImitationProtocol, SocketProtocolMixin):
         dict[int, dict[str, gym.Space[Any]]],
         dict[int, dict[str, gym.Space[Any]]],
     ]:
-        assert self.stub is not None
         definition: TrainingDefinition = self.stub.RequestTrainingDefinition(
             imitation_messages.ImitationDefinitionRequest()
         )
@@ -121,15 +124,14 @@ class GrpcImitationProtocol(BaseImitationProtocol, SocketProtocolMixin):
         self,
     ) -> tuple[
         list[dict[str, Any]],
-        list[float],
+        list[dict[str, float]],
         list[dict[str, bool]],
         list[dict[str, bool]],
-        list[dict[str, str]],
+        list[dict[str, dict[str, str]]],
         dict[int, dict[str, Any]],
         dict[int, dict[str, str]],
-        dict[int, dict[str, Any]],
+        list[dict[str, Any]],
     ]:
-        assert self.stub is not None
         data_request = imitation_messages.ImitationStateRequest()
         data: imitation_state_messages.ImitationState = self.stub.RequestState(
             data_request

@@ -53,7 +53,7 @@ class NoServerError(WrappedGrpcException):
         Original gRPC error; retained for exception chaining when re-raised.
     """
 
-    def __init__(self, exception: grpc.RpcError) -> None:
+    def __init__(self, exception: grpc.RpcError):
         super().__init__()
 
     @override
@@ -96,7 +96,7 @@ class UnrealCrashedError(WrappedGrpcException):
         Original gRPC error; retained for exception chaining when re-raised.
     """
 
-    def __init__(self, exception: grpc.RpcError) -> None:
+    def __init__(self, exception: grpc.RpcError):
         super().__init__()
 
     @override
@@ -141,7 +141,7 @@ class MissingMethodError(WrappedGrpcException):
         Original gRPC error; retained for exception chaining when re-raised.
     """
 
-    def __init__(self, exception: grpc.RpcError) -> None:
+    def __init__(self, exception: grpc.RpcError):
         super().__init__()
 
     @override
@@ -177,7 +177,7 @@ class EnvironmentException(ScholaException):
         Explanation of the environment error.
     """
 
-    def __init__(self, message: str) -> None:
+    def __init__(self, message: str):
         super().__init__(message)
 
 
@@ -243,7 +243,7 @@ class NoAgentsException(ScholaException):
         Environment index in the Schola definition that had no agents.
     """
 
-    def __init__(self, env_id: int) -> None:
+    def __init__(self, env_id: int):
         super().__init__()
         self.env_id: int = env_id
 
@@ -261,7 +261,7 @@ class NoEnvironmentsException(ScholaException):
     objects are present in the loaded map.
     """
 
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__()
 
     @override

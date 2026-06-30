@@ -135,7 +135,7 @@ def _to_proto_dict(
 
 @to_proto.register(spaces.Discrete)
 def _to_proto_discrete(
-    _space: spaces.Discrete[Any], action: int
+    _space: spaces.Discrete[np.int64], action: int
 ) -> proto_points.DiscretePoint:
     msg = proto_points.DiscretePoint(value=action)
     return msg
@@ -213,7 +213,7 @@ def _space_to_proto_multi_discrete(
 
 
 @space_to_proto.register(Discrete)
-def _space_to_proto_discrete(space: Discrete[Any]) -> proto_spaces.DiscreteSpace:
+def _space_to_proto_discrete(space: Discrete[np.int64]) -> proto_spaces.DiscreteSpace:
     msg = proto_spaces.DiscreteSpace(high=int(space.n))
     return msg
 

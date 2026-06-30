@@ -3,13 +3,17 @@
 Base class for connections that use the gRPC server.
 """
 
-from typing import Any
+from typing import Any, Literal
 
 import grpc
 from gymnasium.vector.vector_env import AutoresetMode
 from typing_extensions import override
 
-from schola.core.protocols.base_protocol import AutoResetType, BaseRLProtocol
+from schola.core.protocols.base_protocol import (
+    AutoResetType,
+    DEFAULT_AUTO_RESET_TYPE,
+    BaseRLProtocol,
+)
 from schola.core.protocols.protobuf.deserialize import from_proto
 from schola.core.protocols.protobuf.serialize import to_proto, fill_generic
 import schola.generated.GymConnector_pb2_grpc as gym_grpc
@@ -24,14 +28,21 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def _coerce_auto_reset_type(
+def coerce_auto_reset_type(
     auto_reset_type: AutoResetType | AutoresetMode | int,
 ) -> AutoResetType:
+    """
+    Coerce a gymnasium ``AutoresetMode`` or raw protobuf int to ``AutoResetType``.
+
+    Callers that receive ``AutoresetMode`` or an integer value from an external
+    framework should normalise to ``AutoResetType`` using this helper before
+    passing to :meth:`BaseGrpcProtocol.send_startup_msg`.
+    """
     if isinstance(auto_reset_type, AutoResetType):
         return auto_reset_type
     if isinstance(auto_reset_type, AutoresetMode):
-        return AutoResetType[auto_reset_type.name]
-    return AutoResetType[util_messages.AutoResetType.Name(auto_reset_type)]
+        return getattr(AutoResetType, auto_reset_type.name)
+    return getattr(AutoResetType, util_messages.AutoResetType.Name(auto_reset_type))
 
 
 class BaseGrpcProtocol(SocketProtocolMixin):
@@ -43,20 +54,14 @@ class BaseGrpcProtocol(SocketProtocolMixin):
     Subclasses implement ``channel_connected`` and own the concrete ``grpc`` channel type.
     """
 
-    VALID_CREDENTIAL_MODES = ("local", "insecure")
-
     def __init__(
         self,
         url: str,
         port: int | None = None,
         environment_start_timeout: int | None = 45,
-        credential_mode: str = "local",
+        credential_mode: Literal["local", "insecure"] = "local",
     ):
         super().__init__(url, port, client_only=(credential_mode == "insecure"))
-        if credential_mode not in self.VALID_CREDENTIAL_MODES:
-            raise ValueError(
-                f"credential_mode must be one of {self.VALID_CREDENTIAL_MODES}, got {credential_mode!r}"
-            )
         self._gym_stub: gym_grpc.GymServiceStub | None = None
         self.environment_start_timeout = environment_start_timeout
         self.credential_mode = credential_mode
@@ -67,9 +72,8 @@ class BaseGrpcProtocol(SocketProtocolMixin):
         return self._gym_stub
 
     def prepare_start_msg(
-        self, auto_reset_type: AutoResetType | AutoresetMode | int
+        self, auto_reset_type: AutoResetType
     ) -> util_messages.GymConnectorStartRequest:
-        auto_reset_type = _coerce_auto_reset_type(auto_reset_type)
         start_msg = util_messages.GymConnectorStartRequest()
 
         if auto_reset_type == AutoResetType.DISABLED:
@@ -154,7 +158,7 @@ class GrpcProtocol(BaseGrpcProtocol, BaseRLProtocol):
         url: str,
         port: int | None = None,
         environment_start_timeout: int | None = 45,
-        credential_mode: str = "local",
+        credential_mode: Literal["local", "insecure"] = "local",
         grpc_close_timeout: float = 5.0,
     ):
         super().__init__(url, port, environment_start_timeout, credential_mode)
@@ -212,7 +216,7 @@ class GrpcProtocol(BaseGrpcProtocol, BaseRLProtocol):
     @override
     def send_startup_msg(
         self,
-        auto_reset_type: AutoResetType | AutoresetMode | int = AutoResetType.SAME_STEP,
+        auto_reset_type: AutoResetType = DEFAULT_AUTO_RESET_TYPE,
     ) -> None:
         start_msg = self.prepare_start_msg(auto_reset_type)
         self.gym_stub.StartGymConnector(
@@ -224,7 +228,7 @@ class GrpcProtocol(BaseGrpcProtocol, BaseRLProtocol):
         self,
     ) -> tuple[
         list[list[str]],
-        list[dict[str, str]],
+        dict[int, dict[str, str]],
         dict[int, dict[str, gym.Space[Any]]],
         dict[int, dict[str, gym.Space[Any]]],
     ]:
@@ -243,7 +247,7 @@ class GrpcProtocol(BaseGrpcProtocol, BaseRLProtocol):
         self,
         seeds: list[Any] | None = None,
         options: list[Any] | None = None,
-    ) -> tuple[list[dict[str, Any]], list[dict[str, dict[str, str]]]]:
+    ) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
         # abort any inprogress stuff
         state_update = self.prepare_reset_msg(seeds, options)
 
@@ -264,7 +268,7 @@ class GrpcProtocol(BaseGrpcProtocol, BaseRLProtocol):
         list[dict[str, float]],
         list[dict[str, bool]],
         list[dict[str, bool]],
-        list[dict[str, str]],
+        list[dict[str, dict[str, str]]],
         dict[int, dict[str, Any]],
         dict[int, dict[str, str]],
     ]:

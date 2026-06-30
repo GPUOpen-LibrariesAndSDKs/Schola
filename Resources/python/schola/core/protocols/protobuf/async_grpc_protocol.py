@@ -10,7 +10,7 @@ import grpc.aio
 import gymnasium as gym
 from typing_extensions import override
 
-from schola.core.protocols.base_protocol import AutoResetType
+from schola.core.protocols.base_protocol import AutoResetType, DEFAULT_AUTO_RESET_TYPE
 from schola.core.protocols.async_base_protocol import AsyncBaseRLProtocol
 import schola.generated.GymConnector_pb2 as util_messages
 import schola.generated.GymConnector_pb2_grpc as gym_grpc
@@ -94,7 +94,7 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
 
     @override
     async def send_startup_msg(
-        self, auto_reset_type: AutoResetType = AutoResetType.SAME_STEP
+        self, auto_reset_type: AutoResetType = DEFAULT_AUTO_RESET_TYPE
     ) -> None:
         start_msg = self.prepare_start_msg(auto_reset_type)
 
@@ -107,7 +107,7 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
         self,
     ) -> tuple[
         list[list[str]],
-        list[dict[str, str]],
+        dict[int, dict[str, str]],
         dict[int, dict[str, gym.Space[Any]]],
         dict[int, dict[str, gym.Space[Any]]],
     ]:
@@ -124,7 +124,7 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
         self,
         seeds: list[Any] | None = None,
         options: list[Any] | None = None,
-    ) -> tuple[list[dict[str, Any]], list[dict[str, dict[str, str]]]]:
+    ) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
         # abort any inprogress stuff
         state_update = self.prepare_reset_msg(seeds, options)
         response: state.State = await self.gym_stub.UpdateState(state_update)
@@ -144,7 +144,7 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
         list[dict[str, float]],
         list[dict[str, bool]],
         list[dict[str, bool]],
-        list[dict[str, str]],
+        list[dict[str, dict[str, str]]],
         dict[int, dict[str, Any]],
         dict[int, dict[str, str]],
     ]:

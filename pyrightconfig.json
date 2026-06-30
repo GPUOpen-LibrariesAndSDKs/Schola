@@ -12,7 +12,8 @@
             "reportExplicitAny": "none",
             "reportUnannotatedClassAttribute": "none",
             "reportUnusedCallResult": "none",
-            "reportUnusedFunction": "none"
+            "reportUnusedFunction": "none",
+            "reportImplicitOverride": "none"
         },
         {
             "root": "Resources/python/schola/core/protocols",
@@ -21,7 +22,8 @@
             "reportAny": "none",
             "reportExplicitAny": "none",
             "reportUnusedParameter": "none",
-            "reportUnreachable": "none"
+            "reportUnreachable": "none",
+            "reportImplicitOverride": "none"
         },
         {
             "root": "Resources/python/schola/core/simulators/unreal",

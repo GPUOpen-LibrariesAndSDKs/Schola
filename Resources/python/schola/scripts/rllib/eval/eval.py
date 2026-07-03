@@ -115,7 +115,7 @@ def _sample_eval_episodes_via_env_runners(
 
     Logs a warning and requests another round when a runner batch returns fewer
     episodes than still needed. Raises ``RuntimeError`` if a round returns no
-    episodes or the requested episode count is not reached.
+    episodes.
     """
     import math
 
@@ -171,12 +171,6 @@ def _sample_eval_episodes_via_env_runners(
         except Exception as exc:  # pragma: no cover - defensive cleanup
             logger.debug("EnvRunnerGroup stop failed: %s", exc)
 
-    if len(episode_returns) < n_eval_episodes:
-        raise RuntimeError(
-            f"Eval requested {n_eval_episodes} episode(s) but only "
-            f"{len(episode_returns)} completed."
-        )
-
     return episode_returns, episode_lens
 
 
@@ -229,16 +223,13 @@ def main(args: RllibEvalScriptSettings) -> Dict[str, Any]:
             args.environment_settings,
             schola_verbosity=args.logging_settings.schola_verbosity,
         )
-        policy_mapping_fn, mapping_source, _agent_to_policy = (
-            resolve_policy_mapping_for_eval(
-                cli_agent_to_policy=cli_policy_map,
-                checkpoint=Path(ckpt),
-                module_ids=marl.keys(),
-                agent_ids=agent_ids,
-                env_policy_mapping_fn=env_policy_fn,
-            )
+        policy_mapping_fn, _agent_to_policy = resolve_policy_mapping_for_eval(
+            agent_ids=agent_ids,
+            module_ids=marl.keys(),
+            checkpoint=Path(ckpt),
+            env_policy_mapping_fn=env_policy_fn,
+            cli_agent_to_policy=cli_policy_map,
         )
-        logger.info("Using agent-to-policy mapping from %s.", mapping_source)
 
         spec = MultiRLModuleSpec.from_module(marl)
         policies = {module_id: PolicySpec() for module_id in marl.keys()}

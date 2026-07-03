@@ -137,7 +137,7 @@ def dummy_rllib_checkpoint_dir(
             ckpt,
             build_policy_mapping_record(
                 agent_ids=agent_ids,
-                agent_types=agent_types,
+                policy_mapping_dict=agent_types,
                 policy_mapping_fn=policy_mapping_fn,
                 module_ids=["shared_policy"],
             ),

@@ -6,8 +6,14 @@ Helpers for locating RLlib checkpoint artifacts on disk.
 
 from pathlib import Path
 
+from ray.rllib.core import (
+    COMPONENT_LEARNER,
+    COMPONENT_LEARNER_GROUP,
+    COMPONENT_RL_MODULE,
+)
 
-def algorithm_checkpoint_dir(checkpoint: Path) -> Path:
+
+def resolve_checkpoint_dir(checkpoint: Path) -> Path:
     """Normalize a checkpoint file or directory path to the checkpoint directory."""
     checkpoint = Path(checkpoint)
     return checkpoint if checkpoint.is_dir() else checkpoint.parent
@@ -15,13 +21,7 @@ def algorithm_checkpoint_dir(checkpoint: Path) -> Path:
 
 def rl_module_dir_from_algorithm_checkpoint(checkpoint: Path) -> Path:
     """Return the on-disk ``MultiRLModule`` root under an Algorithm checkpoint."""
-    from ray.rllib.core import (
-        COMPONENT_LEARNER,
-        COMPONENT_LEARNER_GROUP,
-        COMPONENT_RL_MODULE,
-    )
-
-    checkpoint = algorithm_checkpoint_dir(checkpoint)
+    checkpoint = resolve_checkpoint_dir(checkpoint)
     primary = (
         checkpoint / COMPONENT_LEARNER_GROUP / COMPONENT_LEARNER / COMPONENT_RL_MODULE
     )

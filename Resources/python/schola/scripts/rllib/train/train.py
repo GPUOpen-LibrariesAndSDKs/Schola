@@ -186,7 +186,7 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
         build_policy_mapping_record,
         write_policy_mapping_sidecar,
     )
-    from schola.rllib.checkpoint import algorithm_checkpoint_dir
+    from schola.rllib.checkpoint import resolve_checkpoint_dir
     from schola.scripts.rllib.utils import discover_env_metadata
     from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 
@@ -197,9 +197,11 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
 
     # Discover policy metadata + env_config via a temporary environment that is
     # always cleaned up, even if construction fails (no leaked Unreal process).
-    agent_ids, agent_types, policy_mapping_fn, env_config = discover_env_metadata(
-        args.environment_settings,
-        schola_verbosity=args.logging_settings.schola_verbosity,
+    agent_ids, policy_mapping_dict, policy_mapping_fn, env_config = (
+        discover_env_metadata(
+            args.environment_settings,
+            schola_verbosity=args.logging_settings.schola_verbosity,
+        )
     )
 
     policies = {}
@@ -210,14 +212,14 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
 
     policy_mapping_record = build_policy_mapping_record(
         agent_ids=agent_ids,
-        agent_types=agent_types,
+        policy_mapping_dict=policy_mapping_dict,
         policy_mapping_fn=policy_mapping_fn,
         module_ids=policies.keys(),
     )
 
     typed_policy_ids = {
         agent_id: agent_type.strip()
-        for agent_id, agent_type in agent_types.items()
+        for agent_id, agent_type in policy_mapping_dict.items()
         if agent_type.strip()
     }
     if typed_policy_ids:
@@ -358,7 +360,7 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
         last_checkpoint = results.get_last_checkpoint() if ckpt.should_persist else None
         if last_checkpoint is not None:
             write_policy_mapping_sidecar(
-                algorithm_checkpoint_dir(Path(str(last_checkpoint))),
+                resolve_checkpoint_dir(Path(str(last_checkpoint))),
                 policy_mapping_record,
             )
         logger.info("Training complete")

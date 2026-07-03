@@ -4,6 +4,8 @@
 RLlib connector factories for Schola env runners.
 """
 
+from ray.rllib.connectors.env_to_module import FlattenObservations
+
 
 def schola_env_to_module_flatten_connector(env, spaces=None, device=None):
     """Return ``FlattenObservations`` for Schola multi-agent env runners.
@@ -12,8 +14,6 @@ def schola_env_to_module_flatten_connector(env, spaces=None, device=None):
     exists. In the ``spaces`` path, ``spaces`` must contain ``__env_single__`` mapping
     to ``(observation_space, action_space)``.
     """
-    from ray.rllib.connectors.env_to_module import FlattenObservations
-
     if env is not None:
         return FlattenObservations(
             input_observation_space=env.single_observation_space,

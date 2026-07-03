@@ -15,8 +15,21 @@ from __future__ import annotations
 import copy
 import logging
 from pathlib import Path
-from typing import Any, Callable, Collection, Dict, Iterable, Optional, Tuple, Union
+from typing import (
+    Any,
+    Callable,
+    Collection,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+)
 
+from ray.rllib.algorithms.algorithm import Algorithm
+from ray.rllib.utils.annotations import override
 from ray.rllib.utils.checkpoints import Checkpointable
 from ray.rllib.utils.typing import StateDict
 
@@ -65,7 +78,7 @@ class ScholaPolicyMappingCheckpoint(Checkpointable):
     """RLlib ``Checkpointable`` holding the frozen agent-to-policy mapping record.
 
     Attaching this as an Algorithm subcomponent (see
-    ``schola.rllib.algorithm.schola_algorithm_subclass``) makes the mapping be
+    :func:`schola_algorithm_subclass`) makes the mapping be
     saved and restored using RLlib's own checkpoint machinery: its state lands in
     ``<algorithm_checkpoint>/schola_policy_mapping/`` alongside the standard
     ``learner_group/``, ``env_runner/`` subcomponents.
@@ -123,6 +136,84 @@ def make_policy_mapping_checkpoint_from_config(
     if isinstance(env_config, dict):
         record = env_config.get(ENV_CONFIG_POLICY_MAPPING_RECORD_KEY)
     return ScholaPolicyMappingCheckpoint(record)
+
+
+class ScholaPolicyMappingMixin(Checkpointable):
+    """Adds the Schola policy-mapping record as a native RLlib checkpoint subcomponent.
+
+    Mixed into an ``Algorithm`` (see :func:`schola_algorithm_subclass`), this exposes
+    the frozen agent-to-policy record (stashed in ``config.env_config`` by the training
+    script) as a :class:`ScholaPolicyMappingCheckpoint` subcomponent, so RLlib's own
+    checkpoint machinery saves and restores it under
+    ``<algorithm_checkpoint>/schola_policy_mapping/``.
+
+    Notes
+    -----
+    This is a cooperative mixin: it must be listed *before* the ``Algorithm`` base in
+    the MRO so its ``super()`` calls chain into the real algorithm implementation. It
+    relies on the host providing ``self.config`` and ``self._check_component`` (both
+    from ``Algorithm``/``Checkpointable``), and is not meant to be instantiated alone.
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._schola_policy_mapping = make_policy_mapping_checkpoint_from_config(
+            self.config
+        )
+
+    @override(Checkpointable)
+    def get_state(
+        self,
+        components: Optional[Union[str, Collection[str]]] = None,
+        *,
+        not_components: Optional[Union[str, Collection[str]]] = None,
+        **kwargs: Any,
+    ) -> StateDict:
+        state = super().get_state(
+            components=components,
+            not_components=not_components,
+            **kwargs,
+        )
+        # RLlib's ``save_to_path`` pulls each subcomponent's state from the
+        # parent via ``get_state(components=<name>)``, so the component must
+        # be represented here for it to be written to disk.
+        if self._check_component(
+            SCHOLA_POLICY_MAPPING_COMPONENT, components, not_components
+        ):
+            state[SCHOLA_POLICY_MAPPING_COMPONENT] = (
+                self._schola_policy_mapping.get_state()
+            )
+        return state
+
+    @override(Checkpointable)
+    def set_state(self, state: StateDict) -> None:
+        super().set_state(state)
+        if SCHOLA_POLICY_MAPPING_COMPONENT in state:
+            self._schola_policy_mapping.set_state(
+                state[SCHOLA_POLICY_MAPPING_COMPONENT]
+            )
+
+    @override(Checkpointable)
+    def get_checkpointable_components(self) -> List[Tuple[str, Any]]:
+        components = super().get_checkpointable_components()
+        components.append(
+            (SCHOLA_POLICY_MAPPING_COMPONENT, self._schola_policy_mapping)
+        )
+        return components
+
+
+def schola_algorithm_subclass(base_algo_class: Type[Algorithm]) -> Type[Algorithm]:
+    """Return an ``Algorithm`` subclass that checkpoints Schola policy mapping metadata.
+
+    Composes :class:`ScholaPolicyMappingMixin` in front of ``base_algo_class`` (which
+    is only known at runtime, e.g. ``PPO``/``SAC``/``IMPALA``/``APPO``), so the frozen
+    policy mapping is saved and restored by RLlib's own checkpoint machinery.
+    """
+    return type(
+        f"Schola{base_algo_class.__name__}",
+        (ScholaPolicyMappingMixin, base_algo_class),
+        {"__module__": __name__},
+    )
 
 
 def load_policy_mapping_record(checkpoint: Path) -> Optional[Dict[str, Any]]:

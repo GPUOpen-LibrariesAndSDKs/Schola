@@ -156,6 +156,7 @@ def _make_stop_criterion(
 def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
     """
     Main function for launching training with ray.
+
     Parameters
     ----------
     args : RllibScriptSettings
@@ -181,10 +182,10 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
     from ray.rllib.core.rl_module.rl_module import RLModuleSpec, RLModule
     from schola.rllib.connectors import schola_env_to_module_flatten_connector
     from schola.rllib.env_runner import ScholaEnvRunner
-    from schola.rllib.algorithm import schola_algorithm_subclass
     from schola.rllib.policy_mapping import (
         ENV_CONFIG_POLICY_MAPPING_RECORD_KEY,
         build_policy_mapping_record,
+        schola_algorithm_subclass,
     )
     from schola.scripts.rllib.utils import discover_env_metadata
     from ray.rllib.algorithms.algorithm_config import AlgorithmConfig

@@ -2,21 +2,40 @@
 
 """
 Agent-to-policy mapping helpers for RLlib train checkpoints and eval.
+
+Multi-agent training resolves each agent to a policy module at startup. That
+mapping must be saved with the checkpoint so eval can route agents to the
+correct weights. RLlib only persists extra algorithm state through
+``Checkpointable`` subcomponents, so :class:`ScholaPolicyMappingCheckpoint`
+wraps the frozen mapping table and plugs it into the standard save/restore flow.
 """
 
 from __future__ import annotations
 
-import json
+import copy
 import logging
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, Optional, Tuple
+from typing import Any, Callable, Collection, Dict, Iterable, Optional, Tuple, Union
+
+from ray.rllib.utils.checkpoints import Checkpointable
+from ray.rllib.utils.typing import StateDict
 
 from schola.rllib.checkpoint import resolve_checkpoint_dir
 
 logger = logging.getLogger(__name__)
 
-SCHOLA_POLICY_MAPPING_FILENAME = "schola_policy_mapping.json"
-_POLICY_MAPPING_VERSION = 1
+# Subcomponent name used when the mapping is attached to an Algorithm checkpoint
+# via ``get_checkpointable_components``. RLlib writes the subcomponent's state
+# into ``<algorithm_checkpoint>/<SCHOLA_POLICY_MAPPING_COMPONENT>/``.
+SCHOLA_POLICY_MAPPING_COMPONENT = "schola_policy_mapping"
+
+# Key under ``AlgorithmConfig.env_config`` where the training script stashes the
+# frozen policy-mapping record so the Algorithm can rebuild the checkpointable
+# component on every (possibly remote) worker after config serialization.
+ENV_CONFIG_POLICY_MAPPING_RECORD_KEY = "schola_policy_mapping_record"
+
+# State-dict key holding the record inside the Checkpointable's state.
+_RECORD_STATE_KEY = "record"
 
 
 def build_policy_mapping_record(
@@ -31,7 +50,6 @@ def build_policy_mapping_record(
         str(agent_id): str(policy_mapping_fn(agent_id)) for agent_id in agent_ids
     }
     record: Dict[str, Any] = {
-        "version": _POLICY_MAPPING_VERSION,
         "agent_to_policy": agent_to_policy,
     }
     if module_ids is not None:
@@ -43,27 +61,89 @@ def build_policy_mapping_record(
     return record
 
 
-def write_policy_mapping_sidecar(checkpoint_dir: Path, record: Dict[str, Any]) -> Path:
-    """Write ``schola_policy_mapping.json`` into an Algorithm checkpoint directory."""
-    path = Path(checkpoint_dir) / SCHOLA_POLICY_MAPPING_FILENAME
-    with path.open("w", encoding="utf-8") as mapping_file:
-        json.dump(record, mapping_file, indent=2, sort_keys=True)
-        mapping_file.write("\n")
-    return path
+class ScholaPolicyMappingCheckpoint(Checkpointable):
+    """RLlib ``Checkpointable`` holding the frozen agent-to-policy mapping record.
+
+    Attaching this as an Algorithm subcomponent (see
+    ``schola.rllib.algorithm.schola_algorithm_subclass``) makes the mapping be
+    saved and restored using RLlib's own checkpoint machinery: its state lands in
+    ``<algorithm_checkpoint>/schola_policy_mapping/`` alongside the standard
+    ``learner_group/``, ``env_runner/`` subcomponents.
+    """
+
+    def __init__(self, record: Optional[Dict[str, Any]] = None) -> None:
+        self._record: Dict[str, Any] = copy.deepcopy(record) if record else {}
+
+    @property
+    def record(self) -> Dict[str, Any]:
+        """The frozen policy-mapping record (a deep copy)."""
+        return copy.deepcopy(self._record)
+
+    @property
+    def agent_to_policy(self) -> Dict[str, str]:
+        """The ``agent_id -> policy_id`` table extracted from the record."""
+        table = self._record.get("agent_to_policy") if self._record else None
+        if not isinstance(table, dict):
+            return {}
+        return {str(k): str(v) for k, v in table.items()}
+
+    def get_state(
+        self,
+        components: Optional[Union[str, Collection[str]]] = None,
+        *,
+        not_components: Optional[Union[str, Collection[str]]] = None,
+        **kwargs: Any,
+    ) -> StateDict:
+        # The record is plain JSON data, so this state is both pickle- and
+        # msgpack-serializable regardless of the Algorithm's checkpoint format.
+        return {_RECORD_STATE_KEY: copy.deepcopy(self._record)}
+
+    def set_state(self, state: StateDict) -> None:
+        if state and _RECORD_STATE_KEY in state:
+            record = state[_RECORD_STATE_KEY]
+            self._record = copy.deepcopy(record) if record else {}
+
+    def get_ctor_args_and_kwargs(self) -> Tuple[Tuple, Dict[str, Any]]:
+        # State is fully restored via set_state, so no constructor args are needed.
+        return ((), {})
 
 
-def load_policy_mapping_sidecar(checkpoint: Path) -> Optional[Dict[str, Any]]:
-    """Load ``schola_policy_mapping.json`` from a checkpoint, if present."""
-    path = resolve_checkpoint_dir(checkpoint) / SCHOLA_POLICY_MAPPING_FILENAME
-    if not path.is_file():
-        return None
-    with path.open(encoding="utf-8") as mapping_file:
-        record = json.load(mapping_file)
-    if not isinstance(record, dict):
-        raise ValueError(
-            f"Expected a JSON object in {path}, got {type(record).__name__}."
+def make_policy_mapping_checkpoint_from_config(
+    config: Any,
+) -> ScholaPolicyMappingCheckpoint:
+    """Build a :class:`ScholaPolicyMappingCheckpoint` from an ``AlgorithmConfig``.
+
+    Reads the frozen record the training script stashed under
+    ``config.env_config[ENV_CONFIG_POLICY_MAPPING_RECORD_KEY]``. Returns an empty
+    checkpoint when no record is present (for example, when resuming from a
+    checkpoint trained before this component existed).
+    """
+    record: Optional[Dict[str, Any]] = None
+    env_config = getattr(config, "env_config", None)
+    if isinstance(env_config, dict):
+        record = env_config.get(ENV_CONFIG_POLICY_MAPPING_RECORD_KEY)
+    return ScholaPolicyMappingCheckpoint(record)
+
+
+def load_policy_mapping_record(checkpoint: Path) -> Optional[Dict[str, Any]]:
+    """Load the policy-mapping record from an Algorithm checkpoint, if present.
+
+    Restores the ``schola_policy_mapping`` subcomponent written by RLlib's
+    ``Checkpointable`` save. Returns ``None`` when the checkpoint was produced
+    without the component (for example, an older or non-Schola checkpoint).
+    """
+    component_dir = resolve_checkpoint_dir(checkpoint) / SCHOLA_POLICY_MAPPING_COMPONENT
+    if not component_dir.is_dir():
+        logger.info(
+            "Checkpoint %s has no %s component; policy mapping will fall back to "
+            "environment or CLI overrides.",
+            checkpoint,
+            SCHOLA_POLICY_MAPPING_COMPONENT,
         )
-    return record
+        return None
+    restored = ScholaPolicyMappingCheckpoint.from_checkpoint(component_dir)
+    record = restored.record
+    return record or None
 
 
 def make_policy_mapping_fn_from_dict(
@@ -106,7 +186,7 @@ def resolve_policy_mapping_for_eval(
     """Resolve eval agent-to-policy routing per agent: CLI, checkpoint, then environment.
 
     For each agent in ``agent_ids``, the first available mapping wins: CLI override,
-    checkpoint sidecar, then ``env_policy_mapping_fn``.
+    the checkpoint's ``schola_policy_mapping`` component, then ``env_policy_mapping_fn``.
 
     ``agent_ids`` and ``env_policy_mapping_fn`` must come from a prior
     ``discover_env_metadata`` call.
@@ -116,11 +196,11 @@ def resolve_policy_mapping_for_eval(
     cli_map = {str(k): str(v) for k, v in (cli_agent_to_policy or {}).items()}
 
     checkpoint_map: Dict[str, str] = {}
-    sidecar = load_policy_mapping_sidecar(checkpoint)
-    if sidecar is not None:
-        sidecar_table = sidecar.get("agent_to_policy")
-        if isinstance(sidecar_table, dict):
-            checkpoint_map = {str(k): str(v) for k, v in sidecar_table.items()}
+    record = load_policy_mapping_record(checkpoint)
+    if record is not None:
+        checkpoint_table = record.get("agent_to_policy")
+        if isinstance(checkpoint_table, dict):
+            checkpoint_map = {str(k): str(v) for k, v in checkpoint_table.items()}
 
     agent_to_policy: Dict[str, str] = {}
     agent_sources: Dict[str, str] = {}

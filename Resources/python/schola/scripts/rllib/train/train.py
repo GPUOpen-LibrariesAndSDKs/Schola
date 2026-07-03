@@ -156,7 +156,6 @@ def _make_stop_criterion(
 def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
     """
     Main function for launching training with ray.
-
     Parameters
     ----------
     args : RllibScriptSettings
@@ -182,11 +181,11 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
     from ray.rllib.core.rl_module.rl_module import RLModuleSpec, RLModule
     from schola.rllib.connectors import schola_env_to_module_flatten_connector
     from schola.rllib.env_runner import ScholaEnvRunner
+    from schola.rllib.algorithm import schola_algorithm_subclass
     from schola.rllib.policy_mapping import (
+        ENV_CONFIG_POLICY_MAPPING_RECORD_KEY,
         build_policy_mapping_record,
-        write_policy_mapping_sidecar,
     )
-    from schola.rllib.checkpoint import resolve_checkpoint_dir
     from schola.scripts.rllib.utils import discover_env_metadata
     from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 
@@ -216,6 +215,9 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
         policy_mapping_fn=policy_mapping_fn,
         module_ids=policies.keys(),
     )
+    # Pass the frozen mapping to the ScholaAlgorithm via env_config (ignored by
+    # make_env) so it gets checkpointed as an RLlib subcomponent.
+    env_config[ENV_CONFIG_POLICY_MAPPING_RECORD_KEY] = policy_mapping_record
 
     typed_policy_ids = {
         agent_id: agent_type.strip()
@@ -338,10 +340,15 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
                 "Install tensorboardX to enable TensorBoard logging with RLlib."
             )
 
+    # Train through a Schola Algorithm subclass so the frozen policy mapping is
+    # saved/restored as a native RLlib Checkpointable subcomponent ,
+    # mirroring RLlib's own checkpoint behavior.
+    schola_algorithm_cls = schola_algorithm_subclass(config.algo_class)
+
     logger.info("Starting training")
     try:
         results = tune.run(
-            args.algorithm_settings.name,
+            schola_algorithm_cls,
             config=config,  # type: ignore
             stop=stop,
             checkpoint_config=air.CheckpointConfig(
@@ -358,11 +365,6 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
             callbacks=callbacks,
         )
         last_checkpoint = results.get_last_checkpoint() if ckpt.should_persist else None
-        if last_checkpoint is not None:
-            write_policy_mapping_sidecar(
-                resolve_checkpoint_dir(Path(str(last_checkpoint))),
-                policy_mapping_record,
-            )
         logger.info("Training complete")
     finally:
         # Always shutdown ray and release the environment from training even if there is an error

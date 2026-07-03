@@ -7,9 +7,10 @@ Evaluate a trained RLlib checkpoint: load ``MultiRLModule`` weights, build an ev
 Parallelism follows ``-n`` / ``num_simulators`` like training. The eval
 ``AlgorithmConfig`` is built from the CLI (not from the checkpoint pickle).
 
-Policy routing priority: CLI ``policy_map``, then ``schola_policy_mapping.json``
-from the checkpoint, then a temporary environment discovery pass (with warnings if
-the live env disagrees with an explicit CLI or checkpoint map).
+Policy routing priority: CLI ``policy_map``, then the checkpoint's
+``schola_policy_mapping`` Checkpointable component, then a temporary environment
+discovery pass (with warnings if the live env disagrees with an explicit CLI or
+checkpoint map).
 """
 
 from __future__ import annotations

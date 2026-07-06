@@ -103,6 +103,7 @@ def _train_args(
     algorithm_settings: PPOTrainSettings | SACTrainSettings | None = None,
     policy_kwargs_network: bool = False,
     env_options: dict[str, str] | None = None,
+    seed: int | None = None,
 ) -> Sb3TrainScriptSettings:
     ckpt_dir = tmp_path / "ckpt"
     ckpt_dir.mkdir(parents=True, exist_ok=True)
@@ -131,6 +132,7 @@ def _train_args(
         environment_settings=EnvironmentSettings(
             protocol_settings=GrpcProtocolConfig(port=1, url="localhost"),
             env_options=env_options or {},
+            seed=seed,
         ),
         algorithm_settings=algorithm_settings or PPOTrainSettings(),
         training_settings=replace(
@@ -357,6 +359,56 @@ def test_main_skips_set_options_when_env_options_empty(
     main(make_train_args(timesteps=2, env_options={}))
 
     patch_sb3_ppo_train_deps.set_options.assert_not_called()
+
+
+def test_main_forwards_seed_to_env(patch_sb3_ppo_train_deps, make_train_args):
+    """When ``environment_settings.seed`` is set, ``main`` calls ``env.seed``."""
+    main(make_train_args(timesteps=2, seed=42))
+
+    patch_sb3_ppo_train_deps.seed.assert_called_once_with(42)
+
+
+@patch("stable_baselines3.PPO")
+@patch("schola.sb3.env.VecEnv")
+def test_main_passes_seed_to_model_constructor(mock_vec_cls, mock_ppo, tmp_path):
+    mock_env = _mock_vec_env()
+    mock_vec_cls.return_value = mock_env
+    mock_model = MagicMock()
+    mock_model.get_vec_normalize_env.return_value = None
+    mock_ppo.load.side_effect = Exception("x")
+    mock_ppo.return_value = mock_model
+
+    main(_train_args(tmp_path, timesteps=2, seed=42))
+
+    assert mock_ppo.call_args.kwargs.get("seed") == 42
+
+
+def test_main_arms_stub_env_seeds_for_reset(
+    mocker, stub_protocol_class, stub_simulator_class, tmp_path
+):
+    """``main`` seeds the vec env so the first ``reset`` forwards non-None seeds."""
+    from schola.sb3.env import VecEnv
+
+    protocol = stub_protocol_class()
+    simulator = stub_simulator_class()
+    env = VecEnv(simulator, protocol)
+    env._process_reset = MagicMock(return_value={})
+
+    mocker.patch("schola.sb3.env.VecEnv", return_value=env)
+    mock_model = MagicMock()
+    mock_model.get_vec_normalize_env.return_value = None
+    mock_ppo = mocker.patch("stable_baselines3.PPO")
+    mock_ppo.load.side_effect = Exception("no checkpoint")
+    mock_ppo.return_value = mock_model
+
+    n = stub_protocol_class.NUM_ENVS
+    main(_train_args(tmp_path, timesteps=2, seed=42))
+
+    env.reset()
+    env.protocol.send_reset_msg.assert_called_with(
+        seeds=[42 + i for i in range(n)],
+        options=[{}] * n,
+    )
 
 
 @patch("schola.sb3.env.VecEnv")

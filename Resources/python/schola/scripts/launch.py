@@ -6,13 +6,17 @@ Entry point for the ``schola`` CLI.
 
 import sys
 from cyclopts import App, Parameter, validators, group_extractors, Group
-from schola.scripts.common.panel import print_error
+from schola.scripts.common.panel import console, error_console, print_error
 
-from rich.console import Console
+from rich.traceback import install as install_rich_traceback
 
-console = Console()
+# Route uncaught tracebacks through the (stderr) error console, as recommended
+# by the Cyclopts "Rich Formatted Exceptions" cookbook.
+install_rich_traceback(console=error_console)
+
 app = App(
     console=console,
+    error_console=error_console,
     name="schola",
     help="CLI for Schola. Useful for training a model or invoking utilities",
 )
@@ -24,7 +28,7 @@ try:
 
     app.command(sb3_app, name="sb3")
 except ImportError:
-    console.print_exception()
+    error_console.print_exception()
     print_error(
         "Stable Baselines3 (SB3) is not installed. Install via:\n"
         "pip install 'stable_baselines3'\n"
@@ -35,8 +39,8 @@ try:
     from schola.scripts.rllib import rllib_app
 
     app.command(rllib_app, name="rllib")
-except ImportError as e:
-    console.print_exception()
+except ImportError:
+    error_console.print_exception()
     print_error(
         "Ray RLlib is not installed. Install via:\n"
         "pip install 'ray[rllib]'\n"
@@ -48,7 +52,7 @@ try:
 
     app.command(minari_app, name="minari")
 except ImportError:
-    console.print_exception()
+    error_console.print_exception()
     print_error(
         "Minari is not installed. Install via:\n"
         "pip install 'minari'\n"
@@ -80,9 +84,8 @@ def main():
     """
     try:
         app()
-    except Exception as e:  # keep lightweight panel reporting
-        # print_error(f"Unhandled exception: {e}")
-        console.print_exception()
+    except Exception:
+        error_console.print_exception()
         sys.exit(1)
 
 

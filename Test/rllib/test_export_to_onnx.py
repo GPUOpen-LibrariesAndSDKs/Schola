@@ -364,7 +364,7 @@ class TestExportFunctions:
                 ),
                 marks=pytest.mark.xfail(
                     reason="Old-stack attention export is not yet compatible with torch.onnx dynamo",
-                    strict=False,
+                    strict=True,
                 ),
             ),
             pytest.param(
@@ -377,7 +377,7 @@ class TestExportFunctions:
                 ),
                 marks=pytest.mark.xfail(
                     reason="Old-stack attention export is not yet compatible with torch.onnx dynamo",
-                    strict=False,
+                    strict=True,
                 ),
             ),
             ExportParams("ppo", discrete_obs_space, box_action_space, new_stack=False),
@@ -425,6 +425,13 @@ class TestExportFunctions:
             # Test ppo with LSTM enabled
             ExportParams("ppo", dict_obs_space, dict_action_space, use_lstm=True),
             ExportParams("ppo", box_obs_space, box_action_space, use_lstm=True),
+            # NOTE: On the new API stack RLlib pins the recurrent encoder to a
+            # single unidirectional layer (see rllib.core.models.catalog
+            # ._get_encoder_config), so these two cases only smoke-test that
+            # export accepts the num_layers/bidirectional config flags -- they do
+            # NOT exercise layer_dim > 1 graph structure, and state_shapes stays
+            # (1, hidden). Real multi-layer / bidirectional coverage of the LSTM
+            # reshape hook lives in Test/core/test_model_onnx_export.py.
             ExportParams(
                 "ppo",
                 box_obs_space,

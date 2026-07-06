@@ -87,6 +87,7 @@ def check_resolved_dims(
     dims: list[str | int],
     tensor_name: str,
     allowed_dynamic_dims: set[str],
+    producer_desc: str | None = None,
 ) -> None:
     """
     Raise if any dimension is unresolved outside ``allowed_dynamic_dims``.
@@ -99,19 +100,23 @@ def check_resolved_dims(
         Name used in error messages.
     allowed_dynamic_dims : set of str
         Symbolic names that may remain dynamic.
+    producer_desc : str, optional
+        Description of the node that produced the tensor (e.g. ``"op_type=Reshape
+        name=node_5"``), appended to error messages to aid debugging version drift.
     """
+    context = f" produced by {producer_desc}" if producer_desc else ""
     for dim_index, dim_repr in enumerate(dims):
         if not is_dynamic_dim_repr(dim_repr):
             continue
         if isinstance(dim_repr, str) and dim_repr.startswith("unk"):
             raise ValueError(
-                f"ONNX tensor '{tensor_name}' dimension {dim_index} uses "
+                f"ONNX tensor '{tensor_name}'{context} dimension {dim_index} uses "
                 + f"auto-generated symbolic name {dim_repr!r}"
             )
         if dim_repr not in allowed_dynamic_dims:
             raise ValueError(
-                f"ONNX tensor '{tensor_name}' dimension {dim_index} is unresolved "
-                + f"({dim_repr!r}); allowed dynamic dims are "
+                f"ONNX tensor '{tensor_name}'{context} dimension {dim_index} is "
+                + f"unresolved ({dim_repr!r}); allowed dynamic dims are "
                 + f"{sorted(allowed_dynamic_dims)}"
             )
 

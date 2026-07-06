@@ -76,6 +76,50 @@ def test_reshape_lstm_output_hook_uses_seq_axis_when_not_batch_first():
     assert cn.shape == (1, 3, 8)
 
 
+def test_reshape_lstm_output_hook_multi_layer_uses_layer_dim():
+    lstm = th.nn.LSTM(input_size=4, hidden_size=8, num_layers=2, batch_first=True)
+    lstm.eval()
+    x = th.randn(3, 2, 4)
+    h0 = th.zeros(2, 3, 8)
+    c0 = th.zeros(2, 3, 8)
+    out, state = lstm(x, (h0, c0))
+    _, (hn, cn) = reshape_lstm_output_hook(lstm, (x, (h0, c0)), (out, state))
+    assert hn.shape == (2, 3, 8)
+    assert cn.shape == (2, 3, 8)
+
+
+def test_reshape_lstm_output_hook_bidirectional_uses_layer_dim():
+    lstm = th.nn.LSTM(
+        input_size=4, hidden_size=8, bidirectional=True, batch_first=True
+    )
+    lstm.eval()
+    x = th.randn(3, 2, 4)
+    h0 = th.zeros(2, 3, 8)
+    c0 = th.zeros(2, 3, 8)
+    out, state = lstm(x, (h0, c0))
+    _, (hn, cn) = reshape_lstm_output_hook(lstm, (x, (h0, c0)), (out, state))
+    assert hn.shape == (2, 3, 8)
+    assert cn.shape == (2, 3, 8)
+
+
+def test_reshape_lstm_output_hook_multi_layer_bidirectional_uses_layer_dim():
+    lstm = th.nn.LSTM(
+        input_size=4,
+        hidden_size=8,
+        num_layers=2,
+        bidirectional=True,
+        batch_first=True,
+    )
+    lstm.eval()
+    x = th.randn(3, 2, 4)
+    h0 = th.zeros(4, 3, 8)
+    c0 = th.zeros(4, 3, 8)
+    out, state = lstm(x, (h0, c0))
+    _, (hn, cn) = reshape_lstm_output_hook(lstm, (x, (h0, c0)), (out, state))
+    assert hn.shape == (4, 3, 8)
+    assert cn.shape == (4, 3, 8)
+
+
 def test_patch_lstm_layers_for_onnx_export_registers_all_lstms():
     module = th.nn.Sequential(th.nn.LSTM(4, 8), th.nn.Linear(8, 2))
     handles = patch_lstm_layers_for_onnx_export(module)
@@ -113,6 +157,36 @@ def test_fix_slice_nodes_for_onnx_promotes_scalar_initializer():
 
     assert starts_value.shape == ir.Shape((1,))
     assert starts_value.const_value.shape == ir.Shape((1,))
+
+
+def test_fix_slice_nodes_for_onnx_promotes_scalar_constant():
+    x = helper.make_tensor_value_info("x", TensorProto.FLOAT, [4])
+    out = helper.make_tensor_value_info("out", TensorProto.FLOAT, None)
+    const_node = helper.make_node(
+        "Constant",
+        [],
+        ["starts"],
+        value=helper.make_tensor("starts", TensorProto.INT64, [], [0]),
+    )
+    slice_node = helper.make_node("Slice", ["x", "starts"], ["out"])
+    graph = helper.make_graph([const_node, slice_node], "slice_graph", [x], [out])
+    model = ir.from_proto(
+        helper.make_model(graph, opset_imports=[helper.make_opsetid("", 21)])
+    )
+    slice_node = next(
+        node for node in model.graph.all_nodes() if node.op_type == "Slice"
+    )
+    starts_value = slice_node.inputs[1]
+    assert starts_value is not None
+
+    fix_slice_nodes_for_onnx(model)
+
+    assert starts_value.shape == ir.Shape((1,))
+    const_node = next(
+        node for node in model.graph.all_nodes() if node.op_type == "Constant"
+    )
+    promoted = const_node.attributes["value"].as_tensor()
+    assert promoted.shape == ir.Shape((1,))
 
 
 def _make_shape_slice_reshape_model(use_constant_nodes: bool = False):

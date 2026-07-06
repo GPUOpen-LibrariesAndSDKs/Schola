@@ -339,13 +339,7 @@ def onnx_model_checker():
         state_metadata_objects: Dict[str, StateMetadata] = {}
         if metadata is not None:
             state_metadata_objects = {
-                inp_name: StateMetadata(
-                    has_seq_dim=props.get("has_seq_dim", "False") == "True",
-                    max_seq_len=(
-                        int(props["max_seq_len"]) if "max_seq_len" in props else None
-                    ),
-                    seq_dim=(int(props["seq_dim"]) if "seq_dim" in props else None),
-                )
+                inp_name: StateMetadata.from_dict(props)
                 for inp_name, props in metadata.items()
             }
         allowed_dynamic_dims = (

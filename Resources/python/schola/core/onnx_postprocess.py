@@ -16,7 +16,9 @@ import torch as th
 
 from schola.core.onnx_validation import (
     StateMetadataLike,
+    check_resolved_dims,
     dim_to_repr,
+    ir_tensor_dims,
     is_dynamic_dim_repr,
     validate_exported_onnx_state_shapes,
 )
@@ -46,6 +48,13 @@ def postprocess_exported_onnx(
     Order matters: ``torch.onnx.export`` is called with ``optimize=False`` so
     Shape/Slice/Gather rewrites can run before ``onnxscript.optimizer.optimize``.
     Do not enable torch's built-in optimizer without re-running this pipeline.
+
+    The ``normalize_shape_slices_to_gather`` -> ``fold_static_shape_gather_constants``
+    -> ``onnxscript.optimizer.optimize`` stages are load-bearing: they are what
+    resolve the auto-generated ``unk__*`` symbolic dims left by the dynamo export
+    (from LSTM decomposition and output slicing) down to concrete integers, leaving
+    only ``batch_size``/``seq_len`` dynamic. Removing them will cause
+    ``assert_shapes_fully_resolved`` to fail regardless of how LSTM state is reshaped.
 
     Stages
     ------
@@ -94,7 +103,12 @@ def reshape_lstm_output_hook(
     Reshape LSTM hidden states during ONNX export so ``hn`` / ``cn`` match PyTorch.
 
     Only for use with :func:`patch_lstm_layers_for_onnx_export`. The batch axis is
-    taken from axis 0 when ``batch_first=True``, otherwise axis 1.
+    read from the traced input (axis 0 when ``batch_first=True``, otherwise axis 1)
+    rather than using ``-1``. This is not what guarantees fully-resolved shapes --
+    ``postprocess_exported_onnx`` does that via its fold pipeline for either reshape
+    form. Tying the batch axis to the input is kept because it (a) is correct for
+    ``batch_first=False`` LSTMs and (b) yields a cleaner graph that the optimizer
+    folds more aggressively (fewer residual Reshape nodes).
     """
     x_in, _ = args
     x_out, (hn, cn) = output
@@ -111,8 +125,40 @@ def reshape_lstm_output_hook(
     return x_out, (hn, cn)
 
 
+def _promote_initializer_scalar(node_input: ir.Value) -> None:
+    """Promote a 0-D initializer Slice input to a length-1 vector in place."""
+    node_input.shape = ir.Shape((1,))
+    if node_input.const_value is not None:
+        node_input.const_value = ir.tensor(
+            _scalar_int64(node_input.const_value.numpy()),
+            name=node_input.const_value.name,
+        )
+
+
+def _promote_constant_scalar(producer: ir.Node, node_input: ir.Value) -> bool:
+    """Promote a 0-D ``Constant``-produced Slice input to a length-1 vector in place."""
+    attr = producer.attributes.get("value")
+    if attr is None:
+        return False
+    tensor = attr.as_tensor()
+    if tensor.shape is not None and tensor.shape.rank() != 0:
+        return False
+    promoted = ir.tensor(_scalar_int64(tensor.numpy()), name=tensor.name)
+    producer.attributes["value"] = ir.AttrTensor("value", promoted)
+    node_input.shape = ir.Shape((1,))
+    if node_input.const_value is not None:
+        node_input.const_value = promoted
+    return True
+
+
 def fix_slice_nodes_for_onnx(model: ir.Model) -> None:
-    """Fix Slice nodes that use invalid 0-D tensor inputs."""
+    """
+    Fix Slice nodes that use invalid 0-D tensor inputs.
+
+    ONNX requires Slice ``starts``/``ends``/``axes``/``steps`` to be 1-D. The dynamo
+    exporter can emit these as 0-D (scalar) values, either as graph initializers or as
+    the output of a ``Constant`` node; both forms are promoted to length-1 vectors here.
+    """
     fixed_values: set[str] = set()
     for node in model.graph.all_nodes():
         if node.op_type != "Slice":
@@ -120,21 +166,22 @@ def fix_slice_nodes_for_onnx(model: ir.Model) -> None:
         for node_input in node.inputs:
             if node_input is None:
                 continue
-            if node_input.is_initializer() and (
-                node_input.shape is None or node_input.shape.rank() == 0
-            ):
-                node_input.shape = ir.Shape((1,))
-                if node_input.const_value is not None:
-                    node_input.const_value = ir.tensor(
-                        _scalar_int64(node_input.const_value.numpy()),
-                        name=node_input.const_value.name,
-                    )
-                if node_input.name is not None:
-                    fixed_values.add(node_input.name)
+            if node_input.shape is not None and node_input.shape.rank() != 0:
+                continue
+            fixed = False
+            if node_input.is_initializer():
+                _promote_initializer_scalar(node_input)
+                fixed = True
+            else:
+                producer = node_input.producer()
+                if producer is not None and producer.op_type == "Constant":
+                    fixed = _promote_constant_scalar(producer, node_input)
+            if fixed and node_input.name is not None:
+                fixed_values.add(node_input.name)
 
     if fixed_values:
         logger.info(
-            "Fixed %s slice initializer(s): %s", len(fixed_values), fixed_values
+            "Fixed %s scalar slice input(s): %s", len(fixed_values), fixed_values
         )
 
 
@@ -268,12 +315,19 @@ def fold_static_shape_gather_constants(model: ir.Model) -> None:
         logger.info("Folded %s static Shape gather(s) to constants", folded)
 
 
+def _producer_desc(value: ir.Value) -> str | None:
+    """Describe the node that produced ``value`` for diagnostic error messages."""
+    producer = value.producer()
+    if producer is None:
+        return None
+    node_name = producer.name or "<unnamed>"
+    return f"op_type={producer.op_type} name={node_name}"
+
+
 def assert_shapes_fully_resolved(
     model: ir.Model, allowed_dynamic_dims: set[str]
 ) -> None:
     """Raise if any graph tensor shape still contains unknown or disallowed symbolic dims."""
-    from schola.core.onnx_validation import check_resolved_dims, ir_tensor_dims
-
     checked: set[str] = set()
 
     def check_value(value: ir.Value) -> None:
@@ -281,12 +335,17 @@ def assert_shapes_fully_resolved(
         if value_name is None or value_name in checked:
             return
         checked.add(value_name)
+        producer_desc = _producer_desc(value)
         if value.shape is None:
+            context = f" produced by {producer_desc}" if producer_desc else ""
             raise ValueError(
-                f"Exported ONNX tensor '{value_name}' has no resolved shape"
+                f"Exported ONNX tensor '{value_name}'{context} has no resolved shape"
             )
         check_resolved_dims(
-            ir_tensor_dims(value.shape), value_name, allowed_dynamic_dims
+            ir_tensor_dims(value.shape),
+            value_name,
+            allowed_dynamic_dims,
+            producer_desc,
         )
 
     for graph_input in model.graph.inputs:

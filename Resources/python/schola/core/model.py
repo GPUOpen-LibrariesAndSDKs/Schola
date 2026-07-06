@@ -20,10 +20,21 @@ import torch as th
 from torch.export import Dim
 
 from schola.core.onnx_postprocess import (
+    assert_shapes_fully_resolved,
+    fix_lstm_output_shapes_for_onnx,
+    fix_slice_nodes_for_onnx,
+    fold_static_shape_gather_constants,
+    normalize_shape_slices_to_gather,
     patch_lstm_layers_for_onnx_export,
     postprocess_exported_onnx,
+    reshape_lstm_output_hook,
 )
-from schola.core.onnx_validation import allowed_dynamic_dims_for_state_metadata
+from schola.core.onnx_validation import (
+    allowed_dynamic_dims_for_state_metadata,
+    emulate_nne_seq_dim,
+    tensor_dims_from_value_info,
+    validate_exported_onnx_state_shapes,
+)
 from schola.core.utils.dict_helpers import *
 
 logger = logging.getLogger(__name__)
@@ -54,6 +65,29 @@ class StateMetadata:
             output_dict["max_seq_len"] = str(self.max_seq_len)
             output_dict["seq_dim"] = str(self.seq_dim)
         return output_dict
+
+    @classmethod
+    def from_dict(cls, props: dict[str, str]) -> "StateMetadata":
+        """
+        Reconstruct :class:`StateMetadata` from serialized ONNX ``metadata_props``.
+
+        Inverse of :meth:`to_dict`.
+
+        Parameters
+        ----------
+        props : dict of str to str
+            Serialized metadata as produced by :meth:`to_dict`.
+
+        Returns
+        -------
+        StateMetadata
+            The deserialized metadata.
+        """
+        return cls(
+            has_seq_dim=props.get("has_seq_dim", "False") == "True",
+            max_seq_len=int(props["max_seq_len"]) if "max_seq_len" in props else None,
+            seq_dim=int(props["seq_dim"]) if "seq_dim" in props else None,
+        )
 
 
 class StatefulModelMixin:
@@ -546,21 +580,7 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
         onnx_program.save(export_path)
 
 
-# Re-export ONNX helpers for backward compatibility.
-from schola.core.onnx_postprocess import (  # noqa: E402
-    assert_shapes_fully_resolved,
-    fix_lstm_output_shapes_for_onnx,
-    fix_slice_nodes_for_onnx,
-    fold_static_shape_gather_constants,
-    normalize_shape_slices_to_gather,
-    reshape_lstm_output_hook,
-)
-from schola.core.onnx_validation import (  # noqa: E402
-    emulate_nne_seq_dim,
-    tensor_dims_from_value_info,
-    validate_exported_onnx_state_shapes,
-)
-
+# ONNX helpers imported at module top are re-exported here for backward compatibility.
 __all__ = [
     "StateMetadata",
     "StatefulModelMixin",

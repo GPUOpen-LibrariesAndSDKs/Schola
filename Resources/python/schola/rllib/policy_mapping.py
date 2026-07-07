@@ -46,31 +46,18 @@ SCHOLA_POLICY_MAPPING_COMPONENT = "schola_policy_mapping"
 # component on every (possibly remote) worker after config serialization.
 ENV_CONFIG_POLICY_MAPPING_RECORD_KEY = "schola_policy_mapping_record"
 
-# State-dict key holding the record inside the Checkpointable's state.
+# State-dict key holding the agent-to-policy table inside the Checkpointable's state.
 _RECORD_STATE_KEY = "record"
 
 
-def build_policy_mapping_record(
-    *,
-    agent_ids: Iterable[str],
-    policy_mapping_fn: Callable[..., str],
-    policy_mapping_dict: Optional[Dict[str, str]] = None,
-    module_ids: Optional[Iterable[str]] = None,
-) -> Dict[str, Any]:
-    """Freeze discovery output as JSON-serializable checkpoint metadata."""
-    agent_to_policy = {
-        str(agent_id): str(policy_mapping_fn(agent_id)) for agent_id in agent_ids
-    }
-    record: Dict[str, Any] = {
-        "agent_to_policy": agent_to_policy,
-    }
-    if module_ids is not None:
-        record["module_ids"] = sorted(str(module_id) for module_id in module_ids)
-    if policy_mapping_dict is not None:
-        record["policy_mapping_dict"] = {
-            str(k): str(v) for k, v in policy_mapping_dict.items()
-        }
-    return record
+def _normalize_agent_to_policy(data: Any) -> Dict[str, str]:
+    """Normalize mapping data from env_config or legacy checkpoints."""
+    if not isinstance(data, dict) or not data:
+        return {}
+    nested = data.get("agent_to_policy")
+    if isinstance(nested, dict):
+        return {str(k): str(v) for k, v in nested.items()}
+    return {str(k): str(v) for k, v in data.items()}
 
 
 class ScholaPolicyMappingCheckpoint(Checkpointable):
@@ -83,21 +70,15 @@ class ScholaPolicyMappingCheckpoint(Checkpointable):
     ``learner_group/``, ``env_runner/`` subcomponents.
     """
 
-    def __init__(self, record: Optional[Dict[str, Any]] = None) -> None:
-        self._record: Dict[str, Any] = copy.deepcopy(record) if record else {}
-
-    @property
-    def record(self) -> Dict[str, Any]:
-        """The frozen policy-mapping record (a deep copy)."""
-        return copy.deepcopy(self._record)
+    def __init__(self, agent_to_policy: Optional[Dict[str, str]] = None) -> None:
+        self._agent_to_policy: Dict[str, str] = _normalize_agent_to_policy(
+            agent_to_policy or {}
+        )
 
     @property
     def agent_to_policy(self) -> Dict[str, str]:
-        """The ``agent_id -> policy_id`` table extracted from the record."""
-        table = self._record.get("agent_to_policy") if self._record else None
-        if not isinstance(table, dict):
-            return {}
-        return {str(k): str(v) for k, v in table.items()}
+        """The ``agent_id -> policy_id`` table (a deep copy)."""
+        return copy.deepcopy(self._agent_to_policy)
 
     def get_state(
         self,
@@ -108,12 +89,11 @@ class ScholaPolicyMappingCheckpoint(Checkpointable):
     ) -> StateDict:
         # The record is plain JSON data, so this state is both pickle- and
         # msgpack-serializable regardless of the Algorithm's checkpoint format.
-        return {_RECORD_STATE_KEY: copy.deepcopy(self._record)}
+        return {_RECORD_STATE_KEY: copy.deepcopy(self._agent_to_policy)}
 
     def set_state(self, state: StateDict) -> None:
         if state and _RECORD_STATE_KEY in state:
-            record = state[_RECORD_STATE_KEY]
-            self._record = copy.deepcopy(record) if record else {}
+            self._agent_to_policy = _normalize_agent_to_policy(state[_RECORD_STATE_KEY])
 
     def get_ctor_args_and_kwargs(self) -> Tuple[Tuple, Dict[str, Any]]:
         # State is fully restored via set_state, so no constructor args are needed.
@@ -125,9 +105,9 @@ def make_policy_mapping_checkpoint_from_config(
 ) -> ScholaPolicyMappingCheckpoint:
     """Build a :class:`ScholaPolicyMappingCheckpoint` from an ``AlgorithmConfig``.
 
-    Reads the frozen record the training script stashed under
+    Reads the frozen agent-to-policy table the training script stashed under
     ``config.env_config[ENV_CONFIG_POLICY_MAPPING_RECORD_KEY]``. Returns an empty
-    checkpoint when no record is present (for example, when resuming from a
+    checkpoint when no mapping is present (for example, when resuming from a
     checkpoint trained before this component existed).
     """
     record: Optional[Dict[str, Any]] = None
@@ -208,8 +188,8 @@ def schola_algorithm_subclass(base_algo_class: Type[Algorithm]) -> Type[Algorith
     return ScholaAlgorithm
 
 
-def load_policy_mapping_record(checkpoint: Path) -> Optional[Dict[str, Any]]:
-    """Load the policy-mapping record from an Algorithm checkpoint, if present.
+def load_agent_to_policy(checkpoint: Path) -> Optional[Dict[str, str]]:
+    """Load the agent-to-policy table from an Algorithm checkpoint, if present.
 
     Restores the ``schola_policy_mapping`` subcomponent written by RLlib's
     ``Checkpointable`` save. Returns ``None`` when the checkpoint was produced
@@ -225,8 +205,8 @@ def load_policy_mapping_record(checkpoint: Path) -> Optional[Dict[str, Any]]:
         )
         return None
     restored = ScholaPolicyMappingCheckpoint.from_checkpoint(component_dir)
-    record = restored.record
-    return record or None
+    table = restored.agent_to_policy
+    return table or None
 
 
 def make_policy_mapping_fn_from_dict(
@@ -263,27 +243,22 @@ def resolve_policy_mapping_for_eval(
     agent_ids: Iterable[str],
     module_ids: Iterable[str],
     checkpoint: Path,
-    env_policy_mapping_fn: Callable[..., str],
+    env_agent_to_policy: Dict[str, str],
     cli_agent_to_policy: Optional[Dict[str, str]] = None,
-) -> Tuple[Callable[..., str], Dict[str, str]]:
+) -> Dict[str, str]:
     """Resolve eval agent-to-policy routing per agent: CLI, checkpoint, then environment.
 
     For each agent in ``agent_ids``, the first available mapping wins: CLI override,
-    the checkpoint's ``schola_policy_mapping`` component, then ``env_policy_mapping_fn``.
+    the checkpoint's ``schola_policy_mapping`` component, then ``env_agent_to_policy``.
 
-    ``agent_ids`` and ``env_policy_mapping_fn`` must come from a prior
+    ``agent_ids`` and ``env_agent_to_policy`` must come from a prior
     ``discover_env_metadata`` call.
 
-    Returns ``(policy_mapping_fn, agent_to_policy_table)``.
+    Returns the resolved ``agent_id -> policy_id`` table.
     """
     cli_map = {str(k): str(v) for k, v in (cli_agent_to_policy or {}).items()}
-
-    checkpoint_map: Dict[str, str] = {}
-    record = load_policy_mapping_record(checkpoint)
-    if record is not None:
-        checkpoint_table = record.get("agent_to_policy")
-        if isinstance(checkpoint_table, dict):
-            checkpoint_map = {str(k): str(v) for k, v in checkpoint_table.items()}
+    env_map = {str(k): str(v) for k, v in env_agent_to_policy.items()}
+    checkpoint_map = load_agent_to_policy(checkpoint) or {}
 
     agent_to_policy: Dict[str, str] = {}
     agent_sources: Dict[str, str] = {}
@@ -296,12 +271,11 @@ def resolve_policy_mapping_for_eval(
             agent_to_policy[agent_id] = checkpoint_map[agent_id]
             agent_sources[agent_id] = "checkpoint"
         else:
-            agent_to_policy[agent_id] = str(env_policy_mapping_fn(agent_id))
+            agent_to_policy[agent_id] = env_map.get(agent_id, agent_id)
             agent_sources[agent_id] = "environment"
 
     logger.info("Resolved agent-to-policy mapping: %s", agent_to_policy)
     logger.debug("Agent-to-policy mapping sources: %s", agent_sources)
 
     validate_agent_to_policy_against_module_ids(agent_to_policy, module_ids)
-    policy_mapping_fn = make_policy_mapping_fn_from_dict(agent_to_policy)
-    return policy_mapping_fn, agent_to_policy
+    return agent_to_policy

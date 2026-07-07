@@ -184,7 +184,7 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
     from schola.rllib.env_runner import ScholaEnvRunner
     from schola.rllib.policy_mapping import (
         ENV_CONFIG_POLICY_MAPPING_RECORD_KEY,
-        build_policy_mapping_record,
+        make_policy_mapping_fn_from_dict,
         schola_algorithm_subclass,
     )
     from schola.scripts.rllib.utils import discover_env_metadata
@@ -197,33 +197,25 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
 
     # Discover policy metadata + env_config via a temporary environment that is
     # always cleaned up, even if construction fails (no leaked Unreal process).
-    agent_ids, policy_mapping_dict, policy_mapping_fn, env_config = (
-        discover_env_metadata(
-            args.environment_settings,
-            schola_verbosity=args.logging_settings.schola_verbosity,
-        )
+    agent_ids, agent_to_policy, env_config = discover_env_metadata(
+        args.environment_settings,
+        schola_verbosity=args.logging_settings.schola_verbosity,
     )
 
     policies = {}
     for agent_id in agent_ids:
-        policy_id = policy_mapping_fn(agent_id)
+        policy_id = agent_to_policy[agent_id]
         if policy_id not in policies:
             policies[policy_id] = PolicySpec()
 
-    policy_mapping_record = build_policy_mapping_record(
-        agent_ids=agent_ids,
-        policy_mapping_dict=policy_mapping_dict,
-        policy_mapping_fn=policy_mapping_fn,
-        module_ids=policies.keys(),
-    )
     # Pass the frozen mapping to the ScholaAlgorithm via env_config (ignored by
     # make_env) so it gets checkpointed as an RLlib subcomponent.
-    env_config[ENV_CONFIG_POLICY_MAPPING_RECORD_KEY] = policy_mapping_record
+    env_config[ENV_CONFIG_POLICY_MAPPING_RECORD_KEY] = dict(agent_to_policy)
 
     typed_policy_ids = {
-        agent_id: agent_type.strip()
-        for agent_id, agent_type in policy_mapping_dict.items()
-        if agent_type.strip()
+        agent_id: policy_id
+        for agent_id, policy_id in agent_to_policy.items()
+        if policy_id != agent_id
     }
     if typed_policy_ids:
         logger.info(
@@ -276,7 +268,7 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
         )
         .multi_agent(
             policies=policies,
-            policy_mapping_fn=policy_mapping_fn,  # type: ignore
+            policy_mapping_fn=make_policy_mapping_fn_from_dict(agent_to_policy),  # type: ignore
         )
         .resources(
             num_gpus=args.resource_settings.num_gpus,

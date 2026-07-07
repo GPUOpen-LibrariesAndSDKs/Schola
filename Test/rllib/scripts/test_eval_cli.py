@@ -62,7 +62,6 @@ def dummy_rllib_checkpoint_dir(
     from schola.rllib.policy_mapping import (
         SCHOLA_POLICY_MAPPING_COMPONENT,
         ScholaPolicyMappingCheckpoint,
-        build_policy_mapping_record,
     )
     from schola.scripts.rllib.utils import build_env_config, discover_env_metadata
     from schola.scripts.common.settings import (
@@ -133,17 +132,12 @@ def dummy_rllib_checkpoint_dir(
                 url="localhost", port=train_port, port_offset_mode=PortOffsetMode.FIXED
             ),
         )
-        agent_ids, agent_types, _, _ = discover_env_metadata(train_env_settings)
+        agent_ids, _, _ = discover_env_metadata(train_env_settings)
         # Mirror the on-disk layout a ScholaAlgorithm checkpoint produces: the
         # frozen mapping lives in a ``schola_policy_mapping`` Checkpointable
         # subcomponent under the algorithm checkpoint dir.
-        mapping_record = build_policy_mapping_record(
-            agent_ids=agent_ids,
-            policy_mapping_dict=agent_types,
-            policy_mapping_fn=policy_mapping_fn,
-            module_ids=["shared_policy"],
-        )
-        ScholaPolicyMappingCheckpoint(mapping_record).save_to_path(
+        agent_to_policy = {agent_id: "shared_policy" for agent_id in agent_ids}
+        ScholaPolicyMappingCheckpoint(agent_to_policy).save_to_path(
             ckpt / SCHOLA_POLICY_MAPPING_COMPONENT
         )
         # Separate gRPC port for post-hoc ``eval_main`` (CLI), not the train port.

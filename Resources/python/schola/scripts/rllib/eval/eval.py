@@ -190,7 +190,10 @@ def main(args: RllibEvalScriptSettings) -> Dict[str, Any]:
     from ray.rllib.policy.policy import PolicySpec
 
     from schola.rllib.checkpoint import rl_module_dir_from_algorithm_checkpoint
-    from schola.rllib.policy_mapping import resolve_policy_mapping_for_eval
+    from schola.rllib.policy_mapping import (
+        make_policy_mapping_fn_from_dict,
+        resolve_policy_mapping_for_eval,
+    )
     from schola.scripts.rllib.utils import discover_env_metadata
 
     if not args.resource_settings.using_cluster:
@@ -220,15 +223,15 @@ def main(args: RllibEvalScriptSettings) -> Dict[str, Any]:
         logger.info("Loading MultiRLModule from %s", rl_dir)
         marl = MultiRLModule.from_checkpoint(rl_dir)
 
-        agent_ids, _agent_types, env_policy_fn, env_config = discover_env_metadata(
+        agent_ids, env_agent_to_policy, env_config = discover_env_metadata(
             args.environment_settings,
             schola_verbosity=args.logging_settings.schola_verbosity,
         )
-        policy_mapping_fn, _agent_to_policy = resolve_policy_mapping_for_eval(
+        agent_to_policy = resolve_policy_mapping_for_eval(
             agent_ids=agent_ids,
             module_ids=marl.keys(),
             checkpoint=Path(ckpt),
-            env_policy_mapping_fn=env_policy_fn,
+            env_agent_to_policy=env_agent_to_policy,
             cli_agent_to_policy=cli_policy_map,
         )
 
@@ -240,7 +243,7 @@ def main(args: RllibEvalScriptSettings) -> Dict[str, Any]:
             num_env_runners=num_env_runners,
             spec=spec,
             policies=policies,
-            policy_mapping_fn=policy_mapping_fn,
+            policy_mapping_fn=make_policy_mapping_fn_from_dict(agent_to_policy),
             rllib_log_level=args.logging_settings.rllib_log_level,
         )
 

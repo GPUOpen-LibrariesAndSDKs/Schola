@@ -10,6 +10,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 import gymnasium as gym
+from gymnasium.vector.vector_env import AutoresetMode
 
 if sys.version_info >= (3, 11):
     from enum import StrEnum
@@ -28,6 +29,25 @@ class AutoResetType(StrEnum):
 
 
 DEFAULT_AUTO_RESET_TYPE = AutoResetType("SameStep")
+
+
+def coerce_auto_reset_type(
+    auto_reset_type: AutoResetType | AutoresetMode | int,
+) -> AutoResetType:
+    """
+    Coerce a gymnasium ``AutoresetMode`` or raw protobuf int to ``AutoResetType``.
+
+    Callers that receive ``AutoresetMode`` or an integer value from an external
+    framework should normalise to ``AutoResetType`` using this helper before
+    passing to :meth:`BaseRLProtocol.send_startup_msg`.
+    """
+    if isinstance(auto_reset_type, AutoResetType):
+        return auto_reset_type
+    if isinstance(auto_reset_type, AutoresetMode):
+        return getattr(AutoResetType, auto_reset_type.name)
+    import schola.generated.GymConnector_pb2 as util_messages
+
+    return getattr(AutoResetType, util_messages.AutoResetType.Name(auto_reset_type))
 
 
 # Type Defs

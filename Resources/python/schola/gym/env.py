@@ -8,12 +8,15 @@ from collections import defaultdict
 from math import inf
 from typing import Any, Dict, List, Optional, SupportsFloat, Tuple, TypeVar, Union, cast
 
-from schola.core.protocols.base_protocol import BaseRLProtocol
+from schola.core.protocols.base_protocol import (
+    AutoResetType,
+    BaseRLProtocol,
+    coerce_auto_reset_type,
+)
 from schola.core.simulators.base_simulator import (
     BaseSimulator,
     UnsupportedProtocolException,
 )
-from schola.core.protocols.base_protocol import AutoResetType
 from schola.core.error_manager import (
     EnvironmentException,
     NoAgentsException,
@@ -57,7 +60,7 @@ class GymEnv(gym.Env):
         self.protocol.start()
         self.simulator.start(self.protocol.properties)
 
-        self.protocol.send_startup_msg(auto_reset_type=AutoresetMode.DISABLED)
+        self.protocol.send_startup_msg(auto_reset_type=AutoResetType.DISABLED)
 
         self._agent_id, self.action_space, self.observation_space = (
             self._define_environment()
@@ -202,7 +205,9 @@ class GymVectorEnv(VectorEnv):
         )
         self.metadata["autoreset_mode"] = self.autoreset_mode
 
-        self.protocol.send_startup_msg(auto_reset_type=self.autoreset_mode)
+        self.protocol.send_startup_msg(
+            auto_reset_type=coerce_auto_reset_type(self.autoreset_mode)
+        )
 
         # one env per agent for
         self._observation_space: gym.Space | None = None

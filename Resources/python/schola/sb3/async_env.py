@@ -24,8 +24,8 @@ from schola.core.simulators.base_simulator import (
     BaseSimulator,
     UnsupportedProtocolException,
 )
+from schola.core.protocols.base_protocol import AutoResetType
 from schola.core.utils.id_manager import IdManager
-from gymnasium.vector.vector_env import AutoresetMode
 
 from .env import BaseVecEnv, _validate_definition
 from .utils import split_value
@@ -269,7 +269,7 @@ class AsyncVecEnv(BaseVecEnv):
         try:
             await protocol.start()
             sim.start(protocol.properties)
-            await protocol.send_startup_msg(auto_reset_type=AutoresetMode.SAME_STEP)
+            await protocol.send_startup_msg(auto_reset_type=AutoResetType.SAME_STEP)
             definition = await protocol.get_definition()
             return definition
         except Exception as e:

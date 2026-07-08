@@ -6,7 +6,6 @@ Base class for connections that use the gRPC server.
 from typing import Any, Literal
 
 import grpc
-from gymnasium.vector.vector_env import AutoresetMode
 
 from schola.core.protocols.base_protocol import (
     AutoResetType,
@@ -25,23 +24,6 @@ import gymnasium as gym
 import logging
 
 logger = logging.getLogger(__name__)
-
-
-def coerce_auto_reset_type(
-    auto_reset_type: AutoResetType | AutoresetMode | int,
-) -> AutoResetType:
-    """
-    Coerce a gymnasium ``AutoresetMode`` or raw protobuf int to ``AutoResetType``.
-
-    Callers that receive ``AutoresetMode`` or an integer value from an external
-    framework should normalise to ``AutoResetType`` using this helper before
-    passing to :meth:`BaseGrpcProtocol.send_startup_msg`.
-    """
-    if isinstance(auto_reset_type, AutoResetType):
-        return auto_reset_type
-    if isinstance(auto_reset_type, AutoresetMode):
-        return getattr(AutoResetType, auto_reset_type.name)
-    return getattr(AutoResetType, util_messages.AutoResetType.Name(auto_reset_type))
 
 
 class BaseGrpcProtocol(SocketProtocolMixin):
@@ -79,9 +61,8 @@ class BaseGrpcProtocol(SocketProtocolMixin):
 
     def prepare_start_msg(
         self,
-        auto_reset_type: AutoResetType | AutoresetMode | int,
+        auto_reset_type: AutoResetType,
     ) -> util_messages.GymConnectorStartRequest:
-        auto_reset_type = coerce_auto_reset_type(auto_reset_type)
         start_msg = util_messages.GymConnectorStartRequest()
 
         if auto_reset_type == AutoResetType.DISABLED:
@@ -221,7 +202,7 @@ class GrpcProtocol(BaseGrpcProtocol, BaseRLProtocol):
 
     def send_startup_msg(
         self,
-        auto_reset_type: AutoResetType | AutoresetMode | int = DEFAULT_AUTO_RESET_TYPE,
+        auto_reset_type: AutoResetType = DEFAULT_AUTO_RESET_TYPE,
     ) -> None:
         start_msg = self.prepare_start_msg(auto_reset_type)
         self.gym_stub.StartGymConnector(

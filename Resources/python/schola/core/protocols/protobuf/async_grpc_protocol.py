@@ -8,7 +8,6 @@ from typing import Any, Literal
 import grpc
 import grpc.aio
 import gymnasium as gym
-from gymnasium.vector.vector_env import AutoresetMode
 
 from schola.core.protocols.base_protocol import AutoResetType, DEFAULT_AUTO_RESET_TYPE
 from schola.core.protocols.async_base_protocol import AsyncBaseRLProtocol
@@ -92,7 +91,7 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
 
     async def send_startup_msg(
         self,
-        auto_reset_type: AutoResetType | AutoresetMode | int = DEFAULT_AUTO_RESET_TYPE,
+        auto_reset_type: AutoResetType = DEFAULT_AUTO_RESET_TYPE,
     ) -> None:
         start_msg = self.prepare_start_msg(auto_reset_type)
 

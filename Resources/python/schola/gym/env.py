@@ -8,11 +8,8 @@ from collections import defaultdict
 from math import inf
 from typing import Any, Dict, List, Optional, SupportsFloat, Tuple, TypeVar, Union, cast
 
-from schola.core.protocols.base_protocol import (
-    AutoResetType,
-    BaseRLProtocol,
-    coerce_auto_reset_type,
-)
+from schola.core.protocols.base_protocol import AutoResetType, BaseRLProtocol
+from schola.core.protocols.protobuf.grpc_protocol import coerce_auto_reset_type
 from schola.core.simulators.base_simulator import (
     BaseSimulator,
     UnsupportedProtocolException,

@@ -2,18 +2,18 @@
 """Tests for the RLlib eval CLI."""
 
 import logging
-import sys
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 from cyclopts import App
 
 from schola.scripts.rllib.eval.eval import (
     RllibEvalCommand,
-    _apply_env_config,
+    _build_eval_config,
+    _shape_env_runner_metrics,
     main as eval_main,
 )
+from schola.rllib.checkpoint import rl_module_dir_from_algorithm_checkpoint
 from schola.scripts.rllib.eval.settings import RllibEvalScriptSettings
 from schola.scripts.rllib.settings import ResourceSettings
 
@@ -53,13 +53,17 @@ def dummy_rllib_checkpoint_dir(
     """
     pytest.importorskip("ray")
     from ray.rllib.algorithms.ppo import PPOConfig
-    from ray.rllib.connectors.env_to_module import FlattenObservations
     from ray.rllib.core.rl_module.default_model_config import DefaultModelConfig
     from ray.rllib.core.rl_module.multi_rl_module import MultiRLModuleSpec
     from ray.rllib.core.rl_module.rl_module import RLModuleSpec
     from ray.rllib.policy.policy import PolicySpec
+    from schola.rllib.connectors import schola_env_to_module_flatten_connector
     from schola.rllib.env_runner import ScholaEnvRunner
-    from schola.scripts.rllib.utils import build_env_config
+    from schola.rllib.policy_mapping import (
+        SCHOLA_POLICY_MAPPING_COMPONENT,
+        ScholaPolicyMappingCheckpoint,
+    )
+    from schola.scripts.rllib.utils import build_env_config, discover_env_metadata
     from schola.scripts.common.settings import (
         EnvironmentSettings,
         GrpcProtocolConfig,
@@ -79,6 +83,7 @@ def dummy_rllib_checkpoint_dir(
         )
     )
 
+    policy_mapping_fn = lambda agent_id, *args, **kwargs: "shared_policy"
     config = (
         PPOConfig()
         .api_stack(
@@ -91,15 +96,10 @@ def dummy_rllib_checkpoint_dir(
         .env_runners(
             env_runner_cls=ScholaEnvRunner,
             num_env_runners=0,
-            env_to_module_connector=lambda env, spaces=None, device=None: FlattenObservations(
-                input_observation_space=env.single_observation_space,
-                input_action_space=env.single_action_space,
-                multi_agent=True,
-            ),
+            env_to_module_connector=schola_env_to_module_flatten_connector,
         )
         .learners(num_learners=0)
-        # Bake in a local eval runner so the reloaded algo.evaluate() has an env
-        # runner group to run on.
+        # Periodic RLlib eval during ``train()`` (not used by ``eval_main``).
         .evaluation(
             evaluation_num_env_runners=0,
             evaluation_interval=1,
@@ -108,7 +108,7 @@ def dummy_rllib_checkpoint_dir(
         )
         .multi_agent(
             policies={"shared_policy": PolicySpec()},
-            policy_mapping_fn=lambda agent_id, *args, **kwargs: "shared_policy",
+            policy_mapping_fn=policy_mapping_fn,
         )
         .rl_module(
             rl_module_spec=MultiRLModuleSpec(
@@ -127,22 +127,30 @@ def dummy_rllib_checkpoint_dir(
         algo.train()
         ckpt = tmp_path / "rllib_eval_ckpt"
         algo.save(str(ckpt))
-        # Eval gets its own server/port; the restored algo rebuilds its env
-        # from the CLI config and connects here, not to the train port.
+        train_env_settings = EnvironmentSettings(
+            protocol_settings=GrpcProtocolConfig(
+                url="localhost", port=train_port, port_offset_mode=PortOffsetMode.FIXED
+            ),
+        )
+        agent_ids, _, _ = discover_env_metadata(train_env_settings)
+        # Mirror the on-disk layout a ScholaAlgorithm checkpoint produces: the
+        # frozen mapping lives in a ``schola_policy_mapping`` Checkpointable
+        # subcomponent under the algorithm checkpoint dir.
+        agent_to_policy = {agent_id: "shared_policy" for agent_id in agent_ids}
+        ScholaPolicyMappingCheckpoint(agent_to_policy).save_to_path(
+            ckpt / SCHOLA_POLICY_MAPPING_COMPONENT
+        )
+        # Separate gRPC port for post-hoc ``eval_main`` (CLI), not the train port.
         eval_port = make_vec_env_server([make_env("CartPole-v1", 0)])
         yield ckpt, eval_port
     finally:
         algo.stop()
 
 
-# ---- eval.main end-to-end tests on a real checkpoint -----------------------
+# ---- eval_main on a real checkpoint ----------------------------------------
 #
-# These drive the full ``eval_main`` orchestration on the checkpoint built by
-# ``dummy_rllib_checkpoint_dir`` above: ``from_checkpoint`` -> ``_apply_env_config``
-# (which rebuilds the env from the CLI config) -> ``algo.evaluate()``. Because the
-# new eval always rebuilds the env from the CLI config, the CLI protocol points at
-# the dedicated eval server (a different port than training) -- the same way a real
-# post-hoc eval connects to its own process.
+# ``dummy_rllib_checkpoint_dir`` trains a small run, then ``eval_main`` / CLI tests
+# restore ``MultiRLModule``, build an eval ``EnvRunnerGroup`` from the CLI, and sample.
 
 
 @pytest.mark.xdist_group(name="ray-cluster")
@@ -249,22 +257,32 @@ def test_eval_cli_env_options_dotted_syntax(mock_eval_app, mock_main, tmp_path: 
     assert args.environment_settings.env_options == {"level": "1", "curriculum": "easy"}
 
 
-# ---- eval.main orchestration tests -----------------------------------------
+# ---- eval helper unit tests -------------------------------------------------
 
 
 @pytest.fixture
 def make_eval_args(tmp_path: Path):
-    """Factory for ``RllibEvalScriptSettings`` with a localhost:1 protocol and an
-    existing (empty) checkpoint dir; ``env_options`` is the per-call knob."""
-    from schola.scripts.common.settings import EnvironmentSettings, GrpcProtocolConfig
+    """Factory for ``RllibEvalScriptSettings`` over an existing (empty) checkpoint
+    dir. ``num_simulators`` and ``env_options`` are the per-call knobs used by the
+    settings-derived helper tests."""
+    from schola.scripts.common.settings import (
+        EnvironmentSettings,
+        ExternalSimulatorConfig,
+        GrpcProtocolConfig,
+    )
 
-    def _make(env_options: dict | None = None) -> RllibEvalScriptSettings:
+    def _make(
+        *, num_simulators: int = 1, env_options: dict | None = None
+    ) -> RllibEvalScriptSettings:
         ckpt = tmp_path / "ckpt"
         ckpt.mkdir(exist_ok=True)
         return RllibEvalScriptSettings(
             checkpoint=ckpt,
             n_eval_episodes=2,
             environment_settings=EnvironmentSettings(
+                simulator_settings=ExternalSimulatorConfig(
+                    num_simulators=num_simulators
+                ),
                 protocol_settings=GrpcProtocolConfig(url="localhost", port=1),
                 env_options=env_options or {},
             ),
@@ -273,159 +291,99 @@ def make_eval_args(tmp_path: Path):
     return _make
 
 
-@pytest.fixture
-def patch_rllib_eval_deps(mocker):
-    """Patch the RLlib + ray dependencies ``eval.main`` reaches into so the test
-    runs without loading a checkpoint or starting Ray.
-
-    Exposes the single env runner plus its original/copied config so tests can
-    assert that ``_apply_env_config`` unfroze the config, set ``env_config`` and
-    rebuilt the env via ``make_env`` (what drives the real eval rebuild)."""
-    from ray.rllib.algorithms.algorithm import Algorithm
-
-    mocker.patch("ray.init")
-    mocker.patch("ray.shutdown")
-
-    runner = MagicMock()
-    # Cache child mocks before _rebuild reassigns ``runner.config``.
-    orig_cfg = runner.config
-    new_cfg = orig_cfg.copy.return_value
-
-    mock_algo = MagicMock(spec=Algorithm)
-    mock_algo.config = MagicMock()
-
-    mock_algo.env_runner_group = MagicMock()
-    mock_algo.env_runner_group.foreach_env_runner.side_effect = lambda fn: [fn(runner)]
-    # Explicit None so the ``algo.eval_env_runner_group`` lookup resolves to a
-    # real None rather than an auto-created child mock.
-    mock_algo.eval_env_runner_group = None
-    mock_algo.evaluate.return_value = {"env_runners": {"episode_reward_mean": 1.0}}
-    mock_algo._runner = runner
-    mock_algo._orig_cfg = orig_cfg
-    mock_algo._new_cfg = new_cfg
-
-    mocker.patch(
-        "ray.rllib.algorithms.algorithm.Algorithm.from_checkpoint",
-        autospec=True,
-        return_value=mock_algo,
-    )
-    return mock_algo
+# ---- rl_module_dir_from_algorithm_checkpoint ---------------------------------
 
 
-def test_eval_main_applies_cli_env_config(patch_rllib_eval_deps, make_eval_args):
-    """``main`` unfreezes each runner's config, writes the CLI ``env_config``
-    (including ``--env-options``) and rebuilds the env before evaluating."""
-    opts = {"level": "1", "curriculum": "easy"}
-    eval_main(make_eval_args(env_options=opts))
-
-    algo = patch_rllib_eval_deps
-    algo._orig_cfg.copy.assert_called_once_with(copy_frozen=False)
-    algo._runner.make_env.assert_called_once()
-    env_config = algo._new_cfg.environment.call_args.kwargs["env_config"]
-    assert env_config["options"] == opts
-    algo.evaluate.assert_called_once()
-
-
-def test_eval_main_applies_env_config_even_when_options_empty(
-    patch_rllib_eval_deps, make_eval_args
-):
-    """The CLI always wins: even with no ``--env-options`` the env is rebuilt
-    from the CLI config (with empty options)."""
-    eval_main(make_eval_args(env_options={}))
-
-    algo = patch_rllib_eval_deps
-    algo._runner.make_env.assert_called_once()
-    env_config = algo._new_cfg.environment.call_args.kwargs["env_config"]
-    assert env_config["options"] == {}
-
-
-# ---- _apply_env_config real-object contract tests --------------------------
-#
-# These build a real algo (via the shared ``make_schola_rllib_config`` fixture,
-# also used by ``test_rllib_env_runner``) and drive the actual
-# ``env_runner_group`` / ``foreach_env_runner`` + ``make_env``, so a Ray rename
-# of that contract -- or a broken ``copy(copy_frozen=...)`` -- fails here rather
-# than passing green against fabricated mock attributes.
-
-
-def _stub_env_config(protocol_cls, simulator_cls, url):
-    return {
-        "protocol": protocol_cls,
-        "simulator": simulator_cls,
-        "protocol_args": {"url": url},
-        "simulator_args": {},
-        "port_offset_mode": "per_worker",
-        "options": {},
-    }
-
-
-@pytest.fixture
-def build_eval_algo(make_schola_rllib_config):
-    """Build real algos from the shared config and ``stop()`` them at teardown,
-    so tests don't manage cleanup themselves. Teardown runs even on failure."""
+def test_rl_module_dir_prefers_new_api_stack_layout(tmp_path: Path):
+    """The new-API-stack ``learner_group/learner/rl_module`` layout wins."""
     pytest.importorskip("ray")
-    algos = []
-
-    def _build(*, evaluation=None):
-        algo = make_schola_rllib_config(evaluation=evaluation).build_algo()
-        algos.append(algo)
-        return algo
-
-    yield _build
-
-    for algo in algos:
-        algo.stop()
-
-
-@pytest.mark.xdist_group(name="ray-cluster")
-@pytest.mark.timeout(180)
-def test_apply_env_options_reaches_real_env_runner_group(
-    build_eval_algo, ray_cluster, stub_protocol_class, stub_simulator_class
-):
-    """Drives the actual ``env_runner_group`` / ``foreach_env_runner`` and
-    rebuilds the env, asserting the new protocol ``url`` reached the real env on
-    each runner."""
-    algo = build_eval_algo()
-    new_env_config = _stub_env_config(
-        stub_protocol_class, stub_simulator_class, "thisisurl"
+    from ray.rllib.core import (
+        COMPONENT_LEARNER,
+        COMPONENT_LEARNER_GROUP,
+        COMPONENT_RL_MODULE,
     )
-    _apply_env_config(algo, new_env_config)
 
-    urls = algo.env_runner_group.foreach_env_runner(
-        lambda r: r.env.protocol.init_kwargs.get("url")
+    primary = (
+        tmp_path / COMPONENT_LEARNER_GROUP / COMPONENT_LEARNER / COMPONENT_RL_MODULE
     )
-    assert urls and all(u == "thisisurl" for u in urls)
+    primary.mkdir(parents=True)
+    # A legacy dir also present must not shadow the primary one.
+    (tmp_path / "learner" / COMPONENT_RL_MODULE).mkdir(parents=True)
+
+    assert rl_module_dir_from_algorithm_checkpoint(tmp_path) == primary
 
 
-@pytest.mark.xdist_group(name="ray-cluster")
-@pytest.mark.timeout(180)
-@pytest.mark.skipif(
-    sys.version_info < (3, 11),
-    reason="Ray eval config pickling with MagicMock stubs fails on Python 3.10",
-)
-def test_apply_env_config_rebuilds_real_eval_env_runner_group(
-    build_eval_algo, ray_cluster, stub_protocol_class, stub_simulator_class
-):
-    """A separate ``eval_env_runner_group`` must also be rebuilt.
+def test_rl_module_dir_falls_back_to_legacy_layout(tmp_path: Path):
+    """When only the legacy ``learner/rl_module`` layout exists, it is returned."""
+    pytest.importorskip("ray")
+    from ray.rllib.core import COMPONENT_RL_MODULE
 
-    ``evaluation_interval`` (not ``evaluation_num_env_runners``) is what makes
-    RLlib build the eval group, so we request a *local* eval env runner
-    (``evaluation_num_env_runners=0``). We avoid a remote eval runner: the
-    driver has already loaded gRPC (fork-unsafe) and torch, so Ray spawning a
-    remote env-runner actor aborts the process and crashes the xdist worker."""
-    algo = build_eval_algo(
-        evaluation={"evaluation_num_env_runners": 0, "evaluation_interval": 1}
-    )
-    new_env_config = _stub_env_config(
-        stub_protocol_class, stub_simulator_class, "sixseven"
-    )
-    _apply_env_config(algo, new_env_config)
+    legacy = tmp_path / "learner" / COMPONENT_RL_MODULE
+    legacy.mkdir(parents=True)
 
-    train_urls = algo.env_runner_group.foreach_env_runner(
-        lambda r: r.env.protocol.init_kwargs.get("url")
+    assert rl_module_dir_from_algorithm_checkpoint(tmp_path) == legacy
+
+
+def test_rl_module_dir_raises_when_missing(tmp_path: Path):
+    """A checkpoint with no RLModule dir raises a descriptive error."""
+    pytest.importorskip("ray")
+    with pytest.raises(FileNotFoundError, match="No RLModule checkpoint directory"):
+        rl_module_dir_from_algorithm_checkpoint(tmp_path)
+
+
+# ---- _shape_env_runner_metrics ---------------------------------------------
+# Aggregates per-episode returns/lengths into the ``env_runners`` metrics shape
+# applied in ``eval_main`` after episode sampling.
+
+
+def test_shape_env_runner_metrics_aggregates_returns_and_lengths():
+    """Means, episode count, and ``hist_stats`` are computed from the raw lists."""
+    metrics = _shape_env_runner_metrics([5.0, 7.0, 9.0], [10, 20, 30])["env_runners"]
+
+    assert metrics["num_episodes"] == 3.0
+    assert metrics["episode_reward_mean"] == 7.0
+    assert metrics["episode_len_mean"] == 20.0
+    assert metrics["hist_stats"]["episode_reward"] == [5.0, 7.0, 9.0]
+    assert metrics["hist_stats"]["episode_lengths"] == [10, 20, 30]
+
+
+def test_shape_env_runner_metrics_raises_when_no_episodes():
+    """No episodes must raise rather than return zeroed means."""
+    with pytest.raises(RuntimeError, match="no episodes were collected"):
+        _shape_env_runner_metrics([], [])
+
+
+# ---- _build_eval_config ----------------------------------------------------
+
+
+def test_build_eval_config_wires_schola_env_runner_and_spec():
+    """``_build_eval_config`` sets Schola runner, connector, runner count, and module spec."""
+    pytest.importorskip("ray")
+    from ray.rllib.core.rl_module.default_model_config import DefaultModelConfig
+    from ray.rllib.core.rl_module.multi_rl_module import MultiRLModuleSpec
+    from ray.rllib.core.rl_module.rl_module import RLModuleSpec
+    from ray.rllib.policy.policy import PolicySpec
+    from schola.rllib.connectors import schola_env_to_module_flatten_connector
+    from schola.rllib.env_runner import ScholaEnvRunner
+
+    spec = MultiRLModuleSpec(
+        rl_module_specs={
+            "shared_policy": RLModuleSpec(
+                model_config=DefaultModelConfig(fcnet_hiddens=[8])
+            )
+        }
     )
-    eval_urls = algo.eval_env_runner_group.foreach_env_runner(
-        lambda r: r.env.protocol.init_kwargs.get("url")
+    config = _build_eval_config(
+        {"options": {}},
+        num_env_runners=3,
+        spec=spec,
+        policies={"shared_policy": PolicySpec()},
+        policy_mapping_fn=lambda agent_id, *args, **kwargs: "shared_policy",
+        rllib_log_level="WARN",
     )
-    assert train_urls and all(u == "sixseven" for u in train_urls)
-    assert eval_urls and all(u == "sixseven" for u in eval_urls)
+
+    assert config.num_env_runners == 3
+    assert config.env_runner_cls is ScholaEnvRunner
+    assert config._env_to_module_connector is schola_env_to_module_flatten_connector
+    # The restored module spec drives the eval architecture (RLlib stores a copy).
+    assert set(config.rl_module_spec.rl_module_specs.keys()) == {"shared_policy"}

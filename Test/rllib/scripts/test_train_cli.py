@@ -18,6 +18,7 @@ from schola.scripts.rllib.train.train import (
 )
 from schola.core.utils.id_manager import IdManager
 from schola.rllib.env import BaseRayEnv
+from schola.rllib.policy_mapping import make_policy_mapping_fn_from_dict
 from schola.scripts.rllib.settings import (
     APPOSettings,
     PPOSettings,
@@ -76,8 +77,16 @@ def test_agent_type_policy_mapping_fn():
             }
         },
     )
-    policy_mapping_fn = env.make_policy_mapping_fn()
+    env.possible_agents = ["Tagger_0", "Tagger_1", "Runner_0", "Solo_0"]
+    agent_to_policy = env.make_agent_to_policy()
+    policy_mapping_fn = make_policy_mapping_fn_from_dict(agent_to_policy)
 
+    assert agent_to_policy == {
+        "Tagger_0": "Tagger",
+        "Tagger_1": "Tagger",
+        "Runner_0": "Runner",
+        "Solo_0": "Solo_0",
+    }
     assert policy_mapping_fn("Tagger_0") == "Tagger"
     assert policy_mapping_fn("Tagger_1") == "Tagger"
     assert policy_mapping_fn("Runner_0") == "Runner"

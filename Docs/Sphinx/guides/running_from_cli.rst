@@ -14,6 +14,11 @@ Running From CLI
 
 Training CLIs nest an **algorithm** subcommand (for example ``ppo``) and a **simulator** subcommand (``editor``, ``executable``, or ``project``). Simulator-specific options are merged into the same flag list (see :doc:`cli_dataclass_conventions`).
 
+Evaluation CLIs use the same simulator subcommands and environment flags. For RLlib,
+``schola rllib eval`` loads the restored ``MultiRLModule`` weights from a Ray/RLlib
+Algorithm checkpoint directory and rebuilds the evaluation environment from the CLI
+options you pass at evaluation time.
+
 Standalone executable
 ~~~~~~~~~~~~~~~~~~~~~
 
@@ -185,8 +190,13 @@ The same flag works for evaluation:
     .. group-tab:: Ray RLlib
         .. code-block:: bash
 
-            schola rllib eval --checkpoint <PATH_TO_CHECKPOINT> executable \
+            schola rllib eval --checkpoint <CHECKPOINT_DIR> executable \
                 --executable-path <PATH_TO_EXECUTABLE> --env-options.level=hard
+
+For RLlib, ``<CHECKPOINT_DIR>`` must be the Algorithm checkpoint directory produced
+by Ray (for example ``checkpoint_000050``), not an exported ONNX model. Evaluation
+follows ``--num-simulators`` like training: one simulator uses the local env runner,
+while multiple simulators create one remote Schola env runner per simulator.
 
 .. note::
 

@@ -310,6 +310,27 @@ import numpy as np
 import onnxruntime as ort
 
 
+def _onnx_checker_batch_size(model: onnx.ModelProto, state_shapes: dict) -> int:
+    """Inference batch size for ``onnx_model_checker``.
+
+    Stateless models use batch 2 to exercise dynamic batching. Stateful exports
+    (notably LSTM) may fix the batch dimension at 1 despite ``dynamic_shapes``.
+    """
+    if not state_shapes:
+        return 2
+    state_input_names = {f"state_in_{k}" for k in state_shapes}
+    fixed_batches: list[int] = []
+    for inp in model.graph.input:
+        if inp.name not in state_input_names:
+            continue
+        dim0 = inp.type.tensor_type.shape.dim[0]
+        if dim0.dim_value:
+            fixed_batches.append(dim0.dim_value)
+    if fixed_batches:
+        return min(fixed_batches)
+    return 2
+
+
 @pytest.fixture(scope="function")
 def onnx_model_checker():
     def _check_onnx_model(
@@ -321,7 +342,13 @@ def onnx_model_checker():
     ):
         """Check that the ONNX model exists and has the correct input and output names."""
         assert model_path.exists(), f"ONNX file not created at {model_path}"
-        batch_size = 2
+
+        if state_shapes is None:
+            state_shapes = {}
+
+        model = onnx.load(model_path)
+        batch_size = _onnx_checker_batch_size(model, state_shapes)
+
         if not isinstance(observation_space, gym.spaces.Dict):
             observation_space = gym.spaces.Dict({"obs": observation_space})
 
@@ -333,11 +360,7 @@ def onnx_model_checker():
 
         action_space = batch_space(action_space, n=batch_size)
 
-        if state_shapes is None:
-            state_shapes = {}
-
         # Check that the model has the correct input and output names
-        model = onnx.load(model_path)
 
         input_names = [input.name for input in model.graph.input]
         output_names = [output.name for output in model.graph.output]

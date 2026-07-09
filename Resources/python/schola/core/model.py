@@ -445,9 +445,7 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
         if self.is_stateful:
             # add batch and sequence dimensions to the state inputs
             state_input_generator = (
-                v.reshape(1, *v.shape).repeat(
-                    export_batch_size, *[1 for _ in v.shape]
-                )
+                v.reshape(1, *v.shape).repeat(export_batch_size, *[1 for _ in v.shape])
                 for v in self.input_state_dict.values()
             )
             state_dynamic_shapes_fn = lambda k, v: (

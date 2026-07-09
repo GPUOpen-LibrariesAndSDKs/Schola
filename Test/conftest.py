@@ -351,7 +351,7 @@ def onnx_model_checker():
         assert set(output_names) == set(action_space.spaces.keys()) | {
             f"state_out_{k}" for k in state_shapes.keys()
         }, "Output names should be the keys of the action space or 'state_out'"
-        _assert_dynamic_batch_inputs(model, expected_input_names)
+        _check_inputs_have_valid_shape(model)
 
         # check the metadata of the model (embedded on state inputs)
         if metadata is not None:

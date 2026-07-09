@@ -412,13 +412,19 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
         _ = self.eval()
         # make directories if they don't exist
         obs_inputs = []
+        export_batch_size = 2
         batch_dim = Dim("batch_size")
         seq_dim = Dim("seq_len")
 
         for obs_space in self.observation_space.spaces.values():
             # Just flatten discrete and boolean spaces
-            # add the batch dimension to the sample
-            obs_inputs.append(th.as_tensor(obs_space.sample()).unsqueeze(0))
+            # export with a non-singleton example batch so PyTorch does not
+            # specialize the batch dimension to 1 before applying dynamic shapes.
+            obs_inputs.append(
+                th.as_tensor(
+                    np.stack([obs_space.sample() for _ in range(export_batch_size)])
+                )
+            )
 
         obs_input_shapes = ({0: batch_dim} for _ in obs_inputs)
 
@@ -431,7 +437,8 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
         if self.is_stateful:
             # add batch and sequence dimensions to the state inputs
             state_input_generator = (
-                v.reshape(1, *v.shape) for v in self.input_state_dict.values()
+                v.reshape(1, *v.shape).repeat(export_batch_size, *[1 for _ in v.shape])
+                for v in self.input_state_dict.values()
             )
             state_dynamic_shapes_fn = lambda k, v: (
                 {0: batch_dim, v.seq_dim: seq_dim} if v.has_seq_dim else {0: batch_dim}

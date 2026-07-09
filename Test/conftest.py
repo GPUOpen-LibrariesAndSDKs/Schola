@@ -293,15 +293,14 @@ import numpy as np
 import onnxruntime as ort
 
 
-def _assert_dynamic_batch_inputs(
-    model: onnx.ModelProto, expected_input_names: set[str]
+def _check_inputs_have_valid_shape(
+    model: onnx.ModelProto,
 ) -> None:
     """Require every exported input to support dynamic batching."""
     graph_inputs = {inp.name: inp for inp in model.graph.input}
-    for input_name in expected_input_names:
-        inp = graph_inputs[input_name]
+    for input_name, inp in graph_inputs.items():
         dims = inp.type.tensor_type.shape.dim
-        assert dims, f"Expected input '{input_name}' to have a batch dimension"
+        assert dims, f"Expected input '{input_name}' to have non-empty dimensions. Must have at least one dimension."
 
         batch_dim = dims[0]
         assert (

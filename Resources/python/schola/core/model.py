@@ -13,6 +13,7 @@ from typing import Any
 import torch as th
 import gymnasium as gym
 from gymnasium.spaces import Box, MultiDiscrete, flatdim
+import numpy as np
 from torch.export import Dim
 from functools import cached_property
 from schola.core.utils.dict_helpers import *

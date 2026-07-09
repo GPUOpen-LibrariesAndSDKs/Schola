@@ -293,25 +293,20 @@ import numpy as np
 import onnxruntime as ort
 
 
-def _onnx_checker_batch_size(model: onnx.ModelProto, state_shapes: dict) -> int:
-    """Inference batch size for ``onnx_model_checker``.
+def _assert_dynamic_batch_inputs(
+    model: onnx.ModelProto, expected_input_names: set[str]
+) -> None:
+    """Require every exported input to support dynamic batching."""
+    graph_inputs = {inp.name: inp for inp in model.graph.input}
+    for input_name in expected_input_names:
+        inp = graph_inputs[input_name]
+        dims = inp.type.tensor_type.shape.dim
+        assert dims, f"Expected input '{input_name}' to have a batch dimension"
 
-    Stateless models use batch 2 to exercise dynamic batching. Stateful exports
-    (notably LSTM) may fix the batch dimension at 1 despite ``dynamic_shapes``.
-    """
-    if not state_shapes:
-        return 2
-    state_input_names = {f"state_in_{k}" for k in state_shapes}
-    fixed_batches: list[int] = []
-    for inp in model.graph.input:
-        if inp.name not in state_input_names:
-            continue
-        dim0 = inp.type.tensor_type.shape.dim[0]
-        if dim0.dim_value:
-            fixed_batches.append(dim0.dim_value)
-    if fixed_batches:
-        return min(fixed_batches)
-    return 2
+        batch_dim = dims[0]
+        assert (
+            not batch_dim.dim_value and batch_dim.dim_param
+        ), f"Expected input '{input_name}' to have a dynamic batch dimension. Got {batch_dim}"
 
 
 @pytest.fixture(scope="function")
@@ -330,7 +325,7 @@ def onnx_model_checker():
             state_shapes = {}
 
         model = onnx.load(model_path)
-        batch_size = _onnx_checker_batch_size(model, state_shapes)
+        batch_size = 2
 
         if not isinstance(observation_space, gym.spaces.Dict):
             observation_space = gym.spaces.Dict({"obs": observation_space})
@@ -348,12 +343,16 @@ def onnx_model_checker():
         input_names = [input.name for input in model.graph.input]
         output_names = [output.name for output in model.graph.output]
 
-        assert set(input_names) == set(observation_space.spaces.keys()) | {
+        expected_input_names = set(observation_space.spaces.keys()) | {
             f"state_in_{k}" for k in state_shapes.keys()
-        }, "Input names should be the keys of the observation space or state inputs"
+        }
+        assert (
+            set(input_names) == expected_input_names
+        ), "Input names should be the keys of the observation space or state inputs"
         assert set(output_names) == set(action_space.spaces.keys()) | {
             f"state_out_{k}" for k in state_shapes.keys()
         }, "Output names should be the keys of the action space or 'state_out'"
+        _assert_dynamic_batch_inputs(model, expected_input_names)
 
         # check the metadata of the model (embedded on state inputs)
         if metadata is not None:

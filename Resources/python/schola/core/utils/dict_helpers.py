@@ -4,7 +4,7 @@ Utility Functions and Classes for manipulating dictionaries.
 """
 
 import itertools
-from typing import TypeVar, Iterator, Dict, Callable, Tuple, cast
+from typing import TypeVar, Iterator, Dict, Callable, Tuple, cast, Any
 
 V = TypeVar("V")
 Y = TypeVar("Y")

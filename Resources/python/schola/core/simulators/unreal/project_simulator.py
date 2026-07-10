@@ -10,15 +10,11 @@ from typing import Any, Dict, List, Optional
 from schola.core.simulators.unreal.executable_simulator import UnrealExecutable
 
 logger = logging.getLogger(__name__)
-import platform
-import tempfile
 from schola.core.utils.ubt import (
-    UBTCommand,
-    get_project_file,
-    get_ue_version,
-    get_ubt_path,
-    get_unreal_platform,
-    build_executable,
+    expected_executable_path,
+    resolve_build_dir,
+    resolve_uproject_file,
+    run_ubt_project_build,
 )
 
 
@@ -154,61 +150,21 @@ class UnrealProject(UnrealExecutable):
         extra_executable_args: Optional[List[str]] = None,
         extra_ubt_args: Optional[Dict[str, Any]] = None,
     ):
-        # Convert to Path and resolve
-        if isinstance(uproject_path, str):
-            uproject_path = Path(uproject_path)
-
-        # If uproject_path is a directory, find the .uproject file in it
-        if uproject_path.is_dir():
-            self.uproject_file = get_project_file(uproject_path)
-            if self.uproject_file is None:
-                raise FileNotFoundError(
-                    f"No .uproject file found in directory: {uproject_path}"
-                )
-        elif uproject_path.exists() and uproject_path.suffix == ".uproject":
-            self.uproject_file = uproject_path
-        else:
-            raise FileNotFoundError(
-                f"Not a valid .uproject file or directory containing a .uproject file: {uproject_path}"
-            )
-        self.uproject_file = self.uproject_file.resolve()
-
-        # Set up build directory
-        if build_dir is not None:
-            self.build_dir = Path(build_dir).resolve()
-        else:
-            # Generate a cache folder with the build in temp directory
-            self.build_dir = (
-                Path(tempfile.gettempdir()) / f"schola_build_{self.project_name}"
-            )
+        self.uproject_file = resolve_uproject_file(uproject_path)
+        self.build_dir = resolve_build_dir(self.uproject_file, build_dir)
+        if build_dir is None:
             logger.info(
                 "No Build Directory Provided, Using temporary build directory: %s",
                 self.build_dir,
             )
 
-        self.build_dir.mkdir(parents=True, exist_ok=True)
-
         self.ubt_path = Path(ubt_path).resolve() if ubt_path is not None else None
 
-        # Determine the expected executable path
-        executable_filename = self.project_name + (
-            ".exe" if platform.system() == "Windows" else ""
-        )
-        executable_path = (
-            self.build_dir
-            / platform.system()
-            / self.project_name
-            / "Binaries"
-            / get_unreal_platform()
-            / executable_filename
-        )
-        # Warn the user if map doesn't start with /Game/
+        executable_path = expected_executable_path(self.uproject_file, self.build_dir)
         if map is not None:
             map = try_and_resolve_map(map)
 
-        # Build if necessary
         if not use_cached_build or not executable_path.exists():
-            # Either we are forcing a rebuild or the executable doesn't exist
             self._build(
                 uproject_path=self.uproject_file,
                 build_dir=self.build_dir,
@@ -216,9 +172,7 @@ class UnrealProject(UnrealExecutable):
                 _map=map,
                 extra_ubt_args=extra_ubt_args,
             )
-            logger.info(f"Built executable to: {executable_path}")
 
-        # Initialize parent UnrealExecutable with the built executable path
         super().__init__(
             executable_path=executable_path,
             headless_mode=headless_mode,
@@ -271,37 +225,16 @@ class UnrealProject(UnrealExecutable):
             If the .uproject file or UBT path cannot be found
         ValueError
             If the UE version cannot be determined
-        Exception
+        RuntimeError
             If the build process fails
         """
-
-        if ubt_path is None:
-            ue_version = get_ue_version(uproject_path)
-            if ue_version is None:
-                raise ValueError(
-                    "Could not determine Unreal Engine version from .uproject file"
-                )
-            project_folder = uproject_path.parent
-            ubt_path = get_ubt_path(project_folder, ue_version)
-
-        if ubt_path is None:
-            raise FileNotFoundError(
-                "Could not find Unreal Build Tool (UBT) path from project folder, passed ubt_path or default path."
-            )
-        ubt_args = extra_ubt_args.copy() if extra_ubt_args is not None else {}
-        # override any weird duplicates in the extra_ubt_args
-        ubt_args.update(
-            {
-                "ubt_path": ubt_path,
-                "staging_dir": build_dir,
-                "project_file": uproject_path,
-                "maps": [_map] if _map is not None else [],
-                "all_maps": False if _map is not None else True,
-            }
+        completed_build_process = run_ubt_project_build(
+            uproject_path,
+            build_dir,
+            ubt_path=ubt_path,
+            map=_map,
+            extra_ubt_args=extra_ubt_args,
         )
-        ubt_command = UBTCommand(**ubt_args)
-        # Build the executable
-        completed_build_process = ubt_command.run()
 
         if completed_build_process.returncode != 0:
             exception_message = f"Unreal build failed with return code {completed_build_process.returncode} and the following output:\n"

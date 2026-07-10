@@ -1,0 +1,3 @@
+# Copyright (c) 2026 Advanced Micro Devices, Inc. All Rights Reserved.
+
+"""Schola Fabrica tests."""

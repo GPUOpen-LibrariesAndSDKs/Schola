@@ -165,7 +165,7 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
         }
 
     @property
-    def default_simulator_name(self) -> Type[SimulatorArgsType]:
+    def default_simulator_name(self) -> str:
         return "external"
 
     def make_simulator_command(self, simulator_type: Type[SimulatorArgsType]):

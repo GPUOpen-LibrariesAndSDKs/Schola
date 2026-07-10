@@ -9,15 +9,11 @@ from typing import Literal
 from typing_extensions import Annotated
 
 from schola.scripts.common.command_template import ScholaCommandTemplate
+from schola.scripts.common.console import configure_logging
 from schola.scripts.minari.settings import MinariScriptSettings
 from cyclopts import App, Parameter
 
-# Logging setup (idempotent)
-if not logging.getLogger().handlers:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(levelname)s %(name)s: %(message)s",
-    )
+configure_logging()
 
 logger = logging.getLogger(__name__)
 

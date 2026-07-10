@@ -9,13 +9,10 @@ from typing import Any, Dict, Type
 
 from cyclopts import App
 from schola.scripts.common.command_template import ScholaCommandTemplate
+from schola.scripts.common.console import configure_logging
 from schola.scripts.rllib.eval.settings import RllibEvalScriptSettings
 
-if not logging.getLogger().handlers:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(levelname)s %(name)s: %(message)s",
-    )
+configure_logging()
 
 logger = logging.getLogger(__name__)
 

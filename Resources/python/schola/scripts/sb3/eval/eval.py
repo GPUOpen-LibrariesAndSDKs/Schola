@@ -10,14 +10,11 @@ from typing import List, Tuple, cast, Any
 
 from cyclopts import App
 from schola.scripts.common.command_template import ScholaCommandTemplate
+from schola.scripts.common.console import configure_logging
 from schola.scripts.sb3.settings import BasePPOSettings, BaseSACSettings
 from schola.scripts.sb3.eval.settings import Sb3EvalScriptSettings
 
-if not logging.getLogger().handlers:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(levelname)s %(name)s: %(message)s",
-    )
+configure_logging()
 
 logger = logging.getLogger(__name__)
 

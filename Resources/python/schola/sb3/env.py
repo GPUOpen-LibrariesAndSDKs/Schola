@@ -290,8 +290,10 @@ class VecEnv(BaseVecEnv):
         logger.info("...Sending Startup Message")
         try:
             protocol.send_startup_msg(auto_reset_type=AutoResetType.SAME_STEP)
-        except Exception as e:
-            raise e
+        except Exception:
+            protocol.close()
+            simulator.stop()
+            raise
 
         logger.info("...Requesting environment definition")
         id_manager, agent_types, obs_space, action_space = self._define_environment(

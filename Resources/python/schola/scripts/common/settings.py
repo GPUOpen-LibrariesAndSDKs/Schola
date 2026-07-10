@@ -20,9 +20,7 @@ from dataclasses import dataclass, field
 from cyclopts import App, Parameter, validators, group_extractors, Group, types
 from pathlib import Path
 
-from rich.console import Console
-
-console = Console()
+from schola.core.utils.ubt import expected_executable_path, resolve_build_dir
 
 
 class ActivationFunctionEnum(str, Enum):
@@ -191,6 +189,38 @@ class UnrealProjectSimulatorConfig:
             display_logs=self.display_logs,
             set_fps=self.fps,
             disable_script=self.disable_script,
+        )
+
+    @property
+    def resolved_build_dir(self) -> Path:
+        """
+        Return the build directory for the project.
+        """
+        return resolve_build_dir(self.uproject_path, self.build_dir)
+
+    @property
+    def resolved_executable_path(self) -> Path:
+        """
+        Return the executable path for the project.
+        """
+        return expected_executable_path(self.uproject_path, self.resolved_build_dir)
+
+    def to_executable_config(
+        self,
+    ) -> UnrealExecutableSimulatorConfig:
+        """
+        Build this project and return an executable simulator config.
+
+        Build output is written to ``build_log_path``. Raises on failure.
+        """
+        return UnrealExecutableSimulatorConfig(
+            executable_path=self.resolved_executable_path,
+            disable_script=self.disable_script,
+            headless=self.headless,
+            map=self.map,
+            fps=self.fps,
+            display_logs=self.display_logs,
+            num_simulators=self.num_simulators,
         )
 
 

@@ -5,11 +5,15 @@ Utility Functions and classes for working with Unreal Engine's UBT (Unreal Build
 """
 
 import os
+import logging
+import tempfile
 from pathlib import Path
 import platform
 import subprocess
 from dataclasses import dataclass, field
-from typing import List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
+
+logger = logging.getLogger(__name__)
 
 
 def get_unreal_platform() -> Literal["Win64", "Linux"]:
@@ -140,6 +144,139 @@ class UBTCommand:
         Run the UBT command.
         """
         return subprocess.run(self.build_args(), capture_output=True)
+
+
+def resolve_uproject_file(uproject_path: Path | str) -> Path:
+    """Resolve a ``.uproject`` file or a directory containing one."""
+    path = Path(uproject_path)
+    if path.is_dir():
+        uproject_file = get_project_file(path)
+        if uproject_file is None:
+            raise FileNotFoundError(f"No .uproject file found in directory: {path}")
+        return uproject_file.resolve()
+    if path.suffix == ".uproject" and path.exists():
+        return path.resolve()
+    raise FileNotFoundError(
+        f"Not a valid .uproject file or directory containing one: {path}"
+    )
+
+
+def resolve_build_dir(
+    uproject_file: Path,
+    build_dir: Optional[Path | str] = None,
+) -> Path:
+    """Return the staging directory for a project build, creating it if needed."""
+    if build_dir is not None:
+        resolved = Path(build_dir).resolve()
+        if resolved.exists() and not resolved.is_dir():
+            raise FileExistsError(f"Build directory {resolved} is not a directory")
+    else:
+        resolved = Path(tempfile.gettempdir()) / f"schola_build_{uproject_file.stem}"
+    resolved.mkdir(parents=True, exist_ok=True)
+    return resolved
+
+
+def expected_executable_path(uproject_file: Path, build_dir: Path) -> Path:
+    """Return the staged standalone executable path for a built Unreal project."""
+    executable_filename = uproject_file.stem + (
+        ".exe" if platform.system() == "Windows" else ""
+    )
+    return (
+        build_dir
+        / platform.system()
+        / uproject_file.stem
+        / "Binaries"
+        / get_unreal_platform()
+        / executable_filename
+    )
+
+
+def resolve_ubt_path(
+    uproject_file: Path,
+    ubt_path: Optional[Path | str] = None,
+) -> Path:
+    """Resolve the RunUAT script for a project, auto-detecting when omitted."""
+    if ubt_path is not None:
+        return Path(ubt_path).resolve()
+    ue_version = get_ue_version(uproject_file)
+    if ue_version is None:
+        raise ValueError(
+            "Could not determine Unreal Engine version from .uproject file"
+        )
+    resolved = get_ubt_path(uproject_file.parent, ue_version)
+    if resolved is None:
+        raise FileNotFoundError(
+            "Could not find Unreal Build Tool (UBT) path from project folder, "
+            "passed ubt_path, or default path."
+        )
+    return resolved.resolve()
+
+
+def run_ubt_project_build(
+    uproject_file: Path,
+    build_dir: Path,
+    *,
+    ubt_path: Optional[Path | str] = None,
+    map: Optional[str] = None,
+    extra_ubt_args: Optional[Dict[str, Any]] = None,
+) -> subprocess.CompletedProcess[bytes]:
+    """Run UBT for a project and raise when the build fails."""
+    ubt_args: Dict[str, Any] = (
+        extra_ubt_args.copy() if extra_ubt_args is not None else {}
+    )
+    ubt_args.update(
+        {
+            "ubt_path": resolve_ubt_path(uproject_file, ubt_path),
+            "staging_dir": build_dir,
+            "project_file": uproject_file,
+            "maps": [map] if map is not None else [],
+            "all_maps": map is None,
+        }
+    )
+    completed_build = UBTCommand(**ubt_args).run()
+    return completed_build
+
+
+def build_project_executable(
+    uproject_path: Path | str,
+    *,
+    build_dir: Optional[Path | str] = None,
+    ubt_path: Optional[Path | str] = None,
+    map: Optional[str] = None,
+    extra_ubt_args: Optional[Dict[str, Any]] = None,
+) -> Path:
+    """
+    Build an Unreal project executable and return its staged path.
+
+    Parameters
+    ----------
+    uproject_path
+        Path to a ``.uproject`` file or a directory containing one.
+    build_dir
+        Optional staging directory. When omitted, a temp directory is used.
+    ubt_path
+        Optional RunUAT path. When omitted, it is auto-detected from the project.
+    map
+        Optional map to cook/package. When omitted, all maps are cooked.
+    build_log_path
+        Optional file to write captured UBT stdout/stderr to.
+    extra_ubt_args
+        Extra keyword arguments forwarded to :class:`UBTCommand`.
+    """
+    uproject_file = resolve_uproject_file(uproject_path)
+    staging_dir = resolve_build_dir(uproject_file, build_dir)
+    run_ubt_project_build(
+        uproject_file,
+        staging_dir,
+        ubt_path=ubt_path,
+        map=map,
+        extra_ubt_args=extra_ubt_args,
+    )
+    executable_path = expected_executable_path(uproject_file, staging_dir)
+    if not executable_path.exists():
+        raise FileNotFoundError(f"Built executable not found at {executable_path}")
+    logger.info("Built executable to: %s", executable_path)
+    return executable_path
 
 
 def get_ue_version(project_file: Path) -> str:
@@ -294,6 +431,39 @@ def get_editor_executable_path(engine_path: Path) -> Path:
     )
     bin_dir = "Win64" if platform.system() == "Windows" else "Linux"
     return engine_path / "Engine" / "Binaries" / bin_dir / editor_tool
+
+
+def resolve_editor_executable(uproject: Path) -> Path:
+    """
+    Resolve the Unreal Editor command-line executable from a .uproject file.
+
+    Parameters
+    ----------
+    uproject : Path
+        Path to the .uproject file.
+
+    Returns
+    -------
+    Path
+        Path to the UnrealEditor-Cmd executable.
+
+    Raises
+    ------
+    FileNotFoundError
+        If no .sln file is found or the Engine path cannot be resolved.
+    """
+    sln = get_sln_file_from_project(uproject.parent)
+    if sln is None:
+        raise FileNotFoundError(
+            f"Could not locate a .sln next to {uproject.parent} to resolve the Engine install."
+        )
+    engine = get_engine_path_from_sln(sln)
+    if engine is None:
+        raise FileNotFoundError(f"Could not resolve Engine path from {sln}")
+    editor = get_editor_executable_path(engine)
+    if not editor.exists():
+        raise FileNotFoundError(f"Could not resolve UnrealEditor-Cmd executable from {engine}")
+    return editor
 
 
 def build_executable(

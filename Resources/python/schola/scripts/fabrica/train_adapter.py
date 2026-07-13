@@ -69,11 +69,11 @@ def build_unreal_environment_from_settings(
         map=sim.map,
     )
     (build_artifact_dir / "ubt_stdout.txt").write_text(
-        completed_build.stdout.decode("utf-8", errors="replace"),
+        completed_build.stdout,
         encoding="utf-8",
     )
     (build_artifact_dir / "ubt_stderr.txt").write_text(
-        completed_build.stderr.decode("utf-8", errors="replace"),
+        completed_build.stderr,
         encoding="utf-8",
     )
 

@@ -1,3 +1,48 @@
 {
-    "extraPaths": ["Resources/python"]
+    "extraPaths": ["Resources/python"],
+    "executionEnvironments": [
+        {
+            "root": "Resources/python/schola/core/protocols/protobuf",
+            "extraPaths": ["Resources/python"],
+            "reportUnknownMemberType": "none",
+            "reportUnknownVariableType": "none",
+            "reportUnknownParameterType": "none",
+            "reportUnknownArgumentType": "none",
+            "reportAny": "none",
+            "reportExplicitAny": "none",
+            "reportUnannotatedClassAttribute": "none",
+            "reportUnusedCallResult": "none",
+            "reportUnusedFunction": "none",
+            "reportImplicitOverride": "none"
+        },
+        {
+            "root": "Resources/python/schola/core/protocols",
+            "extraPaths": ["Resources/python"],
+            "pythonVersion": "3.10",
+            "reportAny": "none",
+            "reportExplicitAny": "none",
+            "reportUnusedParameter": "none",
+            "reportUnreachable": "none",
+            "reportImplicitOverride": "none"
+        },
+        {
+            "root": "Resources/python/schola/core/simulators/unreal",
+            "extraPaths": ["Resources/python"],
+            "pythonVersion": "3.10",
+            "reportAny": "none",
+            "reportExplicitAny": "none",
+            "reportUnusedCallResult": "none"
+        },
+        {
+            "root": "Resources/python/schola/core/utils",
+            "extraPaths": ["Resources/python"],
+            "pythonVersion": "3.10",
+            "reportUnknownMemberType": "none",
+            "reportUnknownVariableType": "none",
+            "reportUnknownParameterType": "none",
+            "reportMissingParameterType": "none",
+            "reportUnknownArgumentType": "none",
+            "reportAny": "none"
+        }
+    ]
 }

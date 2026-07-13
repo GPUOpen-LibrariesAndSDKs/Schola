@@ -95,6 +95,23 @@ def stub_protocol_class():
             self.send_action_msg = MagicMock()
             type(self).instances.append(self)
 
+        # These satisfy BaseRLProtocol's @abstractmethods at class-definition time.
+        # __init__ shadows each one with a per-instance MagicMock for call assertions.
+
+        def close(self) -> None: ...
+
+        def start(self) -> None: ...
+
+        def send_startup_msg(self, *args: Any, **kwargs: Any) -> None: ...
+
+        def get_definition(self, *args: Any, **kwargs: Any) -> Any: ...
+
+        def send_reset_msg(
+            self, seeds: list[Any] | None = None, options: list[Any] | None = None
+        ) -> Any: ...
+
+        def send_action_msg(self, *args: Any, **kwargs: Any) -> Any: ...
+
         def __bool__(self) -> bool:
             return True
 

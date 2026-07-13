@@ -37,12 +37,11 @@ from schola.core.error_manager import (
     NoAgentsException,
     NoEnvironmentsException,
 )
-from schola.core.protocols.base_protocol import BaseRLProtocol
+from schola.core.protocols.base_protocol import AutoResetType, BaseRLProtocol
 from schola.core.simulators.base_simulator import (
     BaseSimulator,
     UnsupportedProtocolException,
 )
-from gymnasium.vector.vector_env import AutoresetMode
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
 from ray.rllib.utils.annotations import PublicAPI
 from schola.core.utils.id_manager import IdManager
@@ -162,7 +161,7 @@ class BaseRayEnv(ABC):
         # 3. Send startup message with autoreset
         # Note: This may be called twice if protocol was already started (e.g., from factory function)
         # Protocol implementations should handle duplicate startup messages gracefully
-        self.protocol.send_startup_msg(auto_reset_type=AutoresetMode.NEXT_STEP)
+        self.protocol.send_startup_msg(auto_reset_type=AutoResetType.NEXT_STEP)
 
         # 4. Define environment (calls subclass _define_environment)
         self._define_environment()

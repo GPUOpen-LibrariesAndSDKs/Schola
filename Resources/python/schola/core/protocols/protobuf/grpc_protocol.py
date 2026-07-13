@@ -3,9 +3,16 @@
 Base class for connections that use the gRPC server.
 """
 
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Literal
+
 import grpc
-from schola.core.protocols.base_protocol import AutoResetType, BaseRLProtocol
+from gymnasium.vector.vector_env import AutoresetMode
+
+from schola.core.protocols.base_protocol import (
+    AutoResetType,
+    DEFAULT_AUTO_RESET_TYPE,
+    BaseRLProtocol,
+)
 from schola.core.protocols.protobuf.deserialize import from_proto
 from schola.core.protocols.protobuf.serialize import to_proto, fill_generic
 import schola.generated.GymConnector_pb2_grpc as gym_grpc
@@ -15,10 +22,26 @@ import schola.generated.State_pb2 as state
 import schola.generated.StateUpdates_pb2 as state_updates
 from schola.core.protocols.socket_protocol import SocketProtocolMixin
 import gymnasium as gym
-from gymnasium.vector.vector_env import AutoresetMode
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def coerce_auto_reset_type(
+    auto_reset_type: AutoResetType | AutoresetMode | int,
+) -> AutoResetType:
+    """
+    Coerce a gymnasium ``AutoresetMode`` or raw protobuf int to ``AutoResetType``.
+
+    Callers that receive ``AutoresetMode`` or an integer value from an external
+    framework should normalise to ``AutoResetType`` using this helper before
+    passing to :meth:`BaseGrpcProtocol.send_startup_msg`.
+    """
+    if isinstance(auto_reset_type, AutoResetType):
+        return auto_reset_type
+    if isinstance(auto_reset_type, AutoresetMode):
+        return getattr(AutoResetType, auto_reset_type.name)
+    return getattr(AutoResetType, util_messages.AutoResetType.Name(auto_reset_type))
 
 
 class BaseGrpcProtocol(SocketProtocolMixin):
@@ -35,8 +58,8 @@ class BaseGrpcProtocol(SocketProtocolMixin):
     def __init__(
         self,
         url: str,
-        port: Optional[int] = None,
-        environment_start_timeout: Optional[int] = 45,
+        port: int | None = None,
+        environment_start_timeout: int | None = 45,
         credential_mode: Literal["local", "insecure"] = "local",
     ):
         super().__init__(url, port, client_only=(credential_mode == "insecure"))
@@ -45,7 +68,7 @@ class BaseGrpcProtocol(SocketProtocolMixin):
                 f"credential_mode must be one of {self.VALID_CREDENTIAL_MODES}, "
                 f"got {credential_mode!r}"
             )
-        self._gym_stub: Optional[gym_grpc.GymServiceStub] = None  # type: ignore
+        self._gym_stub: gym_grpc.GymServiceStub | None = None
         self.environment_start_timeout = environment_start_timeout
         self.credential_mode = credential_mode
 
@@ -55,21 +78,24 @@ class BaseGrpcProtocol(SocketProtocolMixin):
         return self._gym_stub
 
     def prepare_start_msg(
-        self, auto_reset_type: AutoresetMode
+        self,
+        auto_reset_type: AutoResetType,
     ) -> util_messages.GymConnectorStartRequest:
         start_msg = util_messages.GymConnectorStartRequest()
 
-        if auto_reset_type == AutoresetMode.DISABLED:
+        if auto_reset_type == AutoResetType.DISABLED:
             start_msg.autoreset_type = util_messages.AutoResetType.DISABLED
-        elif auto_reset_type == AutoresetMode.SAME_STEP:
+        elif auto_reset_type == AutoResetType.SAME_STEP:
             start_msg.autoreset_type = util_messages.AutoResetType.SAME_STEP
-        elif auto_reset_type == AutoresetMode.NEXT_STEP:
+        elif auto_reset_type == AutoResetType.NEXT_STEP:
             start_msg.autoreset_type = util_messages.AutoResetType.NEXT_STEP
 
         return start_msg
 
     def prepare_reset_msg(
-        self, seeds: Optional[List] = None, options: Optional[List] = None
+        self,
+        seeds: list[Any] | None = None,
+        options: list[Any] | None = None,
     ) -> state_updates.StateUpdate:
         state_update = state_updates.StateUpdate(reset=state_updates.Reset())
         reset_msg: state_updates.Reset = state_update.reset
@@ -86,7 +112,9 @@ class BaseGrpcProtocol(SocketProtocolMixin):
         return state_update
 
     def prepare_action_msg(
-        self, actions: Dict[int, Dict[str, Any]], action_space: Dict[str, gym.Space]
+        self,
+        actions: dict[int, dict[str, Any]],
+        action_space: dict[str, gym.Space[Any]],
     ) -> state_updates.StateUpdate:
         state_update = state_updates.StateUpdate(step=state_updates.Step())
         state_update.status = state_updates.CommunicatorStatus.GOOD
@@ -118,7 +146,7 @@ class BaseGrpcProtocol(SocketProtocolMixin):
         return (self.has_socket or self.is_started) and self.channel_connected
 
     @property
-    def properties(self) -> Dict[str, Any]:
+    def properties(self) -> dict[str, Any]:
         return self.mixin_properties
 
 
@@ -135,14 +163,14 @@ class GrpcProtocol(BaseGrpcProtocol, BaseRLProtocol):
     def __init__(
         self,
         url: str,
-        port: Optional[int] = None,
-        environment_start_timeout: Optional[int] = 45,
+        port: int | None = None,
+        environment_start_timeout: int | None = 45,
         credential_mode: Literal["local", "insecure"] = "local",
         grpc_close_timeout: float = 5.0,
     ):
         super().__init__(url, port, environment_start_timeout, credential_mode)
         self.grpc_close_timeout = grpc_close_timeout
-        self.channel: Optional[grpc.Channel] = None
+        self.channel: grpc.Channel | None = None
 
     def close(self) -> None:
         """
@@ -151,7 +179,7 @@ class GrpcProtocol(BaseGrpcProtocol, BaseRLProtocol):
         logger.debug("Close invoked")
         SocketProtocolMixin.on_close(self)
 
-        if self.channel_connected:
+        if self.channel is not None:
             try:
                 state_update = state_updates.StateUpdate(
                     status=state_updates.CommunicatorStatus.CLOSED
@@ -165,7 +193,7 @@ class GrpcProtocol(BaseGrpcProtocol, BaseRLProtocol):
             finally:
                 self.channel.close()
                 self.channel = None
-                self._gym_stub = None  # type: ignore
+                self._gym_stub = None
         else:
             logger.debug("gRPC channel already closed")
 
@@ -191,9 +219,9 @@ class GrpcProtocol(BaseGrpcProtocol, BaseRLProtocol):
         self._gym_stub = gym_grpc.GymServiceStub(self.channel)
 
     def send_startup_msg(
-        self, auto_reset_type: AutoresetMode = AutoresetMode.SAME_STEP
-    ):
-
+        self,
+        auto_reset_type: AutoResetType = DEFAULT_AUTO_RESET_TYPE,
+    ) -> None:
         start_msg = self.prepare_start_msg(auto_reset_type)
         self.gym_stub.StartGymConnector(
             start_msg, timeout=self.environment_start_timeout, wait_for_ready=True
@@ -201,11 +229,11 @@ class GrpcProtocol(BaseGrpcProtocol, BaseRLProtocol):
 
     def get_definition(
         self,
-    ) -> Tuple[
-        List[List[str]],
-        List[Dict[str, str]],
-        Dict[int, Dict[str, gym.Space]],
-        Dict[int, Dict[str, gym.Space]],
+    ) -> tuple[
+        list[list[str]],
+        dict[int, dict[str, str]],
+        dict[int, dict[str, gym.Space[Any]]],
+        dict[int, dict[str, gym.Space[Any]]],
     ]:
         training_defn: env_definitions.TrainingDefinition = (
             self.gym_stub.RequestTrainingDefinition(
@@ -218,9 +246,10 @@ class GrpcProtocol(BaseGrpcProtocol, BaseRLProtocol):
         return uids, agent_types, obs_spaces, act_spaces
 
     def send_reset_msg(
-        self, seeds: Optional[List] = None, options: Optional[List] = None
-    ):
-
+        self,
+        seeds: list[Any] | None = None,
+        options: list[Any] | None = None,
+    ) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
         # abort any inprogress stuff
         state_update = self.prepare_reset_msg(seeds, options)
 
@@ -232,8 +261,18 @@ class GrpcProtocol(BaseGrpcProtocol, BaseRLProtocol):
         return observations, infos
 
     def send_action_msg(
-        self, actions: Dict[int, Dict[str, Any]], action_space: Dict[str, gym.Space]
-    ):
+        self,
+        actions: dict[int, dict[str, Any]],
+        action_space: dict[str, gym.Space[Any]],
+    ) -> tuple[
+        list[dict[str, Any]],
+        list[dict[str, float]],
+        list[dict[str, bool]],
+        list[dict[str, bool]],
+        list[dict[str, dict[str, str]]],
+        dict[int, dict[str, Any]],
+        dict[int, dict[str, str]],
+    ]:
         state_update = self.prepare_action_msg(actions, action_space)
 
         training_state: state.State = self.gym_stub.UpdateState(state_update)

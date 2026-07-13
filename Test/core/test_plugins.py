@@ -1,13 +1,11 @@
 # Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
+# pyright: reportAny=false, reportUnknownMemberType=false
 """
 Tests for schola.core.utils.plugins module
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from schola.core.utils.plugins import get_plugins
-import sys
-import importlib.metadata
 
 
 class TestGetPlugins:
@@ -105,7 +103,7 @@ class TestGetPlugins:
             mock_eps.select.return_value = []
 
             with patch("importlib.metadata.entry_points", return_value=mock_eps):
-                result = get_plugins(group_name)
+                _ = get_plugins(group_name)
                 mock_eps.select.assert_called_with(group=group_name)
 
     def test_get_plugins_returns_loaded_objects(self):

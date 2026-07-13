@@ -5,21 +5,21 @@ A connection builds an Unreal Project if Necessary and then launches a standalon
 """
 
 import logging
-from pathlib import Path
-from typing import Any, Dict, List, Optional
-from schola.core.simulators.unreal.executable_simulator import UnrealExecutable
-
-logger = logging.getLogger(__name__)
 import platform
 import tempfile
+from pathlib import Path
+from typing import Any
+
+from schola.core.simulators.unreal.executable_simulator import UnrealExecutable
 from schola.core.utils.ubt import (
     UBTCommand,
     get_project_file,
     get_ue_version,
     get_ubt_path,
     get_unreal_platform,
-    build_executable,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def is_valid_map_path(map_path: str) -> bool:
@@ -132,6 +132,8 @@ class UnrealProject(UnrealExecutable):
     ----------
     uproject_path : Path
         Path to the .uproject file
+    uproject_file : Path
+        Resolved path to the ``.uproject`` file
     build_dir : Path
         Directory where the built executable is staged
     ubt_path : Optional[Path]
@@ -140,38 +142,44 @@ class UnrealProject(UnrealExecutable):
         Whether to use a cached build if it exists. If True, will only build if the executable does not exist.
     """
 
+    uproject_file: Path
+    build_dir: Path
+    ubt_path: Path | None
+
     def __init__(
         self,
         uproject_path: Path | str,
-        build_dir: Optional[Path | str] = None,
-        ubt_path: Optional[Path | str] = None,
+        build_dir: Path | str | None = None,
+        ubt_path: Path | str | None = None,
         use_cached_build: bool = False,
         headless_mode: bool = False,
-        map: Optional[str] = None,
+        map: str | None = None,
         display_logs: bool = True,
-        set_fps: Optional[int] = None,
+        set_fps: int | None = None,
         disable_script: bool = True,
-        extra_executable_args: Optional[List[str]] = None,
-        extra_ubt_args: Optional[Dict[str, Any]] = None,
+        extra_executable_args: list[str] | None = None,
+        extra_ubt_args: dict[str, Any] | None = None,
     ):
         # Convert to Path and resolve
         if isinstance(uproject_path, str):
             uproject_path = Path(uproject_path)
 
         # If uproject_path is a directory, find the .uproject file in it
+        uproject_file: Path
         if uproject_path.is_dir():
-            self.uproject_file = get_project_file(uproject_path)
-            if self.uproject_file is None:
+            discovered_uproject = get_project_file(uproject_path)
+            if discovered_uproject is None:
                 raise FileNotFoundError(
                     f"No .uproject file found in directory: {uproject_path}"
                 )
+            uproject_file = discovered_uproject
         elif uproject_path.exists() and uproject_path.suffix == ".uproject":
-            self.uproject_file = uproject_path
+            uproject_file = uproject_path
         else:
             raise FileNotFoundError(
                 f"Not a valid .uproject file or directory containing a .uproject file: {uproject_path}"
             )
-        self.uproject_file = self.uproject_file.resolve()
+        self.uproject_file = uproject_file.resolve()
 
         # Set up build directory
         if build_dir is not None:
@@ -239,16 +247,16 @@ class UnrealProject(UnrealExecutable):
         str
             Name used for build outputs and executable discovery.
         """
-        return self.uproject_file.stem  # type: ignore
+        return self.uproject_file.stem
 
     def _build(
         self,
         uproject_path: Path,
         build_dir: Path,
-        ubt_path: Optional[Path] = None,
-        _map: Optional[str] = None,
-        extra_ubt_args: Optional[Dict[str, Any]] = None,
-    ):
+        ubt_path: Path | None = None,
+        _map: str | None = None,
+        extra_ubt_args: dict[str, Any] | None = None,
+    ) -> None:
         """
         Build the Unreal project executable using the Unreal Build Tool.
 
@@ -306,7 +314,7 @@ class UnrealProject(UnrealExecutable):
         if completed_build_process.returncode != 0:
             exception_message = f"Unreal build failed with return code {completed_build_process.returncode} and the following output:\n"
             if completed_build_process.stderr:
-                exception_message += f"stderr:\n {completed_build_process.stderr.decode('utf-8', errors='ignore')}\n"
+                exception_message += f"stderr:\n {completed_build_process.stderr}\n"
             if completed_build_process.stdout:
-                exception_message += f"stdout:\n {completed_build_process.stdout.decode('utf-8', errors='ignore')}\n"
+                exception_message += f"stdout:\n {completed_build_process.stdout}\n"
             raise Exception(exception_message)

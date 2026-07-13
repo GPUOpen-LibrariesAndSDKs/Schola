@@ -3,14 +3,15 @@
 Asyncio versions of the base protocol classes for Unreal Connections.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from abc import ABC, abstractmethod
+from typing import Any
 
 import gymnasium as gym
 
-from .base_protocol import AutoResetType
+from .base_protocol import AutoResetType, DEFAULT_AUTO_RESET_TYPE
 
 
-class AsyncBaseProtocol:
+class AsyncBaseProtocol(ABC):
     """
     Async base class for all communication protocols with Schola.
 
@@ -18,6 +19,7 @@ class AsyncBaseProtocol:
     used to connect Python environments with simulations.
     """
 
+    @abstractmethod
     async def close(self) -> None:
         """
         Close the protocol connection asynchronously.
@@ -28,6 +30,7 @@ class AsyncBaseProtocol:
         """
         ...
 
+    @abstractmethod
     async def start(self) -> None:
         """
         Start the protocol connection asynchronously.
@@ -36,6 +39,7 @@ class AsyncBaseProtocol:
         """
         ...
 
+    @abstractmethod
     def __bool__(self) -> bool:
         """
         Returns whether the connection is active or not.
@@ -47,12 +51,21 @@ class AsyncBaseProtocol:
         """
         ...
 
-    async def send_startup_msg(self, *args, **kwargs) -> Any:
+    @abstractmethod
+    async def send_startup_msg(
+        self,
+        auto_reset_type: AutoResetType | None = None,
+        /,
+        *args: Any,
+        **kwargs: Any,
+    ) -> Any:
         """
         Send the initial startup message to Unreal Engine.
 
         Parameters
         ----------
+        auto_reset_type : AutoResetType, optional
+            Auto-reset behavior when supported by the concrete protocol.
         *args
             Variable length argument list.
         **kwargs
@@ -60,7 +73,8 @@ class AsyncBaseProtocol:
         """
         ...
 
-    async def get_definition(self, *args, **kwargs) -> Any:
+    @abstractmethod
+    async def get_definition(self, *args: Any, **kwargs: Any) -> Any:
         """
         Get the environment definition from Unreal Engine.
 
@@ -80,7 +94,7 @@ class AsyncBaseProtocol:
         ...
 
     @property
-    def properties(self) -> Dict[str, Any]:
+    def properties(self) -> dict[str, Any]:
         """
         Get protocol-specific properties.
 
@@ -117,7 +131,7 @@ class AsyncBaseProtocolMixin:
         ...
 
     @property
-    def mixin_properties(self) -> Dict[str, Any]:
+    def mixin_properties(self) -> dict[str, Any]:
         """
         Get mixin-specific properties.
 
@@ -129,7 +143,7 @@ class AsyncBaseProtocolMixin:
         return dict()
 
 
-class AsyncBaseRLProtocol(AsyncBaseProtocol):
+class AsyncBaseRLProtocol(AsyncBaseProtocol, ABC):
     """
     Async base class for reinforcement learning protocols.
 
@@ -137,8 +151,13 @@ class AsyncBaseRLProtocol(AsyncBaseProtocol):
     environments, including reset, step, and action messaging.
     """
 
+    @abstractmethod
     async def send_startup_msg(
-        self, auto_reset_type: AutoResetType = AutoResetType.SAME_STEP
+        self,
+        auto_reset_type: AutoResetType = DEFAULT_AUTO_RESET_TYPE,
+        /,
+        *args: Any,
+        **kwargs: Any,
     ) -> None:
         """
         Send the startup message with auto-reset configuration.
@@ -150,31 +169,37 @@ class AsyncBaseRLProtocol(AsyncBaseProtocol):
         """
         ...
 
+    @abstractmethod
     async def get_definition(
         self,
-    ) -> Tuple[
-        List[List[str]],
-        List[Dict[str, str]],
-        Dict[int, Dict[str, gym.Space]],
-        Dict[int, Dict[str, gym.Space]],
+        *args: Any,
+        **kwargs: Any,
+    ) -> tuple[
+        list[list[str]],
+        dict[int, dict[str, str]],
+        dict[int, dict[str, gym.Space[Any]]],
+        dict[int, dict[str, gym.Space[Any]]],
     ]:
         """
         Get the environment definition from Unreal Engine.
 
         Returns
         -------
-        Tuple[List[List[str]], List[Dict[str, str]], Dict[int, Dict[str, gym.Space]], Dict[int, Dict[str, gym.Space]]]
+        Tuple[List[List[str]], Dict[int, Dict[str, str]], Dict[int, Dict[str, gym.Space]], Dict[int, Dict[str, gym.Space]]]
             A tuple containing:
             - List of agent IDs per environment
-            - List of agent groups per environment (used for grouping agents)
+            - Agent types indexed by environment and agent
             - Observation spaces for each environment and agent
             - Action spaces for each environment and agent
         """
         ...
 
+    @abstractmethod
     async def send_reset_msg(
-        self, seeds: Optional[List] = None, options: Optional[List] = None
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Dict[str, str]]]]:
+        self,
+        seeds: list[Any] | None = None,
+        options: list[Any] | None = None,
+    ) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
         """
         Send a reset message to restart the environment.
 
@@ -187,23 +212,26 @@ class AsyncBaseRLProtocol(AsyncBaseProtocol):
 
         Returns
         -------
-        Tuple[List[Dict[str, Any]], List[Dict[str, Dict[str, str]]]
+        Tuple[List[Dict[str, Any]], List[Dict[str, str]]]
             A tuple containing:
             - List of initial observations for each environment
             - List of initial info dicts for each environment
         """
         ...
 
+    @abstractmethod
     async def send_action_msg(
-        self, actions: Dict[int, Dict[str, Any]], action_space: Dict[str, gym.Space]
-    ) -> Tuple[
-        List[Dict[str, Any]],
-        List[Dict[str, float]],
-        List[Dict[str, bool]],
-        List[Dict[str, bool]],
-        List[Dict[str, str]],
-        Dict[int, Dict[str, Any]],
-        Dict[int, Dict[str, str]],
+        self,
+        actions: dict[int, dict[str, Any]],
+        action_space: dict[str, gym.Space[Any]],
+    ) -> tuple[
+        list[dict[str, Any]],
+        list[dict[str, float]],
+        list[dict[str, bool]],
+        list[dict[str, bool]],
+        list[dict[str, dict[str, str]]],
+        dict[int, dict[str, Any]],
+        dict[int, dict[str, str]],
     ]:
         """
         Send actions to the environment and receive the next state.
@@ -217,7 +245,7 @@ class AsyncBaseRLProtocol(AsyncBaseProtocol):
 
         Returns
         -------
-        Tuple[List[Dict[str, Any]], List[Dict[str, float]], List[Dict[str, bool]], List[Dict[str, bool]], List[Dict[str, str]], Dict[int, Dict[str, Any]], Dict[int, Dict[str, str]]]
+        Tuple[List[Dict[str, Any]], List[Dict[str, float]], List[Dict[str, bool]], List[Dict[str, bool]], List[Dict[str, Dict[str, str]]], Dict[int, Dict[str, Any]], Dict[int, Dict[str, str]]]
             A tuple containing:
             - Observations for each environment
             - Rewards for each environment

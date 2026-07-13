@@ -285,7 +285,9 @@ class ScholaRLModule(ScholaModel):
         )
         return {k: custom_flat_dim_func(v) for k, v in self.action_space.items()}
 
-    def make_box_output(self, logits: th.Tensor, space_name: str) -> th.Tensor:
+    def make_box_output(
+        self, logits: th.Tensor, _space_name: str = "action"
+    ) -> th.Tensor:
         # must always be even so we can just divide here
         return logits[: len(logits) // 2]
 
@@ -482,7 +484,9 @@ class RllibScholaModel(ScholaModel):
         )
         return {k: custom_flat_dim_func(v) for k, v in self.action_space.items()}
 
-    def make_box_output(self, logits: th.Tensor, space_name: str) -> th.Tensor:
+    def make_box_output(
+        self, logits: th.Tensor, _space_name: str = "action"
+    ) -> th.Tensor:
         # must always be even so we can just divide here
         return logits[: len(logits) // 2]
 

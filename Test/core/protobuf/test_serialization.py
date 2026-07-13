@@ -1,7 +1,6 @@
 # Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
+# pyright: reportAny=false, reportUnknownVariableType=false, reportUnknownArgumentType=false, reportUnusedImport=false
 """Tests for the protobuf serialization"""
-
-import pytest
 
 from schola.core.protocols.protobuf.serialize import to_proto, space_to_proto
 from schola.generated.Points_pb2 import *
@@ -155,7 +154,9 @@ class TestTextSpace:
         """An empty character set serializes to an empty charset (the empty set)."""
         space = Text(max_length=8, charset="")
         proto = space_to_proto(space)
-        assert proto.charset == "", "Empty character set should serialize to an empty charset"
+        assert (
+            proto.charset == ""
+        ), "Empty character set should serialize to an empty charset"
 
 
 class TestDictPoint:

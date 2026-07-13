@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional
 
@@ -25,6 +24,9 @@ from schola.scripts.fabrica.reward_deep_agent import (
     run_reward_deep_agent,
 )
 from schola.scripts.fabrica.codegen import CodegenEnv
+from schola.scripts.fabrica.codegen_validation import (
+    validate_fabrica_codegen_data,
+)
 
 from schola.scripts.fabrica.sample_summary import FabricaSampleSummary
 
@@ -150,6 +152,15 @@ def _run_fabrica_sample(
         except Exception as exc:  # noqa: BLE001
             logger.exception("Reward agent failed")
             (sample_dir / "agent_error.txt").write_text(str(exc), encoding="utf-8")
+            return None
+
+        try:
+            validate_fabrica_codegen_data(code_gen_result)
+        except Exception as exc:
+            logger.exception("Fabrica C++ validation failed")
+            (sample_dir / "codegen_validation_error.txt").write_text(
+                str(exc), encoding="utf-8"
+            )
             return None
 
         try:

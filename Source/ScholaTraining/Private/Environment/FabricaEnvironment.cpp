@@ -2,8 +2,6 @@
 
 #include "Environment/FabricaEnvironment.h"
 
-#include "LogScholaTraining.h"
-
 namespace UFabricaRewardInfo
 {
 	const FString& GetComponentPrefix()
@@ -27,11 +25,12 @@ FAgentState ConvertFabricaAgentStateToAgentState(const FFabricaAgentState& Fabri
 	AgentState.Observations = FabricaState.Observations;
 	AgentState.bTerminated = FabricaState.bTerminated;
 	AgentState.bTruncated = FabricaState.bTruncated;
-	AgentState.Reward = 0; // 0 because this will be filled by a generated reward function
+	AgentState.Reward = 0; // Set from the sum of fabrica_r: Info keys after generated reward runs.
 
 	const FString& RewardPrefix = UFabricaRewardInfo::GetComponentPrefix();
 	const FString& TaskSuccessPrefix = UFabricaRewardInfo::GetTaskSuccessInfoPrefix();
 
+	// Drop reserved Fabrica keys from user Info; reward components are added later by generated code.
 	for (const TPair<FString, FString>& Pair : FabricaState.Info)
 	{
 		if (!Pair.Key.StartsWith(RewardPrefix) && !Pair.Key.StartsWith(TaskSuccessPrefix))
@@ -43,6 +42,20 @@ FAgentState ConvertFabricaAgentStateToAgentState(const FFabricaAgentState& Fabri
 	AgentState.Info.Add(TaskSuccessPrefix, FString::SanitizeFloat(FabricaState.TaskSuccessMetric));
 
 	return AgentState;
+}
+
+float SumFabricaRewardComponents(const TMap<FString, FString>& Info)
+{
+	const FString& Prefix = UFabricaRewardInfo::GetComponentPrefix();
+	float Total = 0.f;
+	for (const TPair<FString, FString>& Pair : Info)
+	{
+		if (Pair.Key.StartsWith(Prefix))
+		{
+			Total += FCString::Atof(*Pair.Value);
+		}
+	}
+	return Total;
 }
 } // namespace
 
@@ -61,7 +74,6 @@ void AFabricaEnvironment::BeginPlay()
 {
 	Super::BeginPlay();
 	OnUserBeginPlay();
-	TryRunFabricaGeneratedInit(TEXT("BeginPlay"));
 }
 
 void AFabricaEnvironment::InitializeEnvironment(TMap<FString, FInteractionDefinition>& OutAgentDefinitions)
@@ -70,7 +82,10 @@ void AFabricaEnvironment::InitializeEnvironment(TMap<FString, FInteractionDefini
 	OnUserInitializeEnvironment(AgentDefinition);
 	OutAgentDefinitions.Empty();
 	OutAgentDefinitions.Add(GetFabricaSingleAgentId(), AgentDefinition);
-	TryRunFabricaGeneratedInit(TEXT("InitializeEnvironment"));
+
+	// Tracked actors are resolved exactly once here so generated init is not run
+	ClearFabricaTrackedActors();
+	FabricaGeneratedInit();
 }
 
 void AFabricaEnvironment::SeedEnvironment(int Seed)
@@ -85,12 +100,10 @@ void AFabricaEnvironment::SetEnvironmentOptions(const TMap<FString, FString>& Op
 
 void AFabricaEnvironment::Reset(TMap<FString, FInitialAgentState>& OutAgentState)
 {
-	ClearFabricaTrackedActors();
 	FInitialAgentState AgentState;
 	OnUserReset(AgentState);
 	OutAgentState.Empty();
 	OutAgentState.Add(GetFabricaSingleAgentId(), AgentState);
-	TryRunFabricaGeneratedInit(TEXT("Reset"));
 }
 
 void AFabricaEnvironment::Step(const TMap<FString, FInstancedStruct>& InActions, TMap<FString, FAgentState>& OutAgentStates)
@@ -117,8 +130,8 @@ void AFabricaEnvironment::Step(const TMap<FString, FInstancedStruct>& InActions,
 
 	for (TPair<FString, FAgentState>& Pair : OutAgentStates)
 	{
-		StripFabricaComponentInfoKeys(Pair.Value);
-		FabricaGeneratedRewardForAgent(Pair.Key, Pair.Value);
+		FabricaGeneratedRewardForAgent(Pair.Key, Pair.Value.Info);
+		Pair.Value.Reward = SumFabricaRewardComponents(Pair.Value.Info);
 	}
 }
 
@@ -127,39 +140,16 @@ void AFabricaEnvironment::ClearFabricaTrackedActors()
 	FabricaTrackedActors.Empty();
 }
 
-void AFabricaEnvironment::StripFabricaComponentInfoKeys(FAgentState& OutState) const
-{
-	const FString& Prefix = UFabricaRewardInfo::GetComponentPrefix();
-	TArray<FString> KeysToRemove;
-	for (const TPair<FString, FString>& InfoPair : OutState.Info)
-	{
-		if (InfoPair.Key.StartsWith(Prefix))
-		{
-			KeysToRemove.Add(InfoPair.Key);
-		}
-	}
-	for (const FString& Key : KeysToRemove)
-	{
-		OutState.Info.Remove(Key);
-	}
-}
-
-void AFabricaEnvironment::TryRunFabricaGeneratedInit(const TCHAR* DebugReason)
-{
-	UE_LOG(LogScholaTraining, Verbose, TEXT("AFabricaEnvironment::FabricaGeneratedInit (%s)"), DebugReason);
-	FabricaGeneratedInit();
-}
-
 void AFabricaEnvironment::FabricaGeneratedInit()
 {
 	// Default: no-op. Fabrica codegen overrides on concrete subclasses.
 }
 
-void AFabricaEnvironment::FabricaGeneratedRewardForAgent(const FString& AgentId, FAgentState& OutState)
+void AFabricaEnvironment::FabricaGeneratedRewardForAgent(const FString& AgentId, TMap<FString, FString>& RewardComponents)
 {
 	// Default: no-op. Fabrica codegen overrides on concrete subclasses.
 	(void)AgentId;
-	(void)OutState;
+	(void)RewardComponents;
 }
 
 void AFabricaEnvironment::OnUserInitializeEnvironment_Implementation(FInteractionDefinition& OutAgentDefinition)

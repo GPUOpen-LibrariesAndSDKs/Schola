@@ -10,7 +10,6 @@ from pathlib import Path
 from schola.scripts.common.console import supplemental_file_logging
 from schola.core.utils.ubt import (
     expected_executable_path,
-    resolve_build_dir,
     run_ubt_project_build,
 )
 from schola.scripts.common.settings import (

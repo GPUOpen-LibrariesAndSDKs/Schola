@@ -9,8 +9,9 @@
 
 /**
  * @brief State produced by AFabricaEnvironment::OnUserStep (before Fabrica reward shaping).
- * @details The base maps this into FAgentState before FabricaGeneratedRewardForAgent. Optional
- *          task-success values are copied into FAgentState::Info under the UFabricaRewardInfo task-success prefix.
+ * @details The base maps this into FAgentState, then passes Info to FabricaGeneratedRewardForAgent
+ *          for fabrica_r: reward components. Optional task-success values are copied into Info
+ *          under the UFabricaRewardInfo task-success prefix.
  */
 USTRUCT(BlueprintType)
 struct SCHOLATRAINING_API FFabricaAgentState

@@ -12,9 +12,10 @@
 #include "FabricaEnvironment.generated.h"
 
 /**
- * @brief Reserved prefix for FAgentState::Info keys written by Fabrica-generated reward code.
- * @details Values should be string-encoded scalars. FAgentState::Reward must hold the total reward
- *          (typically the sum of component terms).
+ * @brief Reserved prefix for reward-component keys written by Fabrica-generated reward code.
+ * @details Values should be string-encoded scalars. AFabricaEnvironment passes
+ *          FAgentState::Info to generated reward code and sets Reward to the sum of
+ *          entries whose keys use the component prefix.
  */
 namespace UFabricaRewardInfo
 {
@@ -63,10 +64,7 @@ public:
 	virtual const FString& GetFabricaSingleAgentId() const;
 
 protected:
-	/**
-	 * @brief Actors resolved during FabricaGeneratedInit for use by generated reward code.
-	 * @note Prefer weak pointers if targets may be destroyed without resetting this map.
-	 */
+	/** brief Actors resolved during FabricaGeneratedInit for use by generated reward code. */
 	UPROPERTY()
 	TMap<FString, TObjectPtr<AActor>> FabricaTrackedActors;
 
@@ -94,8 +92,9 @@ protected:
 
 	/**
 	 * @brief Apply the sole agent's action, advance simulation, and fill FFabricaAgentState (observations, totals, optional task success).
-	 * @details AFabricaEnvironment::Step converts to FAgentState (TaskSuccessMetric -> Info key fabrica_ts)
-	 *          before FabricaGeneratedRewardForAgent. InAction may be invalid if the trainer sent no action for GetFabricaSingleAgentId().
+	 * @details AFabricaEnvironment::Step converts to FAgentState (TaskSuccessMetric -> Info key fabrica_ts),
+	 *          passes Info to FabricaGeneratedRewardForAgent for fabrica_r: components, then sets Reward
+	 *          from their sum. InAction may be invalid if the trainer sent no action for GetFabricaSingleAgentId().
 	 */
 	UFUNCTION(BlueprintNativeEvent, Category = "Schola|Fabrica")
 	void OnUserStep(const FInstancedStruct& InAction, FFabricaAgentState& OutFabricaAgentState);
@@ -108,18 +107,12 @@ protected:
 
 	// ----- Fabrica-generated overrides (bodies in *.fabrica.gen.cpp) -----
 
-	/** Resolve tracked actors / caches; invoked from InitializeEnvironment, Reset, and BeginPlay as appropriate. */
+	/** Resolve tracked actors / caches; invoked exactly once during InitializeEnvironment (after FabricaTrackedActors is cleared). */
 	virtual void FabricaGeneratedInit();
 
-	/** Append shaped reward Info keys and set Reward for one agent. */
-	virtual void FabricaGeneratedRewardForAgent(const FString& AgentId, FAgentState& OutState);
+	/** Append fabrica_r: reward-component entries to AgentState::Info; the base class sets Reward from their sum. */
+	virtual void FabricaGeneratedRewardForAgent(const FString& AgentId, TMap<FString, FString>& RewardComponents);
 
-	/** Clears FabricaTrackedActors; extend in subclass if additional reset bookkeeping is required. */
+	/** Clears FabricaTrackedActors immediately before generated init runs during InitializeEnvironment; extend in subclass if additional bookkeeping is required. */
 	virtual void ClearFabricaTrackedActors();
-
-	/** Removes Info keys that start with the Fabrica component prefix from @p OutState. */
-	void StripFabricaComponentInfoKeys(FAgentState& OutState) const;
-
-private:
-	void TryRunFabricaGeneratedInit(const TCHAR* DebugReason);
 };

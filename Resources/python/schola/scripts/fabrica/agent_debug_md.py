@@ -95,7 +95,7 @@ def _wrap_reward_function(class_name: str, body: str) -> str:
     inner = _indent_function_body(body)
     signature = (
         f"void {class_name}::FabricaGeneratedRewardForAgent(\n"
-        "\tconst FString& AgentId, FAgentState& OutState)"
+        "\tconst FString& AgentId, TMap<FString, FString>& RewardComponents)"
     )
     if not inner:
         return f"{signature}\n{{\n}}"

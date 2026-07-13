@@ -23,6 +23,14 @@ FABRICA_REWARD_END = "// </fabrica_generated_reward>"
 FABRICA_DECL_START = "// <fabrica_generated_declarations>"
 FABRICA_DECL_END = "// </fabrica_generated_declarations>"
 
+FABRICA_REWARD_SIGNATURE_PARAMS = (
+    "const FString& AgentId, TMap<FString, FString>& RewardComponents"
+)
+FABRICA_REWARD_SIGNATURE_PARAMS_RE = (
+    r"const\s+FString&\s+AgentId,\s*"
+    r"TMap\s*<\s*FString\s*,\s*FString\s*>\s*&\s*RewardComponents"
+)
+
 
 _MISSING_ENV_MSG = (
     "Fabrica codegen requires env_header or both class_name and include_path."
@@ -153,7 +161,6 @@ def _build_gen_cpp_scaffold(context: CodegenEnv) -> str:
         "// Copyright — generated / merged by Schola Fabrica.\n"
         f"// Fabrica hook bodies for {context.class_name}; do not edit markers by hand.\n\n"
         f'#include "{context.include_path}"\n'
-        '#include "TrainingDataTypes/AgentState.h"\n'
         '#include "Points/BoxPoint.h"\n\n'
         f"void {context.class_name}::FabricaGeneratedInit()\n"
         "{\n"
@@ -161,7 +168,7 @@ def _build_gen_cpp_scaffold(context: CodegenEnv) -> str:
         f"{FABRICA_INIT_END}\n"
         "}\n\n"
         f"void {context.class_name}::FabricaGeneratedRewardForAgent(\n"
-        "\tconst FString& AgentId, FAgentState& OutState)\n"
+        f"\t{FABRICA_REWARD_SIGNATURE_PARAMS})\n"
         "{\n"
         f"{FABRICA_REWARD_START}\n"
         f"{FABRICA_REWARD_END}\n"
@@ -185,7 +192,7 @@ def _valid_gen_cpp_re(class_name: str) -> re.Pattern[str]:
         rf"{init_end}\s*"
         rf"\}}\s*"
         rf"void\s+{cn}::FabricaGeneratedRewardForAgent\s*\(\s*"
-        rf"const\s+FString&\s+AgentId,\s*FAgentState&\s+OutState\s*\)\s*\{{\s*"
+        rf"{FABRICA_REWARD_SIGNATURE_PARAMS_RE}\s*\)\s*\{{\s*"
         rf"{reward_start}\s*"
         rf".*?"
         rf"{reward_end}\s*"
@@ -298,7 +305,8 @@ def clean_gen_cpp_regions(
 _FABRICA_INIT_DECL_RE = re.compile(r"\bvirtual\s+void\s+FabricaGeneratedInit\s*\(\)")
 _FABRICA_REWARD_DECL_RE = re.compile(
     r"\bvirtual\s+void\s+FabricaGeneratedRewardForAgent\s*\(\s*"
-    r"const\s+FString&\s+AgentId,\s*FAgentState&\s+OutState\s*\)"
+    + FABRICA_REWARD_SIGNATURE_PARAMS_RE
+    + r"\s*\)"
 )
 
 
@@ -308,7 +316,7 @@ def _build_env_header_declarations_block() -> str:
         f"\t{FABRICA_DECL_START}\n"
         "\tvirtual void FabricaGeneratedInit() override;\n"
         "\tvirtual void FabricaGeneratedRewardForAgent("
-        "const FString& AgentId, FAgentState& OutState) override;\n"
+        f"{FABRICA_REWARD_SIGNATURE_PARAMS}) override;\n"
         f"\t{FABRICA_DECL_END}\n"
     )
 

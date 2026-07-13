@@ -7,6 +7,11 @@ import pytest
 
 from schola.scripts.fabrica import codegen
 from schola.scripts.fabrica.codegen import FabricaCodegenData
+from schola.scripts.fabrica.codegen_validation import (
+    FabricaCodegenValidationError,
+    validate_fabrica_codegen_data,
+    validate_generated_body,
+)
 
 _TEST_ENV_HEADER = """\
 #pragma once
@@ -266,3 +271,66 @@ private:
     decl_idx = text.index(codegen.FABRICA_DECL_START)
     assert gen_idx < decl_idx < protected_idx
     assert text[gen_idx + len("GENERATED_BODY()") : decl_idx].strip() == ""
+
+
+def test_validate_generated_body_rejects_preprocessor_directives() -> None:
+    with pytest.raises(FabricaCodegenValidationError, match="preprocessor directive"):
+        validate_generated_body('#include "Engine/Engine.h"\n', region="init_body")
+    with pytest.raises(FabricaCodegenValidationError, match="preprocessor directive"):
+        validate_generated_body("#pragma once\n", region="reward_body")
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "FPlatformProcess::CreateProc(TEXT(\"cmd\"), nullptr, true, false, false, nullptr, 0, nullptr, nullptr);",
+        "IFileManager::Get().Delete(TEXT(\"foo.txt\"));",
+        "FFileHelper::SaveStringToFile(TEXT(\"x\"), TEXT(\"out.txt\"));",
+        "FSocket* Socket = ISocketSubsystem::Get()->CreateSocket(NAME_Stream, TEXT(\"x\"), false);",
+        "system(\"rm -rf /\");",
+        "FILE* F = fopen(\"/etc/passwd\", \"r\");",
+        "void* Lib = LoadLibrary(TEXT(\"kernel32.dll\"));",
+        "FILE* Pipe = popen(\"ls\", \"r\");",
+    ],
+)
+def test_validate_generated_body_rejects_denylisted_tokens(body: str) -> None:
+    with pytest.raises(FabricaCodegenValidationError, match="disallowed token"):
+        validate_generated_body(body, region="reward_body")
+
+
+def test_validate_generated_body_allows_empty_body() -> None:
+    validate_generated_body("", region="init_body")
+    validate_generated_body("   \n\t  ", region="reward_body")
+
+
+def test_validate_generated_body_allows_safe_reward_code() -> None:
+    validate_generated_body(
+        'FabricaTrackedActors.Add(TEXT("Agent"), AgentActor);',
+        region="init_body",
+    )
+    validate_generated_body(
+        'RewardComponents.Add(TEXT("fabrica_r:progress"), FString::SanitizeFloat(1.f));',
+        region="reward_body",
+    )
+
+
+def test_validate_fabrica_codegen_data_rejects_unsafe_code() -> None:
+    with pytest.raises(FabricaCodegenValidationError, match="preprocessor directive"):
+        validate_fabrica_codegen_data(
+            FabricaCodegenData(
+                init_body="",
+                reward_body='#include "Malicious.h"\n',
+            )
+        )
+
+
+def test_clean_gen_cpp_regions_allows_empty_bodies(tmp_path: Path) -> None:
+    header = _write_test_env_header(tmp_path)
+    env = _test_codegen_env(header)
+    codegen.write_gen_cpp(
+        env,
+        FabricaCodegenData(init_body="// init", reward_body="// reward"),
+        create_if_missing=True,
+    )
+    validate_fabrica_codegen_data(FabricaCodegenData(init_body="", reward_body=""))
+    codegen.clean_gen_cpp_regions(env)

@@ -25,6 +25,10 @@ authors:
     family-names: Saeedi
     email: Mehdi.Saeedi@amd.com
     affiliation: AMD
+contact:
+  - name: Schola Team
+    email: schola@amd.com
+    affiliation: AMD
 repository-code: 'https://github.com/GPUOpen-LibrariesAndSDKs/Schola'
 url: 'https://gpuopen.com/amd-schola/'
 abstract: >-

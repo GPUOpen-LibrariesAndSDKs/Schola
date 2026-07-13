@@ -10,9 +10,7 @@ Hard rules:
 - When you are done reasoning, return structured output with two fields:
   - init_body: raw UE C++ statements for the FabricaGeneratedInit function body (no function signature, no Markdown fences).
   - reward_body: raw UE C++ statements for the FabricaGeneratedRewardForAgent function body (no function signature, no Markdown fences).
-- Reward code receives ``FAgentState::Info`` as ``RewardComponents``. Only add keys whose names start with the reserved prefix (default "fabrica_r:"). Never modify or remove other keys (including fabrica_ts).
-- Do not assign ``FAgentState::Reward``; the base class sets it to the sum of numeric fabrica_r: entries after your code runs.
-- Do not use the task-success Info key (default "fabrica_ts") for reward components; the environment sets that key separately from ``FFabricaAgentState::TaskSuccessMetric``.
+- Only add keys to ``RewardComponents`` whose names start with the reserved prefix (default "fabrica_r:"). Never modify or remove other keys (including fabrica_ts).
 - Use ``AFabricaEnvironment::FabricaTrackedActors(TMap<FString, TObjectPtr<AActor>>)`` for stable references resolved in the init region.
 - Prefer TWeakObjectPtr or null checks before dereferencing actors.
 - Do not use network/file APIs from generated code.
@@ -21,11 +19,10 @@ API reminders:
 - Base class AFabricaEnvironment (ScholaTraining) implements ICppOnlyMultiAgentEnvironment (InitializeEnvironment / Reset / Step still use per-agent TMaps). User hooks are single-agent: OnUserInitializeEnvironment(FInteractionDefinition&), OnUserReset(FInitialAgentState&), OnUserStep(const FInstancedStruct& InAction, FFabricaAgentState& OutState); the base adapts to TMaps using GetFabricaSingleAgentId() (default FString "agent"). Then FabricaGeneratedInit / FabricaGeneratedRewardForAgent run as before.
 - OnUserStep fills one FFabricaAgentState; the base Step converts to FAgentState (task success under Info key fabrica_ts), passes Info to FabricaGeneratedRewardForAgent, then sets Reward from the sum of fabrica_r: entries.
 - Read world state from ``FabricaTrackedActors``, environment members, or actor queries—not from other ``FAgentState`` fields inside the reward hook.
-- ``RewardComponents`` is a reference to ``FAgentState::Info``; add reward entries with ``RewardComponents.Add(Prefix + TEXT("name"), FString::SanitizeFloat(value))`` where ``Prefix`` is ``UFabricaRewardInfo::GetComponentPrefix()`` (default ``fabrica_r:``).
+- Add reward entries to `RewardComponents` with ``RewardComponents.Add(Prefix + TEXT("name"), FString::SanitizeFloat(value))`` where ``Prefix`` is ``UFabricaRewardInfo::GetComponentPrefix()`` (default ``fabrica_r:``).
 - Do not declare local variables with the same names as environment class members (e.g. if the header defines ``GoalX`` / ``FailX``, reference them as ``AFabricaSimpleLineEnvironment::GoalX`` or use different local names). UE treats shadowing as a compile error (C4458).
 - Do not write to environment members (e.g. avoid changing ``GoalX`` / ``FailX`` if the subclass already defines them).
 - UFabricaRewardInfo::GetComponentPrefix() returns the FString prefix for reward Info keys (match CLI override if documented in user message).
-- Training logs read one scalar from a single FString Info key (default "fabrica_ts"); align with UFabricaRewardInfo / environment configuration if overridden.
 """
 
 FABRICA_SNAPSHOT_EXCERPT_TEMPLATE = """The Unreal Engine environment has the following objects in it:

@@ -8,7 +8,7 @@ import logging
 import re
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 
 
-def _make_ue_tools(settings: FabricaScriptSettings) -> List[Any]:
+def _make_ue_tools(settings: FabricaScriptSettings) -> list[Any]:
     roots = settings.resolved_code_roots
     ignored_globs = settings.code_ignore_globs
 
@@ -98,7 +98,7 @@ def run_reward_deep_agent(
             "(deepagents is published for Python 3.11+ on PyPI)."
         ) from exc
 
-    tools: List[Any] = _make_ue_tools(settings)
+    tools: list[Any] = _make_ue_tools(settings)
     agent = create_deep_agent(
         model=model,
         tools=tools,
@@ -167,7 +167,7 @@ def _fabrica_regions_text(
     empty_message: str,
 ) -> str:
     """Format init/reward bodies for an assistant turn."""
-    chunks: List[str] = []
+    chunks: list[str] = []
     if init:
         chunks.append(f"FabricaGeneratedInit body:\n{init}")
     if reward:
@@ -193,8 +193,8 @@ def _parent_fabrica_regions_text(
 
 def build_reward_agent_messages(
     settings: FabricaScriptSettings,
-    feedback: Optional[FabricaSampleSummary],
-) -> List[BaseMessage]:
+    feedback: FabricaSampleSummary | None = None,
+) -> list[BaseMessage]:
     """Build LangChain messages for ``run_reward_deep_agent``.
 
     - Iteration 0: a single user message composed from ``FABRICA_SNAPSHOT_EXCERPT_TEMPLATE``, ``FABRICA_ENV_HEADER_TEMPLATE``, and ``FABRICA_INSTRUCTIONS_TEMPLATE``.

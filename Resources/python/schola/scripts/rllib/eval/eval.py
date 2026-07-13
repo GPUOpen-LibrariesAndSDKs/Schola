@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Tuple, Type
+from typing import Any, Callable, Dict, List, Tuple, Type, cast
 
 from cyclopts import App
 
@@ -219,7 +219,7 @@ def main(args: RllibEvalScriptSettings) -> Dict[str, Any]:
     try:
         rl_dir = rl_module_dir_from_algorithm_checkpoint(Path(ckpt))
         logger.info("Loading MultiRLModule from %s", rl_dir)
-        marl = MultiRLModule.from_checkpoint(rl_dir)
+        marl = cast(MultiRLModule, MultiRLModule.from_checkpoint(rl_dir))
 
         agent_ids, env_agent_to_policy, env_config = discover_env_metadata(
             args.environment_settings,

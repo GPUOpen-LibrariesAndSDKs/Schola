@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, List, Optional
 
 from langchain_core.messages import BaseMessage
 
@@ -18,9 +17,9 @@ class FabricaSampleSummary:
     sample_index: int
     iteration_index: int
 
-    response: Optional[FabricaCodegenData]
-    metrics: Optional[FabricaEpisodeMetrics]
-    messages: Optional[List[BaseMessage]]
+    response: FabricaCodegenData | None
+    metrics: FabricaEpisodeMetrics | None
+    messages: list[BaseMessage] | None
 
     def to_string(self, episode_freq: int = 1) -> str:
         """Policy feedback text passed to the next Fabrica iteration."""

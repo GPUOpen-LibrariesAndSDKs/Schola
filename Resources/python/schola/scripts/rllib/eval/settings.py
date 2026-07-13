@@ -21,14 +21,14 @@ class RllibEvalScriptSettings:
     """
 
     checkpoint: Annotated[
-        Optional[Path],
+        Path,
         Parameter(
             group="Evaluation Arguments",
             required=True,
             validator=validators.Path(exists=True, file_okay=True, dir_okay=True),
             alias="-r",
         ),
-    ] = None
+    ]
     "Path to a Ray Tune / RLlib checkpoint directory (for example ``.../checkpoint_000050``) (required)."
 
     n_eval_episodes: Annotated[

@@ -7,7 +7,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 
 def log_run_settings(
-    root: Path, uproject: Optional[Path], codegen_env: CodegenEnv
+    root: Path, uproject: Path | None, codegen_env: CodegenEnv
 ) -> None:
     (root / "settings.json").write_text(
         json.dumps(
@@ -134,8 +134,8 @@ def _run_fabrica_sample(
     iteration: int,
     sample_index: int,
     sample_dir: Path,
-    best_iteration: Optional[FabricaSampleSummary],
-) -> Optional[FabricaSampleSummary]:
+    best_iteration: FabricaSampleSummary | None,
+) -> FabricaSampleSummary | None:
     try:
         agent_messages = build_reward_agent_messages(
             settings,
@@ -189,7 +189,7 @@ def _run_fabrica_sample(
             logger.error("Unreal build failed. Skipping sample.")
             return None
 
-        fabrica_sample_metrics: Optional[FabricaEpisodeMetrics] = None
+        fabrica_sample_metrics: FabricaEpisodeMetrics | None = None
         try:
             fabrica_sample_metrics = train_adapter.run_sb3_training_from_settings(
                 settings,
@@ -245,7 +245,7 @@ def _run_fabrica_iterations(
     context: CodegenEnv,
 ) -> None:
 
-    best_iteration: Optional[FabricaSampleSummary] = None
+    best_iteration: FabricaSampleSummary | None = None
     model = build_chat_model(settings.llm_settings)
 
     with maybe_tqdm(settings.loop_settings.pbar) as tqdm:
@@ -253,7 +253,7 @@ def _run_fabrica_iterations(
             it_dir = root / f"iter_{it:03d}"
             it_dir.mkdir(parents=True, exist_ok=True)
 
-            iteration_candidates: List[FabricaSampleSummary] = []
+            iteration_candidates: list[FabricaSampleSummary] = []
             for s in tqdm(range(settings.loop_settings.samples), leave=False):
                 s_dir = it_dir / f"sample_{s:03d}"
                 s_dir.mkdir(parents=True, exist_ok=True)

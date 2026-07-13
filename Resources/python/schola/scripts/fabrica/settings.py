@@ -8,7 +8,7 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime
 from functools import cached_property
 from pathlib import Path
-from typing import Annotated, Any, Dict, List, Optional, Union
+from typing import Annotated, Any
 
 from cyclopts import Parameter
 from cyclopts.types import PositiveInt
@@ -35,22 +35,22 @@ from schola.scripts.sb3.train.settings import (
 class FabricaLLMSettings:
     """OpenAI-compatible LLM settings for the Fabrica reward Deep Agent."""
 
-    api_key: Optional[str] = None
+    api_key: str | None = None
     "API key (defaults to ``OPENAI_API_KEY``)."
 
-    base_url: Optional[str] = None
+    base_url: str | None = None
     "OpenAI-compatible API base URL (for example ``https://api.openai.com/v1``)."
 
     model: str = "gpt-4o-mini"
     "Chat model name passed to LangChain ``init_chat_model``."
 
-    headers: Dict[str, str] = field(default_factory=dict)
+    headers: dict[str, str] = field(default_factory=dict)
     "Extra HTTP headers on each LLM request (e.g. ``--headers.Ocp-Apim-Subscription-Key=key --headers.user=you``)."
 
     temperature: float = 0.2
     "Sampling temperature."
 
-    max_tokens: Optional[int] = None
+    max_tokens: int | None = None
     "Maximum tokens per LLM completion (omit to use the provider default)."
 
     timeout_s: float = 120.0
@@ -71,12 +71,12 @@ class FabricaEditorSnapshotSettings:
     "Cap actors serialized in snapshot."
 
     class_filter_substrings: Annotated[
-        List[str],
+        list[str],
         Parameter(consume_multiple=True),
     ] = field(default_factory=list)
     "Substrings matched against actor class names; only matching actors are included in the snapshot. Repeat the flag for multiple filters."
 
-    editor_path: Optional[Path] = None
+    editor_path: Path | None = None
     "Override path to UnrealEditor-Cmd if engine auto-detect fails."
 
     timeout_s: float = 600.0
@@ -135,18 +135,18 @@ class FabricaPathsSettings:
     ] = Path(".")
     "Path to a text/markdown task description for the reward."
 
-    code_gen_folder: Optional[Path] = None
+    code_gen_folder: Path | None = None
     "Optional folder for ``*.fabrica.gen.cpp``. Default: mirror ``Public`` → ``Private`` on ``env_header``, or the header directory when ``Public`` is absent."
 
     output_root: Path = Path("./fabrica_outputs")
     "Directory for ``fabrica_outputs/<timestamp>`` artifacts."
 
-    code_roots: Annotated[List[Path], Parameter(consume_multiple=True)] = field(
+    code_roots: Annotated[list[Path], Parameter(consume_multiple=True)] = field(
         default_factory=list
     )
     "Extra allowed roots for UE file tools, added to the env-header parent and uproject parent. Nested roots collapse to the shortest ancestor."
 
-    _run_artifact_dir: Annotated[Optional[Path], Parameter(parse=False, show=False)] = (
+    _run_artifact_dir: Annotated[Path | None, Parameter(parse=False, show=False)] = (
         field(init=False, default=None)
     )
     "Path to the run artifacts directory (generated on object initialization)."
@@ -204,7 +204,7 @@ class FabricaScriptSettings:
     "Outer Fabrica loop: iterations, samples, and agent step budget."
 
     code_ignore_globs: Annotated[
-        List[str],
+        list[str],
         Parameter(parse=False, show=False),
     ] = field(
         default_factory=lambda: [
@@ -235,7 +235,7 @@ class FabricaScriptSettings:
         Parameter(group="Network Architecture Arguments", name="*"),
     ] = field(default_factory=Sb3NetworkArchitectureSettings)
     algorithm_settings: Annotated[
-        Union[PPOTrainSettings, SACTrainSettings],
+        PPOTrainSettings | SACTrainSettings,
         Parameter(show=False, parse=False),
     ] = field(default_factory=PPOTrainSettings)
     custom_callbacks: Annotated[
@@ -249,14 +249,14 @@ class FabricaScriptSettings:
         Parameter(group="Environment Arguments", name="*"),
     ] = field(default_factory=EnvironmentSettings)
 
-    def resolved_uproject_path(self) -> Optional[Path]:
+    def resolved_uproject_path(self) -> Path | None:
         """``.uproject`` from the ``project`` simulator settings."""
         sim = self.environment_settings.simulator_settings
         if isinstance(sim, UnrealProjectSimulatorConfig):
             return sim.uproject_path.resolve()
         return None
 
-    def resolved_snapshot_map(self) -> Optional[str]:
+    def resolved_snapshot_map(self) -> str | None:
         """Map to load for the editor world snapshot (from simulator settings)."""
         sim = self.environment_settings.simulator_settings
         if isinstance(
@@ -266,8 +266,8 @@ class FabricaScriptSettings:
         return None
 
     @cached_property
-    def resolved_code_roots(self) -> List[Path]:
-        roots: List[Path] = [
+    def resolved_code_roots(self) -> list[Path]:
+        roots: list[Path] = [
             self.paths_settings.env_header.resolve().parent,
         ]
         uproject = self.resolved_uproject_path()
@@ -277,9 +277,9 @@ class FabricaScriptSettings:
         return _collapse_nested_code_roots(roots)
 
 
-def _collapse_nested_code_roots(roots: List[Path]) -> List[Path]:
+def _collapse_nested_code_roots(roots: list[Path]) -> list[Path]:
     """Drop duplicate paths and descendants when a shorter ancestor root is present."""
-    unique: List[Path] = []
+    unique: list[Path] = []
     seen: set[Path] = set()
     for root in roots:
         resolved = root.resolve()
@@ -288,7 +288,7 @@ def _collapse_nested_code_roots(roots: List[Path]) -> List[Path]:
         seen.add(resolved)
         unique.append(resolved)
     unique.sort(key=lambda p: (len(p.parts), str(p)))
-    kept: List[Path] = []
+    kept: list[Path] = []
 
     for candidate in unique:
         if any(candidate.is_relative_to(kept_root) for kept_root in kept):

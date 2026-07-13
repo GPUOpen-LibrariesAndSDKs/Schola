@@ -8,7 +8,6 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Tuple
 
 from pydantic import BaseModel, Field
 from schola.scripts.fabrica.paths import (
@@ -66,8 +65,8 @@ class FabricaRunArtifactsCleanup:
 
 
 def cleanup_fabrica_run_artifacts(
-    env_header_path: Optional[Path] = None,
-    gen_path: Optional[Path] = None,
+    env_header_path: Path | None = None,
+    gen_path: Path | None = None,
 ) -> FabricaRunArtifactsCleanup:
     """Remove temporary Fabrica header declarations and/or the generated C++ file.
 
@@ -102,7 +101,7 @@ def cleanup_fabrica_run_artifacts(
 
 def derive_generated_cpp_path(
     env_header: Path,
-    code_gen_folder: Optional[Path] = None,
+    code_gen_folder: Path | None = None,
 ) -> Path:
     """Derive ``{Stem}.fabrica.gen.cpp`` from ``env_header`` and optional folder override."""
     header = env_header.resolve()
@@ -132,7 +131,7 @@ class CodegenEnv:
     def from_env_header_and_code_gen_folder(
         cls,
         env_header_path: Path,
-        code_gen_folder: Optional[Path] = None,
+        code_gen_folder: Path | None = None,
     ) -> CodegenEnv:
 
         env_header_path = env_header_path.resolve()
@@ -206,7 +205,7 @@ def _is_valid_gen_cpp(content: str, class_name: str) -> bool:
     return _valid_gen_cpp_re(class_name).search(content) is not None
 
 
-def _read_regions_from_text(text: str) -> Tuple[Optional[str], Optional[str]]:
+def _read_regions_from_text(text: str) -> tuple[str | None, str | None]:
     try:
         i0 = text.index(FABRICA_INIT_START) + len(FABRICA_INIT_START)
         i1 = text.index(FABRICA_INIT_END)
@@ -227,7 +226,7 @@ def _prepare_gen_cpp_content(
     *,
     create_if_missing: bool,
     context: CodegenEnv,
-) -> Tuple[str, bool]:
+) -> tuple[str, bool]:
     """Load or create gen-cpp content; invalid files are replaced with a fresh scaffold."""
     path = path.resolve()
 
@@ -244,7 +243,7 @@ def _prepare_gen_cpp_content(
 
 def _replace_region(
     content: str, start_marker: str, end_marker: str, new_body: str
-) -> Tuple[str, bool]:
+) -> tuple[str, bool]:
     i0 = content.find(start_marker)
     i1 = content.find(end_marker)
     if i0 == -1 or i1 == -1 or i1 <= i0:
@@ -260,7 +259,7 @@ def _replace_region(
     return new_content, new_content != content
 
 
-def read_regions(path: Path) -> Tuple[Optional[str], Optional[str]]:
+def read_regions(path: Path) -> tuple[str | None, str | None]:
     """Return init and reward bodies between Fabrica merge markers in ``path``."""
     text = path.read_text(encoding="utf-8")
     return _read_regions_from_text(text)

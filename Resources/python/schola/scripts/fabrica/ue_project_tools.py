@@ -6,8 +6,8 @@ from __future__ import annotations
 
 import fnmatch
 import re
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable, List
 
 MAX_READ_BYTES = 512_000
 
@@ -48,14 +48,14 @@ def _is_under_root(path: Path, roots: Iterable[Path]) -> bool:
     return False
 
 
-def _matches_ignore(rel: str, globs: List[str]) -> bool:
+def _matches_ignore(rel: str, globs: list[str]) -> bool:
     for g in globs:
         if fnmatch.fnmatch(rel, g) or fnmatch.fnmatch(rel.replace("\\", "/"), g):
             return True
     return False
 
 
-def assert_allowed_path(path: Path, roots: List[Path], ignore_globs: List[str]) -> Path:
+def assert_allowed_path(path: Path, roots: list[Path], ignore_globs: list[str]) -> Path:
     rp = path.resolve()
     if not rp.is_file() and not rp.is_dir():
         raise FileNotFoundError(str(rp))
@@ -71,7 +71,7 @@ def assert_allowed_path(path: Path, roots: List[Path], ignore_globs: List[str]) 
     return rp
 
 
-def _normalize_rel_path(rel_path: str, roots: List[Path]) -> str:
+def _normalize_rel_path(rel_path: str, roots: list[Path]) -> str:
     """Strip a leading code-root directory name when the agent repeats it (e.g. ``Source/foo``)."""
     rel_path = rel_path.replace("\\", "/").lstrip("/")
     for root in roots:
@@ -84,11 +84,11 @@ def _normalize_rel_path(rel_path: str, roots: List[Path]) -> str:
     return rel_path
 
 
-def _resolve_by_basename(name: str, roots: List[Path]) -> Path | None:
+def _resolve_by_basename(name: str, roots: list[Path]) -> Path | None:
     """When the agent guesses a wrong directory, fall back to a unique basename match."""
     if not name or name in (".", ".."):
         return None
-    matches: List[Path] = []
+    matches: list[Path] = []
     for root in roots:
         rr = root.resolve()
         for path in rr.rglob(name):
@@ -104,7 +104,7 @@ def _resolve_by_basename(name: str, roots: List[Path]) -> Path | None:
     return None
 
 
-def _resolve_under_roots(rel_path: str, roots: List[Path]) -> Path:
+def _resolve_under_roots(rel_path: str, roots: list[Path]) -> Path:
     if not roots:
         raise ValueError("code_roots is empty")
     rel_path = _normalize_rel_path(rel_path, roots)
@@ -119,7 +119,7 @@ def _resolve_under_roots(rel_path: str, roots: List[Path]) -> Path:
     raise FileNotFoundError(rel_path)
 
 
-def ue_list_dir(rel_path: str, roots: List[Path], ignore_globs: List[str]) -> str:
+def ue_list_dir(rel_path: str, roots: list[Path], ignore_globs: list[str]) -> str:
     target = assert_allowed_path(
         _resolve_under_roots(rel_path, roots), roots, ignore_globs
     )
@@ -129,7 +129,7 @@ def ue_list_dir(rel_path: str, roots: List[Path], ignore_globs: List[str]) -> st
     return "\n".join(lines)
 
 
-def ue_read_file(rel_path: str, roots: List[Path], ignore_globs: List[str]) -> str:
+def ue_read_file(rel_path: str, roots: list[Path], ignore_globs: list[str]) -> str:
     target = assert_allowed_path(
         _resolve_under_roots(rel_path, roots), roots, ignore_globs
     )
@@ -143,10 +143,10 @@ def ue_read_file(rel_path: str, roots: List[Path], ignore_globs: List[str]) -> s
 
 
 def ue_grep(
-    pattern: str, roots: List[Path], ignore_globs: List[str], glob: str = "*.h"
+    pattern: str, roots: list[Path], ignore_globs: list[str], glob: str = "*.h"
 ) -> str:
     rx = re.compile(pattern)
-    hits: List[str] = []
+    hits: list[str] = []
     for root in roots:
         rr = root.resolve()
         for path in rr.rglob(glob):

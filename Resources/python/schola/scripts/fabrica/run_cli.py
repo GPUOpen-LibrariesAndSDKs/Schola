@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, Mapping, Type
 
 from cyclopts import App
 
@@ -44,7 +43,7 @@ class MetaFabricaRunCommand(ScholaCommandTemplate[FabricaScriptSettings]):
         }
 
     @property
-    def simulator_table(self) -> Dict[str, Type[SimulatorArgsType]]:
+    def simulator_table(self) -> dict[str, type[SimulatorArgsType]]:
         return {
             "project": UnrealProjectSimulatorConfig,
         }

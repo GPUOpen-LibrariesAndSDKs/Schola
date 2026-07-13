@@ -6,7 +6,8 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Any, Callable, DefaultDict, Dict, List, Mapping, Optional
+from collections.abc import Callable, Mapping
+from typing import Any
 
 import numpy as np
 from stable_baselines3.common.callbacks import BaseCallback
@@ -31,9 +32,9 @@ class FabricaEpisodeRow:
     episode_return: float
     episode_length: int
     task_success: float
-    reward_components: Dict[str, float] = field(default_factory=dict)
+    reward_components: dict[str, float] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Shape aligned with aggregate ``episode_metrics.json`` keys."""
         return {
             "env_index": self.env_index,
@@ -48,13 +49,13 @@ class FabricaEpisodeRow:
 class FabricaEpisodeAggregate:
     """Aggregate over all completed episodes in a run."""
 
-    episode_return: Optional[float]
-    episode_length: Optional[float]
-    task_success: Optional[float]
-    num_episodes: Optional[int]
-    reward_components: Dict[str, float] = field(default_factory=dict)
+    episode_return: float | None
+    episode_length: float | None
+    task_success: float | None
+    num_episodes: int | None
+    reward_components: dict[str, float] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "num_episodes": self.num_episodes,
             "episode_return": self.episode_return,
@@ -73,7 +74,7 @@ class FabricaEpisodeMetrics:
     environment signals ``done``.
     """
 
-    episodes: List[FabricaEpisodeRow] = field(default_factory=list)
+    episodes: list[FabricaEpisodeRow] = field(default_factory=list)
 
     def append_row(self, row: FabricaEpisodeRow) -> None:
         self.episodes.append(row)
@@ -88,7 +89,7 @@ class FabricaEpisodeMetrics:
         return self.aggregate(lambda x: float(np.min(x)))
 
     def aggregate(
-        self, agg_func: Callable[[List[float]], float]
+        self, agg_func: Callable[[list[float]], float]
     ) -> FabricaEpisodeAggregate:
         if not self.episodes:
             return FabricaEpisodeAggregate(
@@ -107,7 +108,7 @@ class FabricaEpisodeMetrics:
         for ep in self.episodes:
             comp_keys.update(ep.reward_components.keys())
 
-        agg_components: Dict[str, float] = {}
+        agg_components: dict[str, float] = {}
         for key in sorted(comp_keys):
             vals = [float(ep.reward_components.get(key, 0.0)) for ep in self.episodes]
             agg_components[key] = agg_func(vals) if vals else 0.0
@@ -123,7 +124,7 @@ class FabricaEpisodeMetrics:
     def format_row(
         self,
         metric_key: str,
-        raw_value: List[float],
+        raw_value: list[float],
         max_value: float,
         mean_value: float,
         min_value: float,
@@ -224,9 +225,9 @@ class EpisodeMetricsCallback(BaseCallback):
         self.reward_component_prefix = reward_component_prefix
         self.task_success_key = task_success_key
         self.metrics = FabricaEpisodeMetrics()
-        self._ep_ret: Optional[np.ndarray] = None
-        self._ep_len: Optional[np.ndarray] = None
-        self._component_acc: Optional[List[DefaultDict[str, float]]] = None
+        self._ep_ret: np.ndarray | None = None
+        self._ep_len: np.ndarray | None = None
+        self._component_acc: list[defaultdict[str, float]] | None = None
 
     def _ensure_buffers(self, n_envs: int) -> None:
         if self._ep_ret is not None and self._ep_ret.shape[0] == n_envs:
@@ -300,11 +301,11 @@ class EpisodeMetricsCallback(BaseCallback):
 
         return True
 
-    def summary(self) -> Dict[str, Any]:
+    def summary(self) -> dict[str, Any]:
         """Aggregate metrics as a plain dict (e.g. for JSON ``metric.json``)."""
         return self.metrics.mean().to_dict()
 
-    def to_jsonable(self) -> Dict[str, Any]:
+    def to_jsonable(self) -> dict[str, Any]:
         """Full training record: per-episode rows plus aggregate summary."""
         return {
             "episodes": [row.to_dict() for row in self.metrics.episodes],

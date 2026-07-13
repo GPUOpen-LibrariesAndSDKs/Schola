@@ -219,7 +219,7 @@ def run_ubt_project_build(
     ubt_path: Optional[Path | str] = None,
     map: Optional[str] = None,
     extra_ubt_args: Optional[Dict[str, Any]] = None,
-) -> subprocess.CompletedProcess[bytes]:
+) -> subprocess.CompletedProcess[str]:
     """Run UBT for a project and raise when the build fails."""
     ubt_args: Dict[str, Any] = (
         extra_ubt_args.copy() if extra_ubt_args is not None else {}

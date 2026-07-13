@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import re
-from typing import Tuple
 
 from schola.scripts.fabrica.codegen import FabricaCodegenData
 
@@ -14,7 +13,7 @@ _PREPROCESSOR_DIRECTIVE_RE = re.compile(
     re.MULTILINE | re.IGNORECASE,
 )
 
-_DENYLIST_TOKENS: Tuple[str, ...] = (
+_DENYLIST_TOKENS: tuple[str, ...] = (
     "system",
     "FPlatformProcess",
     "IFileManager",

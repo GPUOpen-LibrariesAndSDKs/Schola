@@ -8,7 +8,6 @@ import logging
 import os
 import subprocess
 from pathlib import Path
-from typing import Optional
 
 from schola.core.utils.ubt import resolve_editor_executable
 from schola.scripts.fabrica.settings import FabricaEditorSnapshotSettings
@@ -25,7 +24,7 @@ def run_world_snapshot(
     output_json: Path,
     settings: FabricaEditorSnapshotSettings,
     *,
-    map: Optional[str] = None,
+    map: str | None = None,
 ) -> None:
     """Run Editor-Cmd with -ExecutePythonScript on the bundled snapshot script."""
     if settings.editor_path is None:

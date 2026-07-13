@@ -3,9 +3,10 @@
 Tests for schola.core.error_manager module
 """
 
-import pytest
 import grpc
-from unittest.mock import Mock, MagicMock
+import pytest
+from typing_extensions import override
+from unittest.mock import Mock
 from schola.core.error_manager import (
     ScholaException,
     WrappedGrpcException,
@@ -18,27 +19,21 @@ from schola.core.error_manager import (
     NoEnvironmentsException,
 )
 
-import pytest
-
 
 class MockGrpcError(grpc.RpcError):
 
-    def __init__(self, status_code, details_msg: str = ""):
-        self._status_code = status_code
-        self._details_msg = details_msg
+    def __init__(self, status_code: grpc.StatusCode, details_msg: str = "") -> None:
+        super().__init__()
+        self._status_code: grpc.StatusCode = status_code
+        self._details_msg: str = details_msg
 
-    def code(self):
+    @override
+    def code(self) -> grpc.StatusCode:
         return self._status_code
 
-    def details(self):
+    @override
+    def details(self) -> str:
         return self._details_msg
-
-
-@pytest.fixture
-def param_grpc_error(request):
-    status_code = request.param[0]
-    details = request.param[1]
-    return MockGrpcError(status_code, details)
 
 
 class TestScholaException:
@@ -224,8 +219,10 @@ class TestScholaErrorContextManager:
         ],
     )
     def test_converts_grpc_error_to_schola_error(
-        self, grpc_error, expected_schola_error
-    ):
+        self,
+        grpc_error: MockGrpcError,
+        expected_schola_error: type[WrappedGrpcException],
+    ) -> None:
         with pytest.raises(expected_schola_error):
             with ScholaErrorContextManager():
                 raise grpc_error
@@ -278,11 +275,13 @@ class TestWrappedGrpcException:
     @pytest.mark.parametrize(
         "wrapped_class", [NoServerError, UnrealCrashedError, MissingMethodError]
     )
-    def test_all_wrapped_exceptions_implement_comes_from(self, wrapped_class):
+    def test_all_wrapped_exceptions_implement_comes_from(
+        self, wrapped_class: type[WrappedGrpcException]
+    ) -> None:
         """Test that all wrapped exception classes implement comes_from"""
         assert hasattr(
             wrapped_class, "comes_from"
         ), f"{wrapped_class} does not implement comes_from"
         assert callable(
-            getattr(wrapped_class, "comes_from")
+            wrapped_class.comes_from
         ), f"{wrapped_class} comes_from is not callable"

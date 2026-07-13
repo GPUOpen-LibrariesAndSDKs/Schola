@@ -420,6 +420,11 @@ class EnvironmentSettings:
     )
     "Key=value reset options forwarded to the simulator on the first env.reset(). Repeat the flag to set multiple keys, e.g. --env-options.level=1 --env-options.curriculum=easy."
 
+    seed: Annotated[
+        Optional[int], Parameter(group="Environment Arguments", alias="--seed")
+    ] = None
+    "Unified repeatable seed for simulator and framework RNG (e.g. RLlib workers). If None, SeedEnvironment is not called in Unreal, and framework RNG is left unseeded."
+
 
 @dataclass
 class Sb3LauncherExtension:

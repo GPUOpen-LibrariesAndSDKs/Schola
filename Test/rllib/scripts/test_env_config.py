@@ -10,7 +10,6 @@ from schola.scripts.common.settings import (
     UnrealExecutableSimulatorConfig,
 )
 
-
 # ---- build_env_config tests ------------------------------------------------
 
 

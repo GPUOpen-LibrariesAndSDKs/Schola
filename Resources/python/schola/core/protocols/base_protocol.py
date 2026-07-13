@@ -3,10 +3,12 @@
 Base Class for Unreal Connections
 """
 
+from __future__ import annotations
+
 import sys
-from typing import Any, Dict, List, Optional, Tuple, TypedDict
-import grpc
-import socket
+from abc import ABC, abstractmethod
+from typing import Any
+
 import gymnasium as gym
 
 if sys.version_info >= (3, 11):
@@ -25,10 +27,13 @@ class AutoResetType(StrEnum):
     NEXT_STEP = "NextStep"
 
 
+DEFAULT_AUTO_RESET_TYPE = AutoResetType("SameStep")
+
+
 # Type Defs
 
 
-class BaseProtocol:
+class BaseProtocol(ABC):
     """
     Base class for all communication protocols with Schola.
 
@@ -36,6 +41,7 @@ class BaseProtocol:
     used to connect Python environments with simulations.
     """
 
+    @abstractmethod
     def close(self) -> None:
         """
         Close the protocol connection.
@@ -46,6 +52,7 @@ class BaseProtocol:
         """
         ...
 
+    @abstractmethod
     def start(self) -> None:
         """
         Start the protocol connection.
@@ -54,6 +61,7 @@ class BaseProtocol:
         """
         ...
 
+    @abstractmethod
     def __bool__(self) -> bool:
         """
         Returns whether the connection is active or not
@@ -65,7 +73,8 @@ class BaseProtocol:
         """
         ...
 
-    def send_startup_msg(self, *args, **kwargs):
+    @abstractmethod
+    def send_startup_msg(self, *args: Any, **kwargs: Any) -> Any:
         """
         Send the initial startup message to Unreal Engine.
 
@@ -78,7 +87,8 @@ class BaseProtocol:
         """
         ...
 
-    def get_definition(self, *args, **kwargs):
+    @abstractmethod
+    def get_definition(self, *args: Any, **kwargs: Any) -> Any:
         """
         Get the environment definition from Unreal Engine.
 
@@ -98,7 +108,7 @@ class BaseProtocol:
         ...
 
     @property
-    def properties(self) -> Dict[str, Any]:
+    def properties(self) -> dict[str, Any]:
         """
         Get protocol-specific properties.
 
@@ -135,7 +145,7 @@ class BaseProtocolMixin:
         ...
 
     @property
-    def mixin_properties(self) -> Dict[str, Any]:
+    def mixin_properties(self) -> dict[str, Any]:
         """
         Get mixin-specific properties.
 
@@ -147,7 +157,7 @@ class BaseProtocolMixin:
         return dict()
 
 
-class BaseRLProtocol(BaseProtocol):
+class BaseRLProtocol(BaseProtocol, ABC):
     """
     Base class for reinforcement learning protocols.
 
@@ -155,9 +165,14 @@ class BaseRLProtocol(BaseProtocol):
     including reset, step, and action messaging.
     """
 
+    @abstractmethod
     def send_startup_msg(
-        self, auto_reset_type: AutoResetType = AutoResetType.SAME_STEP
-    ):
+        self,
+        auto_reset_type: AutoResetType = DEFAULT_AUTO_RESET_TYPE,
+        /,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
         """
         Send the startup message with auto-reset configuration.
 
@@ -168,31 +183,35 @@ class BaseRLProtocol(BaseProtocol):
         """
         ...
 
+    @abstractmethod
     def get_definition(
         self,
-    ) -> Tuple[
-        List[List[str]],
-        List[Dict[str, str]],
-        Dict[int, Dict[str, gym.Space]],
-        Dict[int, Dict[str, gym.Space]],
+        *args: Any,
+        **kwargs: Any,
+    ) -> tuple[
+        list[list[str]],
+        dict[int, dict[str, str]],
+        dict[int, dict[str, gym.Space[Any]]],
+        dict[int, dict[str, gym.Space[Any]]],
     ]:
         """
         Get the environment definition from Unreal Engine.
 
         Returns
         -------
-        Tuple[List[List[str]], List[Dict[str, str]], Dict[int, Dict[str, gym.Space]], Dict[int, Dict[str, gym.Space]]]
+        Tuple[List[List[str]], Dict[int, Dict[str, str]], Dict[int, Dict[str, gym.Space]], Dict[int, Dict[str, gym.Space]]]
             A tuple containing:
             - List of agent IDs per environment
-            - List of agent groups per environment (used for grouping agents)
+            - Agent types indexed by environment and agent
             - Observation spaces for each environment and agent
             - Action spaces for each environment and agent
         """
         ...
 
+    @abstractmethod
     def send_reset_msg(
-        self, seeds: Optional[List] = None, options: Optional[List] = None
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Dict[str, str]]]]:
+        self, seeds: list[Any] | None = None, options: list[Any] | None = None
+    ) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
         """
         Send a reset message to restart the environment.
 
@@ -205,23 +224,26 @@ class BaseRLProtocol(BaseProtocol):
 
         Returns
         -------
-        Tuple[List[Dict[str, Any]], List[Dict[str, Dict[str,str]]]]
+        Tuple[List[Dict[str, Any]], List[Dict[str, str]]]
             A tuple containing:
             - List of initial observations for each environment
             - List of initial info dicts for each environment
         """
         ...
 
+    @abstractmethod
     def send_action_msg(
-        self, actions: Dict[int, Dict[str, Any]], action_space: Dict[str, gym.Space]
-    ) -> Tuple[
-        List[Dict[str, Any]],
-        List[Dict[str, float]],
-        List[Dict[str, bool]],
-        List[Dict[str, bool]],
-        List[Dict[str, str]],
-        Dict[int, Dict[str, Any]],
-        Dict[int, Dict[str, str]],
+        self,
+        actions: dict[int, dict[str, Any]],
+        action_space: dict[str, gym.Space[Any]],
+    ) -> tuple[
+        list[dict[str, Any]],
+        list[dict[str, float]],
+        list[dict[str, bool]],
+        list[dict[str, bool]],
+        list[dict[str, dict[str, str]]],
+        dict[int, dict[str, Any]],
+        dict[int, dict[str, str]],
     ]:
         """
         Send actions to the environment and receive the next state.
@@ -235,7 +257,7 @@ class BaseRLProtocol(BaseProtocol):
 
         Returns
         -------
-        Tuple[List[Dict[str,Any]], List[Dict[str,float]], List[Dict[str,bool]], List[Dict[str,bool]], List[Dict[str,str]], Dict[int,Dict[str, Any]], Dict[int,Dict[str, str]]]
+        Tuple[List[Dict[str,Any]], List[Dict[str,float]], List[Dict[str,bool]], List[Dict[str,bool]], List[Dict[str,Dict[str,str]]], Dict[int,Dict[str, Any]], Dict[int,Dict[str, str]]]
             A tuple containing:
             - Observations for each environment
             - Rewards for each environment
@@ -248,7 +270,7 @@ class BaseRLProtocol(BaseProtocol):
         ...
 
 
-class BaseImitationProtocol(BaseProtocol):
+class BaseImitationProtocol(BaseProtocol, ABC):
     """
     Base class for imitation learning protocols.
 
@@ -259,9 +281,10 @@ class BaseImitationProtocol(BaseProtocol):
     Call SendStartupMsg to start collecting data.
     """
 
+    @abstractmethod
     def send_startup_msg(
-        self, seeds: Optional[List] = None, options: Optional[List] = None
-    ):
+        self, seeds: list[Any] | None = None, options: list[Any] | None = None
+    ) -> Any:
         """
         Send the startup message for imitation learning data collection.
 
@@ -279,13 +302,16 @@ class BaseImitationProtocol(BaseProtocol):
         """
         ...
 
+    @abstractmethod
     def get_definition(
         self,
-    ) -> Tuple[
-        List[List[str]],
-        Dict[int, Dict[str, str]],
-        Dict[int, Dict[str, gym.Space]],
-        Dict[int, Dict[str, gym.Space]],
+        *args: Any,
+        **kwargs: Any,
+    ) -> tuple[
+        list[list[str]],
+        dict[int, dict[str, str]],
+        dict[int, dict[str, gym.Space[Any]]],
+        dict[int, dict[str, gym.Space[Any]]],
     ]:
         """
         Get the environment definition for imitation learning.
@@ -301,24 +327,25 @@ class BaseImitationProtocol(BaseProtocol):
         """
         ...
 
+    @abstractmethod
     def get_data(
         self,
-    ) -> Tuple[
-        List[Dict[str, Any]],
-        List[float],
-        List[Dict[str, bool]],
-        List[Dict[str, bool]],
-        List[Dict[str, str]],
-        Dict[int, Dict[str, Any]],
-        Dict[int, Dict[str, str]],
-        Dict[int, Dict[str, Any]],
+    ) -> tuple[
+        list[dict[str, Any]],
+        list[dict[str, float]],
+        list[dict[str, bool]],
+        list[dict[str, bool]],
+        list[dict[str, dict[str, str]]],
+        dict[int, dict[str, Any]],
+        dict[int, dict[str, str]],
+        list[dict[str, Any]],
     ]:
         """
         Get demonstration data from the environment.
 
         Returns
         -------
-        Tuple[List[Dict[str,Any]], List[float], List[Dict[str,bool]], List[Dict[str,bool]], List[Dict[str,str]], Dict[int,Dict[str, Any]], Dict[int,Dict[str, str]], Dict[int, Dict[str,Any]]]
+        Tuple[List[Dict[str,Any]], List[Dict[str,float]], List[Dict[str,bool]], List[Dict[str,bool]], List[Dict[str,Dict[str,str]]], Dict[int,Dict[str, Any]], Dict[int,Dict[str, str]], List[Dict[str,Any]]]
             A tuple containing:
             - Observations for each timestep
             - Rewards for each timestep

@@ -95,6 +95,23 @@ def stub_protocol_class():
             self.send_action_msg = MagicMock()
             type(self).instances.append(self)
 
+        # These satisfy BaseRLProtocol's @abstractmethods at class-definition time.
+        # __init__ shadows each one with a per-instance MagicMock for call assertions.
+
+        def close(self) -> None: ...
+
+        def start(self) -> None: ...
+
+        def send_startup_msg(self, *args: Any, **kwargs: Any) -> None: ...
+
+        def get_definition(self, *args: Any, **kwargs: Any) -> Any: ...
+
+        def send_reset_msg(
+            self, seeds: list[Any] | None = None, options: list[Any] | None = None
+        ) -> Any: ...
+
+        def send_action_msg(self, *args: Any, **kwargs: Any) -> Any: ...
+
         def __bool__(self) -> bool:
             return True
 
@@ -293,6 +310,21 @@ import numpy as np
 import onnxruntime as ort
 
 
+def _check_inputs_have_valid_shape(
+    model: onnx.ModelProto,
+) -> None:
+    """Require every exported input to support dynamic batching."""
+    graph_inputs = {inp.name: inp for inp in model.graph.input}
+    for input_name, inp in graph_inputs.items():
+        dims = inp.type.tensor_type.shape.dim
+        assert dims, f"Expected input '{input_name}' to have non-empty dimensions. Must have at least one dimension."
+
+        batch_dim = dims[0]
+        assert (
+            not batch_dim.dim_value and batch_dim.dim_param
+        ), f"Expected input '{input_name}' to have a dynamic batch dimension. Got {batch_dim}"
+
+
 @pytest.fixture(scope="function")
 def onnx_model_checker():
     def _check_onnx_model(
@@ -304,7 +336,13 @@ def onnx_model_checker():
     ):
         """Check that the ONNX model exists and has the correct input and output names."""
         assert model_path.exists(), f"ONNX file not created at {model_path}"
+
+        if state_shapes is None:
+            state_shapes = {}
+
+        model = onnx.load(model_path)
         batch_size = 2
+
         if not isinstance(observation_space, gym.spaces.Dict):
             observation_space = gym.spaces.Dict({"obs": observation_space})
 
@@ -316,21 +354,21 @@ def onnx_model_checker():
 
         action_space = batch_space(action_space, n=batch_size)
 
-        if state_shapes is None:
-            state_shapes = {}
-
         # Check that the model has the correct input and output names
-        model = onnx.load(model_path)
 
         input_names = [input.name for input in model.graph.input]
         output_names = [output.name for output in model.graph.output]
 
-        assert set(input_names) == set(observation_space.spaces.keys()) | {
+        expected_input_names = set(observation_space.spaces.keys()) | {
             f"state_in_{k}" for k in state_shapes.keys()
-        }, "Input names should be the keys of the observation space or state inputs"
+        }
+        assert (
+            set(input_names) == expected_input_names
+        ), "Input names should be the keys of the observation space or state inputs"
         assert set(output_names) == set(action_space.spaces.keys()) | {
             f"state_out_{k}" for k in state_shapes.keys()
         }, "Output names should be the keys of the action space or 'state_out'"
+        _check_inputs_have_valid_shape(model)
 
         # check the metadata of the model (embedded on state inputs)
         if metadata is not None:

@@ -3,7 +3,7 @@
 Settings dataclasses for the RLlib evaluation command.
 """
 
-from typing import Annotated, Optional
+from typing import Annotated, Dict, Optional
 from pathlib import Path
 from dataclasses import dataclass, field
 
@@ -34,7 +34,12 @@ class RllibEvalScriptSettings:
     n_eval_episodes: Annotated[
         int, Parameter(validator=validators.Number(gte=1), group="Evaluation Arguments")
     ] = 10
-    "Requested number of evaluation episodes; applied when the restored ``Algorithm`` config exposes ``evaluation_duration`` / ``evaluation_duration_unit``."
+    "Number of episodes ``eval_main`` samples (each env runner may take more than one per round)."
+
+    policy_map: Annotated[Dict[str, str], Parameter(group="Evaluation Arguments")] = (
+        field(default_factory=dict)
+    )
+    "Optional agent-to-policy overrides (for example ``--policy-map agent_0=Pawn``)."
 
     resource_settings: Annotated[
         ResourceSettings, Parameter(group="Resource Arguments", name="*")

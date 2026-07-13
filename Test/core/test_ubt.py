@@ -8,7 +8,7 @@ import json
 import tempfile
 import os
 from pathlib import Path
-from unittest.mock import Mock, patch, mock_open
+from unittest.mock import MagicMock, patch
 from schola.core.utils.ubt import (
     get_unreal_platform,
     UBTCommand,
@@ -16,7 +16,6 @@ from schola.core.utils.ubt import (
     get_project_file,
     get_engine_path_from_sln,
     get_sln_file_from_project,
-    get_ubt_path,
     get_editor_executable_path,
     resolve_editor_executable,
 )
@@ -26,23 +25,23 @@ class TestGetUnrealPlatform:
     """Tests for get_unreal_platform function"""
 
     @patch("platform.system")
-    def test_windows_platform(self, mock_system):
+    def test_windows_platform(self, mock_system: MagicMock) -> None:
         """Test that Windows returns Win64"""
         mock_system.return_value = "Windows"
         assert get_unreal_platform() == "Win64"
 
     @patch("platform.system")
-    def test_linux_platform(self, mock_system):
+    def test_linux_platform(self, mock_system: MagicMock) -> None:
         """Test that Linux returns Linux"""
         mock_system.return_value = "Linux"
         assert get_unreal_platform() == "Linux"
 
     @patch("platform.system")
-    def test_unsupported_platform(self, mock_system):
+    def test_unsupported_platform(self, mock_system: MagicMock) -> None:
         """Test that unsupported platforms raise ValueError"""
         mock_system.return_value = "Darwin"  # macOS
         with pytest.raises(ValueError, match="Unsupported platform"):
-            get_unreal_platform()
+            _ = get_unreal_platform()
 
 
 class TestUBTCommand:
@@ -255,7 +254,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "UnrealBuildTool", "..\\..\\
         with tempfile.TemporaryDirectory() as tmpdir:
             sln_path = Path(tmpdir) / "Test.sln"
             with open(sln_path, "w") as f:
-                f.write(sln_content)
+                _ = f.write(sln_content)
 
             engine_path = get_engine_path_from_sln(sln_path)
 
@@ -289,7 +288,7 @@ class TestGetEditorExecutablePath:
     """Tests for get_editor_executable_path function"""
 
     @patch("platform.system")
-    def test_windows_editor_path(self, mock_system):
+    def test_windows_editor_path(self, mock_system: MagicMock) -> None:
         """Test editor path on Windows"""
         mock_system.return_value = "Windows"
 
@@ -300,7 +299,7 @@ class TestGetEditorExecutablePath:
         assert "Win64" in str(editor_path)
 
     @patch("platform.system")
-    def test_linux_editor_path(self, mock_system):
+    def test_linux_editor_path(self, mock_system: MagicMock) -> None:
         """Test editor path on Linux"""
         mock_system.return_value = "Linux"
 

@@ -27,7 +27,7 @@ based on the number of environments from the protocol.
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from copy import deepcopy
-from typing import Any, Callable, Iterable, List, Optional, Tuple, Dict, Union
+from typing import Any, Iterable, List, Optional, Tuple, Dict, Union
 import logging
 
 import gymnasium as gym
@@ -37,12 +37,11 @@ from schola.core.error_manager import (
     NoAgentsException,
     NoEnvironmentsException,
 )
-from schola.core.protocols.base_protocol import BaseRLProtocol
+from schola.core.protocols.base_protocol import AutoResetType, BaseRLProtocol
 from schola.core.simulators.base_simulator import (
     BaseSimulator,
     UnsupportedProtocolException,
 )
-from gymnasium.vector.vector_env import AutoresetMode
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
 from ray.rllib.utils.annotations import PublicAPI
 from schola.core.utils.id_manager import IdManager
@@ -162,7 +161,7 @@ class BaseRayEnv(ABC):
         # 3. Send startup message with autoreset
         # Note: This may be called twice if protocol was already started (e.g., from factory function)
         # Protocol implementations should handle duplicate startup messages gracefully
-        self.protocol.send_startup_msg(auto_reset_type=AutoresetMode.NEXT_STEP)
+        self.protocol.send_startup_msg(auto_reset_type=AutoResetType.NEXT_STEP)
 
         # 4. Define environment (calls subclass _define_environment)
         self._define_environment()
@@ -378,24 +377,23 @@ class BaseRayEnv(ABC):
         first_env_id, _ = self.id_manager[0]
         return self.id_manager.agent_types_for_env(first_env_id)
 
-    def make_policy_mapping_fn(self) -> Callable:
-        """
-        Build RLlib's agent-to-policy mapping from Schola AgentType metadata.
+    def make_agent_to_policy(self) -> Dict[str, str]:
+        """Resolve each possible agent to its policy id from AgentType metadata.
 
         Non-empty AgentType values group compatible agents under one policy.
         Empty or missing types preserve the legacy behavior of using the unique
         agent ID as the policy ID.
+
+        This ``agent_id -> policy_id`` table is the single source of truth for
+        policy routing; convert it to an RLlib ``policy_mapping_fn`` only at the
+        config boundary via
+        :func:`schola.rllib.policy_mapping.make_policy_mapping_fn_from_dict`.
         """
         agent_types = dict(self.agent_types)
-
-        def policy_mapping_fn(agent_id, *args, **kwargs):
-            agent_id = str(agent_id)
-            policy_id = agent_types.get(agent_id, "").strip()
-            if policy_id:
-                return policy_id
-            return agent_id
-
-        return policy_mapping_fn
+        return {
+            str(agent_id): (agent_types.get(agent_id, "").strip() or str(agent_id))
+            for agent_id in self.possible_agents
+        }
 
 
 class RayEnv(BaseRayEnv, MultiAgentEnv):

@@ -18,13 +18,12 @@ from schola.core.error_manager import (
     NoAgentsException,
     NoEnvironmentsException,
 )
-from schola.core.protocols.base_protocol import BaseRLProtocol
+from schola.core.protocols.base_protocol import AutoResetType, BaseRLProtocol
 from schola.core.simulators.base_simulator import (
     BaseSimulator,
     UnsupportedProtocolException,
 )
 from schola.core.utils.id_manager import IdManager
-from schola.generated.GymConnector_pb2 import AutoResetType
 from schola.sb3.utils import split_value
 
 logger = logging.getLogger(__name__)

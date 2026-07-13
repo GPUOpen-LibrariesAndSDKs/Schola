@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import sys
 import time
 from collections import defaultdict
 from concurrent.futures import Future
@@ -23,8 +24,8 @@ from schola.core.simulators.base_simulator import (
     BaseSimulator,
     UnsupportedProtocolException,
 )
+from schola.core.protocols.base_protocol import AutoResetType
 from schola.core.utils.id_manager import IdManager
-from gymnasium.vector.vector_env import AutoresetMode
 
 from .env import BaseVecEnv, _validate_definition
 from .utils import split_value
@@ -184,6 +185,10 @@ class AsyncVecEnv(BaseVecEnv):
         protocol: Union[AsyncBaseRLProtocol, Sequence[AsyncBaseRLProtocol]],
         verbosity: int = 0,
     ):
+        if sys.version_info < (3, 11):
+            raise RuntimeError(
+                "AsyncVecEnv requires Python 3.11 or later (uses asyncio.TaskGroup)."
+            )
         if not is_iterable(simulator):
             simulator = [simulator]
         if not is_iterable(protocol):
@@ -264,7 +269,7 @@ class AsyncVecEnv(BaseVecEnv):
         try:
             await protocol.start()
             sim.start(protocol.properties)
-            await protocol.send_startup_msg(auto_reset_type=AutoresetMode.SAME_STEP)
+            await protocol.send_startup_msg(auto_reset_type=AutoResetType.SAME_STEP)
             definition = await protocol.get_definition()
             return definition
         except Exception as e:

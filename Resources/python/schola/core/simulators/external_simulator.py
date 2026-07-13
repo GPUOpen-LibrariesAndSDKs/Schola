@@ -10,7 +10,7 @@ lifecycle management: ``start`` and ``stop`` are no-ops.
 """
 
 import logging
-from typing import Any, Dict, Optional, Tuple, Type
+
 
 from schola.core.protocols.async_base_protocol import AsyncBaseRLProtocol
 from schola.core.protocols.base_protocol import BaseProtocol
@@ -37,16 +37,18 @@ class ExternalSimulator(BaseSimulator):
         probes).
     """
 
-    def __init__(self, readiness_timeout: Optional[int] = None):
+    readiness_timeout: int | None
+
+    def __init__(self, readiness_timeout: int | None = None):
         self.readiness_timeout = readiness_timeout
 
-    def get_simulator_args(self) -> Dict[str, Any]:
+    def get_simulator_args(self) -> dict[str, int]:
         """
         Return kwargs that reproduce this instance (e.g. for Ray ``env_config``).
 
         Returns
         -------
-        Dict[str, Any]
+        dict[str, int]
             Mapping suitable for ``ExternalSimulator(**args)``; includes
             ``readiness_timeout`` only when it is not ``None``.
 
@@ -55,16 +57,15 @@ class ExternalSimulator(BaseSimulator):
         Mirrors the executable simulator's argument helper so ``simulator_args``
         round-trips when the config is shipped to Ray env runners.
         """
-        args: Dict[str, Any] = {}
+        args: dict[str, int] = {}
         if self.readiness_timeout is not None:
             args["readiness_timeout"] = self.readiness_timeout
         return args
 
-    def start(self, protocol_properties: Dict[str, Any]) -> None:
+    def start(self, _protocol_properties: dict[str, object]) -> None:
         """No-op — the external orchestrator manages the process."""
         logger.debug(
-            "ExternalSimulator.start() called (no-op); "
-            "expecting UE to be reachable at the configured protocol address."
+            "ExternalSimulator.start() called (no-op); expecting UE to be reachable at the configured protocol address."
         )
 
     def stop(self) -> None:
@@ -76,7 +77,7 @@ class ExternalSimulator(BaseSimulator):
         return True
 
     @property
-    def supported_protocols(self) -> Tuple[Type[BaseProtocol], ...]:
+    def supported_protocols(self) -> tuple[type[BaseProtocol], ...]:
         """
         Synchronous protocol implementations compatible with this simulator.
 
@@ -90,7 +91,7 @@ class ExternalSimulator(BaseSimulator):
         return (GrpcProtocol,)
 
     @property
-    def supported_async_protocols(self) -> Tuple[Type[AsyncBaseRLProtocol], ...]:
+    def supported_async_protocols(self) -> tuple[type[AsyncBaseRLProtocol], ...]:
         """
         Asynchronous protocol implementations compatible with this simulator.
 

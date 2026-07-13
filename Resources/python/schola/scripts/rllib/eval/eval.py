@@ -210,7 +210,10 @@ def main(args: RllibEvalScriptSettings) -> Dict[str, Any]:
                 "--num-gpus is non-default but connecting to an existing cluster; "
                 "this parameter will be ignored."
             )
-
+    # checkpoint must be Path | None, to make command generation work correctly.
+    # but it is not actually optional, so we need to check for it here.
+    if args.checkpoint is None:
+        raise ValueError("Checkpoint is required")
     ckpt = args.checkpoint.resolve()
     n_sim = args.environment_settings.simulator_settings.num_simulators
     num_env_runners = 0 if n_sim <= 1 else int(n_sim)

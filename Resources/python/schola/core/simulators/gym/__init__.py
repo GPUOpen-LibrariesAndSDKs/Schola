@@ -1,17 +1,15 @@
 # Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
 
-"""Backward-compatible re-exports for test and docker helpers."""
+"""Gymnasium-backed Schola simulators."""
 
+from schola.core.simulators.gym.simulator import GymSimulator
 from schola.core.simulators.gym.servicer import (
     GymToGymServiceServicer,
     VecGymToGymServiceServicer,
-    capture_traceback,
-    wrap,
 )
 
 __all__ = [
+    "GymSimulator",
     "GymToGymServiceServicer",
     "VecGymToGymServiceServicer",
-    "capture_traceback",
-    "wrap",
 ]

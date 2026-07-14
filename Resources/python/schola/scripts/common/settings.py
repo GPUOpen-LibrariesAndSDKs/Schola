@@ -195,6 +195,37 @@ class UnrealProjectSimulatorConfig:
 
 
 @dataclass
+class GymSimulatorConfig:
+    """
+    Arguments for an in-process Gymnasium environment simulator.
+
+    Launches a local gRPC server that exposes a standard Gymnasium environment
+    through the Schola gym connector protocol.
+    """
+
+    env_id: Annotated[str, Parameter(alias="--env-id")]
+    "Gymnasium environment ID (e.g. CartPole-v1)."
+
+    num_simulators: Annotated[
+        int, Parameter(validator=validators.Number(gte=1), alias="-n")
+    ] = 1
+    "Number of parallel Gymnasium environment instances served by one gRPC connector."
+
+    def make(self):
+        """
+        Create a GymSimulator instance with the specified settings.
+
+        Returns
+        -------
+        GymSimulator
+            A configured in-process Gymnasium simulator.
+        """
+        from schola.core.simulators.gym.simulator import GymSimulator
+
+        return GymSimulator(self.env_id, num_envs=self.num_simulators)
+
+
+@dataclass
 class ExternalSimulatorConfig:
     """
     Arguments for an externally managed process.
@@ -375,6 +406,7 @@ class EnvironmentSettings:
             UnrealExecutableSimulatorConfig,
             UnrealProjectSimulatorConfig,
             ExternalSimulatorConfig,
+            GymSimulatorConfig,
         ],
         IgnoreParameter,
     ] = field(default_factory=ExternalSimulatorConfig)

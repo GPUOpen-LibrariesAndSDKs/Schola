@@ -190,10 +190,14 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
     from schola.scripts.rllib.utils import discover_env_metadata
     from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 
+    from schola.scripts.common.settings import GymSimulatorConfig
+
     sim_args = args.environment_settings.simulator_settings
     n_sim = sim_args.num_simulators
-    # Run locally if we are only running one simulator
-    num_env_runners = 0 if n_sim == 1 else n_sim
+    # Run locally if we are only running one simulator (including vectorized gym)
+    num_env_runners = (
+        0 if isinstance(sim_args, GymSimulatorConfig) or n_sim == 1 else n_sim
+    )
 
     # Discover policy metadata + env_config via a temporary environment that is
     # always cleaned up, even if construction fails (no leaked Unreal process).

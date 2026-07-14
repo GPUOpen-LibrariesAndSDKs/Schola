@@ -32,8 +32,7 @@ from schola.core.protocols.protobuf.grpc_protocol import GrpcProtocol
 from schola.core.simulators.external_simulator import ExternalSimulator
 import schola.generated.GymConnector_pb2_grpc as gym_grpc
 
-sys.path.insert(0, "/opt")
-from test_envs.gym_server import VecGymToGymServiceServicer
+from schola.core.simulators.gym.servicer import VecGymToGymServiceServicer
 
 GRPC_PORT = int(os.environ.get("SCHOLA_GRPC_PORT", "50051"))
 NUM_WORKERS = int(os.environ.get("NUM_WORKERS", "2"))

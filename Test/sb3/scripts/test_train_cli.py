@@ -17,6 +17,7 @@ from schola.scripts.sb3.train.settings import (
 from schola.scripts.common.settings import (
     ExternalSimulatorConfig,
     GrpcProtocolConfig,
+    GymSimulatorConfig,
     UnrealExecutableSimulatorConfig,
     UnrealProjectSimulatorConfig,
     ActivationFunctionEnum,
@@ -356,6 +357,53 @@ def test_ppo_env_options_dotted_syntax(mock_app, mock_main):
         "level": "1",
         "curriculum": "easy",
     }
+
+
+def test_ppo_with_gym_simulator(mock_app, mock_main):
+    """Test that the gym simulator subcommand is correctly parsed."""
+    command, bound, _ = mock_app.parse_args(
+        ["ppo", "gym", "--env-id", "CartPole-v1"],
+        exit_on_error=False,
+    )
+
+    command(*bound.args, **bound.kwargs)
+
+    args = mock_main.call_args[0][0]
+
+    assert isinstance(args.environment_settings.simulator_settings, GymSimulatorConfig)
+    assert args.environment_settings.simulator_settings.env_id == "CartPole-v1"
+    assert args.environment_settings.simulator_settings.num_simulators == 1
+
+
+def test_ppo_with_gym_simulator_num_envs(mock_app, mock_main):
+    command, bound, _ = mock_app.parse_args(
+        ["ppo", "gym", "--env-id", "CartPole-v1", "--num-simulators", "4"],
+        exit_on_error=False,
+    )
+
+    command(*bound.args, **bound.kwargs)
+
+    args = mock_main.call_args[0][0]
+    assert args.environment_settings.simulator_settings.num_simulators == 4
+
+
+def test_launch_script_with_gym_simulator():
+    """End-to-end train main using the in-process Gymnasium simulator."""
+    args = Sb3TrainScriptSettings(
+        environment_settings=EnvironmentSettings(
+            simulator_settings=GymSimulatorConfig(env_id="CartPole-v1"),
+        ),
+        algorithm_settings=PPOTrainSettings(
+            n_steps=64,
+            batch_size=32,
+        ),
+        training_settings=replace(
+            Sb3TrainScriptSettings().training_settings,
+            timesteps=128,
+            disable_eval=True,
+        ),
+    )
+    main(args)
 
 
 def test_sac_with_executable_simulator(mock_app, mock_main, tmp_path):

@@ -34,6 +34,7 @@ from schola.scripts.common.settings import (
     UnrealExecutableSimulatorConfig,
     UnrealProjectSimulatorConfig,
     ExternalSimulatorConfig,
+    GymSimulatorConfig,
 )
 
 ScriptArgsType = TypeVar("ScriptArgsType")
@@ -41,6 +42,7 @@ SimulatorArgsType = Union[
     UnrealExecutableSimulatorConfig,
     UnrealProjectSimulatorConfig,
     ExternalSimulatorConfig,
+    GymSimulatorConfig,
 ]
 
 
@@ -143,6 +145,7 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
     @property
     def simulator_table(self) -> Dict[str, Type[SimulatorArgsType]]:
         return {
+            "gym": GymSimulatorConfig,
             "executable": UnrealExecutableSimulatorConfig,
             "project": UnrealProjectSimulatorConfig,
             "external": ExternalSimulatorConfig,
@@ -151,6 +154,7 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
     @property
     def simulator_help(self) -> Dict[str, str]:
         return {
+            "gym": "Run a standard Gymnasium environment in-process via the Schola gym connector.",
             "executable": "Run Unreal from a pre-built executable.",
             "project": "Build and Run Unreal from a UProject File.",
             "external": "Connect to an externally managed UE process (e.g. Unreal Editor, Kubernetes pod, remote host). Default if no simulator is provided.",
@@ -160,6 +164,7 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
     def simulator_aliases(self) -> Dict[str, str | Iterable[str] | None]:
         return {
             "external": "editor",
+            "gym": None,
             "project": None,
             "executable": None,
         }

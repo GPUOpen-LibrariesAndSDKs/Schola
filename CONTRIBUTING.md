@@ -11,7 +11,7 @@ For installation, engine versions, and dependency extras, see the [README](READM
 - **Pull requests** — Code, tests, and documentation fixes are welcome via PR. Fill out the [pull request template](.github/pull_request_template.md) when you open a PR.
 - **Documentation** — User-facing changes should update the README and/or Sphinx guides under `Docs/Sphinx/` as appropriate.
 
-Discuss larger changes in an issue first if you are unsure about direction or scope; that helps avoid rework.
+Discuss larger changes in an issue first if you are unsure about direction or scope; that helps avoid rework. For questions that are not a good fit for a public GitHub issue, contact the Schola team at [schola@amd.com](mailto:schola@amd.com).
 
 ## Development setup
 

@@ -60,6 +60,7 @@ dependencies = [
 [project.urls]
 Homepage = "https://gpuopen.com/amd-schola/"
 Repository = "https://github.com/GPUOpen-LibrariesAndSDKs/Schola"
+Contact = "mailto:schola@amd.com"
 
 [project.optional-dependencies]
 # Dependencies for running training with Stable Baselines 3.

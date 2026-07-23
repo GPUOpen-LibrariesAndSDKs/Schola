@@ -66,6 +66,10 @@ Documentation for Schola is build using a combination of Doxygen + Sphinx + Brea
 2. Install documentation requirements for Schola using pip, for example `pip install -e "./Resources/python[docs]"` from the plugin root (or `pip install -e ".[docs]"` after `cd` into `Resources/python`).
 3. Run the command `schola build-docs --builder html` from the root of this project (or supply the path to the plugin folder)
 
+## Contact
+
+For questions about Schola, contact the team at [schola@amd.com](mailto:schola@amd.com).
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for issue and pull request guidelines, coding standards, and testing expectations.

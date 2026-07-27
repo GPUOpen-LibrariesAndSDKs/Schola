@@ -14,9 +14,11 @@ import yaml
 from cyclopts import App, Parameter, validators
 
 from schola.scripts.common.settings import (
+    AllSimulatorConfigs,
     EnvironmentSettings,
     ExternalSimulatorConfig,
     GrpcProtocolConfig,
+    IgnoreParameter,
     UnrealExecutableSimulatorConfig,
     UnrealProjectSimulatorConfig,
 )
@@ -43,15 +45,17 @@ class FakeAlgoBeta:
 
     beta_steps: Annotated[int, Parameter(validator=validators.Number(gte=1))] = 11
 
+@dataclass
+class FakeEnvironmentSettings(EnvironmentSettings[AllSimulatorConfigs]):
+    """Fake environment settings for testing."""
+    simulator_settings: Annotated[AllSimulatorConfigs, IgnoreParameter] = field(default_factory=ExternalSimulatorConfig)
 
 @dataclass
 class FakeScriptSettings:
     """Minimal script container compatible with ``ScholaCommandTemplate`` wiring."""
 
-    environment_settings: EnvironmentSettings = field(
-        default_factory=lambda: EnvironmentSettings(
-            simulator_settings=ExternalSimulatorConfig()
-        )
+    environment_settings: FakeEnvironmentSettings = field(
+        default_factory=FakeEnvironmentSettings
     )
 
     algorithm_settings: Annotated[
@@ -469,7 +473,7 @@ _META_ALG_CLI_ALGORITHM_SIMULATOR_COUNT_MATRIX: tuple[MetaAlgCliTestParameters, 
             _EXE_PLACEHOLDER,
         ],
         expected_sim_settings=FakeScriptSettings(
-            environment_settings=EnvironmentSettings(
+            environment_settings=FakeEnvironmentSettings(
                 simulator_settings=UnrealExecutableSimulatorConfig(
                     executable_path=Path(_EXE_PLACEHOLDER),
                 ),

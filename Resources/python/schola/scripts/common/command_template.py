@@ -227,7 +227,7 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
                 algorithm_app.config = [
                     _ScholaConfig(
                         hidden_sim_config_dict,
-                        use_commands_as_keys=True,
+                        use_commands_as_keys=self.multiple_simulators,
                         allow_unknown=False,
                         source=f"config:environment:simulator",
                     ),
@@ -307,17 +307,16 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
                 ),
             ] = None,
         ):
-            env_key = "environment"
             additional_kwargs: Dict[str, Any] = {}
             config_dict = {}
             if config_file is not None:
                 config_dict = load_yaml_file(config_file, self._logger)
 
-            # if we have a simulator, we need to extract the keys here and then forward them onwards as a hidden argument
-            # this lets us put them at the root level of the app instead of nested in the algorithm command
+            # if we have a simulator, extract ``environment.simulator`` and forward it as a hidden argument
+            # this lets us put it at the root level of the app instead of nested in the algorithm command
             sim_config_dict: Optional[Dict[str, Any]] = None
             if self.has_simulator:
-                sim_config_dict = config_dict.pop(env_key, {}).pop("simulator", {})
+                sim_config_dict = self._create_simulator_config_dict(config_dict)
 
             # we can naively forward the sim_config_dict as we will handle the None checking when we go to actually
             # apply it to the app
@@ -442,6 +441,29 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
     @property
     def has_simulator(self) -> bool:
         return len(self.simulator_table) > 0
+
+    def _create_simulator_config_dict(
+        self, config_dict: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Extract ``environment.simulator`` from *config_dict* and shape it for cyclopts.
+
+        Removes the ``environment.simulator`` block from *config_dict* in place. Config
+        files nest settings under the simulator name (e.g. ``external``). When only one
+        simulator is registered, ``collapse_simulator_command`` inlines that subcommand,
+        so the returned mapping omits the name key.
+        """
+        sim_config_dict = config_dict.pop("environment", {}).pop("simulator", {})
+        if not sim_config_dict or not self.single_simulator:
+            return sim_config_dict
+
+        # single simulator case so we can just return the first and only key from the simulator table
+        simulator_name = next(iter(self.simulator_table))
+        if simulator_name in sim_config_dict:
+            nested = sim_config_dict[simulator_name]
+            return nested if isinstance(nested, dict) else {}
+        # single simulator case where the user inlined the simulator parameters, rather than adding a subcommand key
+        return sim_config_dict
 
     @property
     def has_algorithm(self) -> bool:

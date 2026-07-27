@@ -12,7 +12,6 @@ from cyclopts import Parameter, validators
 from schola.scripts.common.settings import (
     ActivationFunctionEnum,
     CheckpointSettings,
-    EnvironmentSettings,
 )
 
 from schola.scripts.rllib.settings import (
@@ -21,6 +20,7 @@ from schola.scripts.rllib.settings import (
     LoggingSettings,
     PPOSettings,
     ResourceSettings,
+    RllibEnvironmentSettings,
     SACSettings,
 )
 
@@ -182,8 +182,9 @@ class RllibScriptSettings:
     "Settings for checkpoints"
 
     environment_settings: Annotated[
-        EnvironmentSettings, Parameter(group="Environment Arguments", name="*")
-    ] = field(default_factory=EnvironmentSettings)
+        RllibEnvironmentSettings,
+        Parameter(group="Environment Arguments", name="*"),
+    ] = field(default_factory=RllibEnvironmentSettings)
     "Settings for the environment to use during training"
 
 
@@ -195,4 +196,4 @@ LoggingArgs = LoggingSettings
 ResumeArgs = ResumeSettings
 NetworkArchitectureArgs = NetworkArchitectureSettings
 CheckpointArgs = CheckpointSettings
-EnvironmentArgs = EnvironmentSettings
+EnvironmentArgs = RllibEnvironmentSettings

@@ -2,6 +2,7 @@
 """Simulator abstractions for launching and connecting to Unreal (editor, executable, project)."""
 
 from schola.core.simulators.external_simulator import ExternalSimulator
+from schola.core.simulators.spawn_protocol import SupportsSpawn
 from schola.core.simulators.gym.simulator import GymSimulator
 
-__all__ = ["ExternalSimulator", "GymSimulator"]
+__all__ = ["ExternalSimulator", "GymSimulator", "SupportsSpawn"]

@@ -7,12 +7,17 @@ Cyclopts dataclasses for Minari dataset collection with Schola.
 from __future__ import annotations
 
 import logging
-from typing import Annotated, Optional
+from typing import TYPE_CHECKING, Annotated, Optional
 from dataclasses import dataclass, field
 from pathlib import Path
 from cyclopts import Parameter, validators
 from cyclopts.types import URL, Email
-from schola.scripts.common.settings import EnvironmentSettings
+from schola.scripts.common.settings import (
+    AllSimulatorConfigs,
+    EnvironmentSettings,
+    ExternalSimulatorConfig,
+    IgnoreParameter,
+)
 
 
 @dataclass
@@ -74,6 +79,18 @@ class MinariLoggingSettings:
 
 
 @dataclass
+class MinariEnvironmentSettings(EnvironmentSettings[AllSimulatorConfigs]):
+    """
+    Dataclass for configuring the environment settings for Minari data collection.
+    """
+
+    simulator_settings: Annotated[
+        AllSimulatorConfigs,
+        IgnoreParameter,
+    ] = field(default_factory=ExternalSimulatorConfig)
+
+
+@dataclass
 class MinariScriptSettings:
     """
     Top level dataclass for configuring the script arguments used in the Minari data collection launcher.
@@ -90,8 +107,8 @@ class MinariScriptSettings:
     "Settings for configuring logging during data collection."
 
     environment_settings: Annotated[
-        EnvironmentSettings, Parameter(group="Environment Arguments", name="*")
-    ] = field(default_factory=EnvironmentSettings)
+        MinariEnvironmentSettings, Parameter(group="Environment Arguments", name="*")
+    ] = field(default_factory=MinariEnvironmentSettings)
     "Settings for configuring the environment."
 
 

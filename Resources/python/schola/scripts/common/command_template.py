@@ -22,15 +22,14 @@ from typing import (
     TypeVar,
     Union,
 )
-from webbrowser import GenericBrowser
 
 from cyclopts import App, ArgumentCollection, Group, Parameter
 import cyclopts
 from cyclopts.argument import update_argument_collection
-from pandas.core import generic
 from schola.core.utils.dict_helpers import flatten_dict_no_prefix
 
 from schola.scripts.common.settings import (
+    BaseSimulatorConfig,
     UnrealExecutableSimulatorConfig,
     UnrealProjectSimulatorConfig,
     ExternalSimulatorConfig,
@@ -38,12 +37,6 @@ from schola.scripts.common.settings import (
 )
 
 ScriptArgsType = TypeVar("ScriptArgsType")
-SimulatorArgsType = Union[
-    UnrealExecutableSimulatorConfig,
-    UnrealProjectSimulatorConfig,
-    ExternalSimulatorConfig,
-    GymSimulatorConfig,
-]
 
 
 def load_yaml_file(file_path: Path, logger: logging.Logger) -> Dict[str, Any]:
@@ -118,10 +111,6 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
     ----------
     app : App
         The main app to add subcommands to.
-    args_type : Type[ScriptArgsType]
-        The type of the script arguments.
-    main_func : Callable[[ScriptArgsType], Any]
-        The main function to call when the command is executed.
     logger : logging.Logger
         The logger to use for logging.
 
@@ -133,17 +122,14 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
     def __init__(
         self,
         app: App,
-        args_type: Type[ScriptArgsType],
-        main_func: Callable[[ScriptArgsType], Any],
         logger: logging.Logger,
     ):
         self.app = app
-        self.args_type = args_type
-        self._main_func = main_func
         self._logger = logger
 
     @property
-    def simulator_table(self) -> Dict[str, Type[SimulatorArgsType]]:
+    def simulator_table(self) -> Dict[str, Type[BaseSimulatorConfig[Any]]]:
+        # Ignore the type here as it is difficult to resolve with current typing tooling
         return {
             "gym": GymSimulatorConfig,
             "executable": UnrealExecutableSimulatorConfig,
@@ -170,13 +156,22 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
         }
 
     @property
-    def default_simulator_name(self) -> Type[SimulatorArgsType]:
+    def default_simulator_name(self) -> str:
         return "external"
 
-    def make_simulator_command(self, simulator_type: Type[SimulatorArgsType]):
+    @property
+    def script_args_type(self) -> Type[ScriptArgsType]:
+        raise NotImplementedError(
+            "script_args_type must be implemented in the subclass"
+        )
+
+    @property
+    def main_func(self) -> Callable[[ScriptArgsType], Any]:
+        raise NotImplementedError("main_func must be implemented in the subclass")
+
+    def make_simulator_command(self, simulator_type: Type[BaseSimulatorConfig[Any]]):
         SimulatorType = NewType("SimulatorType", simulator_type)  # type: ignore
-        ArgsType = NewType("ArgsType", self.args_type)  # type: ignore
-        _main_func = self._main_func
+        _main_func = self.main_func
         try:
             _sim_default = simulator_type()
         except TypeError:
@@ -184,40 +179,38 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
 
         if _sim_default is not None:
 
-            def completed_simulator_command(
+            def default_simulator_command(
                 simulator_args: Annotated[SimulatorType, Parameter(name="*")] = _sim_default,  # type: ignore
                 *,
-                hidden_script_args: Annotated[ArgsType, Parameter(parse=False)],
+                hidden_script_args: Annotated[ScriptArgsType, Parameter(parse=False)],
             ):
                 hidden_script_args.environment_settings.simulator_settings = simulator_args  # type: ignore
                 self._logger.debug("Arguments: %s", hidden_script_args)
                 return _main_func(hidden_script_args)
 
+            return default_simulator_command
         else:
 
-            def completed_simulator_command(
+            def non_default_simulator_command(
                 simulator_args: Annotated[SimulatorType, Parameter(name="*")],
                 *,
-                hidden_script_args: Annotated[ArgsType, Parameter(parse=False)],
+                hidden_script_args: Annotated[ScriptArgsType, Parameter(parse=False)],
             ):
                 hidden_script_args.environment_settings.simulator_settings = simulator_args  # type: ignore
                 self._logger.debug("Arguments: %s", hidden_script_args)
                 return _main_func(hidden_script_args)
 
-        return completed_simulator_command
+            return non_default_simulator_command
 
-    def make_algorithm_command(
-        self, algorithm_app: App, algorithm_type: Type[Any], args_type: Type[Any]
-    ):
-        ResolvedArgsType = NewType("ResolvedArgsType", args_type)  # type: ignore
+    def make_algorithm_command(self, algorithm_app: App, algorithm_type: Type[Any]):
         AlgorithmType = NewType("AlgorithmType", algorithm_type)  # type: ignore
-        _main_func = self._main_func
+        _main_func = self.main_func
         _logger = self._logger
 
         def meta_algorithm_command(
             *tokens: Annotated[str, Parameter(show=False, allow_leading_hyphen=True)],
             algorithm_args: Annotated[AlgorithmType, Parameter(name="*")] = algorithm_type(),  # type: ignore
-            hidden_script_args: Annotated[ResolvedArgsType, Parameter(parse=False)],
+            hidden_script_args: Annotated[ScriptArgsType, Parameter(parse=False)],
             hidden_sim_config_dict: Annotated[
                 Optional[Dict[str, Any]], Parameter(parse=False)
             ] = None,
@@ -238,7 +231,7 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
                 algorithm_app.config = [
                     _ScholaConfig(
                         hidden_sim_config_dict,
-                        use_commands_as_keys=True,
+                        use_commands_as_keys=self.multiple_simulators,
                         allow_unknown=False,
                         source=f"config:environment:simulator",
                     ),
@@ -254,17 +247,17 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
 
         return meta_algorithm_command
 
-    def make_train_meta_command(self, args_type: Type[Any]):
-        ResolvedArgsType = NewType("ResolvedArgsType", args_type)  # type: ignore
-        _main_func = self._main_func
+    def make_train_meta_command(self):
+        ResolvedScriptArgsType = NewType("ResolvedScriptArgsType", self.script_args_type)  # type: ignore
+        _main_func = self.main_func
         _logger = self._logger
 
         def train_meta_command(
             *tokens: Annotated[str, Parameter(show=False, allow_leading_hyphen=True)],
             script_args: Annotated[
-                ResolvedArgsType,
-                Parameter(name="*"),  # pyright: ignore[reportInvalidTypeForm]
-            ] = self.args_type(),
+                ResolvedScriptArgsType,
+                Parameter(name="*"),
+            ] = self.script_args_type(),
             hidden_sim_config_dict: Annotated[
                 Optional[Dict[str, Any]], Parameter(parse=False)
             ] = None,
@@ -318,17 +311,16 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
                 ),
             ] = None,
         ):
-            env_key = "environment"
             additional_kwargs: Dict[str, Any] = {}
             config_dict = {}
             if config_file is not None:
                 config_dict = load_yaml_file(config_file, self._logger)
 
-            # if we have a simulator, we need to extract the keys here and then forward them onwards as a hidden argument
-            # this lets us put them at the root level of the app instead of nested in the algorithm command
+            # if we have a simulator, extract ``environment.simulator`` and forward it as a hidden argument
+            # this lets us put it at the root level of the app instead of nested in the algorithm command
             sim_config_dict: Optional[Dict[str, Any]] = None
             if self.has_simulator:
-                sim_config_dict = config_dict.pop(env_key, {}).pop("simulator", {})
+                sim_config_dict = self._create_simulator_config_dict(config_dict)
 
             # we can naively forward the sim_config_dict as we will handle the None checking when we go to actually
             # apply it to the app
@@ -365,7 +357,7 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
 
     def make(self):
         # setup the default meta func on the base app to parse the Script Args
-        self.app.meta.default(self.make_train_meta_command(self.args_type))
+        self.app.meta.default(self.make_train_meta_command())
         # This takes the config file and adds it to the meta app to allow for the config to be aligned with the script args
         self.app.meta.meta.default(self.make_train_config_handler())
 
@@ -390,9 +382,7 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
             )
             algorithm_type = self.algorithm_table[algorithm]
             algorithm_app.meta.default(
-                self.make_algorithm_command(
-                    algorithm_app, algorithm_type, self.args_type
-                )
+                self.make_algorithm_command(algorithm_app, algorithm_type)
             )
             self.maybe_make_simulator_commands(algorithm_app)
 
@@ -455,6 +445,29 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
     @property
     def has_simulator(self) -> bool:
         return len(self.simulator_table) > 0
+
+    def _create_simulator_config_dict(
+        self, config_dict: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Extract ``environment.simulator`` from *config_dict* and shape it for cyclopts.
+
+        Removes the ``environment.simulator`` block from *config_dict* in place. Config
+        files nest settings under the simulator name (e.g. ``external``). When only one
+        simulator is registered, ``collapse_simulator_command`` inlines that subcommand,
+        so the returned mapping omits the name key.
+        """
+        sim_config_dict = config_dict.pop("environment", {}).pop("simulator", {})
+        if not sim_config_dict or not self.single_simulator:
+            return sim_config_dict
+
+        # single simulator case so we can just return the first and only key from the simulator table
+        simulator_name = next(iter(self.simulator_table))
+        if simulator_name in sim_config_dict:
+            nested = sim_config_dict[simulator_name]
+            return nested if isinstance(nested, dict) else {}
+        # single simulator case where the user inlined the simulator parameters, rather than adding a subcommand key
+        return sim_config_dict
 
     @property
     def has_algorithm(self) -> bool:

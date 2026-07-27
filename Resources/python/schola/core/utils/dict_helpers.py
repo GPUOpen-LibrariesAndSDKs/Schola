@@ -7,7 +7,6 @@ import itertools
 from collections.abc import Callable, Iterator
 from typing import TypeVar, cast
 
-
 V = TypeVar("V")
 Y = TypeVar("Y")
 K = TypeVar("K")

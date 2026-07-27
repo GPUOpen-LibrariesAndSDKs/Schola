@@ -498,6 +498,7 @@ class TestExportScript:
         export_onnx_app(
             [str(checkpoint_path), str(export_path)],
             result_action="return_value",
+            exit_on_error=False,
         )
         onnx_model_checker(
             export_path,

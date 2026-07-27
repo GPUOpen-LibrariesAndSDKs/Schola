@@ -4,10 +4,12 @@
 Common utility functions and classes for use in Schola scripts.
 """
 
+from collections.abc import Sequence
 from enum import Enum
 from typing import (
     Annotated,
     Dict,
+    Generic,
     Literal,
     Optional,
     Tuple,
@@ -23,6 +25,14 @@ from pathlib import Path
 from rich.console import Console
 
 console = Console()
+
+from typing import TYPE_CHECKING, TypeVar
+
+if TYPE_CHECKING:
+    from schola.core.simulators.unreal.executable_simulator import UnrealExecutable
+    from schola.core.simulators.unreal.project_simulator import UnrealProject
+    from schola.core.simulators.external_simulator import ExternalSimulator
+    from schola.core.simulators.gym.simulator import GymSimulator
 
 
 class ActivationFunctionEnum(str, Enum):
@@ -72,8 +82,26 @@ def get_activation_function(activation: ActivationFunctionEnum) -> Type["torch.n
         raise ValueError(f"Unsupported activation function: {activation}")
 
 
+if TYPE_CHECKING:
+    from schola.core.simulators.base_simulator import BaseSimulator
+
+T = TypeVar("T", bound="BaseSimulator", covariant=True)
+
+
+from abc import ABC, abstractmethod
+
+
+class BaseSimulatorConfig(Generic[T], ABC):
+
+    @abstractmethod
+    def make(self) -> T: ...
+
+    def make_n(self, n: int) -> Sequence[T]:
+        return [self.make() for _ in range(n)]
+
+
 @dataclass
-class UnrealExecutableSimulatorConfig:
+class UnrealExecutableSimulatorConfig(BaseSimulatorConfig["UnrealExecutable"]):
     """
     Arguments for the Unreal Engine executable simulator in Schola.
 
@@ -109,7 +137,7 @@ class UnrealExecutableSimulatorConfig:
     ] = 1
     "Number of parallel simulator processes. Headless mode is recommended when N > 1. With a fixed port P, instances use P, P+1, ... P+N-1."
 
-    def make(self):
+    def make(self) -> "UnrealExecutable":
         """
         Create an UnrealExecutable simulator instance with the specified settings.
 
@@ -131,7 +159,7 @@ class UnrealExecutableSimulatorConfig:
 
 
 @dataclass
-class UnrealProjectSimulatorConfig:
+class UnrealProjectSimulatorConfig(BaseSimulatorConfig["UnrealExecutable"]):
     """
     Arguments for the Unreal Engine project simulator in Schola.
     """
@@ -170,7 +198,7 @@ class UnrealProjectSimulatorConfig:
     ] = 1
     "Number of parallel simulator processes. One project build is used; headless recommended when N > 1. With a fixed port P, instances use P, P+1, ... P+N-1."
 
-    def make(self):
+    def make(self) -> "UnrealProject":
         """
         Create a UnrealProject simulator instance with the specified settings.
 
@@ -193,9 +221,14 @@ class UnrealProjectSimulatorConfig:
             disable_script=self.disable_script,
         )
 
+    def make_n(self, n: int = 1) -> list["UnrealExecutable"]:
+        assert n >= 1, "Number of simulators must be at least 1"
+        primary = self.make()
+        return [primary] + primary.spawn(n - 1)
+
 
 @dataclass
-class GymSimulatorConfig:
+class GymSimulatorConfig(BaseSimulatorConfig["GymSimulator"]):
     """
     Arguments for an in-process Gymnasium environment simulator.
 
@@ -226,7 +259,7 @@ class GymSimulatorConfig:
 
 
 @dataclass
-class ExternalSimulatorConfig:
+class ExternalSimulatorConfig(BaseSimulatorConfig["ExternalSimulator"]):
     """
     Arguments for an externally managed process.
 
@@ -243,7 +276,7 @@ class ExternalSimulatorConfig:
     readiness_timeout: Optional[int] = None
     "Seconds to wait for the external process to become reachable (reserved for future use)."
 
-    def make(self):
+    def make(self) -> "ExternalSimulator":
         """
         Create an ExternalSimulator instance.
 
@@ -255,6 +288,14 @@ class ExternalSimulatorConfig:
         from schola.core.simulators.external_simulator import ExternalSimulator
 
         return ExternalSimulator(readiness_timeout=self.readiness_timeout)
+
+
+AllSimulatorConfigs = (
+    UnrealExecutableSimulatorConfig
+    | UnrealProjectSimulatorConfig
+    | ExternalSimulatorConfig
+    | GymSimulatorConfig
+)
 
 
 def protocol_port_for_index(base_port: Optional[int], index: int) -> Optional[int]:
@@ -395,21 +436,21 @@ class CheckpointSettings:
             self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
 
+from typing import Any
+
+SimulatorSettingsT = TypeVar("SimulatorSettingsT", bound=BaseSimulatorConfig[Any])
+
+
 @dataclass
-class EnvironmentSettings:
+class EnvironmentSettings(Generic[SimulatorSettingsT]):
     """
     Settings for the environment in Schola.
     """
 
     simulator_settings: Annotated[
-        Union[
-            UnrealExecutableSimulatorConfig,
-            UnrealProjectSimulatorConfig,
-            ExternalSimulatorConfig,
-            GymSimulatorConfig,
-        ],
+        SimulatorSettingsT,
         IgnoreParameter,
-    ] = field(default_factory=ExternalSimulatorConfig)
+    ]
     "Settings for the simulator to use during training"
 
     protocol_settings: Annotated[

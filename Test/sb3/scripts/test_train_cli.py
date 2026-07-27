@@ -21,8 +21,8 @@ from schola.scripts.common.settings import (
     UnrealExecutableSimulatorConfig,
     UnrealProjectSimulatorConfig,
     ActivationFunctionEnum,
-    EnvironmentSettings,
 )
+from schola.scripts.sb3.settings import Sb3EnvironmentSettings
 
 
 @pytest.mark.parametrize("gym_id", ["CartPole-v1", "MountainCar-v0"])
@@ -33,8 +33,9 @@ def test_launch_script(make_vec_env_server, gym_id):
 
     # Create Sb3ScriptSettings with protocol nested under environment_settings
     args = Sb3TrainScriptSettings(
-        environment_settings=EnvironmentSettings(
-            protocol_settings=GrpcProtocolConfig(port=env_server_port, url="localhost")
+        environment_settings=Sb3EnvironmentSettings(
+            simulator_settings=ExternalSimulatorConfig(num_simulators=1),
+            protocol_settings=GrpcProtocolConfig(port=env_server_port, url="localhost"),
         ),
         algorithm_settings=PPOTrainSettings(),
     )
@@ -48,8 +49,9 @@ def test_launch_script_with_dict_action_space(make_vec_env_server):
         [make_dict_action_env(DictActionBoxEnv, False) for _ in range(N_ENVS)]
     )
     args = Sb3TrainScriptSettings(
-        environment_settings=EnvironmentSettings(
-            protocol_settings=GrpcProtocolConfig(port=env_server_port, url="localhost")
+        environment_settings=Sb3EnvironmentSettings(
+            simulator_settings=ExternalSimulatorConfig(num_simulators=1),
+            protocol_settings=GrpcProtocolConfig(port=env_server_port, url="localhost"),
         ),
         algorithm_settings=PPOTrainSettings(),
     )
@@ -69,7 +71,17 @@ def mock_app(mock_main):
     # mock the main method
     app = App(name="train", help="Train a model using StableBaselines3")
     logger = logging.getLogger(__name__)
-    app = MetaTrainSB3Command(app, Sb3TrainScriptSettings, mock_main, logger).make()
+    
+    class TestTrainSB3Command(MetaTrainSB3Command):
+        @property
+        def main_func(self):
+            return mock_main
+
+        @property
+        def script_args_type(self):
+            return Sb3TrainScriptSettings
+        
+    app = TestTrainSB3Command(app, logger).make()
     return app.meta
 
 

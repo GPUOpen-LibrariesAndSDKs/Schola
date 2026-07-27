@@ -159,3 +159,7 @@ Per-batch binary `.cov` files may appear under `batch_*` subfolders before the m
 **Note:** `pytest-cov` in `pyproject.toml` is for **Python** coverage. Schola C++ coverage is separate and controlled by the `schola_cpp_coverage_*` options above.
 
 For a longer walkthrough, build the Sphinx HTML docs and open **Guides → Testing with pytest** (`Docs/Sphinx/guides/testing_with_pytest.rst`).
+
+## Contact
+
+For questions about Schola, contact the team at [schola@amd.com](mailto:schola@amd.com).

@@ -38,7 +38,15 @@ def mock_app(mock_main):
         def algorithm_table(self):
             return {}
 
-    app = MetaCollectMinariCommand(app, MinariScriptSettings, mock_main, logger).make()
+        @property
+        def script_args_type(self):
+            return MinariScriptSettings
+        
+        @property
+        def main_func(self):
+            return mock_main
+
+    app = MetaCollectMinariCommand(app, logger).make()
     return app.meta
 
 

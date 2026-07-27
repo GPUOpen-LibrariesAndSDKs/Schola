@@ -5,7 +5,7 @@ Script to collect imitation learning datasets using Minari and Schola.
 """
 
 import logging
-from typing import Literal
+from typing import Any, Callable, Literal, Type
 from typing_extensions import Annotated
 
 from schola.scripts.common.command_template import ScholaCommandTemplate
@@ -129,12 +129,17 @@ _collect_app = App(
 
 class CollectMinariCommand(ScholaCommandTemplate[MinariScriptSettings]):
 
-    def __init__(self, app: App, logger: logging.Logger):
-        super().__init__(app, MinariScriptSettings, main, logger)
-
     @property
     def algorithm_table(self):
         return {}
+
+    @property
+    def script_args_type(self) -> Type[MinariScriptSettings]:
+        return MinariScriptSettings
+
+    @property
+    def main_func(self) -> Callable[[MinariScriptSettings], Any]:
+        return main
 
 
 collect_app = CollectMinariCommand(_collect_app, logger).make()

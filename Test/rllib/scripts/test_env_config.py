@@ -3,12 +3,9 @@
 
 from pathlib import Path
 
+from schola.scripts.common.settings import GrpcProtocolConfig, UnrealExecutableSimulatorConfig
+from schola.scripts.rllib.settings import RllibEnvironmentSettings
 from schola.scripts.rllib.utils import build_env_config
-from schola.scripts.common.settings import (
-    EnvironmentSettings,
-    GrpcProtocolConfig,
-    UnrealExecutableSimulatorConfig,
-)
 
 # ---- build_env_config tests ------------------------------------------------
 
@@ -19,7 +16,7 @@ def test_build_env_config_defaults_to_external_simulator():
     from schola.core.protocols.protobuf.grpc_protocol import GrpcProtocol
     from schola.core.simulators.external_simulator import ExternalSimulator
 
-    env = EnvironmentSettings(
+    env = RllibEnvironmentSettings(
         protocol_settings=GrpcProtocolConfig(url="localhost", port=1),
         env_options={"k": "v"},
     )
@@ -40,7 +37,7 @@ def test_build_env_config_uses_executable_simulator(tmp_path: Path):
 
     exe = tmp_path / "game.exe"
     exe.write_text("")
-    env = EnvironmentSettings(
+    env = RllibEnvironmentSettings(
         simulator_settings=UnrealExecutableSimulatorConfig(executable_path=exe),
     )
 
@@ -55,7 +52,7 @@ def test_build_env_config_reuses_passed_simulator(mocker):
     """A caller-supplied simulator is serialized directly without constructing a
     second one. Guards the train double-build regression: training builds its
     simulator once for space discovery and hands it to ``build_env_config``."""
-    env = EnvironmentSettings(
+    env = RllibEnvironmentSettings(
         protocol_settings=GrpcProtocolConfig(url="localhost", port=1),
     )
     prebuilt = env.simulator_settings.make()

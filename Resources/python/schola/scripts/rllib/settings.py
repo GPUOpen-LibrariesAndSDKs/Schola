@@ -4,9 +4,16 @@ Shared settings dataclasses for RLlib scripts (algorithms, resources, logging).
 """
 
 from typing import Annotated, Any, Dict, Type
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from cyclopts import Parameter, validators
+
+from schola.scripts.common.settings import (
+    AllSimulatorConfigs,
+    EnvironmentSettings,
+    ExternalSimulatorConfig,
+    IgnoreParameter,
+)
 
 
 class RllibAlgorithmSpecificSettings:
@@ -234,3 +241,15 @@ class LoggingSettings:
             2: "INFO",
             3: "DEBUG",
         }[self.rllib_verbosity]
+
+
+@dataclass
+class RllibEnvironmentSettings(EnvironmentSettings[AllSimulatorConfigs]):
+    """
+    Dataclass for configuring the environment settings for RLlib training.
+    """
+
+    simulator_settings: Annotated[
+        AllSimulatorConfigs,
+        IgnoreParameter,
+    ] = field(default_factory=ExternalSimulatorConfig)

@@ -273,14 +273,15 @@ class RllibEvalCommand(ScholaCommandTemplate[RllibEvalScriptSettings]):
     @property
     def algorithm_table(self) -> Dict[str, Type[Any]]:
         return {}
-    
+
     @property
     def script_args_type(self) -> Type[RllibEvalScriptSettings]:
         return RllibEvalScriptSettings
-    
+
     @property
     def main_func(self) -> Callable[[RllibEvalScriptSettings], Any]:
         return main
+
 
 app = RllibEvalCommand(app, logger).make()
 

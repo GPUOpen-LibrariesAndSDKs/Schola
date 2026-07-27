@@ -3,7 +3,6 @@
 Base Class for Unreal Connections
 """
 
-
 from schola.core.protocols.async_base_protocol import AsyncBaseRLProtocol
 from schola.core.protocols.base_protocol import BaseProtocol
 from schola.core.protocols.protobuf.async_grpc_protocol import AsyncGrpcProtocol

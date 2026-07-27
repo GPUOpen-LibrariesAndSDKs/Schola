@@ -163,8 +163,7 @@ def main(args: Sb3TrainScriptSettings) -> Optional[Tuple[float, float]]:
                     UnrealExecutable,
                 )
 
-                primary = cast(UnrealExecutable, sim_args.make())
-                simulators = [primary] + primary.spawn_executables(n_sim - 1)
+                simulators = sim_args.make_n(n_sim)
                 async_protocols = protocol_args.make_n_async(n_sim)
                 env = AsyncVecEnv(
                     simulators,
@@ -416,9 +415,10 @@ class MetaTrainSB3Command(ScholaCommandTemplate[Sb3TrainScriptSettings]):
     @property
     def script_args_type(self) -> Type[Sb3TrainScriptSettings]:
         return Sb3TrainScriptSettings
-    
+
     @property
     def main_func(self) -> Callable[[Sb3TrainScriptSettings], Any]:
         return main
+
 
 app = MetaTrainSB3Command(app, logger).make()

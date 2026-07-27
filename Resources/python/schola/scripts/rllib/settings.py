@@ -8,7 +8,12 @@ from dataclasses import dataclass, field
 
 from cyclopts import Parameter, validators
 
-from schola.scripts.common.settings import AllSimulatorConfigs, EnvironmentSettings, ExternalSimulatorConfig, IgnoreParameter
+from schola.scripts.common.settings import (
+    AllSimulatorConfigs,
+    EnvironmentSettings,
+    ExternalSimulatorConfig,
+    IgnoreParameter,
+)
 
 
 class RllibAlgorithmSpecificSettings:
@@ -243,7 +248,7 @@ class RllibEnvironmentSettings(EnvironmentSettings[AllSimulatorConfigs]):
     """
     Dataclass for configuring the environment settings for RLlib training.
     """
-    
+
     simulator_settings: Annotated[
         AllSimulatorConfigs,
         IgnoreParameter,

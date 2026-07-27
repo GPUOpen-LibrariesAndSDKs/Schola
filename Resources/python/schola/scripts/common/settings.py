@@ -33,6 +33,7 @@ if TYPE_CHECKING:
     from schola.core.simulators.unreal.project_simulator import UnrealProject
     from schola.core.simulators.external_simulator import ExternalSimulator
 
+
 class ActivationFunctionEnum(str, Enum):
     """
     Activation functions for neural networks.
@@ -79,13 +80,16 @@ def get_activation_function(activation: ActivationFunctionEnum) -> Type["torch.n
     else:
         raise ValueError(f"Unsupported activation function: {activation}")
 
+
 if TYPE_CHECKING:
     from schola.core.simulators.base_simulator import BaseSimulator
 
-T = TypeVar('T', bound="BaseSimulator", covariant=True)
+T = TypeVar("T", bound="BaseSimulator", covariant=True)
 
 
 from abc import ABC, abstractmethod
+
+
 class BaseSimulatorConfig(Generic[T], ABC):
 
     @abstractmethod
@@ -93,6 +97,7 @@ class BaseSimulatorConfig(Generic[T], ABC):
 
     def make_n(self, n: int) -> Sequence[T]:
         return [self.make() for _ in range(n)]
+
 
 @dataclass
 class UnrealExecutableSimulatorConfig(BaseSimulatorConfig["UnrealExecutable"]):
@@ -150,6 +155,7 @@ class UnrealExecutableSimulatorConfig(BaseSimulatorConfig["UnrealExecutable"]):
             self.fps,
             self.disable_script,
         )
+
 
 @dataclass
 class UnrealProjectSimulatorConfig(BaseSimulatorConfig["UnrealExecutable"]):
@@ -214,7 +220,8 @@ class UnrealProjectSimulatorConfig(BaseSimulatorConfig["UnrealExecutable"]):
             disable_script=self.disable_script,
         )
 
-    def make_n(self, n: int) -> list["UnrealExecutable"]:
+    def make_n(self, n: int = 1) -> list["UnrealExecutable"]:
+        assert n >= 1, "Number of simulators must be at least 1"
         primary = self.make()
         return [primary] + primary.spawn(n - 1)
 
@@ -250,7 +257,13 @@ class ExternalSimulatorConfig(BaseSimulatorConfig["ExternalSimulator"]):
 
         return ExternalSimulator(readiness_timeout=self.readiness_timeout)
 
-AllSimulatorConfigs = UnrealExecutableSimulatorConfig | UnrealProjectSimulatorConfig | ExternalSimulatorConfig
+
+AllSimulatorConfigs = (
+    UnrealExecutableSimulatorConfig
+    | UnrealProjectSimulatorConfig
+    | ExternalSimulatorConfig
+)
+
 
 def protocol_port_for_index(base_port: Optional[int], index: int) -> Optional[int]:
     """
@@ -389,12 +402,11 @@ class CheckpointSettings:
         if self.should_persist and not self.checkpoint_dir.exists():
             self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
+
 from typing import Any
 
-SimulatorSettingsT = TypeVar(
-    "SimulatorSettingsT", bound=BaseSimulatorConfig[Any]
-)
-AlgorithmSettingsT = TypeVar("AlgorithmSettingsT", bound=Any)
+SimulatorSettingsT = TypeVar("SimulatorSettingsT", bound=BaseSimulatorConfig[Any])
+
 
 @dataclass
 class EnvironmentSettings(Generic[SimulatorSettingsT]):
@@ -483,5 +495,3 @@ class RllibLauncherExtension:
             A list of additional callbacks to add to the training loop.
         """
         return []
-
-

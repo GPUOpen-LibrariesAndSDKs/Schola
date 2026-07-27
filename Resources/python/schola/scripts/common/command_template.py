@@ -21,16 +21,11 @@ from typing import (
     Type,
     TypeVar,
     Union,
-    get_args,
-    get_origin,
 )
-
-from webbrowser import GenericBrowser
 
 from cyclopts import App, ArgumentCollection, Group, Parameter
 import cyclopts
 from cyclopts.argument import update_argument_collection
-from pandas.core import generic
 from schola.core.utils.dict_helpers import flatten_dict_no_prefix
 
 from schola.scripts.common.settings import (
@@ -41,7 +36,7 @@ from schola.scripts.common.settings import (
 )
 
 ScriptArgsType = TypeVar("ScriptArgsType")
-AlgorithmArgsType = TypeVar("AlgorithmArgsType")
+
 
 def load_yaml_file(file_path: Path, logger: logging.Logger) -> Dict[str, Any]:
     """
@@ -131,7 +126,6 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
         self.app = app
         self._logger = logger
 
-    
     @property
     def simulator_table(self) -> Dict[str, Type[BaseSimulatorConfig[Any]]]:
         # Ignore the type here as it is difficult to resolve with current typing tooling
@@ -163,12 +157,14 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
 
     @property
     def script_args_type(self) -> Type[ScriptArgsType]:
-        ...
+        raise NotImplementedError(
+            "script_args_type must be implemented in the subclass"
+        )
 
     @property
     def main_func(self) -> Callable[[ScriptArgsType], Any]:
-        ...
-    
+        raise NotImplementedError("main_func must be implemented in the subclass")
+
     def make_simulator_command(self, simulator_type: Type[BaseSimulatorConfig[Any]]):
         SimulatorType = NewType("SimulatorType", simulator_type)  # type: ignore
         _main_func = self.main_func
@@ -187,6 +183,7 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
                 hidden_script_args.environment_settings.simulator_settings = simulator_args  # type: ignore
                 self._logger.debug("Arguments: %s", hidden_script_args)
                 return _main_func(hidden_script_args)
+
             return default_simulator_command
         else:
 
@@ -198,11 +195,10 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
                 hidden_script_args.environment_settings.simulator_settings = simulator_args  # type: ignore
                 self._logger.debug("Arguments: %s", hidden_script_args)
                 return _main_func(hidden_script_args)
+
             return non_default_simulator_command
 
-    def make_algorithm_command(
-        self, algorithm_app: App, algorithm_type: Type[Any]
-    ):
+    def make_algorithm_command(self, algorithm_app: App, algorithm_type: Type[Any]):
         AlgorithmType = NewType("AlgorithmType", algorithm_type)  # type: ignore
         _main_func = self.main_func
         _logger = self._logger
@@ -383,9 +379,7 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
             )
             algorithm_type = self.algorithm_table[algorithm]
             algorithm_app.meta.default(
-                self.make_algorithm_command(
-                    algorithm_app, algorithm_type
-                )
+                self.make_algorithm_command(algorithm_app, algorithm_type)
             )
             self.maybe_make_simulator_commands(algorithm_app)
 

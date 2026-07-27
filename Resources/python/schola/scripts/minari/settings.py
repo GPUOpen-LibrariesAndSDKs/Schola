@@ -12,7 +12,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from cyclopts import Parameter, validators
 from cyclopts.types import URL, Email
-from schola.scripts.common.settings import AllSimulatorConfigs, EnvironmentSettings, ExternalSimulatorConfig, IgnoreParameter
+from schola.scripts.common.settings import (
+    AllSimulatorConfigs,
+    EnvironmentSettings,
+    ExternalSimulatorConfig,
+    IgnoreParameter,
+)
 
 
 @dataclass
@@ -78,7 +83,7 @@ class MinariEnvironmentSettings(EnvironmentSettings[AllSimulatorConfigs]):
     """
     Dataclass for configuring the environment settings for Minari data collection.
     """
-    
+
     simulator_settings: Annotated[
         AllSimulatorConfigs,
         IgnoreParameter,
@@ -105,6 +110,7 @@ class MinariScriptSettings:
         MinariEnvironmentSettings, Parameter(group="Environment Arguments", name="*")
     ] = field(default_factory=MinariEnvironmentSettings)
     "Settings for configuring the environment."
+
 
 # Deprecated: use *Settings names. Kept for external isinstance / imports.
 MinariScriptArgs = MinariScriptSettings

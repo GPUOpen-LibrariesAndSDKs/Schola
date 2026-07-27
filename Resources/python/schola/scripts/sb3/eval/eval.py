@@ -64,8 +64,7 @@ def main(args: Sb3EvalScriptSettings) -> Tuple[float, float]:
                     verbosity=args.logging_settings.schola_verbosity,
                 )
             else:
-                primary = cast(UnrealExecutable, sim_args.make())
-                simulators = [primary] + primary.spawn_executables(n_sim - 1)
+                simulators = sim_args.make_n(n_sim)
                 async_protocols = protocol_args.make_n_async(n_sim)
                 env = AsyncVecEnv(
                     simulators,
@@ -155,10 +154,11 @@ class MetaEvalSB3Command(ScholaCommandTemplate[Sb3EvalScriptSettings]):
             "sac": "Evaluate a model trained using Soft Actor-Critic(SAC) with StableBaselines3.",
             "ppo": "Evaluate a model trained using Proximal Policy Optimization(PPO) with StableBaselines3.",
         }
+
     @property
     def script_args_type(self) -> Type[Sb3EvalScriptSettings]:
         return Sb3EvalScriptSettings
-    
+
     @property
     def main_func(self) -> Callable[[Sb3EvalScriptSettings], Any]:
         return main

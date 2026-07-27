@@ -136,10 +136,11 @@ class CollectMinariCommand(ScholaCommandTemplate[MinariScriptSettings]):
     @property
     def script_args_type(self) -> Type[MinariScriptSettings]:
         return MinariScriptSettings
-    
+
     @property
     def main_func(self) -> Callable[[MinariScriptSettings], Any]:
         return main
+
 
 collect_app = CollectMinariCommand(_collect_app, logger).make()
 

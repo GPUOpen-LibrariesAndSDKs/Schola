@@ -409,7 +409,7 @@ class RllibTrainCommand(ScholaCommandTemplate[RllibScriptSettings]):
     @property
     def script_args_type(self) -> Type[RllibScriptSettings]:
         return RllibScriptSettings
-    
+
     @property
     def main_func(self) -> Callable[[RllibScriptSettings], Any]:
         return main

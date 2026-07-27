@@ -9,9 +9,17 @@ from dataclasses import dataclass, field
 
 from cyclopts import Parameter, validators
 
-from schola.scripts.common.settings import EnvironmentSettings, AllSimulatorConfigs, ExternalSimulatorConfig
+from schola.scripts.common.settings import (
+    EnvironmentSettings,
+    AllSimulatorConfigs,
+    ExternalSimulatorConfig,
+)
 
-from schola.scripts.rllib.settings import LoggingSettings, ResourceSettings, RllibEnvironmentSettings
+from schola.scripts.rllib.settings import (
+    LoggingSettings,
+    ResourceSettings,
+    RllibEnvironmentSettings,
+)
 
 
 @dataclass

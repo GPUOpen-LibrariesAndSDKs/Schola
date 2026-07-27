@@ -100,34 +100,34 @@ class UnrealExecutable(BaseUnrealSimulator):
 
     def spawn(self, count: int = 1) -> list["UnrealExecutable"]:
         """
-        Return a new UnrealExecutable with the same launch settings as this instance.
+        Return new UnrealExecutable instances with the same launch settings as this instance.
+
+        Use this to create additional simulator instances from the same executable
+        without changing any launch options. None of the returned instances are started.
 
         Parameters
         ----------
         count : int, default=1
-            Number of instances to spawn. Only ``1`` is supported; use
-            :meth:`spawn_executables` to create multiple instances.
+            Number of instances to spawn.
 
         Returns
         -------
-        UnrealExecutable
-            A new simulator instance with the same executable path and launch options.
-
-        Raises
-        ------
-        ValueError
-            If ``count`` is not ``1``.
+        list[UnrealExecutable]
+            New simulator instances with the same executable path and launch options.
         """
-        return [UnrealExecutable(
-            executable_path=self.executable_path,
-            headless_mode=self.headless_mode,
-            map=self.map,
-            display_logs=self.display_logs,
-            set_fps=self.set_fps,
-            disable_script=self.disable_script,
-            extra_args=self.extra_args.copy() if self.extra_args else None,
-            validate_path=False,
-        ) for _ in range(count)]
+        return [
+            UnrealExecutable(
+                executable_path=self.executable_path,
+                headless_mode=self.headless_mode,
+                map=self.map,
+                display_logs=self.display_logs,
+                set_fps=self.set_fps,
+                disable_script=self.disable_script,
+                extra_args=self.extra_args.copy() if self.extra_args else None,
+                validate_path=False,
+            )
+            for _ in range(count)
+        ]
 
     def spawn_executable(self) -> "UnrealExecutable":
         """

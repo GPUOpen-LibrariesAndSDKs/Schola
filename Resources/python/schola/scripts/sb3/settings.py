@@ -76,12 +76,13 @@ class BasePPOSettings:
     def name(self) -> str:
         return "PPO"
 
+
 @dataclass
 class Sb3EnvironmentSettings(EnvironmentSettings[AllSimulatorConfigs]):
     """
     Dataclass for configuring the environment settings for SB3 Scripts.
     """
-    
+
     simulator_settings: Annotated[
         AllSimulatorConfigs,
         IgnoreParameter,

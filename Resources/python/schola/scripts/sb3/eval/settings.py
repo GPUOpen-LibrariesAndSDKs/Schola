@@ -8,9 +8,15 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Annotated, Optional, Union
 from pathlib import Path
 from cyclopts import Parameter, validators
-from schola.scripts.common.settings import AllSimulatorConfigs, EnvironmentSettings, ExternalSimulatorConfig, IgnoreParameter
+from schola.scripts.common.settings import (
+    AllSimulatorConfigs,
+    EnvironmentSettings,
+    ExternalSimulatorConfig,
+    IgnoreParameter,
+)
 from schola.scripts.sb3.settings import Sb3BaseLoggingSettings, Sb3EnvironmentSettings
 from schola.scripts.sb3.settings import BasePPOSettings, BaseSACSettings
+
 
 @dataclass
 class Sb3EvalScriptSettings:

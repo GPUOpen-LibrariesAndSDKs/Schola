@@ -4,10 +4,12 @@
 Common utility functions and classes for use in Schola scripts.
 """
 
+from collections.abc import Sequence
 from enum import Enum
 from typing import (
     Annotated,
     Dict,
+    Generic,
     Literal,
     Optional,
     Tuple,
@@ -82,15 +84,16 @@ if TYPE_CHECKING:
 
 T = TypeVar('T', bound="BaseSimulator", covariant=True)
 
+
 from abc import ABC, abstractmethod
 class BaseSimulatorConfig(Generic[T], ABC):
 
     @abstractmethod
     def make(self) -> T: ...
 
-    def make_n(self, n: int) -> list[T]:
+    def make_n(self, n: int) -> Sequence[T]:
         return [self.make() for _ in range(n)]
-        
+
 @dataclass
 class UnrealExecutableSimulatorConfig(BaseSimulatorConfig["UnrealExecutable"]):
     """
@@ -149,7 +152,7 @@ class UnrealExecutableSimulatorConfig(BaseSimulatorConfig["UnrealExecutable"]):
         )
 
 @dataclass
-class UnrealProjectSimulatorConfig(BaseSimulatorConfig["UnrealProject"]):
+class UnrealProjectSimulatorConfig(BaseSimulatorConfig["UnrealExecutable"]):
     """
     Arguments for the Unreal Engine project simulator in Schola.
     """
@@ -247,6 +250,7 @@ class ExternalSimulatorConfig(BaseSimulatorConfig["ExternalSimulator"]):
 
         return ExternalSimulator(readiness_timeout=self.readiness_timeout)
 
+AllSimulatorConfigs = UnrealExecutableSimulatorConfig | UnrealProjectSimulatorConfig | ExternalSimulatorConfig
 
 def protocol_port_for_index(base_port: Optional[int], index: int) -> Optional[int]:
     """
@@ -390,7 +394,7 @@ from typing import Any
 SimulatorSettingsT = TypeVar(
     "SimulatorSettingsT", bound=BaseSimulatorConfig[Any]
 )
-
+AlgorithmSettingsT = TypeVar("AlgorithmSettingsT", bound=Any)
 
 @dataclass
 class EnvironmentSettings(Generic[SimulatorSettingsT]):
@@ -479,3 +483,5 @@ class RllibLauncherExtension:
             A list of additional callbacks to add to the training loop.
         """
         return []
+
+

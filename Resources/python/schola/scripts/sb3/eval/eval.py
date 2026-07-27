@@ -6,7 +6,7 @@ Evaluate a trained Stable-Baselines3 policy against a Schola-backed environment.
 
 import logging
 import signal
-from typing import List, Tuple, cast, Any
+from typing import Callable, List, Tuple, Type, cast, Any
 
 from cyclopts import App
 from schola.scripts.common.command_template import ScholaCommandTemplate
@@ -155,6 +155,13 @@ class MetaEvalSB3Command(ScholaCommandTemplate[Sb3EvalScriptSettings]):
             "sac": "Evaluate a model trained using Soft Actor-Critic(SAC) with StableBaselines3.",
             "ppo": "Evaluate a model trained using Proximal Policy Optimization(PPO) with StableBaselines3.",
         }
+    @property
+    def script_args_type(self) -> Type[Sb3EvalScriptSettings]:
+        return Sb3EvalScriptSettings
+    
+    @property
+    def main_func(self) -> Callable[[Sb3EvalScriptSettings], Any]:
+        return main
 
 
-app = MetaEvalSB3Command(app, Sb3EvalScriptSettings, main, logger).make()
+app = MetaEvalSB3Command(app, logger).make()

@@ -12,7 +12,8 @@ import numpy as np
 import pytest
 from cyclopts import App
 
-from schola.scripts.common.settings import EnvironmentSettings, GrpcProtocolConfig
+from schola.scripts.common.settings import GrpcProtocolConfig
+from schola.scripts.sb3.settings import Sb3EnvironmentSettings
 from schola.scripts.sb3.eval.eval import MetaEvalSB3Command, main as eval_main
 from schola.scripts.sb3.eval.settings import Sb3EvalScriptSettings
 
@@ -58,15 +59,19 @@ def mock_main(mocker):
 def mock_eval_app(mock_main):
     base = App(name="eval", help="Evaluate a trained Stable-Baselines3 policy")
     logger = logging.getLogger(__name__)
-    return MetaEvalSB3Command(base, Sb3EvalScriptSettings, mock_main, logger).make()
-
+    class TestEvalSB3Command(MetaEvalSB3Command):
+    
+        @property
+        def main_func(self):
+            return mock_main
+    return TestEvalSB3Command(base, logger).make()
 
 @pytest.fixture
 def sb3_eval_meta_app():
     """Real ``schola sb3 eval`` Cyclopts meta-app (invokes ``eval_main``)."""
     base = App(name="eval", help="Evaluate a trained Stable-Baselines3 policy")
     logger = logging.getLogger(__name__)
-    return MetaEvalSB3Command(base, Sb3EvalScriptSettings, eval_main, logger).make()
+    return MetaEvalSB3Command(base, logger).make()
 
 
 def test_eval_cli_forwards_checkpoint_and_defaults(
@@ -75,7 +80,9 @@ def test_eval_cli_forwards_checkpoint_and_defaults(
     checkpoint = tmp_path / "policy.zip"
     checkpoint.write_bytes(b"x")
     mock_eval_app.meta(
-        ["ppo", "--checkpoint", str(checkpoint)], result_action="return_value"
+        ["ppo", "--checkpoint", str(checkpoint)],
+        result_action="return_value",
+        exit_on_error=False,
     )
     mock_main.assert_called_once()
     args = mock_main.call_args[0][0]
@@ -98,6 +105,7 @@ def test_eval_cli_custom_episodes(mock_eval_app, mock_main, tmp_path: Path):
             "--no-deterministic",
         ],
         result_action="return_value",
+        exit_on_error=False,
     )
     args = mock_main.call_args[0][0]
     assert args.n_eval_episodes == 3
@@ -112,6 +120,7 @@ def test_eval_cli_env_options_default_is_empty_dict(
     mock_eval_app.meta(
         ["ppo", "--checkpoint", str(checkpoint)],
         result_action="return_value",
+        exit_on_error=False,
     )
     args = mock_main.call_args[0][0]
     assert args.environment_settings.env_options == {}
@@ -129,6 +138,7 @@ def test_eval_cli_env_options_dotted_syntax(mock_eval_app, mock_main, tmp_path: 
             "--env-options.curriculum=easy",
         ],
         result_action="return_value",
+        exit_on_error=False,
     )
     args = mock_main.call_args[0][0]
     assert args.environment_settings.env_options == {
@@ -145,7 +155,7 @@ def test_sb3_eval_main_on_real_vec_env(dummy_sb3_policy_zip, make_vec_env_server
     args = Sb3EvalScriptSettings(
         checkpoint=dummy_sb3_policy_zip,
         n_eval_episodes=2,
-        environment_settings=EnvironmentSettings(
+        environment_settings=Sb3EnvironmentSettings(
             protocol_settings=GrpcProtocolConfig(url="localhost", port=port),
         ),
     )
@@ -175,6 +185,7 @@ def test_sb3_eval_cli_on_real_vec_env(
             "2",
         ],
         result_action="return_value",
+        exit_on_error=False,
     )
     assert math.isfinite(mean_r) and math.isfinite(std_r)
 
@@ -231,7 +242,7 @@ def make_eval_args(tmp_path: Path):
         return Sb3EvalScriptSettings(
             checkpoint=checkpoint,
             n_eval_episodes=n_eval_episodes,
-            environment_settings=EnvironmentSettings(
+            environment_settings=Sb3EnvironmentSettings(
                 protocol_settings=GrpcProtocolConfig(url="localhost", port=1),
                 env_options=env_options or {},
             ),

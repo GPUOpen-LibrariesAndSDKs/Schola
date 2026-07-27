@@ -272,6 +272,7 @@ class TestExportScript:
                 params.algo_name.upper(),
             ],
             result_action="return_value",
+            exit_on_error=False,
         )
 
         onnx_model_checker(
@@ -312,6 +313,7 @@ class TestExportScript:
                 params.algo_name.upper(),
             ],
             result_action="return_value",
+            exit_on_error=False,
         )
         onnx_model_checker(
             tmp_path / "test.onnx",
@@ -344,6 +346,7 @@ class TestExportScript:
                 params.algo_name.upper(),
             ],
             result_action="return_value",
+            exit_on_error=False,
         )
         # Check that the action space is the same as the merged action space, since the original shape wasn't provided
         onnx_model_checker(

@@ -7,7 +7,7 @@ Script to train an rllib model using Schola.
 import logging
 
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, Type, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Type, Union
 
 from schola.scripts.common.settings import (
     get_activation_function,
@@ -406,8 +406,16 @@ class RllibTrainCommand(ScholaCommandTemplate[RllibScriptSettings]):
             "appo": "Train a model using Asynchronous Proximal Policy Optimization(APPO) with rllib.",
         }
 
+    @property
+    def script_args_type(self) -> Type[RllibScriptSettings]:
+        return RllibScriptSettings
+    
+    @property
+    def main_func(self) -> Callable[[RllibScriptSettings], Any]:
+        return main
 
-app = RllibTrainCommand(app, RllibScriptSettings, main, logger).make()
+
+app = RllibTrainCommand(app, logger).make()
 
 if __name__ == "__main__":
     app.meta()

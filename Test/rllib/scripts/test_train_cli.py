@@ -59,8 +59,13 @@ def mock_app(mock_main):
     """Build a fresh app with mocked main (no global injection)."""
     app = App(name="train", help="Train a Model using ray")
     logger = logging.getLogger(__name__)
-    app = RllibTrainCommand(app, RllibScriptSettings, mock_main, logger).make()
-    return app
+
+    class MockRllibTrainCommand(RllibTrainCommand):
+        @property
+        def main_func(self):
+            return mock_main
+
+    return MockRllibTrainCommand(app, logger).make()
 
 
 def test_agent_type_policy_mapping_fn():
@@ -176,7 +181,7 @@ def test_make_stop_criterion_reset_no_checkpoint_uses_timesteps():
 
 def test_ppo_default_arguments(mock_app, mock_main):
     """Test PPO command with default arguments."""
-    mock_app.meta(["ppo"], result_action="return_value")
+    mock_app.meta(["ppo"], result_action="return_value", exit_on_error=False)
 
     # Verify main was called once
     mock_main.assert_called_once()
@@ -228,6 +233,7 @@ def test_ppo_custom_training_parameters(mock_app, mock_main):
             "10",
         ],
         result_action="return_value",
+        exit_on_error=False,
     )
 
     mock_main.assert_called_once()
@@ -244,7 +250,7 @@ def test_ppo_custom_training_parameters(mock_app, mock_main):
 
 def test_ppo_seed_argument(mock_app, mock_main):
     """Test PPO command accepts --seed for reproducible training."""
-    mock_app.meta(["ppo", "--seed", "42"], result_action="return_value")
+    mock_app.meta(["ppo", "--seed", "42"], result_action="return_value", exit_on_error=False)
 
     mock_main.assert_called_once()
     args: RllibScriptSettings = mock_main.call_args[0][0]
@@ -256,6 +262,7 @@ def test_ppo_custom_algorithm_parameters(mock_app, mock_main):
     mock_app.meta(
         ["ppo", "--gae-lambda", "0.90", "--clip-param", "0.3", "--no-use-gae"],
         result_action="return_value",
+        exit_on_error=False,
     )
 
     mock_main.assert_called_once()
@@ -270,7 +277,7 @@ def test_ppo_custom_algorithm_parameters(mock_app, mock_main):
 
 def test_sac_default_arguments(mock_app, mock_main):
     """Test SAC command with default arguments."""
-    mock_app.meta(["sac"], result_action="return_value")
+    mock_app.meta(["sac"], result_action="return_value", exit_on_error=False)
 
     mock_main.assert_called_once()
     args: RllibScriptSettings = mock_main.call_args[0][0]
@@ -298,6 +305,7 @@ def test_sac_custom_parameters(mock_app, mock_main):
             "--no-twin-q",
         ],
         result_action="return_value",
+        exit_on_error=False,
     )
 
     mock_main.assert_called_once()
@@ -313,7 +321,7 @@ def test_sac_custom_parameters(mock_app, mock_main):
 
 def test_impala_default_arguments(mock_app, mock_main):
     """Test IMPALA command with default arguments."""
-    mock_app.meta(["impala"], result_action="return_value")
+    mock_app.meta(["impala"], result_action="return_value", exit_on_error=False)
 
     mock_main.assert_called_once()
     args: RllibScriptSettings = mock_main.call_args[0][0]
@@ -337,6 +345,7 @@ def test_impala_custom_parameters(mock_app, mock_main):
             "1.5",
         ],
         result_action="return_value",
+        exit_on_error=False,
     )
 
     mock_main.assert_called_once()
@@ -366,6 +375,7 @@ def test_resource_settings(mock_app, mock_main):
             "1",
         ],
         result_action="return_value",
+        exit_on_error=False,
     )
 
     mock_main.assert_called_once()
@@ -396,6 +406,7 @@ def test_network_architecture_settings(mock_app, mock_main):
             "256",
         ],
         result_action="return_value",
+        exit_on_error=False,
     )
 
     mock_main.assert_called_once()
@@ -425,6 +436,7 @@ def test_logging_settings(mock_app, mock_main):
     mock_app.meta(
         ["ppo", "--schola-verbosity", "2", "--rllib-verbosity", "3"],
         result_action="return_value",
+        exit_on_error=False,
     )
 
     mock_main.assert_called_once()
@@ -451,6 +463,7 @@ def test_checkpoint_settings(mock_app, mock_main, tmp_path):
             "--export-onnx",
         ],
         result_action="return_value",
+        exit_on_error=False,
     )
 
     mock_main.assert_called_once()
@@ -471,6 +484,7 @@ def test_ppo_with_executable_simulator(mock_app, mock_main, tmp_path):
     mock_app.meta(
         ["ppo", "executable", "--executable-path", str(executable_path), "--headless"],
         result_action="return_value",
+        exit_on_error=False,
     )
 
     mock_main.assert_called_once()
@@ -498,6 +512,7 @@ def test_executable_num_simulators_parsed(mock_app, mock_main, tmp_path):
             "4",
         ],
         result_action="return_value",
+        exit_on_error=False,
     )
     mock_main.assert_called_once()
     args: RllibScriptSettings = mock_main.call_args[0][0]
@@ -520,6 +535,7 @@ def test_project_num_simulators_parsed(mock_app, mock_main, tmp_path):
             "2",
         ],
         result_action="return_value",
+        exit_on_error=False,
     )
     mock_main.assert_called_once()
     args: RllibScriptSettings = mock_main.call_args[0][0]
@@ -531,7 +547,7 @@ def test_project_num_simulators_parsed(mock_app, mock_main, tmp_path):
 
 def test_protocol_settings(mock_app, mock_main):
     """Test protocol configuration parameters."""
-    mock_app.meta(["ppo", "--port", "12345"], result_action="return_value")
+    mock_app.meta(["ppo", "--port", "12345"], result_action="return_value", exit_on_error=False)
 
     mock_main.assert_called_once()
     args: RllibScriptSettings = mock_main.call_args[0][0]
@@ -542,7 +558,7 @@ def test_protocol_settings(mock_app, mock_main):
 
 def test_ppo_env_options_default_is_empty_dict(mock_app, mock_main):
     """Without ``--env-options.k=v`` the field defaults to an empty dict."""
-    mock_app.meta(["ppo"], result_action="return_value")
+    mock_app.meta(["ppo"], result_action="return_value", exit_on_error=False)
     args: RllibScriptSettings = mock_main.call_args[0][0]
     assert args.environment_settings.env_options == {}
 
@@ -556,6 +572,7 @@ def test_ppo_env_options_dotted_syntax(mock_app, mock_main):
             "--env-options.curriculum=easy",
         ],
         result_action="return_value",
+        exit_on_error=False,
     )
     args: RllibScriptSettings = mock_main.call_args[0][0]
     assert args.environment_settings.env_options == {
@@ -616,19 +633,19 @@ def test_options_thread_through_rllib_env_config_recipe(mock_protocol_and_simula
 
 def test_multiple_algorithms_return_different_settings(mock_app, mock_main):
     """Test that different algorithm commands create different settings."""
-    mock_app.meta(["ppo"], result_action="return_value")
+    mock_app.meta(["ppo"], result_action="return_value", exit_on_error=False)
     ppo_args: RllibScriptSettings = deepcopy(mock_main.call_args[0][0])
 
     mock_main.reset_mock()
-    mock_app.meta(["sac"], result_action="return_value")
+    mock_app.meta(["sac"], result_action="return_value", exit_on_error=False)
     sac_args: RllibScriptSettings = deepcopy(mock_main.call_args[0][0])
 
     mock_main.reset_mock()
-    mock_app.meta(["impala"], result_action="return_value")
+    mock_app.meta(["impala"], result_action="return_value", exit_on_error=False)
     impala_args: RllibScriptSettings = deepcopy(mock_main.call_args[0][0])
 
     mock_main.reset_mock()
-    mock_app.meta(["appo"], result_action="return_value")
+    mock_app.meta(["appo"], result_action="return_value", exit_on_error=False)
     appo_args: RllibScriptSettings = deepcopy(mock_main.call_args[0][0])
 
     # Verify different algorithm types are set correctly
@@ -687,6 +704,7 @@ def test_complex_configuration(mock_app, mock_main, tmp_path):
             "50051",
         ],
         result_action="return_value",
+        exit_on_error=False,
     )
 
     mock_main.assert_called_once()
@@ -758,4 +776,5 @@ def test_train_cli_with_unreal_editor(
             f"{env_server_port}",
         ],
         result_action="return_value",
+        exit_on_error=False,
     )

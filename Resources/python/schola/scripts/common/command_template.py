@@ -21,7 +21,10 @@ from typing import (
     Type,
     TypeVar,
     Union,
+    get_args,
+    get_origin,
 )
+
 from webbrowser import GenericBrowser
 
 from cyclopts import App, ArgumentCollection, Group, Parameter
@@ -31,18 +34,14 @@ from pandas.core import generic
 from schola.core.utils.dict_helpers import flatten_dict_no_prefix
 
 from schola.scripts.common.settings import (
+    BaseSimulatorConfig,
     UnrealExecutableSimulatorConfig,
     UnrealProjectSimulatorConfig,
     ExternalSimulatorConfig,
 )
 
 ScriptArgsType = TypeVar("ScriptArgsType")
-SimulatorArgsType = Union[
-    UnrealExecutableSimulatorConfig,
-    UnrealProjectSimulatorConfig,
-    ExternalSimulatorConfig,
-]
-
+AlgorithmArgsType = TypeVar("AlgorithmArgsType")
 
 def load_yaml_file(file_path: Path, logger: logging.Logger) -> Dict[str, Any]:
     """
@@ -116,10 +115,6 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
     ----------
     app : App
         The main app to add subcommands to.
-    args_type : Type[ScriptArgsType]
-        The type of the script arguments.
-    main_func : Callable[[ScriptArgsType], Any]
-        The main function to call when the command is executed.
     logger : logging.Logger
         The logger to use for logging.
 
@@ -131,17 +126,15 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
     def __init__(
         self,
         app: App,
-        args_type: Type[ScriptArgsType],
-        main_func: Callable[[ScriptArgsType], Any],
         logger: logging.Logger,
     ):
         self.app = app
-        self.args_type = args_type
-        self._main_func = main_func
         self._logger = logger
 
+    
     @property
-    def simulator_table(self) -> Dict[str, Type[SimulatorArgsType]]:
+    def simulator_table(self) -> Dict[str, Type[BaseSimulatorConfig[Any]]]:
+        # Ignore the type here as it is difficult to resolve with current typing tooling
         return {
             "executable": UnrealExecutableSimulatorConfig,
             "project": UnrealProjectSimulatorConfig,
@@ -165,13 +158,20 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
         }
 
     @property
-    def default_simulator_name(self) -> Type[SimulatorArgsType]:
+    def default_simulator_name(self) -> str:
         return "external"
 
-    def make_simulator_command(self, simulator_type: Type[SimulatorArgsType]):
+    @property
+    def script_args_type(self) -> Type[ScriptArgsType]:
+        ...
+
+    @property
+    def main_func(self) -> Callable[[ScriptArgsType], Any]:
+        ...
+    
+    def make_simulator_command(self, simulator_type: Type[BaseSimulatorConfig[Any]]):
         SimulatorType = NewType("SimulatorType", simulator_type)  # type: ignore
-        ArgsType = NewType("ArgsType", self.args_type)  # type: ignore
-        _main_func = self._main_func
+        _main_func = self.main_func
         try:
             _sim_default = simulator_type()
         except TypeError:
@@ -179,40 +179,38 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
 
         if _sim_default is not None:
 
-            def completed_simulator_command(
+            def default_simulator_command(
                 simulator_args: Annotated[SimulatorType, Parameter(name="*")] = _sim_default,  # type: ignore
                 *,
-                hidden_script_args: Annotated[ArgsType, Parameter(parse=False)],
+                hidden_script_args: Annotated[ScriptArgsType, Parameter(parse=False)],
             ):
                 hidden_script_args.environment_settings.simulator_settings = simulator_args  # type: ignore
                 self._logger.debug("Arguments: %s", hidden_script_args)
                 return _main_func(hidden_script_args)
-
+            return default_simulator_command
         else:
 
-            def completed_simulator_command(
+            def non_default_simulator_command(
                 simulator_args: Annotated[SimulatorType, Parameter(name="*")],
                 *,
-                hidden_script_args: Annotated[ArgsType, Parameter(parse=False)],
+                hidden_script_args: Annotated[ScriptArgsType, Parameter(parse=False)],
             ):
                 hidden_script_args.environment_settings.simulator_settings = simulator_args  # type: ignore
                 self._logger.debug("Arguments: %s", hidden_script_args)
                 return _main_func(hidden_script_args)
-
-        return completed_simulator_command
+            return non_default_simulator_command
 
     def make_algorithm_command(
-        self, algorithm_app: App, algorithm_type: Type[Any], args_type: Type[Any]
+        self, algorithm_app: App, algorithm_type: Type[Any]
     ):
-        ResolvedArgsType = NewType("ResolvedArgsType", args_type)  # type: ignore
         AlgorithmType = NewType("AlgorithmType", algorithm_type)  # type: ignore
-        _main_func = self._main_func
+        _main_func = self.main_func
         _logger = self._logger
 
         def meta_algorithm_command(
             *tokens: Annotated[str, Parameter(show=False, allow_leading_hyphen=True)],
             algorithm_args: Annotated[AlgorithmType, Parameter(name="*")] = algorithm_type(),  # type: ignore
-            hidden_script_args: Annotated[ResolvedArgsType, Parameter(parse=False)],
+            hidden_script_args: Annotated[ScriptArgsType, Parameter(parse=False)],
             hidden_sim_config_dict: Annotated[
                 Optional[Dict[str, Any]], Parameter(parse=False)
             ] = None,
@@ -249,17 +247,17 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
 
         return meta_algorithm_command
 
-    def make_train_meta_command(self, args_type: Type[Any]):
-        ResolvedArgsType = NewType("ResolvedArgsType", args_type)  # type: ignore
-        _main_func = self._main_func
+    def make_train_meta_command(self):
+        ResolvedScriptArgsType = NewType("ResolvedScriptArgsType", self.script_args_type)  # type: ignore
+        _main_func = self.main_func
         _logger = self._logger
 
         def train_meta_command(
             *tokens: Annotated[str, Parameter(show=False, allow_leading_hyphen=True)],
             script_args: Annotated[
-                ResolvedArgsType,
-                Parameter(name="*"),  # pyright: ignore[reportInvalidTypeForm]
-            ] = self.args_type(),
+                ResolvedScriptArgsType,
+                Parameter(name="*"),
+            ] = self.script_args_type(),
             hidden_sim_config_dict: Annotated[
                 Optional[Dict[str, Any]], Parameter(parse=False)
             ] = None,
@@ -360,7 +358,7 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
 
     def make(self):
         # setup the default meta func on the base app to parse the Script Args
-        self.app.meta.default(self.make_train_meta_command(self.args_type))
+        self.app.meta.default(self.make_train_meta_command())
         # This takes the config file and adds it to the meta app to allow for the config to be aligned with the script args
         self.app.meta.meta.default(self.make_train_config_handler())
 
@@ -386,7 +384,7 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
             algorithm_type = self.algorithm_table[algorithm]
             algorithm_app.meta.default(
                 self.make_algorithm_command(
-                    algorithm_app, algorithm_type, self.args_type
+                    algorithm_app, algorithm_type
                 )
             )
             self.maybe_make_simulator_commands(algorithm_app)

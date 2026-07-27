@@ -10,9 +10,11 @@ import logging
 import signal
 from typing import (
     Any,
+    Callable,
     Dict,
     Optional,
     Tuple,
+    Type,
     cast,
 )
 
@@ -411,5 +413,12 @@ class MetaTrainSB3Command(ScholaCommandTemplate[Sb3TrainScriptSettings]):
             "ppo": "Train a model using Proximal Policy Optimization(PPO) with StableBaselines3.",
         }
 
+    @property
+    def script_args_type(self) -> Type[Sb3TrainScriptSettings]:
+        return Sb3TrainScriptSettings
+    
+    @property
+    def main_func(self) -> Callable[[Sb3TrainScriptSettings], Any]:
+        return main
 
-app = MetaTrainSB3Command(app, Sb3TrainScriptSettings, main, logger).make()
+app = MetaTrainSB3Command(app, logger).make()

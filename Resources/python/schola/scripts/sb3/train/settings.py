@@ -10,7 +10,9 @@ from typing import Annotated, List, Optional, Type, Union, Any, Dict
 
 from schola.scripts.common.settings import (
     ActivationFunctionEnum,
+    AllSimulatorConfigs,
     EnvironmentSettings,
+    ExternalSimulatorConfig,
     CheckpointSettings,
     Sb3LauncherExtension,
 )
@@ -24,6 +26,7 @@ from schola.scripts.sb3.settings import (
     BaseSACSettings,
     BasePPOSettings,
     Sb3BaseLoggingSettings,
+    Sb3EnvironmentSettings,
 )
 
 
@@ -337,9 +340,6 @@ class Sb3NetworkArchitectureSettings:
             )
 
 
-IgnoreParameter = Parameter(show=False, parse=False)
-
-
 @dataclass
 class Sb3TrainingSettings:
     """
@@ -404,6 +404,6 @@ class Sb3TrainScriptSettings:
         )
 
     environment_settings: Annotated[
-        EnvironmentSettings, Parameter(group="Environment Arguments", name="*")
-    ] = field(default_factory=EnvironmentSettings)
+        Sb3EnvironmentSettings, Parameter(group="Environment Arguments", name="*")
+    ] = field(default_factory=Sb3EnvironmentSettings)
     "Settings for the environment to use during training"

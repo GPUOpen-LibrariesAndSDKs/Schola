@@ -13,6 +13,9 @@ from schola.scripts.common.settings import (
     EnvironmentSettings,
     CheckpointSettings,
     Sb3LauncherExtension,
+    AllSimulatorConfigs,
+    ExternalSimulatorConfig,
+    IgnoreParameter,
 )
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -72,3 +75,14 @@ class BasePPOSettings:
     @property
     def name(self) -> str:
         return "PPO"
+
+@dataclass
+class Sb3EnvironmentSettings(EnvironmentSettings[AllSimulatorConfigs]):
+    """
+    Dataclass for configuring the environment settings for SB3 Scripts.
+    """
+    
+    simulator_settings: Annotated[
+        AllSimulatorConfigs,
+        IgnoreParameter,
+    ] = field(default_factory=ExternalSimulatorConfig)

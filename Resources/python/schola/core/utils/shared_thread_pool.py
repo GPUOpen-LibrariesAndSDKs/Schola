@@ -2,12 +2,7 @@
 
 """Reference-counted wrapper around :class:`~concurrent.futures.ThreadPoolExecutor`."""
 
-from __future__ import annotations
-
 from concurrent import futures
-from typing import TypeVar
-
-_T = TypeVar("_T")
 
 
 class SharedThreadPool(futures.ThreadPoolExecutor):
@@ -28,7 +23,7 @@ class SharedThreadPool(futures.ThreadPoolExecutor):
         super().__init__(*args, **kwargs)
         self._refs = 0
 
-    def share(self) -> SharedThreadPool:
+    def share(self) -> "SharedThreadPool":
         """
         Acquire a reference to this shared pool.
 

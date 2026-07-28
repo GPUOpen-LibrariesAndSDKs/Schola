@@ -361,6 +361,11 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
         # This takes the config file and adds it to the meta app to allow for the config to be aligned with the script args
         self.app.meta.meta.default(self.make_train_config_handler())
 
+        # Propagate help to meta apps so parent command listings show descriptions.
+        if self.app.help:
+            self.app.meta.help = self.app.help
+            self.app.meta.meta.help = self.app.help
+
         # setup the algorithm commands (e.g. PPO, SAC, etc.)
         # inline the algorithm command if there is only one algorithm type
         self.maybe_make_algorithm_commands(self.app)

@@ -36,7 +36,7 @@ As Schola is an Unreal Engine Project, you will need to first install Unreal Eng
 
 
 ### Installing Schola Into Your Project
-To use schola in an existing Unreal Engine Project copy this repository to the `/Plugins` folder of your project, and pip install the schola python package in `/Resources/python` using `pip install -e <path-to-plugin>/Resources/python[all]` (the folder that contains `pyproject.toml`).
+To use Schola in an existing Unreal Engine Project copy this repository to the `/Plugins` folder of your project, and pip install the Schola python package in `/Resources/python` using `pip install -e <path-to-plugin>/Resources/python[all]` (the folder that contains `pyproject.toml`).
 
 > [!IMPORTANT]
 > Since Schola is provided as C++ source you must recompile your project after adding it. Otherwise, you will receive a warning about Schola being built for another version of Unreal Engine regardless of what version you are using.
@@ -84,7 +84,7 @@ Documentation for Schola is build using a combination of Doxygen + Sphinx + Brea
 
 ## Contact
 
-For questions about Schola, contact the team at [schola@amd.com](mailto:schola@amd.com).
+For questions about Schola, contact the team at [Schola@amd.com](mailto:Schola@amd.com).
 
 ## Contributing
 

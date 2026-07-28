@@ -11,7 +11,12 @@ from typing import Annotated
 
 from cyclopts import Parameter, validators
 
-from schola.scripts.common.settings import EnvironmentSettings
+from schola.scripts.common.settings import (
+    AllSimulatorConfigs,
+    EnvironmentSettings,
+    ExternalSimulatorConfig,
+    IgnoreParameter,
+)
 
 
 @dataclass
@@ -27,6 +32,18 @@ class EnvLoggingSettings:
 
 
 @dataclass
+class EnvToolsEnvironmentSettings(EnvironmentSettings[AllSimulatorConfigs]):
+    """
+    Environment settings for Schola environment utility commands.
+    """
+
+    simulator_settings: Annotated[
+        AllSimulatorConfigs,
+        IgnoreParameter,
+    ] = field(default_factory=ExternalSimulatorConfig)
+
+
+@dataclass
 class EnvInspectScriptSettings:
     """
     Top-level settings for ``schola env inspect``.
@@ -38,8 +55,8 @@ class EnvInspectScriptSettings:
     "Logging verbosity for Schola components."
 
     environment_settings: Annotated[
-        EnvironmentSettings, Parameter(group="Environment Arguments", name="*")
-    ] = field(default_factory=EnvironmentSettings)
+        EnvToolsEnvironmentSettings, Parameter(group="Environment Arguments", name="*")
+    ] = field(default_factory=EnvToolsEnvironmentSettings)
     "Simulator, protocol, seed, and reset options for the environment to inspect."
 
 
@@ -55,6 +72,6 @@ class EnvCheckScriptSettings:
     "Logging verbosity for Schola components."
 
     environment_settings: Annotated[
-        EnvironmentSettings, Parameter(group="Environment Arguments", name="*")
-    ] = field(default_factory=EnvironmentSettings)
+        EnvToolsEnvironmentSettings, Parameter(group="Environment Arguments", name="*")
+    ] = field(default_factory=EnvToolsEnvironmentSettings)
     "Simulator, protocol, seed, and reset options for the environment to check."

@@ -12,8 +12,7 @@ import numpy as np
 from schola.core.utils.id_manager import IdManager
 from schola.scripts.env.utils import (
     _format_value_for_log,
-    inspect_reset,
-    log_environment_definition,
+    inspect_agents,
 )
 
 
@@ -33,23 +32,7 @@ def test_format_value_for_log_truncates_large_dicts():
     assert "key_8=" not in text
 
 
-def test_log_environment_definition(caplog):
-    logger = logging.getLogger("test.env.utils.definition")
-    env = MagicMock()
-    env.id_manager = IdManager([["agent_0"]], [{"agent_0": "Pawn"}])
-    env.observation_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(4,))
-    env.action_space = gym.spaces.Discrete(2)
-    env.single_observation_space = env.observation_space
-    env.single_action_space = env.action_space
-
-    with caplog.at_level(logging.INFO, logger="test.env.utils.definition"):
-        log_environment_definition(env, logger=logger)
-
-    assert "Agent definitions:" in caplog.text
-    assert "Total agent slots: 1" in caplog.text
-
-
-def test_inspect_reset_gym_vector_env(caplog):
+def test_inspect_agents_gym_vector_env(caplog):
     logger = logging.getLogger("test.env.utils.reset")
     env = MagicMock()
     env.id_manager = IdManager([["agent_0"]])
@@ -66,7 +49,7 @@ def test_inspect_reset_gym_vector_env(caplog):
     )
 
     with caplog.at_level(logging.INFO, logger="test.env.utils.reset"):
-        inspect_reset(env, logger=logger)
+        inspect_agents(env, logger=logger)
 
     env.reset.assert_called_once()
     assert "Observation Space:" in caplog.text

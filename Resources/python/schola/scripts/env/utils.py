@@ -80,9 +80,9 @@ def inspect_agents(
         for agent_id in agent_ids:
             agent_type = env_agent_types.get(agent_id, "")
             if agent_type:
-                logger.info("    Agent %s (type: %s)", agent_id, agent_type)
+                logger.info("    Agent %s (type: %s):", agent_id, agent_type)
             else:
-                logger.info("    Agent %s", agent_id)
+                logger.info("    Agent %s:", agent_id)
 
             single_obs = obs_by_agent.get((env_id, agent_id))
             logger.info("      Observation Space: %s", env.single_observation_space)

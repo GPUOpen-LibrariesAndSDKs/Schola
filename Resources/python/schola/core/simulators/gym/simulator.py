@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import functools
 import logging
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Type
 
 import grpc
 import gymnasium as gym
@@ -47,7 +47,7 @@ class GymSimulator(BaseSimulator):
         Gymnasium wrapper classes applied to each created environment.
     thread_pool : SharedThreadPool, optional
         Reference-counted executor passed to the gRPC server. When omitted, a
-        dedicated pool is created in :meth:`start`. Use :meth:`spawn_executables`
+        dedicated pool is created in :meth:`start`. Use :meth:`spawn`
         to allocate a shared pool across multiple simulator instances.
     """
 
@@ -55,26 +55,19 @@ class GymSimulator(BaseSimulator):
         self,
         env_id: str,
         num_envs: int = 1,
-        env_factory: Callable[..., gym.Env] | None = None,
-        wrappers: Optional[list] = None,
+        wrappers: list[Type[gym.Wrapper]] | None = None,
         thread_pool: SharedThreadPool | None = None,
     ):
         if num_envs < 1:
             raise ValueError(f"num_envs must be >= 1, got {num_envs}")
-        self.env_id = env_id
         self.num_envs = num_envs
-        self._env_factory = env_factory
         self._wrappers = wrappers if wrappers else []
         self._thread_pool = thread_pool
         self._server: grpc.Server | None = None
         self._servicer: GymToGymServiceServicer | VecGymToGymServiceServicer | None = (
             None
         )
-
-    def _make_env_callable(self) -> Callable[..., gym.Env]:
-        if self._env_factory is not None:
-            return self._env_factory
-        return functools.partial(gym.make, self.env_id)
+        self.env_id = env_id
 
     def get_simulator_args(self) -> dict[str, Any]:
         """
@@ -89,38 +82,18 @@ class GymSimulator(BaseSimulator):
             "env_id": self.env_id,
             "num_envs": self.num_envs,
         }
-        if self._env_factory is not None:
-            args["env_factory"] = self._env_factory
         if self._wrappers:
-            args["wrappers"] = self._wrappers
+            args["wrappers"] = self._wrappers.copy() if self._wrappers else None
         return args
 
-    def _spawn_kwargs(self) -> dict[str, Any]:
-        return {
-            "env_id": self.env_id,
-            "num_envs": self.num_envs,
-            "env_factory": self._env_factory,
-            "wrappers": self._wrappers.copy() if self._wrappers else None,
-            "thread_pool": self._thread_pool,
-        }
-
-    def spawn_executable(self) -> GymSimulator:
-        """
-        Return a new GymSimulator with the same settings as this instance.
-
-        The returned instance is not started. When this instance already has a
-        thread pool, the clone shares that executor.
-        """
-        return self.spawn_executables(1)[0]
-
-    def spawn_executables(self, count: int) -> list[GymSimulator]:
+    def spawn(self, count: int = 1) -> list[GymSimulator]:
         """
         Return additional GymSimulator instances that share launch settings.
 
         If this instance has no thread pool yet, a shared
         :class:`~schola.core.utils.shared_thread_pool.SharedThreadPool` is
         created and assigned to this instance and every spawned clone. If a pool
-        is already set, it is reused unchanged.
+        is already set, a new pool is created and distributed across the new instances.
 
         Parameters
         ----------
@@ -146,7 +119,7 @@ class GymSimulator(BaseSimulator):
         
         if self._thread_pool is None:
             self._thread_pool = thread_pool.share()
-        return [GymSimulator(**self._spawn_kwargs(), thread_pool=thread_pool.share()) for _ in range(count)]
+        return [GymSimulator(**self.get_simulator_args(), thread_pool=thread_pool.share()) for _ in range(count)]
 
     def start(self, protocol_properties: dict[str, object]) -> None:
         """
@@ -161,12 +134,12 @@ class GymSimulator(BaseSimulator):
             raise RuntimeError("GymSimulator gRPC server is already running")
 
         port = int(protocol_properties["Port"])
-        env_callable = self._make_env_callable()
+        env_factory = functools.partial(gym.make, self.env_id)
 
         if self.num_envs == 1:
-            servicer = GymToGymServiceServicer(env_callable, self._wrappers)
+            servicer = GymToGymServiceServicer(env_factory, self._wrappers)
         else:
-            env_factories = [env_callable for _ in range(self.num_envs)]
+            env_factories = [env_factory for _ in range(self.num_envs)]
             servicer = VecGymToGymServiceServicer(env_factories, self._wrappers)
 
         if self._thread_pool is None:

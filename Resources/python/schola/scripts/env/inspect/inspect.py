@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import signal
+from typing import Callable, Type
 
 from cyclopts import App
 
@@ -56,10 +57,10 @@ def main(args: EnvInspectScriptSettings) -> None:
                 protocol_args.make(),
                 verbosity=args.logging_settings.schola_verbosity,
             )
-
+            
             logger.info("Environment definitions:")
             logger.info("  Sub-environments: %d", env.id_manager.num_envs)
-            logger.info("  Total agent slots: %d", env.id_manager.num_ids)
+            logger.info("  Total agents: %d", env.id_manager.num_ids)
 
             inspect_agents(
                 env,
@@ -88,8 +89,16 @@ class EnvInspectCommand(ScholaCommandTemplate[EnvInspectScriptSettings]):
     def algorithm_table(self):
         return {}
 
+    @property
+    def script_args_type(self) -> Type[EnvInspectScriptSettings]:
+        return EnvInspectScriptSettings
 
-app = EnvInspectCommand(app, EnvInspectScriptSettings, main, logger).make()
+    @property
+    def main_func(self) -> Callable[[EnvInspectScriptSettings], None]:
+        return main
+
+
+app = EnvInspectCommand(app, logger).make()
 
 if __name__ == "__main__":
     app.meta()

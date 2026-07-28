@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import signal
 from dataclasses import replace
+from typing import Callable, Type
 
 from cyclopts import App
 
@@ -82,8 +83,16 @@ class EnvCheckCommand(ScholaCommandTemplate[EnvCheckScriptSettings]):
     def algorithm_table(self):
         return {}
 
+    @property
+    def script_args_type(self) -> Type[EnvCheckScriptSettings]:
+        return EnvCheckScriptSettings
 
-app = EnvCheckCommand(app, EnvCheckScriptSettings, main, logger).make()
+    @property
+    def main_func(self) -> Callable[[EnvCheckScriptSettings], None]:
+        return main
+
+
+app = EnvCheckCommand(app, logger).make()
 
 if __name__ == "__main__":
     app.meta()

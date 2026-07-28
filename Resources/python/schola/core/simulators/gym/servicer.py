@@ -43,6 +43,18 @@ def _info_as_str_map(info: Optional[dict]) -> dict[str, str]:
     return {k: str(v) for k, v in (info or {}).items()}
 
 
+def _seed_from_proto(env_settings: EnvironmentSettings) -> int | None:
+    """
+    Return a Gymnasium reset seed from protobuf environment settings.
+
+    Proto3 oneof ``optional_seed`` defaults to ``0`` when unset; treat ``0`` as
+    no seed so ``env.reset(seed=None)`` is used instead of forcing seed 0.
+    """
+    if not env_settings.HasField("seed") or env_settings.seed == 0:
+        return None
+    return env_settings.seed
+
+
 def wrap(env, wrappers: Optional[list] = None):
     if not isinstance(env, gym.Env):
         env = env()
@@ -75,8 +87,9 @@ class GymToGymServiceServicer(GymServiceServicer):
     def UpdateState(self, request: StateUpdate, context) -> State:
         msg_type = request.WhichOneof("update")
         if msg_type == "reset":
-            seed = request.reset.environments[0].seed
-            options = request.reset.environments[0].options
+            env_settings = request.reset.environments[0]
+            seed = _seed_from_proto(env_settings)
+            options = env_settings.options
             self._last_reset_obs, self._last_reset_info = self.env.reset(
                 seed=seed, options=dict(options.items())
             )
@@ -224,9 +237,9 @@ class VecGymToGymServiceServicer(GymServiceServicer):
             rewards = [0.0 for _ in range(self._n_envs)]
 
             for i in range(self._n_envs):
-                # TODO add missing seed handling here
-                seed = request.reset.environments[i].seed
-                options = request.reset.environments[i].options
+                env_settings = request.reset.environments[i]
+                seed = _seed_from_proto(env_settings)
+                options = env_settings.options
                 obs, info = self.envs[i].reset(seed=seed, options=dict(options.items()))
 
                 initial_agent_state: InitialAgentState = (
@@ -238,7 +251,7 @@ class VecGymToGymServiceServicer(GymServiceServicer):
                 )
 
                 initial_agent_state.info.update(
-                    ((k, str(v)) for k, v in options.items())
+                    ((k, str(v)) for k, v in info.items())
                 )
 
             return State(initial_state=initial_state)

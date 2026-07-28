@@ -13,7 +13,7 @@ from schola.scripts.common.settings import (
     GymSimulatorConfig,
 )
 from schola.scripts.env.check.check import EnvCheckCommand, main
-from schola.scripts.env.settings import EnvCheckScriptSettings
+from schola.scripts.env.settings import EnvCheckScriptSettings, EnvToolsEnvironmentSettings
 
 
 @pytest.fixture
@@ -28,7 +28,13 @@ def mock_check_app(mock_main):
         help="Start a Schola environment and run Gymnasium's environment checker on it.",
     )
     logger = logging.getLogger(__name__)
-    return EnvCheckCommand(base, EnvCheckScriptSettings, mock_main, logger).make()
+
+    class TestEnvCheckCommand(EnvCheckCommand):
+        @property
+        def main_func(self):
+            return mock_main
+
+    return TestEnvCheckCommand(base, logger).make()
 
 
 def test_check_cli_default_external(mock_check_app, mock_main):
@@ -78,7 +84,7 @@ def test_check_main_warns_on_multiple_simulators(
 
     port = make_vec_env_server([gym.make("CartPole-v1")])
     args = EnvCheckScriptSettings(
-        environment_settings=EnvironmentSettings(
+        environment_settings=EnvToolsEnvironmentSettings(
             simulator_settings=ExternalSimulatorConfig(num_simulators=3),
             protocol_settings=GrpcProtocolConfig(port=port, url="localhost"),
         )
@@ -90,15 +96,12 @@ def test_check_main_warns_on_multiple_simulators(
     assert "not supported for check" in caplog.text
 
 
-def test_check_main_on_real_env(make_vec_env_server, caplog, mocker):
-    import gymnasium as gym
-
+def test_check_main_on_real_env(caplog, mocker):
     mock_check_env = mocker.patch("schola.scripts.env.utils.check_env")
 
-    port = make_vec_env_server([gym.make("CartPole-v1")])
     args = EnvCheckScriptSettings(
-        environment_settings=EnvironmentSettings(
-            protocol_settings=GrpcProtocolConfig(port=port, url="localhost"),
+        environment_settings=EnvToolsEnvironmentSettings(
+            simulator_settings=GymSimulatorConfig(env_id="CartPole-v1", num_environments=1),
         )
     )
 
@@ -126,9 +129,11 @@ def test_check_main_gym_forces_single_simulator(mocker, caplog):
     mocker.patch("schola.scripts.env.check.check.run_gym_env_checker")
 
     args = EnvCheckScriptSettings(
-        environment_settings=EnvironmentSettings(
+        environment_settings=EnvToolsEnvironmentSettings(
             simulator_settings=GymSimulatorConfig(
-                env_id="CartPole-v1", num_simulators=2
+                env_id="CartPole-v1",
+                num_simulators=2,
+                num_environments=4,
             ),
         )
     )
@@ -136,6 +141,6 @@ def test_check_main_gym_forces_single_simulator(mocker, caplog):
     with caplog.at_level(logging.WARNING):
         main(args)
 
-    mock_gym_simulator.assert_called_once_with("CartPole-v1", num_envs=1)
+    mock_gym_simulator.assert_called_once_with("CartPole-v1", num_envs=4)
     mock_gym_env_cls.assert_called_once()
     assert "not supported for check" in caplog.text

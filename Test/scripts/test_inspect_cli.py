@@ -12,7 +12,7 @@ from schola.scripts.common.settings import (
     GrpcProtocolConfig,
 )
 from schola.scripts.env.inspect.inspect import EnvInspectCommand, main
-from schola.scripts.env.settings import EnvInspectScriptSettings
+from schola.scripts.env.settings import EnvInspectScriptSettings, EnvToolsEnvironmentSettings
 
 
 @pytest.fixture
@@ -27,7 +27,13 @@ def mock_inspect_app(mock_main):
         help="Start a Schola environment and report agent definitions plus one reset.",
     )
     logger = logging.getLogger(__name__)
-    return EnvInspectCommand(base, EnvInspectScriptSettings, mock_main, logger).make()
+
+    class TestEnvInspectCommand(EnvInspectCommand):
+        @property
+        def main_func(self):
+            return mock_main
+
+    return TestEnvInspectCommand(base, logger).make()
 
 
 def test_inspect_cli_default_external(mock_inspect_app, mock_main):
@@ -95,12 +101,11 @@ def test_inspect_main_warns_on_multiple_simulators(
         "schola.gym.env.GymVectorEnv",
         return_value=mocker.MagicMock(id_manager=mocker.MagicMock()),
     )
-    mocker.patch("schola.scripts.env.inspect.inspect.log_environment_definition")
-    mocker.patch("schola.scripts.env.inspect.inspect.inspect_reset")
+    mocker.patch("schola.scripts.env.inspect.inspect.inspect_agents")
 
     port = make_vec_env_server([gym.make("CartPole-v1")])
     args = EnvInspectScriptSettings(
-        environment_settings=EnvironmentSettings(
+        environment_settings=EnvToolsEnvironmentSettings(
             simulator_settings=ExternalSimulatorConfig(num_simulators=3),
             protocol_settings=GrpcProtocolConfig(port=port, url="localhost"),
         )
@@ -117,8 +122,9 @@ def test_inspect_main_on_real_env(make_vec_env_server, caplog):
 
     port = make_vec_env_server([gym.make("CartPole-v1")])
     args = EnvInspectScriptSettings(
-        environment_settings=EnvironmentSettings(
-            protocol_settings=GrpcProtocolConfig(port=port, url="localhost")
+        environment_settings=EnvToolsEnvironmentSettings(
+            simulator_settings=ExternalSimulatorConfig(),
+            protocol_settings=GrpcProtocolConfig(port=port, url="localhost"),
         )
     )
 
@@ -126,7 +132,6 @@ def test_inspect_main_on_real_env(make_vec_env_server, caplog):
         main(args)
 
     messages = "\n".join(record.message for record in caplog.records)
-    assert "Unreal sub-environments: 1" in messages
+    assert "Sub-environments: 1" in messages
     assert "Agent definitions:" in messages
-    assert "Calling reset() once" in messages
     assert "Initial Obs in Space: True" in messages

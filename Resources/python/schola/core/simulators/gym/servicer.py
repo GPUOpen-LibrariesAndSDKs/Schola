@@ -39,7 +39,7 @@ def capture_traceback(func):
     return wrapper
 
 
-def _info_as_str_map(info: Optional[dict]) -> dict[str, str]:
+def _info_as_str_map(info: dict[str, object] | None) -> dict[str, str]:
     return {k: str(v) for k, v in (info or {}).items()}
 
 
@@ -55,7 +55,7 @@ def _seed_from_proto(env_settings: EnvironmentSettings) -> int | None:
     return env_settings.seed
 
 
-def wrap(env, wrappers: Optional[list] = None):
+def wrap(env: gym.Env | Callable[..., gym.Env], wrappers: list[type[gym.Wrapper]] | None = None) -> gym.Env:
     if not isinstance(env, gym.Env):
         env = env()
     if wrappers:
@@ -67,7 +67,7 @@ def wrap(env, wrappers: Optional[list] = None):
 class GymToGymServiceServicer(GymServiceServicer):
 
     def __init__(
-        self, env_id: str | Callable[..., gym.Env], wrappers: Optional[list] = None
+        self, env_id: str | Callable[..., gym.Env], wrappers: list[type[gym.Wrapper]] | None = None
     ):
         if isinstance(env_id, str):
             self._env_factory = lambda: gym.make(env_id)
@@ -182,7 +182,7 @@ class GymToGymServiceServicer(GymServiceServicer):
                                 space_to_proto(self.env.observation_space)
                             ),
                             action_space=make_generic(
-                                space_to_proto(self._env.action_space)
+                                space_to_proto(self.env.action_space)
                             ),
                         )
                     }
@@ -219,20 +219,27 @@ class VecGymToGymServiceServicer(GymServiceServicer):
         self._last_reset_info = None
         self._envs: Optional[List[gym.Env]] = None
         self._wrapper_classes = wrappers if wrappers else []
-        self._autoreset_envs = np.array(
+        self._completed_envs = np.array(
             [False for _ in range(self._n_envs)], dtype=np.bool_
         )
+        self._autoreset_type: AutoResetType | None = None
 
     @property
     def envs(self) -> List[gym.Env]:
         assert self._envs is not None, "Environments not initialized"
         return self._envs
+    
+    @property
+    def autoreset_type(self) -> AutoResetType:
+        assert self._autoreset_type is not None, "Autoreset mode not set"
+        return self._autoreset_type
 
     @capture_traceback
     def UpdateState(self, request: StateUpdate, context) -> State:
         msg_type = request.WhichOneof("update")
         if msg_type == "reset":
-
+            
+            # create an empty initial state and then mutate it with the requisite data
             initial_state = InitialState()
             obs = [None for _ in range(self._n_envs)]
             rewards = [0.0 for _ in range(self._n_envs)]
@@ -278,8 +285,8 @@ class VecGymToGymServiceServicer(GymServiceServicer):
 
             for i, action in enumerate(actions):
                 # adapted from Gymnasium SyncVectorEnv Step function
-                if self.autoreset_mode == AutoResetType.NEXT_STEP:
-                    if self._autoreset_envs[i]:
+                if self._autoreset_type == AutoResetType.NEXT_STEP:
+                    if self._completed_envs[i]:
                         obs[i], infos[i] = self.envs[i].reset()
                         rewards[i] = 0.0
                         terminations[i] = False
@@ -287,34 +294,36 @@ class VecGymToGymServiceServicer(GymServiceServicer):
                     else:
                         (
                             obs[i],
-                            rewards[i],
+                            temp_reward,
                             terminations[i],
                             truncations[i],
                             infos[i],
                         ) = self.envs[i].step(actions[i][self._agent_id])
-                elif self.autoreset_mode == AutoResetType.DISABLED:
+                        rewards[i] = float(temp_reward)
+                elif self._autoreset_type == AutoResetType.DISABLED:
                     # assumes that the user has correctly autoreset
-                    assert not self._autoreset_envs[i], f"{self._autoreset_envs}"
+                    assert not self._completed_envs[i], f"Attempted to step an environment that is already terminated or truncated: {self._completed_envs[i]}"
                     (
                         obs[i],
-                        rewards[i],
+                        temp_reward,
                         terminations[i],
                         truncations[i],
                         infos[i],
                     ) = self.envs[i].step(actions[i][self._agent_id])
-                elif self.autoreset_mode == AutoResetType.SAME_STEP:
+                    rewards[i] = float(temp_reward)
+                elif self._autoreset_type == AutoResetType.SAME_STEP:
                     (
                         obs[i],
-                        rewards[i],
+                        temp_reward,
                         terminations[i],
                         truncations[i],
                         infos[i],
                     ) = self.envs[i].step(actions[i][self._agent_id])
-
+                    rewards[i] = float(temp_reward)
                     if terminations[i] or truncations[i]:
                         initial_obs[i], initial_infos[i] = self.envs[i].reset()
 
-            self._autoreset_envs = np.logical_or(terminations, truncations)
+            self._completed_envs = np.logical_or(terminations, truncations)
 
             # complete the output message to the client
             output_state = State()
@@ -369,21 +378,19 @@ class VecGymToGymServiceServicer(GymServiceServicer):
         self, request: TrainingDefinitionRequest, context
     ) -> TrainingDefinition:
 
-        env_defn_list = [None for _ in range(self._n_envs)]
+        env_defn_list : list[EnvironmentDefinition] = [EnvironmentDefinition(
+            agent_definitions={
+                self._agent_id: AgentDefinition(
+                    obs_space=make_generic(
+                        space_to_proto(self.envs[0].observation_space)
+                    ),
+                    action_space=make_generic(
+                        space_to_proto(self.envs[0].action_space)
+                    ),
+                )
+            }
+        ) for _ in range(self._n_envs)]
 
-        for i in range(self._n_envs):
-            env_defn_list[i] = EnvironmentDefinition(
-                agent_definitions={
-                    self._agent_id: AgentDefinition(
-                        obs_space=make_generic(
-                            space_to_proto(self.envs[0].observation_space)
-                        ),
-                        action_space=make_generic(
-                            space_to_proto(self.envs[0].action_space)
-                        ),
-                    )
-                }
-            )
         return TrainingDefinition(environment_definitions=env_defn_list)
 
     @capture_traceback
@@ -391,8 +398,9 @@ class VecGymToGymServiceServicer(GymServiceServicer):
         self, request: GymConnectorStartRequest, context
     ) -> GymConnectorStartResponse:
         self._envs = [x() for x in self._env_factory]
-        self.autoreset_mode = request.autoreset_type
+        self._autoreset_type = request.autoreset_type
         return GymConnectorStartResponse()
+
 
     def __del__(self):
         if self._envs is not None:

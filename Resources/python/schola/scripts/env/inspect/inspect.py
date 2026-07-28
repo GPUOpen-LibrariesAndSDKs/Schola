@@ -57,7 +57,7 @@ def main(args: EnvInspectScriptSettings) -> None:
                 protocol_args.make(),
                 verbosity=args.logging_settings.schola_verbosity,
             )
-            
+
             logger.info("Environment definitions:")
             logger.info("  Sub-environments: %d", env.id_manager.num_envs)
             logger.info("  Total agents: %d", env.id_manager.num_ids)

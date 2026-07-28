@@ -226,6 +226,7 @@ class UnrealProjectSimulatorConfig(BaseSimulatorConfig["UnrealExecutable"]):
         primary = self.make()
         return [primary] + primary.spawn(n - 1)
 
+
 @dataclass
 class GymSimulatorConfig(BaseSimulatorConfig["GymSimulator"]):
     """
@@ -260,11 +261,12 @@ class GymSimulatorConfig(BaseSimulatorConfig["GymSimulator"]):
         from schola.core.simulators.gym.simulator import GymSimulator
 
         return GymSimulator(self.env_id, num_envs=self.num_environments)
-    
+
     def make_n(self, n: int = 1) -> list["GymSimulator"]:
         assert n >= 1, "Number of simulators must be at least 1"
         primary = self.make()
         return [primary] + primary.spawn(n - 1)
+
 
 @dataclass
 class ExternalSimulatorConfig(BaseSimulatorConfig["ExternalSimulator"]):
@@ -475,6 +477,7 @@ class EnvironmentSettings(Generic[SimulatorSettingsT]):
         Optional[int], Parameter(group="Environment Arguments", alias="--seed")
     ] = None
     "Unified repeatable seed for simulator and framework RNG (e.g. RLlib workers). If None, SeedEnvironment is not called in Unreal, and framework RNG is left unseeded."
+
 
 @dataclass
 class Sb3LauncherExtension:

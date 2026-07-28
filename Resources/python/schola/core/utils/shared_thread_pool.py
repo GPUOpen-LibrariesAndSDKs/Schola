@@ -24,7 +24,7 @@ class SharedThreadPool(futures.ThreadPoolExecutor):
     lifecycle). No locking is used.
     """
 
-    def __init__(self, *args,**kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._refs = 0
 

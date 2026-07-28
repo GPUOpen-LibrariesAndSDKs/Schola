@@ -110,16 +110,19 @@ class GymSimulator(BaseSimulator):
         if count == 0:
             return []
 
-        thread_pool : SharedThreadPool | None = None
+        thread_pool: SharedThreadPool | None = None
         if self._thread_pool is None:
             total_workers = max(1, self.num_envs) * (count + 1)
         else:
             total_workers = max(1, self.num_envs) * (count)
         thread_pool = SharedThreadPool(max_workers=total_workers)
-        
+
         if self._thread_pool is None:
             self._thread_pool = thread_pool.share()
-        return [GymSimulator(**self.get_simulator_args(), thread_pool=thread_pool.share()) for _ in range(count)]
+        return [
+            GymSimulator(**self.get_simulator_args(), thread_pool=thread_pool.share())
+            for _ in range(count)
+        ]
 
     def start(self, protocol_properties: dict[str, object]) -> None:
         """

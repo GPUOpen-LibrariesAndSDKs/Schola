@@ -18,7 +18,6 @@ from schola.core.utils.id_manager import IdManager
 from schola.gym.env import GymVectorEnv
 
 
-
 def _format_value_for_log(value: Any) -> str:
     if isinstance(value, np.ndarray):
         flat = value.ravel()

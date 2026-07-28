@@ -63,6 +63,7 @@ def wrap(env, wrappers: Optional[list] = None):
             env = wrapper(env)
     return env
 
+
 class GymToGymServiceServicer(GymServiceServicer):
 
     def __init__(
@@ -250,9 +251,7 @@ class VecGymToGymServiceServicer(GymServiceServicer):
                     initial_agent_state.observations,
                 )
 
-                initial_agent_state.info.update(
-                    ((k, str(v)) for k, v in info.items())
-                )
+                initial_agent_state.info.update(((k, str(v)) for k, v in info.items()))
 
             return State(initial_state=initial_state)
 

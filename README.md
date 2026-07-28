@@ -27,7 +27,7 @@ As Schola is an Unreal Engine Project, you will need to first install Unreal Eng
 
 | Schola version | Unreal Version |
 | -------------- | -------------- |
-| 2.1 | 5.5-5.7 |
+| **2.1** | **5.5-5.7** |
 | 2.0 | 5.5-5.6 |
 | 1.3 | 5.5-5.6 |
 | 1.2 | 5.5 |

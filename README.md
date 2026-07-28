@@ -1,16 +1,17 @@
 <p align="center">
-  <img src="./Docs/Sphinx/_static/AMD_Schola_Lockup_RGB_Blk.png" alt="Schola Lockup" />
+  <img src="./Docs/Sphinx/_static/AMD_Schola_Lockup_RGB_Blk.png" alt="Schola Lockup" width="50%"/>
 </p>
 
 <div align="center">
 
-![GitHub License](https://img.shields.io/github/license/GPUOpen-LibrariesAndSDKs/Schola)
+![GitHub License](https://img.shields.io/github/license/GPUOpen-LibrariesAndSDKs/Schola?link=https%3A%2F%2Fopensource.org%2Flicense%2FMIT)
 [![Discord](https://img.shields.io/badge/Discord-Join_Us-5865F2?style=flat&logo=discord&logoColor=white)](https://discord.gg/amd-dev)
 [![Codestyle](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-![Python Version from PEP 621 TOML](https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2FGPUOpen-LibrariesAndSDKs%2FSchola%2Frefs%2Fheads%2Fmain%2FResources%2Fpython%2Fpyproject.toml)
+![Python Version from PEP 621 TOML](https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2FGPUOpen-LibrariesAndSDKs%2FSchola%2Frefs%2Fheads%2FAlex%2FBeautify-Readme%2FResources%2Fpython%2Fpyproject.toml&link=https%3A%2F%2Fwww.python.org%2Fdownloads%2F)
 
 </div>
---------------------------------------------------------------------------------
+
+---
 
 The Schola project is an effort to build a toolkit/plugin for controlling Objects in Unreal with Reinforcement Learning. It provides tools to help the user create Environments, define Agents, connect to python based RL Frameworks (e.g. Gym, RLlib or Stable Baselines 3), and power NPCs with RL during games.
 

@@ -55,7 +55,10 @@ def _seed_from_proto(env_settings: EnvironmentSettings) -> int | None:
     return env_settings.seed
 
 
-def wrap(env: gym.Env | Callable[..., gym.Env], wrappers: list[type[gym.Wrapper]] | None = None) -> gym.Env:
+def wrap(
+    env: gym.Env | Callable[..., gym.Env],
+    wrappers: list[type[gym.Wrapper]] | None = None,
+) -> gym.Env:
     if not isinstance(env, gym.Env):
         env = env()
     if wrappers:
@@ -67,7 +70,9 @@ def wrap(env: gym.Env | Callable[..., gym.Env], wrappers: list[type[gym.Wrapper]
 class GymToGymServiceServicer(GymServiceServicer):
 
     def __init__(
-        self, env_id: str | Callable[..., gym.Env], wrappers: list[type[gym.Wrapper]] | None = None
+        self,
+        env_id: str | Callable[..., gym.Env],
+        wrappers: list[type[gym.Wrapper]] | None = None,
     ):
         if isinstance(env_id, str):
             self._env_factory = lambda: gym.make(env_id)
@@ -228,7 +233,7 @@ class VecGymToGymServiceServicer(GymServiceServicer):
     def envs(self) -> List[gym.Env]:
         assert self._envs is not None, "Environments not initialized"
         return self._envs
-    
+
     @property
     def autoreset_type(self) -> AutoResetType:
         assert self._autoreset_type is not None, "Autoreset mode not set"
@@ -238,7 +243,7 @@ class VecGymToGymServiceServicer(GymServiceServicer):
     def UpdateState(self, request: StateUpdate, context) -> State:
         msg_type = request.WhichOneof("update")
         if msg_type == "reset":
-            
+
             # create an empty initial state and then mutate it with the requisite data
             initial_state = InitialState()
             obs = [None for _ in range(self._n_envs)]
@@ -302,7 +307,9 @@ class VecGymToGymServiceServicer(GymServiceServicer):
                         rewards[i] = float(temp_reward)
                 elif self._autoreset_type == AutoResetType.DISABLED:
                     # assumes that the user has correctly autoreset
-                    assert not self._completed_envs[i], f"Attempted to step an environment that is already terminated or truncated: {self._completed_envs[i]}"
+                    assert not self._completed_envs[
+                        i
+                    ], f"Attempted to step an environment that is already terminated or truncated: {self._completed_envs[i]}"
                     (
                         obs[i],
                         temp_reward,
@@ -378,18 +385,21 @@ class VecGymToGymServiceServicer(GymServiceServicer):
         self, request: TrainingDefinitionRequest, context
     ) -> TrainingDefinition:
 
-        env_defn_list : list[EnvironmentDefinition] = [EnvironmentDefinition(
-            agent_definitions={
-                self._agent_id: AgentDefinition(
-                    obs_space=make_generic(
-                        space_to_proto(self.envs[0].observation_space)
-                    ),
-                    action_space=make_generic(
-                        space_to_proto(self.envs[0].action_space)
-                    ),
-                )
-            }
-        ) for _ in range(self._n_envs)]
+        env_defn_list: list[EnvironmentDefinition] = [
+            EnvironmentDefinition(
+                agent_definitions={
+                    self._agent_id: AgentDefinition(
+                        obs_space=make_generic(
+                            space_to_proto(self.envs[0].observation_space)
+                        ),
+                        action_space=make_generic(
+                            space_to_proto(self.envs[0].action_space)
+                        ),
+                    )
+                }
+            )
+            for _ in range(self._n_envs)
+        ]
 
         return TrainingDefinition(environment_definitions=env_defn_list)
 
@@ -400,7 +410,6 @@ class VecGymToGymServiceServicer(GymServiceServicer):
         self._envs = [x() for x in self._env_factory]
         self._autoreset_type = request.autoreset_type
         return GymConnectorStartResponse()
-
 
     def __del__(self):
         if self._envs is not None:

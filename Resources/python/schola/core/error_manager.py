@@ -258,3 +258,17 @@ class NoEnvironmentsException(ScholaException):
 
     def __str__(self) -> str:
         return "Connected to Unreal successfully but received no Environment Definitions. Check that there is an environment object in your map."
+
+
+class MultipleEnvironmentsException(ScholaException):
+    """
+    Exception raised when the Schola definition returned by the simulator/protocol has mutiple environments but the Env object only supports one environment.
+    """
+
+    def __init__(self, num_environments: int, env_class: type):
+        super().__init__()
+        self.num_environments: int = num_environments
+        self.env_class: type = env_class
+
+    def __str__(self) -> str:
+        return f"Environment initialized successfully but received {self.num_environments} Environment Definitions. {self.env_class} objects only supports one environment."

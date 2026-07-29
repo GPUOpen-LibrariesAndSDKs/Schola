@@ -16,6 +16,7 @@ from schola.core.simulators.base_simulator import (
 )
 from schola.core.error_manager import (
     EnvironmentException,
+    MultipleEnvironmentsException,
     NoAgentsException,
     NoEnvironmentsException,
 )
@@ -85,14 +86,11 @@ class GymEnv(gym.Env):
         action_space = action_defns[env_id][agent_id]
         obs_space = obs_defns[env_id][agent_id]
 
-        try:
-            assert (
-                id_manager.num_ids == 1
-            ), "GymEnv is designed for single-agent non-vectorized environments only. Please use GymVectorEnv for multi-agent or vectorized environments."
-        except Exception as e:
+
+        if id_manager.num_ids > 1:
             self.protocol.close()
             self.simulator.stop()
-            raise e
+            raise MultipleEnvironmentsException(id_manager.num_ids, GymEnv)
 
         return agent_id, action_space, obs_space
 

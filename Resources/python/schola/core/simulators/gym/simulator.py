@@ -169,7 +169,8 @@ class GymSimulator(BaseSimulator):
         if self._server is not None:
             logger.debug("Stopping GymSimulator gRPC server")
             self._server.stop(grace=2)
-            self._server.wait_for_termination(timeout=5)
+            if(self._server.wait_for_termination(timeout=5)):
+                logger.warning("GymSimulator gRPC server did not terminate gracefully")
             self._server = None
             self._servicer = None
 

@@ -263,7 +263,7 @@ class GymSimulatorConfig(BaseSimulatorConfig["GymSimulator"]):
     ] = 1
     "Number of environments to serve in each Gymnasium Simulator, for num_environments>1 this will create a vectorized environment."
 
-    def make(self):
+    def make(self) -> "GymSimulator":
         """
         Create a GymSimulator instance with the specified settings.
 

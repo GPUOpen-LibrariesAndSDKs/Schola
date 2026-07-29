@@ -106,12 +106,11 @@ class GymSimulator(BaseSimulator):
         if count == 0:
             return []
 
-        thread_pool: SharedThreadPool | None = None
         if self._thread_pool is None:
             total_workers = self.num_envs * (count + 1)
         else:
             total_workers = self.num_envs * (count)
-        thread_pool = SharedThreadPool(max_workers=total_workers)
+        thread_pool : SharedThreadPool = SharedThreadPool(max_workers=total_workers)
 
         if self._thread_pool is None:
             self._thread_pool = thread_pool.share()

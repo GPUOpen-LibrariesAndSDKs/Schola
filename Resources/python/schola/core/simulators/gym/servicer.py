@@ -45,14 +45,9 @@ def _info_as_str_map(info: dict[str, object] | None) -> dict[str, str]:
 
 def _seed_from_proto(env_settings: EnvironmentSettings) -> int | None:
     """
-    Return a Gymnasium reset seed from protobuf environment settings.
-
-    Proto3 oneof ``optional_seed`` defaults to ``0`` when unset; treat ``0`` as
-    no seed so ``env.reset(seed=None)`` is used instead of forcing seed 0.
+    Return a Gymnasium reset seed from protobuf environment settings. If no seed is provided, return None.
     """
-    if not env_settings.HasField("seed") or env_settings.seed == 0:
-        return None
-    return env_settings.seed
+    return env_settings.seed if env_settings.HasField("seed") else None
 
 
 def wrap(

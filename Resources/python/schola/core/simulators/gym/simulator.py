@@ -40,10 +40,7 @@ class GymSimulator(BaseSimulator):
     num_envs : int, default=1
         Number of parallel Gymnasium instances served by one gRPC connector.
         Values greater than one use the vector servicer implementation.
-    env_factory : Callable[..., gym.Env], optional
-        Custom environment factory. When omitted, ``env_id`` is used with
-        ``gymnasium.make``.
-    wrappers : list, optional
+    wrappers : list[type[gym.Wrapper]], optional
         Gymnasium wrapper classes applied to each created environment.
     thread_pool : SharedThreadPool, optional
         Reference-counted executor passed to the gRPC server. When omitted, a
@@ -55,13 +52,13 @@ class GymSimulator(BaseSimulator):
         self,
         env_id: str,
         num_envs: int = 1,
-        wrappers: list[Type[gym.Wrapper]] | None = None,
+        wrappers: list[type[gym.Wrapper]] | None = None,
         thread_pool: SharedThreadPool | None = None,
     ):
         if num_envs < 1:
             raise ValueError(f"num_envs must be >= 1, got {num_envs}")
         self.num_envs = num_envs
-        self._wrappers = wrappers if wrappers else []
+        self._wrappers : list[type[gym.Wrapper]] = wrappers if wrappers else []
         self._thread_pool = thread_pool
         self._server: grpc.Server | None = None
         self._servicer: GymToGymServiceServicer | VecGymToGymServiceServicer | None = (
@@ -82,8 +79,7 @@ class GymSimulator(BaseSimulator):
             "env_id": self.env_id,
             "num_envs": self.num_envs,
         }
-        if self._wrappers:
-            args["wrappers"] = self._wrappers.copy() if self._wrappers else None
+        args["wrappers"] = self._wrappers.copy()
         return args
 
     def spawn(self, count: int = 1) -> list[GymSimulator]:

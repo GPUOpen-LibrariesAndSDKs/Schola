@@ -147,7 +147,7 @@ class GymSimulator(BaseSimulator):
 
         if self._thread_pool is None:
             self._thread_pool = SharedThreadPool(
-                max_workers=max(1, self.num_envs)
+                max_workers=self.num_envs
             ).share()
 
         server = grpc.server(self._thread_pool, options=_GRPC_OPTIONS)  # type: ignore[arg-type]

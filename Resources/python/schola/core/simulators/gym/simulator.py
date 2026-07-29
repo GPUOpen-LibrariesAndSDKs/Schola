@@ -124,6 +124,10 @@ class GymSimulator(BaseSimulator):
             for _ in range(count)
         ]
 
+    def get_spawn_args(self) -> dict[str, Any]:
+        """Return a dictionary of arguments used to create a new instance of this simulator."""
+        return self.get_simulator_args()
+
     def start(self, protocol_properties: dict[str, object]) -> None:
         """
         Start the in-process gRPC server on the port supplied by the protocol.

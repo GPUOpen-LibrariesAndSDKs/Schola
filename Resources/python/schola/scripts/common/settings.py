@@ -96,8 +96,12 @@ class BaseSimulatorConfig(Generic[T], ABC):
     @abstractmethod
     def make(self) -> T: ...
 
-    def make_n(self, n: int) -> Sequence[T]:
+    def make_n(self, n: int = 1) -> Sequence[T]:
+        assert n >= 1, "Number of simulators must be at least 1"
         return [self.make() for _ in range(n)]
+
+    @abstractmethod
+    def get_sim_cls(self) -> Type[T]: ...
 
 
 @dataclass
@@ -157,6 +161,11 @@ class UnrealExecutableSimulatorConfig(BaseSimulatorConfig["UnrealExecutable"]):
             self.disable_script,
         )
 
+    def get_sim_cls(self) -> Type["UnrealExecutable"]:
+        from schola.core.simulators.unreal.executable_simulator import UnrealExecutable
+
+        return UnrealExecutable
+
 
 @dataclass
 class UnrealProjectSimulatorConfig(BaseSimulatorConfig["UnrealExecutable"]):
@@ -172,10 +181,10 @@ class UnrealProjectSimulatorConfig(BaseSimulatorConfig["UnrealExecutable"]):
     ]
     "Path to the .uproject file"
 
-    build_dir: Optional[Path] = None
+    build_dir: Path | None = None
     "Directory to build the Unreal Engine project to, if None builds to Build/Staging in the project directory."
 
-    ubt_path: Optional[Path] = None
+    ubt_path: Path | None = None
     "Path to the Unreal Build Tool, if None will be automatically detected from the project directory."
 
     disable_script: bool = True
@@ -184,10 +193,10 @@ class UnrealProjectSimulatorConfig(BaseSimulatorConfig["UnrealExecutable"]):
     headless: Annotated[bool, Parameter(alias="-h")] = False
     "Flag indicating if the standalone Unreal Engine process should run in headless mode"
 
-    map: Optional[str] = None
+    map: str | None = None
     "Map to load when launching a standalone Unreal Engine process"
 
-    fps: Optional[int] = None
+    fps: int | None = None
     "Fixed FPS to use when running standalone, if None no fixed timestep is used"
 
     display_logs: bool = True
@@ -225,6 +234,11 @@ class UnrealProjectSimulatorConfig(BaseSimulatorConfig["UnrealExecutable"]):
         assert n >= 1, "Number of simulators must be at least 1"
         primary = self.make()
         return [primary] + primary.spawn(n - 1)
+
+    def get_sim_cls(self) -> Type["UnrealExecutable"]:
+        from schola.core.simulators.unreal.executable_simulator import UnrealExecutable
+
+        return UnrealExecutable
 
 
 @dataclass
@@ -267,6 +281,11 @@ class GymSimulatorConfig(BaseSimulatorConfig["GymSimulator"]):
         primary = self.make()
         return [primary] + primary.spawn(n - 1)
 
+    def get_sim_cls(self) -> Type["GymSimulator"]:
+        from schola.core.simulators.gym.simulator import GymSimulator
+
+        return GymSimulator
+
 
 @dataclass
 class ExternalSimulatorConfig(BaseSimulatorConfig["ExternalSimulator"]):
@@ -283,7 +302,7 @@ class ExternalSimulatorConfig(BaseSimulatorConfig["ExternalSimulator"]):
     ] = 1
     "Number of externally managed simulator instances. Each instance is expected to be reachable at the protocol address with port offsets 0..N-1 (or a fixed port when ``port_offset_mode`` is ``fixed``)."
 
-    readiness_timeout: Optional[int] = None
+    readiness_timeout: int | None = None
     "Seconds to wait for the external process to become reachable (reserved for future use)."
 
     def make(self) -> "ExternalSimulator":
@@ -298,6 +317,11 @@ class ExternalSimulatorConfig(BaseSimulatorConfig["ExternalSimulator"]):
         from schola.core.simulators.external_simulator import ExternalSimulator
 
         return ExternalSimulator(readiness_timeout=self.readiness_timeout)
+
+    def get_sim_cls(self) -> Type["ExternalSimulator"]:
+        from schola.core.simulators.external_simulator import ExternalSimulator
+
+        return ExternalSimulator
 
 
 AllSimulatorConfigs = (

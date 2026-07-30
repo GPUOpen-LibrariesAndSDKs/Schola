@@ -262,7 +262,7 @@ class NoEnvironmentsException(ScholaException):
 
 class MultipleEnvironmentsException(ScholaException):
     """
-    Exception raised when the Schola definition returned by the simulator/protocol has mutiple environments but the Env object only supports one environment.
+    Exception raised when the Schola definition returned by the simulator/protocol has multiple environments but the Env object only supports one environment.
     """
 
     def __init__(self, num_environments: int, env_class: type):
@@ -272,3 +272,17 @@ class MultipleEnvironmentsException(ScholaException):
 
     def __str__(self) -> str:
         return f"Environment initialized successfully but received {self.num_environments} Environment Definitions. {self.env_class} objects only supports one environment."
+
+
+class MultipleAgentsException(ScholaException):
+    """
+    Exception raised when a Schola environment definition has multiple agents but the Env object only supports one agent.
+    """
+
+    def __init__(self, num_agents: int, env_class: type):
+        super().__init__()
+        self.num_agents: int = num_agents
+        self.env_class: type = env_class
+
+    def __str__(self) -> str:
+        return f"Environment initialized successfully but received {self.num_agents} Agent Definitions. {self.env_class} objects only supports one agent."

@@ -16,6 +16,7 @@ from schola.core.simulators.base_simulator import (
 )
 from schola.core.error_manager import (
     EnvironmentException,
+    MultipleAgentsException,
     MultipleEnvironmentsException,
     NoAgentsException,
     NoEnvironmentsException,
@@ -74,8 +75,10 @@ class GymEnv(gym.Env):
 
         Raises
         ------
-        AssertionError
-            If the definition is not exactly single-agent.
+        MultipleEnvironmentsException
+            If the definition contains more than one environment.
+        MultipleAgentsException
+            If the single environment contains more than one agent.
         """
 
         ids, self.agent_types, obs_defns, action_defns = self.protocol.get_definition()
@@ -86,6 +89,11 @@ class GymEnv(gym.Env):
         action_space = action_defns[env_id][agent_id]
         obs_space = obs_defns[env_id][agent_id]
 
+
+        if id_manager.num_envs > 1:
+            self.protocol.close()
+            self.simulator.stop()
+            raise MultipleEnvironmentsException(id_manager.num_envs, GymEnv)
 
         if id_manager.num_ids > 1:
             self.protocol.close()

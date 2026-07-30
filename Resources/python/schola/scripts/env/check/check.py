@@ -13,7 +13,10 @@ from typing import Callable, Type
 
 from cyclopts import App
 
-from schola.core.error_manager import MultipleEnvironmentsException
+from schola.core.error_manager import (
+    MultipleAgentsException,
+    MultipleEnvironmentsException,
+)
 from schola.scripts.common.command_template import ScholaCommandTemplate
 from schola.scripts.env.settings import EnvCheckScriptSettings
 from schola.scripts.env.utils import run_gym_env_checker
@@ -58,8 +61,17 @@ def main(args: EnvCheckScriptSettings) -> None:
                         protocol_args.make(),
                         verbosity=args.logging_settings.schola_verbosity,
                     )
-            except MultipleEnvironmentsException as e:
-                logger.error("schola env check is not supported for vectorized environments. Please retry with a non-vectorized environment.")
+            except MultipleEnvironmentsException:
+                logger.error(
+                    "schola env check is not supported for vectorized environments. "
+                    "Please retry with a non-vectorized environment."
+                )
+                return
+            except MultipleAgentsException:
+                logger.error(
+                    "schola env check is not supported for multi-agent environments. "
+                    "Please retry with a single-agent environment."
+                )
                 return
             
             logger.info("Checking environment:")

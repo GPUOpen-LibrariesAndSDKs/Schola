@@ -33,6 +33,7 @@ if TYPE_CHECKING:
     from schola.core.simulators.unreal.project_simulator import UnrealProject
     from schola.core.simulators.external_simulator import ExternalSimulator
     from schola.core.simulators.gym.simulator import GymSimulator
+    import ray.tune.callback
 
 
 class ActivationFunctionEnum(str, Enum):
@@ -594,13 +595,13 @@ class RllibLauncherExtension:
     Default implementation returns an empty list (no-op).
     """
 
-    def get_extra_callbacks(self) -> List["ray.tune.callback"]:
+    def get_extra_callbacks(self) -> List["ray.tune.callback.Callback"]:
         """
         Returns a list of additional callbacks to add to the training loop.
 
         Returns
         -------
-        List[Callback]
+        List[ray.tune.callback.Callback]
             A list of additional callbacks to add to the training loop.
         """
         return []

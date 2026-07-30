@@ -5,8 +5,7 @@ Implementation of gym.vector.VectorEnv backed by a Schola Environment.
 """
 
 from collections import defaultdict
-from math import inf
-from typing import Any, Dict, List, Optional, SupportsFloat, Tuple, TypeVar, Union, cast
+from typing import Any, Dict, List, Mapping, SupportsFloat, Tuple, TypeVar, cast
 
 from schola.core.protocols.base_protocol import AutoResetType, BaseRLProtocol
 from schola.core.protocols.protobuf.grpc_protocol import coerce_auto_reset_type
@@ -23,10 +22,8 @@ from schola.core.error_manager import (
 )
 import numpy as np
 import gymnasium as gym
-from schola.core.utils.id_manager import nested_get, IdManager
-from gymnasium.vector.utils import batch_space
+from schola.core.utils.id_manager import IdManager
 from gymnasium.vector.vector_env import AutoresetMode, VectorEnv
-import logging
 
 T = TypeVar("T")
 
@@ -106,15 +103,15 @@ class GymEnv(gym.Env):
         self.simulator.stop()
 
     def reset(
-        self, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None
-    ) -> Tuple[Any, Dict[str, Any]]:
+        self, *, seed: int | None = None, options: dict[str, Any] | None = None
+    ) -> tuple[Any, dict[str, Any]]:
         # info values are ``str`` in practice; typed ``Any`` to match Gymnasium
         # and stay forward-compatible with non-string payloads.
         super().reset(seed=seed, options=options)
         # wrap options in a list if provided
-        options = [options] if options is not None else None
+        _options : list[dict[str,Any]] | None = [options] if options is not None else None
         seeds = [seed] if seed is not None else None
-        obs, nested_infos = self.protocol.send_reset_msg(seeds=seeds, options=options)
+        obs, nested_infos = self.protocol.send_reset_msg(seeds=seeds, options=_options)
         return obs[0][self._agent_id], nested_infos[0][self._agent_id]
 
     def step(
@@ -211,12 +208,6 @@ class GymVectorEnv(VectorEnv):
             auto_reset_type=coerce_auto_reset_type(self.autoreset_mode)
         )
 
-        # one env per agent for
-        self._observation_space: gym.Space | None = None
-        self._action_space: gym.Space | None = None
-        self._single_observation_space: gym.Space | None = None
-        self._single_action_space: gym.Space | None = None
-
         self._define_environment()
 
         self.reset_infos: List[Dict[str, Any]] = [{} for _ in range(self.num_envs)]
@@ -242,18 +233,18 @@ class GymVectorEnv(VectorEnv):
         self.id_manager = IdManager(ids)
         self.num_envs = self.id_manager.num_ids
 
-        self._action_space = gym.vector.utils.batch_differing_spaces(
+        self.action_space = gym.vector.utils.batch_differing_spaces(
             self.id_manager.flatten_dict_of_dicts(action_defns)
         )
 
-        self._observation_space = gym.vector.utils.batch_differing_spaces(
+        self.observation_space = gym.vector.utils.batch_differing_spaces(
             self.id_manager.flatten_dict_of_dicts(obs_defns)
         )
 
         first_env_id, first_agent_id = self.id_manager[0]
 
-        self._single_action_space = action_defns[first_env_id][first_agent_id]
-        self._single_observation_space = obs_defns[first_env_id][first_agent_id]
+        self.single_action_space = action_defns[first_env_id][first_agent_id]
+        self.single_observation_space = obs_defns[first_env_id][first_agent_id]
         try:
             if len(ids) == 0:
                 raise NoEnvironmentsException()
@@ -278,7 +269,7 @@ class GymVectorEnv(VectorEnv):
         self.protocol.close()
         self.simulator.stop()
 
-    def get_attr(self, name: str) -> List[None]:
+    def get_attr(self, name: str) -> list[Any]:
         """
         Get an attribute from the environment.
 
@@ -295,9 +286,10 @@ class GymVectorEnv(VectorEnv):
 
     def reset(
         self,
-        seed: Union[None, List[int], int] = None,
-        options: Union[Dict[str, Any], List[Dict[str, Any]], None] = None,
-    ) -> Tuple[Any, Dict[str, Any]]:
+        *,
+        seed: List[int] | int | None = None,
+        options: dict[str, Any] | list[dict[str, Any]] | None = None,
+    ) -> tuple[Any, dict[str, Any]]:
         # info values are ``str`` in practice; typed ``Any`` to match Gymnasium
         # and stay forward-compatible with non-string payloads.
         num_unreal_envs = self.id_manager.num_envs
@@ -371,7 +363,7 @@ class GymVectorEnv(VectorEnv):
         return batched_observations, infos
 
     def unbatch_actions(
-        self, actions: Dict[int, np.ndarray]
+        self, actions: Mapping[int, np.ndarray]
     ) -> Dict[int, Dict[int, Dict[str, np.ndarray]]]:
         """
         Unbatch actions from Dict[ObsID,Batched] to a nested Dict[EnvId,Dict[AgentId,Dict[ObsId,Value]]], effectively moving the env, and agent dimensions into Dictionaries.
@@ -465,19 +457,3 @@ class GymVectorEnv(VectorEnv):
             array_truncateds,
             infos,
         )
-
-    @property
-    def observation_space(self) -> gym.Space:
-        return self._observation_space
-
-    @property
-    def action_space(self) -> gym.Space:
-        return self._action_space
-
-    @property
-    def single_observation_space(self) -> gym.Space:
-        return self._single_observation_space
-
-    @property
-    def single_action_space(self) -> gym.Space:
-        return self._single_action_space

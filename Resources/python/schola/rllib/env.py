@@ -342,37 +342,37 @@ class BaseRayEnv(ABC):
         return len(self.possible_agents)
 
     @property
-    def observation_space(self) -> Optional[gym.Space]:
+    def observation_space(self) -> gym.Space[Any] | None:
         """Observation space (Dict of agent spaces)."""
         return self._observation_space
 
     @property
-    def action_space(self) -> Optional[gym.Space]:
+    def action_space(self) -> gym.Space[Any] | None:
         """Action space (Dict of agent spaces)."""
         return self._action_space
 
     @property
-    def single_observation_space(self) -> Optional[gym.Space]:
+    def single_observation_space(self) -> gym.Space[Any] | None:
         """Single-agent observation space."""
         return self._single_observation_space
 
     @property
-    def single_action_space(self) -> Optional[gym.Space]:
+    def single_action_space(self) -> gym.Space[Any] | None:
         """Single-agent action space."""
         return self._single_action_space
 
     @property
-    def single_observation_spaces(self) -> Dict[str, gym.Space]:
+    def single_observation_spaces(self) -> dict[str, gym.Space[Any]] | None:
         """Dict mapping agent IDs to observation spaces."""
         return self._single_observation_spaces
 
     @property
-    def single_action_spaces(self) -> Dict[str, gym.Space]:
+    def single_action_spaces(self) -> dict[str, gym.Space[Any]] | None:
         """Dict mapping agent IDs to action spaces."""
         return self._single_action_spaces
 
     @property
-    def agent_types(self) -> Dict[str, str]:
+    def agent_types(self) -> dict[str, str]:
         """Dict mapping agent IDs to optional policy grouping types."""
         first_env_id, _ = self.id_manager[0]
         return self.id_manager.agent_types_for_env(first_env_id)
@@ -645,9 +645,9 @@ class _SingleEnvWrapper(MultiAgentEnv):
         env_id: int,
         protocol: BaseRLProtocol,
         simulator: BaseSimulator,
-        single_observation_spaces: Dict[str, gym.Space],
-        single_action_spaces: Dict[str, gym.Space],
-        possible_agents: List[str],
+        single_observation_spaces: dict[str, gym.Space],
+        single_action_spaces: dict[str, gym.Space],
+        possible_agents: list[str],
         parent_vec_env: "RayVecEnv",
     ):
         # Initialize agent tracking BEFORE calling super().__init__()
@@ -763,6 +763,8 @@ class RayVecEnv(BaseRayEnv, VectorMultiAgentEnv):
         For single environment with wrapper support, use RayEnv instead.
     """
 
+    envs: list[_SingleEnvWrapper]
+    
     def __init__(
         self,
         protocol: BaseRLProtocol,
@@ -792,7 +794,7 @@ class RayVecEnv(BaseRayEnv, VectorMultiAgentEnv):
         self.render_mode = None
 
         # Create list of MultiAgentEnv instances matching RLlib's pattern
-        self.envs = [
+        self.envs = [ # type: ignore
             _SingleEnvWrapper(
                 env_id=i,
                 protocol=self.protocol,
@@ -801,9 +803,9 @@ class RayVecEnv(BaseRayEnv, VectorMultiAgentEnv):
                 single_action_spaces=self._single_action_spaces,
                 possible_agents=self.possible_agents,
                 parent_vec_env=self,
-            )
+            ) 
             for i in range(self.num_envs)
-        ]
+        ] 
 
     def _define_environment(self):
         """Define environment spaces for multiple parallel environments."""
@@ -901,12 +903,12 @@ class RayVecEnv(BaseRayEnv, VectorMultiAgentEnv):
         )
         return observations, infos
 
-    def step(self, actions: List[Dict[str, Any]]) -> Tuple[
-        List[Dict[str, Any]],
-        List[Dict[str, float]],
-        List[Dict[str, bool]],
-        List[Dict[str, bool]],
-        List[Dict[str, Any]],
+    def step(self, actions: list[dict[str, Any]]) -> tuple[
+        list[dict[str, Any]],
+        list[dict[str, float]],
+        list[dict[str, bool]],
+        list[dict[str, bool]],
+        list[dict[str, Any]],
     ]:
         """
         Step all sub-environments with the given actions.

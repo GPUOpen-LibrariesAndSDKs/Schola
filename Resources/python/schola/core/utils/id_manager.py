@@ -6,7 +6,7 @@ Utility Functions and Classes for managing environment and agent ids.
 
 from collections.abc import Iterable
 from functools import cached_property, singledispatchmethod
-from typing import TypeVar, cast
+from typing import TypeVar, cast, overload
 
 K = TypeVar("K")
 V = TypeVar("V")
@@ -206,6 +206,12 @@ class IdManager:
             output_dict[first_id][second_id] = body
         return output_dict
 
+    @overload
+    def __getitem__(self, key: int) -> tuple[int,str]: ...
+
+    @overload
+    def __getitem__(self, key: tuple[int,str]) -> int: ...
+
     @singledispatchmethod
     def __getitem__(self, key: object) -> tuple[int, str] | int:
         """
@@ -230,14 +236,15 @@ class IdManager:
             "get item not supported for keys that aren't int or Tuple[int,int]"
         )
 
-    @__getitem__.register
+    @__getitem__.register # type: ignore
     def _(self, key: int) -> tuple[int, str]:
         return self.id_list[key]
 
-    @__getitem__.register(tuple)
+    @__getitem__.register(tuple) # type: ignore
     def _(self, key: tuple[int, str]) -> int:
         assert len(key) == 2, "if supplying tuple key must supply a key of length 2"
         return self.id_map[key[0]][key[1]]
+
 
     def get_nested_id(self, flat_id: int) -> tuple[int, str]:
         """

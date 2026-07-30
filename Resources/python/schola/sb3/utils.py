@@ -4,7 +4,7 @@
 Utility functions for working with stable baselines 3
 """
 
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, cast
 from functools import singledispatch
 import torch as th
 import os
@@ -94,7 +94,7 @@ def _merge_box_spaces(space: Box, *other_spaces: Box) -> Box:
         low = np.concatenate([s.low for s in all_spaces], axis=-1)
         high = np.concatenate([s.high for s in all_spaces], axis=-1)
 
-    return Box(low=low, high=high, dtype=dtype)
+    return Box(low=low, high=high, dtype=dtype.type)
 
 
 @merge_spaces.register(MultiBinary)
@@ -124,7 +124,7 @@ def _merge_multibinary_spaces(
             raise TypeError(f"Cannot merge MultiBinary space with {type(s)}")
 
     # Sum the dimensions
-    total_n = sum(s.n for s in all_spaces)
+    total_n = sum(int(np.prod(s.n)) if isinstance(s.n,tuple) else s.n for s in all_spaces)
     return MultiBinary(total_n)
 
 
@@ -164,8 +164,8 @@ def _merge_discrete_spaces(
 
 
 def split_box_value(
-    value: np.ndarray, original_spaces: Dict[str, Box] | gym.spaces.Dict
-) -> Dict[str, np.ndarray]:
+    value: np.ndarray, original_spaces: dict[str, gym.Space[Any]] | gym.spaces.Dict
+) -> dict[str, np.ndarray]:
     """
     Split a Box space value back into original Box spaces.
     Values are split along the last axis, which is where they were concatenated during merge.
@@ -189,8 +189,8 @@ def split_box_value(
         if not isinstance(space, Box):
             raise TypeError(f"Expected Box space for {name}, got {type(space)}")
 
-        # Get the size along the concatenation axis (last axis)
-        size = space.shape[-1] if len(space.shape) > 0 else space.shape[0]
+        # Get the size along the concatenation axis (last axis), 1 if no shape information provided
+        size = space.shape[-1] if len(space.shape) > 0 else 1
 
         # Split along the last axis
         if len(space.shape) == 0:
@@ -205,7 +205,7 @@ def split_box_value(
 
 
 def split_multibinary_value(
-    value: np.ndarray, original_spaces: Dict[str, MultiBinary] | gym.spaces.Dict
+    value: np.ndarray, original_spaces: Dict[str, gym.Space[Any]] | gym.spaces.Dict
 ) -> Dict[str, np.ndarray]:
     """
     Split a MultiBinary space value back into original MultiBinary spaces.
@@ -230,7 +230,7 @@ def split_multibinary_value(
             raise TypeError(f"Expected MultiBinary space for {name}, got {type(space)}")
 
         # Get the size for this space
-        size = space.n
+        size = int(np.prod(space.n)) if isinstance(space.n,tuple) else space.n
 
         # Split along the last axis
         result[name] = value[..., start_idx : start_idx + size]
@@ -242,7 +242,7 @@ def split_multibinary_value(
 
 def split_multidiscrete_value(
     value: np.ndarray,
-    original_spaces: Dict[str, Discrete | MultiDiscrete] | gym.spaces.Dict,
+    original_spaces: dict[str, gym.Space[Any]] | gym.spaces.Dict,
 ) -> Dict[str, np.ndarray]:
     """
     Split a MultiDiscrete space value back into original Discrete/MultiDiscrete spaces.
@@ -281,8 +281,8 @@ def split_multidiscrete_value(
 
 
 def split_value(
-    value: np.ndarray, original_spaces: Dict[str, gym.Space] | gym.spaces.Dict
-) -> Dict[str, np.ndarray]:
+    value: np.ndarray, original_spaces: dict[str, gym.Space[Any]] | gym.spaces.Dict
+) -> dict[str, np.ndarray]:
     """
     Split a value from a merged space back into a dictionary of values for the original spaces.
 
@@ -380,9 +380,10 @@ class RenderImagesWrapper(VecEnvWrapper):
             )
         self.image_obs = []
         self._num_envs = venv.num_envs
+        assert isinstance(venv.observation_space, gym.spaces.Dict), "Observation space must be a Dict"
         for obs_space_name, obs_space in venv.observation_space.spaces.items():
             if isinstance(obs_space, gym.spaces.Box):
-                self.image_obs.append((obs_space_name, obs_space.shape))
+                self.image_obs.append((obs_space_name, obs_space))
         plt.ion()
         self.axs = []
         self.ims = [[] for _ in range(self._num_envs)]
@@ -392,11 +393,11 @@ class RenderImagesWrapper(VecEnvWrapper):
                 index = row * len(self.image_obs) + col + 1
                 self.axs.append(plt.subplot(self._num_envs, len(self.image_obs), index))
                 # TODO dynamically toggle greyscale
-                if obs_space.shape[0] == 1:
+                if self.image_obs[col][1].shape[0] == 1:
                     cmap = "grey"
                 else:
                     cmap = None
-                default_ndarray = self.convert_to_plt_format(np.zeros(obs_space.shape))
+                default_ndarray = self.convert_to_plt_format(np.zeros(self.image_obs[col][1].shape))
                 self.ims[row].append(
                     self.axs[index - 1].imshow(
                         default_ndarray, cmap=cmap, vmin=0.0, vmax=1.0
@@ -443,7 +444,7 @@ class RenderImagesWrapper(VecEnvWrapper):
         Dict[str,np.ndarray]
             The original observation.
         """
-        for col, (image_obs_name, shape) in enumerate(self.image_obs):
+        for col, (image_obs_name, obs_space) in enumerate(self.image_obs):
             temp_obs = np.clip(obs[image_obs_name], 0.0, 1.0)
             # yoink out the batch dim at the front of the buffer
             for row in range(temp_obs.shape[0]):

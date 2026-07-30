@@ -69,7 +69,7 @@ class SingleEnvRewardCallback(BaseCallback):
             self.last_logging_interval + self.logging_interval_size
         )
 
-    def _on_step(self):
+    def _on_step(self) -> bool:
         self.episode_steps += 1
         self.episode_reward += self.locals["rewards"][self.id]
         if self.locals["dones"][self.id]:
@@ -77,6 +77,7 @@ class SingleEnvRewardCallback(BaseCallback):
             self.step_count.append(self.episode_steps)
             self.episode_steps = 0
             self.episode_reward = 0
+        return True
 
     def get_reward_interval(self) -> List[int]:
         """
@@ -276,9 +277,9 @@ class CustomProgressBarCallback(BaseCallback):
     def _on_training_start(self) -> None:
         # Initialize progress bar
         # Remove timesteps that were done in previous training sessions
-        self.pbar = tqdm(
+        self.pbar = tqdm(  
             initial=self.model.num_timesteps, total=self.locals["total_timesteps"]
-        )
+        ) # pyright: ignore[reportOptionalCall]
 
     def _on_step(self) -> bool:
         # Update progress bar, we do num_envs steps per call to `env.step()`

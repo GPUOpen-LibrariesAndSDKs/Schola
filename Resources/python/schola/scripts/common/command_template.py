@@ -255,9 +255,9 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
         def train_meta_command(
             *tokens: Annotated[str, Parameter(show=False, allow_leading_hyphen=True)],
             script_args: Annotated[
-                ResolvedScriptArgsType,
+                ResolvedScriptArgsType,  # pyright: ignore[reportInvalidTypeForm]
                 Parameter(name="*"),
-            ] = self.script_args_type(),
+            ] = self.script_args_type(), 
             hidden_sim_config_dict: Annotated[
                 Optional[Dict[str, Any]], Parameter(parse=False)
             ] = None,

@@ -340,9 +340,9 @@ def main(args: Sb3TrainScriptSettings) -> Optional[Tuple[float, float]]:
 
                 if (
                     args.checkpoint_settings.save_vecnormalize
-                    and model.get_vec_normalize_env() is not None
+                    and (vec_normalize_env := model.get_vec_normalize_env()) is not None
                 ):
-                    model.get_vec_normalize_env().save(
+                    vec_normalize_env.save(
                         os.path.join(
                             args.checkpoint_settings.checkpoint_dir,
                             f"{args.name_prefix}_vec_normalize_final.zip",

@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 
 @singledispatch
-def export_onnx_from_policy(arg, path: pathlib.Path):
+def export_onnx_from_policy(arg: Any, path: pathlib.Path) -> None:
     """
     Export an RLlib policy to ONNX format.
 
@@ -75,13 +75,15 @@ def export_onnx_from_policy(arg, path: pathlib.Path):
 def _(
     arg: Policy,
     path: pathlib.Path,
-    observation_space: Optional[gym.Space] = None,
-    action_space: Optional[gym.Space] = None,
+    observation_space: gym.Space[Any] | None = None,
+    action_space: gym.Space[Any] | None = None,
 ):
     if path.is_dir():
         path = path / "default_policy.onnx"
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
+    assert isinstance(arg, TorchPolicyV2), f"Expected TorchPolicyV2, got {type(arg)}"
+
     schola_model = RllibScholaModel(
         arg, observation_space=observation_space, action_space=action_space
     )
@@ -92,8 +94,8 @@ def _(
 def _(
     arg: dict,
     path: pathlib.Path,
-    observation_spaces: Dict[str, gym.Space] = None,
-    action_spaces: Dict[str, gym.Space] = None,
+    observation_spaces: Dict[str, gym.Space[Any]] | None = None,
+    action_spaces: Dict[str, gym.Space[Any]] | None = None,
 ):
     observation_spaces = observation_spaces if observation_spaces is not None else {}
     action_spaces = action_spaces if action_spaces is not None else {}
@@ -131,8 +133,8 @@ def _(arg: pathlib.Path, path: pathlib.Path):
 def _(
     arg: TorchRLModule,
     path: pathlib.Path,
-    observation_space: gym.Space = None,
-    action_space: gym.Space = None,
+    observation_space: gym.Space[Any] | None = None,
+    action_space: gym.Space[Any] | None = None,
 ):
     if path.is_dir():
         path = path / "default_policy.onnx"
@@ -240,10 +242,10 @@ class ScholaRLModule(ScholaModel):
 
     def __init__(
         self,
-        rl_module: RLModule,
-        observation_space: Optional[gym.Space] = None,
-        action_space: Optional[gym.Space] = None,
-        ignored_state_keys: Tuple[str] = ("critic",),
+        rl_module: TorchRLModule,
+        observation_space: gym.Space[Any] | None = None,
+        action_space: gym.Space[Any] | None = None,
+        ignored_state_keys: tuple[str, ...] = ("critic",),
     ):
         super().__init__(
             observation_space=(
@@ -413,9 +415,10 @@ class RllibScholaModel(ScholaModel):
         self._policy = policy
         # for SAC the model.forward is a no-op, so we need to use the action model instead
         if isinstance(policy, SACTorchPolicy):
-            self._model: TorchModelV2 = policy.model.action_model.to("cpu")
+            # ignore typing here because rllib erases the type of the model
+            self._model: TorchModelV2 = policy.model.action_model.to("cpu") # type: ignore
         else:
-            self._model: TorchModelV2 = policy.model.to("cpu")
+            self._model: TorchModelV2 = policy.model.to("cpu") # type: ignore
         # update the dummy batch here
         self._policy._dummy_batch = (
             self._policy._get_dummy_batch_from_view_requirements(1)

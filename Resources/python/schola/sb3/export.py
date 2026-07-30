@@ -3,11 +3,14 @@
 """ONNX export helpers for Stable-Baselines3 policies trained or deployed with Schola."""
 
 import logging
-from typing import Optional, Tuple
+from typing import Generic, Optional, Tuple, TypeVar
+
+from stable_baselines3.sac.policies import SACPolicy
+from stable_baselines3.td3.policies import TD3Policy
 
 logger = logging.getLogger(__name__)
 
-from stable_baselines3.common.policies import BasePolicy
+from stable_baselines3.common.policies import ActorCriticPolicy, BasePolicy
 from stable_baselines3.common.preprocessing import preprocess_obs
 from schola.core.model import ScholaModel
 from gymnasium.spaces import Box, Discrete, MultiDiscrete, MultiBinary
@@ -43,8 +46,9 @@ from stable_baselines3.common.base_class import BaseAlgorithm
 
 # Modifications Copyright (c) 2023-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
+T = TypeVar('T', bound=BasePolicy)
 
-class SB3ScholaModel(ScholaModel):
+class SB3ScholaModel(ScholaModel, Generic[T]):
     """
     A PyTorch Module that wraps a stable baselines policy and extracts the necessary components to export to ONNX.
 
@@ -64,7 +68,7 @@ class SB3ScholaModel(ScholaModel):
         The wrapped action network.
     """
 
-    def __init__(self, policy: BasePolicy, action_space: Optional[gym.Space] = None):
+    def __init__(self, policy: T, action_space: Optional[gym.Space] = None):
         super().__init__(
             observation_space=policy.observation_space,
             action_space=action_space or policy.action_space,
@@ -117,7 +121,7 @@ class SB3ScholaModel(ScholaModel):
         return tuple(action_outputs)
 
 
-class SB3PPOModel(SB3ScholaModel):
+class SB3PPOModel(SB3ScholaModel[ActorCriticPolicy]):
     """
     ``SB3ScholaModel`` specialization for PPO models.
 
@@ -167,7 +171,7 @@ class SB3BCModel(SB3PPOModel):
     ...
 
 
-class SB3SACModel(SB3ScholaModel):
+class SB3SACModel(SB3ScholaModel[SACPolicy]):
     """
     ONNX export view of an SAC actor (Gaussian policy mean path).
 
@@ -183,7 +187,7 @@ class SB3SACModel(SB3ScholaModel):
         return x
 
 
-class SB3TD3Model(SB3ScholaModel):
+class SB3TD3Model(SB3ScholaModel[TD3Policy]):
     """
     ONNX export view of a TD3 deterministic actor.
 
@@ -221,13 +225,12 @@ class SB3DQNModel(SB3ScholaModel):
     """
 
     def get_logits(self, x):
-        #
         x = self.policy.q_net(x)
         return x
 
 
 def get_scholasb3_model(
-    model: BaseAlgorithm, action_space: gym.Space = None
+    model: BaseAlgorithm, action_space: gym.Space | None = None
 ) -> ScholaModel:
     """
     Get the ScholaModel for a stable baselines algorithm.
@@ -236,7 +239,9 @@ def get_scholasb3_model(
     ----------
     model : stable_baselines3.common.base_class.BaseAlgorithm
         The model to get the ScholaModel for.
-
+    action_space : gym.Space | None
+        The action space to use for the model. Useful for when the model has a merged dictionary action space (e.g. Dict with two Box Subspaces).
+    
     Returns
     -------
     ScholaModel
@@ -260,7 +265,7 @@ def get_scholasb3_model(
 
 # end of adapted code
 def save_model_as_onnx(
-    model: BaseAlgorithm, export_path: str, action_space: gym.Space = None
+    model: BaseAlgorithm, export_path: str, action_space: gym.Space | None = None
 ) -> None:
     """
     Save a stable baselines model as ONNX.
@@ -274,8 +279,8 @@ def save_model_as_onnx(
     action_space : gym.Space
         The action space to use for the model. Useful for when the model has a merged dictionary action space (e.g. Dict with two Box Subspaces).
     """
-    model = get_scholasb3_model(model, action_space)
-    model.save_as_onnx(export_path)
+    schola_model = get_scholasb3_model(model, action_space)
+    schola_model.save_as_onnx(export_path)
 
 
 def convert_ckpt_to_onnx_for_unreal(

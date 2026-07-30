@@ -181,21 +181,19 @@ class AsyncVecEnv(BaseVecEnv):
 
     def __init__(
         self,
-        simulator: Union[BaseSimulator, Sequence[BaseSimulator]],
-        protocol: Union[AsyncBaseRLProtocol, Sequence[AsyncBaseRLProtocol]],
+        simulator: BaseSimulator | Sequence[BaseSimulator],
+        protocol: AsyncBaseRLProtocol | Sequence[AsyncBaseRLProtocol],
         verbosity: int = 0,
     ):
         if sys.version_info < (3, 11):
             raise RuntimeError(
                 "AsyncVecEnv requires Python 3.11 or later (uses asyncio.TaskGroup)."
             )
-        if not is_iterable(simulator):
-            simulator = [simulator]
-        if not is_iterable(protocol):
-            protocol = [protocol]
+        _simulator = simulator if isinstance(simulator, Sequence) else [simulator]
+        _protocol = protocol if isinstance(protocol, Sequence) else [protocol]
 
-        self.simulators = list(simulator)
-        self.protocols = list(protocol)
+        self.simulators = list(_simulator)
+        self.protocols = list(_protocol)
 
         if len(self.simulators) != len(self.protocols):
             raise ValueError(
@@ -303,11 +301,11 @@ class AsyncVecEnv(BaseVecEnv):
         for sim in self.simulators:
             sim.stop()
 
-    def seed(self, seed: Optional[int] = None) -> List[int]:
+    def seed(self, seed: int | None = None) -> list[int]:
         if seed is None:
             seed = int(np.random.randint(0, np.iinfo(np.uint32).max, dtype=np.uint32))
         seeds = [int(seed + i) for i in range(self.num_envs)]
-        self._seeds = seeds
+        self._seeds = seeds # type: ignore
         return seeds
 
     def set_options(self, options: Optional[Union[List[Dict], Dict]] = None) -> None:

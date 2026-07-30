@@ -7,7 +7,7 @@ Script to train an rllib model using Schola.
 import logging
 
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Tuple, Type, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple, Type, Union
 
 from schola.scripts.common.settings import (
     get_activation_function,
@@ -36,6 +36,8 @@ logger = logging.getLogger(__name__)
 app = App(name="train", help="Train a Model using ray")
 STOP_METRIC = "num_env_steps_sampled_lifetime"
 
+if TYPE_CHECKING:
+    import ray.tune
 
 def _get_restored_env_steps(checkpoint_path: Optional[Path]) -> int:
     """
@@ -341,6 +343,7 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
     # Train through a Schola Algorithm subclass so the frozen policy mapping is
     # saved/restored as a native RLlib Checkpointable subcomponent ,
     # mirroring RLlib's own checkpoint behavior.
+    assert config.algo_class is not None, "Algorithm class is required"
     schola_algorithm_cls = schola_algorithm_subclass(config.algo_class)
 
     logger.info("Starting training")

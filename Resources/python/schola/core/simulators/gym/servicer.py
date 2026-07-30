@@ -283,7 +283,7 @@ class VecGymToGymServiceServicer(GymServiceServicer):
                     initial_agent_state.observations,
                 )
 
-                initial_agent_state.info.update(((k, str(v)) for k, v in info.items()))
+                initial_agent_state.info.update(_info_as_str_map(info))
 
             return State(initial_state=initial_state)
 
@@ -367,7 +367,7 @@ class VecGymToGymServiceServicer(GymServiceServicer):
                     agent_state.observations,
                 )
 
-                agent_state.info.update(((k, str(v)) for k, v in infos[i].items()))
+                agent_state.info.update(_info_as_str_map(infos[i]))
                 agent_state.reward = rewards[i]
                 agent_state.terminated = terminations[i]
                 agent_state.truncated = truncations[i]
@@ -382,7 +382,7 @@ class VecGymToGymServiceServicer(GymServiceServicer):
                         initial_agent_state.observations,
                     )
                     initial_agent_state.info.update(
-                        ((k, str(v)) for k, v in initial_infos[i].items())
+                        _info_as_str_map(initial_infos[i])
                     )
 
             return output_state

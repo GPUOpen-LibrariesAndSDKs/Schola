@@ -97,7 +97,7 @@ class GymEnv(gym.Env):
         if id_manager.num_ids > 1:
             self.protocol.close()
             self.simulator.stop()
-            raise MultipleEnvironmentsException(id_manager.num_ids, GymEnv)
+            raise MultipleAgentsException(id_manager.num_ids, GymEnv)
 
         return agent_id, action_space, obs_space
 

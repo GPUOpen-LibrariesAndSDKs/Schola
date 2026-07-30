@@ -3,12 +3,13 @@
 """Tests for SharedThreadPool reference counting."""
 
 import time
-from concurrent import futures
+from unittest.mock import patch
 
 from schola.core.utils.shared_thread_pool_executor import SharedThreadPoolExecutor
 
 
-def test_shutdown_only_after_last_reference_released():
+@patch("concurrent.futures.ThreadPoolExecutor.shutdown")
+def test_shutdown_only_after_last_reference_released(mock_shutdown):
     pool = SharedThreadPoolExecutor(max_workers=2)
     pool.share()
     pool.share()
@@ -17,12 +18,14 @@ def test_shutdown_only_after_last_reference_released():
 
     pool.shutdown(wait=False)
     assert pool.ref_count == 1
+    mock_shutdown.assert_not_called()
 
     future = pool.submit(time.sleep, 0)
     future.result(timeout=1)
 
     pool.shutdown(wait=True)
     assert pool.ref_count == 0
+    mock_shutdown.assert_called_once_with(wait=True, cancel_futures=False)
 
 
 def test_submit_delegates_to_underlying_executor():
@@ -34,7 +37,8 @@ def test_submit_delegates_to_underlying_executor():
     pool.shutdown(wait=True)
 
 
-def test_shutdown_without_share_is_noop():
+@patch("concurrent.futures.ThreadPoolExecutor.shutdown")
+def test_shutdown_without_share_calls_parent_shutdown(mock_shutdown):
     pool = SharedThreadPoolExecutor(max_workers=1)
     pool.shutdown(wait=True)
-    assert pool.ref_count == 0
+    mock_shutdown.assert_called_once_with(wait=True, cancel_futures=False)

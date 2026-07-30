@@ -110,7 +110,9 @@ class GymSimulator(BaseSimulator):
             total_workers = self.num_envs * (count + 1)
         else:
             total_workers = self.num_envs * (count)
-        thread_pool: SharedThreadPoolExecutor = SharedThreadPoolExecutor(max_workers=total_workers)
+        thread_pool: SharedThreadPoolExecutor = SharedThreadPoolExecutor(
+            max_workers=total_workers
+        )
 
         if self._thread_pool is None:
             self._thread_pool = thread_pool.share()
@@ -145,7 +147,9 @@ class GymSimulator(BaseSimulator):
             servicer = VecGymToGymServiceServicer(env_factories, self._wrappers)
 
         if self._thread_pool is None:
-            self._thread_pool = SharedThreadPoolExecutor(max_workers=self.num_envs).share()
+            self._thread_pool = SharedThreadPoolExecutor(
+                max_workers=self.num_envs
+            ).share()
 
         server = grpc.server(self._thread_pool, options=_GRPC_OPTIONS)  # type: ignore[arg-type]
         gym_grpc.add_GymServiceServicer_to_server(servicer, server)

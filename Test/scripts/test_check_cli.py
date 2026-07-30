@@ -13,7 +13,10 @@ from schola.scripts.common.settings import (
     GymSimulatorConfig,
 )
 from schola.scripts.env.check.check import EnvCheckCommand, main
-from schola.scripts.env.settings import EnvCheckScriptSettings, EnvToolsEnvironmentSettings
+from schola.scripts.env.check.settings import (
+    EnvCheckEnvironmentSettings,
+    EnvCheckScriptSettings,
+)
 
 
 @pytest.fixture
@@ -84,7 +87,7 @@ def test_check_main_warns_on_multiple_simulators(
 
     port = make_vec_env_server([gym.make("CartPole-v1")])
     args = EnvCheckScriptSettings(
-        environment_settings=EnvToolsEnvironmentSettings(
+        environment_settings=EnvCheckEnvironmentSettings(
             simulator_settings=ExternalSimulatorConfig(num_simulators=3),
             protocol_settings=GrpcProtocolConfig(port=port, url="localhost"),
         )
@@ -100,7 +103,7 @@ def test_check_main_on_real_env(caplog, mocker):
     mock_check_env = mocker.patch("schola.scripts.env.utils.check_env")
 
     args = EnvCheckScriptSettings(
-        environment_settings=EnvToolsEnvironmentSettings(
+        environment_settings=EnvCheckEnvironmentSettings(
             simulator_settings=GymSimulatorConfig(env_id="CartPole-v1", num_environments=1),
         )
     )
@@ -129,7 +132,7 @@ def test_check_main_gym_forces_single_simulator(mocker, caplog):
     mocker.patch("schola.scripts.env.check.check.run_gym_env_checker")
 
     args = EnvCheckScriptSettings(
-        environment_settings=EnvToolsEnvironmentSettings(
+        environment_settings=EnvCheckEnvironmentSettings(
             simulator_settings=GymSimulatorConfig(
                 env_id="CartPole-v1",
                 num_simulators=2,

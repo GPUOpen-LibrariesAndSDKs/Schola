@@ -12,7 +12,10 @@ from schola.scripts.common.settings import (
     GrpcProtocolConfig,
 )
 from schola.scripts.env.inspect.inspect import EnvInspectCommand, main
-from schola.scripts.env.settings import EnvInspectScriptSettings, EnvToolsEnvironmentSettings
+from schola.scripts.env.inspect.settings import (
+    EnvInspectEnvironmentSettings,
+    EnvInspectScriptSettings,
+)
 
 
 @pytest.fixture
@@ -105,7 +108,7 @@ def test_inspect_main_warns_on_multiple_simulators(
 
     port = make_vec_env_server([gym.make("CartPole-v1")])
     args = EnvInspectScriptSettings(
-        environment_settings=EnvToolsEnvironmentSettings(
+        environment_settings=EnvInspectEnvironmentSettings(
             simulator_settings=ExternalSimulatorConfig(num_simulators=3),
             protocol_settings=GrpcProtocolConfig(port=port, url="localhost"),
         )
@@ -122,7 +125,7 @@ def test_inspect_main_on_real_env(make_vec_env_server, caplog):
 
     port = make_vec_env_server([gym.make("CartPole-v1")])
     args = EnvInspectScriptSettings(
-        environment_settings=EnvToolsEnvironmentSettings(
+        environment_settings=EnvInspectEnvironmentSettings(
             simulator_settings=ExternalSimulatorConfig(),
             protocol_settings=GrpcProtocolConfig(port=port, url="localhost"),
         )

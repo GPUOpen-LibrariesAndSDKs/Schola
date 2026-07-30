@@ -13,7 +13,7 @@ from typing import Callable, Type
 from cyclopts import App
 
 from schola.scripts.common.command_template import ScholaCommandTemplate
-from schola.scripts.env.settings import EnvInspectScriptSettings
+from schola.scripts.env.inspect.settings import EnvInspectScriptSettings
 from schola.scripts.env.utils import (
     inspect_agents,
 )

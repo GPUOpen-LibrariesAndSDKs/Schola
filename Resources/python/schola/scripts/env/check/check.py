@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import signal
 from dataclasses import replace
-from typing import Callable, Type
+from typing import Any, Callable, Type
 
 from cyclopts import App
 
@@ -18,7 +18,15 @@ from schola.core.error_manager import (
     MultipleEnvironmentsException,
 )
 from schola.scripts.common.command_template import ScholaCommandTemplate
-from schola.scripts.env.settings import EnvCheckScriptSettings
+from schola.scripts.common.settings import (
+    AllSingularSimulatorConfigs,
+    BaseSimulatorConfig,
+    SingularExecutableSimulatorConfig,
+    SingularExternalSimulatorConfig,
+    SingularGymSimulatorConfig,
+    SingularProjectSimulatorConfig,
+)
+from schola.scripts.env.check.settings import EnvCheckScriptSettings
 from schola.scripts.env.utils import run_gym_env_checker
 
 if not logging.getLogger().handlers:
@@ -46,12 +54,6 @@ def main(args: EnvCheckScriptSettings) -> None:
     try:
         with ScholaErrorContextManager():
             sim_args = args.environment_settings.simulator_settings
-            if sim_args.num_simulators > 1:
-                logger.warning(
-                    "Multiple simulators (-n=%d) is not supported for check; "
-                    "using a single simulator.",
-                    sim_args.num_simulators,
-                )
 
             protocol_args = args.environment_settings.protocol_settings
 
@@ -101,12 +103,22 @@ class EnvCheckCommand(ScholaCommandTemplate[EnvCheckScriptSettings]):
         return {}
 
     @property
-    def script_args_type(self) -> Type[EnvCheckScriptSettings]:
+    def script_args_type(self) -> type[EnvCheckScriptSettings]:
         return EnvCheckScriptSettings
 
     @property
     def main_func(self) -> Callable[[EnvCheckScriptSettings], None]:
         return main
+
+    @property
+    def simulator_table(self) -> dict[str, type[BaseSimulatorConfig[Any]]]:
+
+        return {
+            "gym": SingularGymSimulatorConfig,
+            "executable": SingularExecutableSimulatorConfig,
+            "project": SingularProjectSimulatorConfig,
+            "external": SingularExternalSimulatorConfig,
+        }
 
 
 app = EnvCheckCommand(app, logger).make()

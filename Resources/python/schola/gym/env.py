@@ -89,7 +89,6 @@ class GymEnv(gym.Env):
         action_space = action_defns[env_id][agent_id]
         obs_space = obs_defns[env_id][agent_id]
 
-
         if id_manager.num_envs > 1:
             self.protocol.close()
             self.simulator.stop()

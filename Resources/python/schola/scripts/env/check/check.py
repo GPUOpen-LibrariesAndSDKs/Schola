@@ -54,13 +54,13 @@ def main(args: EnvCheckScriptSettings) -> None:
                 )
 
             protocol_args = args.environment_settings.protocol_settings
-            
+
             try:
                 env = GymEnv(
                     sim_args.make(),
-                        protocol_args.make(),
-                        verbosity=args.logging_settings.schola_verbosity,
-                    )
+                    protocol_args.make(),
+                    verbosity=args.logging_settings.schola_verbosity,
+                )
             except MultipleEnvironmentsException:
                 logger.error(
                     "schola env check is not supported for vectorized environments. "
@@ -73,7 +73,7 @@ def main(args: EnvCheckScriptSettings) -> None:
                     "Please retry with a single-agent environment."
                 )
                 return
-            
+
             logger.info("Checking environment:")
             logger.info("  Action space: %s", env.action_space)
             logger.info("  Observation space: %s", env.observation_space)

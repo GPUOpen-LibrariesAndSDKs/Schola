@@ -58,7 +58,7 @@ class GymSimulator(BaseSimulator):
         if num_envs < 1:
             raise ValueError(f"num_envs must be >= 1, got {num_envs}")
         self.num_envs = num_envs
-        self._wrappers : list[type[gym.Wrapper]] = wrappers if wrappers else []
+        self._wrappers: list[type[gym.Wrapper]] = wrappers if wrappers else []
         self._thread_pool = thread_pool
         self._server: grpc.Server | None = None
         self._servicer: GymToGymServiceServicer | VecGymToGymServiceServicer | None = (
@@ -110,7 +110,7 @@ class GymSimulator(BaseSimulator):
             total_workers = self.num_envs * (count + 1)
         else:
             total_workers = self.num_envs * (count)
-        thread_pool : SharedThreadPool = SharedThreadPool(max_workers=total_workers)
+        thread_pool: SharedThreadPool = SharedThreadPool(max_workers=total_workers)
 
         if self._thread_pool is None:
             self._thread_pool = thread_pool.share()
@@ -145,9 +145,7 @@ class GymSimulator(BaseSimulator):
             servicer = VecGymToGymServiceServicer(env_factories, self._wrappers)
 
         if self._thread_pool is None:
-            self._thread_pool = SharedThreadPool(
-                max_workers=self.num_envs
-            ).share()
+            self._thread_pool = SharedThreadPool(max_workers=self.num_envs).share()
 
         server = grpc.server(self._thread_pool, options=_GRPC_OPTIONS)  # type: ignore[arg-type]
         gym_grpc.add_GymServiceServicer_to_server(servicer, server)
@@ -168,7 +166,7 @@ class GymSimulator(BaseSimulator):
         if self._server is not None:
             logger.debug("Stopping GymSimulator gRPC server")
             self._server.stop(grace=2)
-            if(self._server.wait_for_termination(timeout=5)):
+            if self._server.wait_for_termination(timeout=5):
                 logger.warning("GymSimulator gRPC server did not terminate gracefully")
             self._server = None
             self._servicer = None

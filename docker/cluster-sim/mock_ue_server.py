@@ -2,7 +2,7 @@
 """
 Standalone mock Unreal Engine gRPC server.
 
-Uses the battle-tested ``VecGymToGymServiceServicer`` from the test suite,
+Uses the ``VecGymToGymServiceServicer`` from ``schola.core.simulators.gym``,
 backing each instance with a single CartPole-v1 gymnasium environment.
 Each worker container in the Docker simulation runs one instance of this
 server, mimicking the sidecar-UE pattern used in a real KubeRay deployment.
@@ -17,9 +17,7 @@ from concurrent import futures
 import grpc
 import gymnasium as gym
 
-# Reuse the test-suite's servicer (copied into the image at /opt/test_envs).
-sys.path.insert(0, "/opt")
-from test_envs.gym_server import VecGymToGymServiceServicer
+from schola.core.simulators.gym.servicer import VecGymToGymServiceServicer
 
 import schola.generated.GymConnector_pb2_grpc as gym_grpc
 

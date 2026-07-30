@@ -13,10 +13,12 @@ from schola.scripts.sb3.train.settings import (
     Sb3TrainScriptSettings,
     PPOTrainSettings,
     SACTrainSettings,
+    Sb3TrainingSettings,
 )
 from schola.scripts.common.settings import (
     ExternalSimulatorConfig,
     GrpcProtocolConfig,
+    GymSimulatorConfig,
     UnrealExecutableSimulatorConfig,
     UnrealProjectSimulatorConfig,
     ActivationFunctionEnum,
@@ -368,6 +370,113 @@ def test_ppo_env_options_dotted_syntax(mock_app, mock_main):
         "level": "1",
         "curriculum": "easy",
     }
+
+
+def test_ppo_with_gym_simulator(mock_app, mock_main):
+    """Test that the gym simulator subcommand is correctly parsed."""
+    command, bound, _ = mock_app.parse_args(
+        ["ppo", "gym", "--env-id", "CartPole-v1"],
+        exit_on_error=False,
+    )
+
+    command(*bound.args, **bound.kwargs)
+
+    args = mock_main.call_args[0][0]
+
+    assert isinstance(args.environment_settings.simulator_settings, GymSimulatorConfig)
+    assert args.environment_settings.simulator_settings.env_id == "CartPole-v1"
+    assert args.environment_settings.simulator_settings.num_simulators == 1
+    assert args.environment_settings.simulator_settings.num_environments == 1
+
+
+def test_ppo_with_gym_simulator_num_simulators(mock_app, mock_main):
+    command, bound, _ = mock_app.parse_args(
+        ["ppo", "gym", "--env-id", "CartPole-v1", "--num-simulators", "4"],
+        exit_on_error=False,
+    )
+
+    command(*bound.args, **bound.kwargs)
+
+    args = mock_main.call_args[0][0]
+    assert args.environment_settings.simulator_settings.num_simulators == 4
+    assert args.environment_settings.simulator_settings.num_environments == 1
+
+
+def test_ppo_with_gym_simulator_num_environments(mock_app, mock_main):
+    command, bound, _ = mock_app.parse_args(
+        ["ppo", "gym", "--env-id", "CartPole-v1", "-e", "3"],
+        exit_on_error=False,
+    )
+
+    command(*bound.args, **bound.kwargs)
+
+    args = mock_main.call_args[0][0]
+    assert args.environment_settings.simulator_settings.num_environments == 3
+    assert args.environment_settings.simulator_settings.num_simulators == 1
+
+
+def test_ppo_with_gym_simulator_num_simulators_and_environments(mock_app, mock_main):
+    command, bound, _ = mock_app.parse_args(
+        [
+            "ppo",
+            "gym",
+            "--env-id",
+            "CartPole-v1",
+            "-n",
+            "2",
+            "-e",
+            "3",
+        ],
+        exit_on_error=False,
+    )
+
+    command(*bound.args, **bound.kwargs)
+
+    args = mock_main.call_args[0][0]
+    sim = args.environment_settings.simulator_settings
+    assert sim.num_simulators == 2
+    assert sim.num_environments == 3
+
+
+def test_launch_script_with_gym_simulator():
+    """End-to-end train main using the in-process Gymnasium simulator."""
+    args = Sb3TrainScriptSettings(
+        environment_settings=Sb3EnvironmentSettings(
+            simulator_settings=GymSimulatorConfig(env_id="CartPole-v1"),
+        ),
+        algorithm_settings=PPOTrainSettings(
+            n_steps=64,
+            batch_size=32,
+        ),
+        training_settings=replace(
+            Sb3TrainScriptSettings().training_settings,
+            timesteps=128,
+            disable_eval=True,
+        ),
+    )
+    main(args)
+
+
+def test_launch_script_with_gym_multi_simulator_and_vectorized_envs():
+    """``-n`` and ``-e`` compose: 2 simulators x 3 envs = 6 parallel envs."""
+    args = Sb3TrainScriptSettings(
+        environment_settings=Sb3EnvironmentSettings(
+            simulator_settings=GymSimulatorConfig(
+                env_id="CartPole-v1",
+                num_simulators=2,
+                num_environments=3,
+            ),
+        ),
+        algorithm_settings=PPOTrainSettings(
+            n_steps=64,
+            batch_size=32,
+        ),
+        training_settings=Sb3TrainingSettings(
+            timesteps=128,
+            disable_eval=True,
+        ),
+    )
+    main(args)
 
 
 def test_sac_with_executable_simulator(mock_app, mock_main, tmp_path):

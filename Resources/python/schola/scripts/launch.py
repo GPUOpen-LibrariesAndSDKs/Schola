@@ -64,6 +64,10 @@ from schola.scripts.utils.build_docs import app as build_docs_app
 
 app.command(build_docs_app, name="build-docs")
 
+from schola.scripts.env import env_utils_app
+
+app.command(env_utils_app, name="env")
+
 # app["compile-proto"].group = "Utilities"
 app["--version"].group = "Utilities"
 app["--help"].group = "Utilities"

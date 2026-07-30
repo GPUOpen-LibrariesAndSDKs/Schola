@@ -15,7 +15,7 @@ import pytest
 from cyclopts import App
 from stable_baselines3.common.callbacks import CheckpointCallback
 
-from schola.scripts.common.settings import GrpcProtocolConfig
+from schola.scripts.common.settings import GrpcProtocolConfig, GymSimulatorConfig
 from schola.scripts.sb3.settings import Sb3EnvironmentSettings
 from schola.scripts.sb3.train.settings import (
     PPOTrainSettings,
@@ -191,7 +191,6 @@ def test_warn_if_small_image_nested_dict():
     with patch("schola.scripts.sb3.train.train.print_error") as mock_err:
         warn_if_small_image_observation(obs, threshold=64)
         mock_err.assert_called_once()
-
 
 @patch(
     "stable_baselines3.common.vec_env.vec_monitor.VecMonitor", side_effect=lambda e: e

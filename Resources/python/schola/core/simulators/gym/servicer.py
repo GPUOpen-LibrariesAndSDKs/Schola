@@ -1,6 +1,6 @@
 # Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
 
-"""gRPC servicers exposing Gymnasium vector environments for Schola tests."""
+"""gRPC servicers exposing Gymnasium environments for Schola."""
 
 import functools
 from typing import Callable, List, Optional
@@ -33,13 +33,27 @@ def capture_traceback(func):
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except Exception as e:
+        except Exception:
             raise Exception(traceback.format_exc())
 
     return wrapper
 
 
-def wrap(env, wrappers: Optional[list] = None):
+def _info_as_str_map(info: dict[str, object] | None) -> dict[str, str]:
+    return {k: str(v) for k, v in (info or {}).items()}
+
+
+def _seed_from_proto(env_settings: EnvironmentSettings) -> int | None:
+    """
+    Return a Gymnasium reset seed from protobuf environment settings. If no seed is provided, return None.
+    """
+    return env_settings.seed if env_settings.HasField("seed") else None
+
+
+def wrap(
+    env: gym.Env | Callable[..., gym.Env],
+    wrappers: list[type[gym.Wrapper]] | None = None,
+) -> gym.Env:
     if not isinstance(env, gym.Env):
         env = env()
     if wrappers:
@@ -48,21 +62,12 @@ def wrap(env, wrappers: Optional[list] = None):
     return env
 
 
-class ClosedReceivedException(Exception):
-    def __init__(self):
-        pass
-
-
-class ErrorReceivedException(Exception):
-
-    def __init__(self):
-        pass
-
-
 class GymToGymServiceServicer(GymServiceServicer):
 
     def __init__(
-        self, env_id: str | Callable[..., gym.Env], wrappers: Optional[list] = None
+        self,
+        env_id: str | Callable[..., gym.Env],
+        wrappers: list[type[gym.Wrapper]] | None = None,
     ):
         if isinstance(env_id, str):
             self._env_factory = lambda: gym.make(env_id)
@@ -73,46 +78,86 @@ class GymToGymServiceServicer(GymServiceServicer):
         self._last_reset_info = None
         self._env = None
         self._wrapper_classes = wrappers if wrappers else []
+        self._completed_env = False
+        self._autoreset_type: AutoResetType = AutoResetType.DISABLED
 
     @property
     def env(self) -> gym.Env:
         assert self._env is not None, "Environment not initialized"
         return self._env
 
+    @property
+    def autoreset_type(self) -> AutoResetType:
+        return self._autoreset_type
+
+    def _make_initial_state(
+        self, obs: np.ndarray, info: dict[str, object] | None = None
+    ) -> InitialState:
+        return InitialState(
+            environment_states={
+                0: InitialEnvironmentState(
+                    agent_states={
+                        self._agent_id: InitialAgentState(
+                            observations=make_generic(
+                                to_proto(
+                                    self.env.observation_space,
+                                    obs,
+                                )
+                            ),
+                            info=_info_as_str_map(info),
+                        )
+                    }
+                )
+            }
+        )
+
     @capture_traceback
     def UpdateState(self, request: StateUpdate, context) -> State:
         msg_type = request.WhichOneof("update")
         if msg_type == "reset":
-            seed = request.reset.environments[0].seed
-            options = request.reset.environments[0].options
+            env_settings = request.reset.environments[0]
+            seed = _seed_from_proto(env_settings)
+            options = env_settings.options
             self._last_reset_obs, self._last_reset_info = self.env.reset(
                 seed=seed, options=dict(options.items())
             )
+            self._completed_env = False
             response = State(
-                initial_state=InitialState(
-                    environment_states={
-                        0: InitialEnvironmentState(
-                            agent_states={
-                                self._agent_id: InitialAgentState(
-                                    observations=make_generic(
-                                        to_proto(
-                                            self.env.observation_space,
-                                            self._last_reset_obs,
-                                        )
-                                    ),
-                                    info=self._last_reset_info,
-                                )
-                            }
-                        )
-                    }
+                initial_state=self._make_initial_state(
+                    self._last_reset_obs, self._last_reset_info
                 )
             )
             return response
 
         elif msg_type == "step":
             action = from_proto(request.step.environments[0].updates[self._agent_id])
-            obs, reward, terminated, truncated, info = self.env.step(action)
-            return State(
+
+            initial_state: InitialState | None = None
+
+            if self._autoreset_type == AutoResetType.NEXT_STEP:
+                if self._completed_env:
+                    obs, info = self.env.reset()
+                    reward = 0.0
+                    terminated = False
+                    truncated = False
+                else:
+                    obs, reward, terminated, truncated, info = self.env.step(action)
+                    self._completed_env = terminated or truncated
+            elif self._autoreset_type == AutoResetType.DISABLED:
+                assert (
+                    not self._completed_env
+                ), "Attempted to step an environment that is already terminated or truncated"
+                obs, reward, terminated, truncated, info = self.env.step(action)
+                self._completed_env = terminated or truncated
+            elif self._autoreset_type == AutoResetType.SAME_STEP:
+                obs, reward, terminated, truncated, info = self.env.step(action)
+                if terminated or truncated:
+                    initial_obs, initial_info = self.env.reset()
+                    initial_state = self._make_initial_state(initial_obs, initial_info)
+            else:
+                raise ValueError(f"Unexpected autoreset type: {self._autoreset_type}")
+
+            response = State(
                 training_state=TrainingState(
                     environment_states=[
                         EnvironmentState(
@@ -121,20 +166,21 @@ class GymToGymServiceServicer(GymServiceServicer):
                                     observations=make_generic(
                                         to_proto(self.env.observation_space, obs)
                                     ),
-                                    reward=reward,
+                                    reward=float(reward),
                                     terminated=terminated,
                                     truncated=truncated,
-                                    info=info,
+                                    info=_info_as_str_map(info),
                                 )
                             }
                         )
                     ]
-                )
+                ),
+                initial_state=initial_state,
             )
-        elif request.status == CLOSED:
-            return State()
-        elif request.status == ERROR:
-            return State()
+
+            return response
+        elif request.status == CLOSED or request.status == ERROR:
+            return State()  # send an empty message to close out pending communication
         else:
             raise ValueError("Invalid update message")
 
@@ -145,23 +191,7 @@ class GymToGymServiceServicer(GymServiceServicer):
         assert (
             self._last_reset_obs is not None
         ), "RequestInitialTrainingState requires a prior UpdateState(reset); last reset observation is unset."
-        return InitialState(
-            environment_states={
-                0: InitialEnvironmentState(
-                    agent_states={
-                        self._agent_id: InitialAgentState(
-                            observations=make_generic(
-                                to_proto(
-                                    self.env.observation_space,
-                                    self._last_reset_obs,
-                                )
-                            ),
-                            info=self._last_reset_info,
-                        )
-                    }
-                )
-            }
-        )
+        return self._make_initial_state(self._last_reset_obs, self._last_reset_info)
 
     @capture_traceback
     def RequestTrainingDefinition(
@@ -176,7 +206,7 @@ class GymToGymServiceServicer(GymServiceServicer):
                                 space_to_proto(self.env.observation_space)
                             ),
                             action_space=make_generic(
-                                space_to_proto(self._env.action_space)
+                                space_to_proto(self.env.action_space)
                             ),
                         )
                     }
@@ -189,6 +219,7 @@ class GymToGymServiceServicer(GymServiceServicer):
         self, request: GymConnectorStartRequest, context
     ) -> GymConnectorStartResponse:
         self._env = wrap(self._env_factory(), self._wrapper_classes)
+        self._autoreset_type = request.autoreset_type
         return GymConnectorStartResponse()
 
     def __del__(self):
@@ -213,28 +244,35 @@ class VecGymToGymServiceServicer(GymServiceServicer):
         self._last_reset_info = None
         self._envs: Optional[List[gym.Env]] = None
         self._wrapper_classes = wrappers if wrappers else []
-        self._autoreset_envs = np.array(
+        self._completed_envs = np.array(
             [False for _ in range(self._n_envs)], dtype=np.bool_
         )
+        self._autoreset_type: AutoResetType | None = None
 
     @property
     def envs(self) -> List[gym.Env]:
         assert self._envs is not None, "Environments not initialized"
         return self._envs
 
+    @property
+    def autoreset_type(self) -> AutoResetType:
+        assert self._autoreset_type is not None, "Autoreset mode not set"
+        return self._autoreset_type
+
     @capture_traceback
     def UpdateState(self, request: StateUpdate, context) -> State:
         msg_type = request.WhichOneof("update")
         if msg_type == "reset":
 
+            # create an empty initial state and then mutate it with the requisite data
             initial_state = InitialState()
             obs = [None for _ in range(self._n_envs)]
             rewards = [0.0 for _ in range(self._n_envs)]
 
             for i in range(self._n_envs):
-                # TODO add missing seed handling here
-                seed = request.reset.environments[i].seed
-                options = request.reset.environments[i].options
+                env_settings = request.reset.environments[i]
+                seed = _seed_from_proto(env_settings)
+                options = env_settings.options
                 obs, info = self.envs[i].reset(seed=seed, options=dict(options.items()))
 
                 initial_agent_state: InitialAgentState = (
@@ -245,9 +283,7 @@ class VecGymToGymServiceServicer(GymServiceServicer):
                     initial_agent_state.observations,
                 )
 
-                initial_agent_state.info.update(
-                    ((k, str(v)) for k, v in options.items())
-                )
+                initial_agent_state.info.update(_info_as_str_map(info))
 
             return State(initial_state=initial_state)
 
@@ -274,8 +310,8 @@ class VecGymToGymServiceServicer(GymServiceServicer):
 
             for i, action in enumerate(actions):
                 # adapted from Gymnasium SyncVectorEnv Step function
-                if self.autoreset_mode == AutoResetType.NEXT_STEP:
-                    if self._autoreset_envs[i]:
+                if self._autoreset_type == AutoResetType.NEXT_STEP:
+                    if self._completed_envs[i]:
                         obs[i], infos[i] = self.envs[i].reset()
                         rewards[i] = 0.0
                         terminations[i] = False
@@ -283,34 +319,38 @@ class VecGymToGymServiceServicer(GymServiceServicer):
                     else:
                         (
                             obs[i],
-                            rewards[i],
+                            temp_reward,
                             terminations[i],
                             truncations[i],
                             infos[i],
                         ) = self.envs[i].step(actions[i][self._agent_id])
-                elif self.autoreset_mode == AutoResetType.DISABLED:
+                        rewards[i] = float(temp_reward)
+                elif self._autoreset_type == AutoResetType.DISABLED:
                     # assumes that the user has correctly autoreset
-                    assert not self._autoreset_envs[i], f"{self._autoreset_envs}"
+                    assert not self._completed_envs[
+                        i
+                    ], f"Attempted to step an environment that is already terminated or truncated: {self._completed_envs[i]}"
                     (
                         obs[i],
-                        rewards[i],
+                        temp_reward,
                         terminations[i],
                         truncations[i],
                         infos[i],
                     ) = self.envs[i].step(actions[i][self._agent_id])
-                elif self.autoreset_mode == AutoResetType.SAME_STEP:
+                    rewards[i] = float(temp_reward)
+                elif self._autoreset_type == AutoResetType.SAME_STEP:
                     (
                         obs[i],
-                        rewards[i],
+                        temp_reward,
                         terminations[i],
                         truncations[i],
                         infos[i],
                     ) = self.envs[i].step(actions[i][self._agent_id])
-
+                    rewards[i] = float(temp_reward)
                     if terminations[i] or truncations[i]:
                         initial_obs[i], initial_infos[i] = self.envs[i].reset()
 
-            self._autoreset_envs = np.logical_or(terminations, truncations)
+            self._completed_envs = np.logical_or(terminations, truncations)
 
             # complete the output message to the client
             output_state = State()
@@ -327,7 +367,7 @@ class VecGymToGymServiceServicer(GymServiceServicer):
                     agent_state.observations,
                 )
 
-                agent_state.info.update(((k, str(v)) for k, v in infos[i].items()))
+                agent_state.info.update(_info_as_str_map(infos[i]))
                 agent_state.reward = rewards[i]
                 agent_state.terminated = terminations[i]
                 agent_state.truncated = truncations[i]
@@ -341,9 +381,7 @@ class VecGymToGymServiceServicer(GymServiceServicer):
                         to_proto(self.envs[0].observation_space, initial_obs[i]),
                         initial_agent_state.observations,
                     )
-                    initial_agent_state.info.update(
-                        ((k, str(v)) for k, v in initial_infos[i].items())
-                    )
+                    initial_agent_state.info.update(_info_as_str_map(initial_infos[i]))
 
             return output_state
 
@@ -365,10 +403,8 @@ class VecGymToGymServiceServicer(GymServiceServicer):
         self, request: TrainingDefinitionRequest, context
     ) -> TrainingDefinition:
 
-        env_defn_list = [None for _ in range(self._n_envs)]
-
-        for i in range(self._n_envs):
-            env_defn_list[i] = EnvironmentDefinition(
+        env_defn_list: list[EnvironmentDefinition] = [
+            EnvironmentDefinition(
                 agent_definitions={
                     self._agent_id: AgentDefinition(
                         obs_space=make_generic(
@@ -380,6 +416,9 @@ class VecGymToGymServiceServicer(GymServiceServicer):
                     )
                 }
             )
+            for _ in range(self._n_envs)
+        ]
+
         return TrainingDefinition(environment_definitions=env_defn_list)
 
     @capture_traceback
@@ -387,7 +426,7 @@ class VecGymToGymServiceServicer(GymServiceServicer):
         self, request: GymConnectorStartRequest, context
     ) -> GymConnectorStartResponse:
         self._envs = [x() for x in self._env_factory]
-        self.autoreset_mode = request.autoreset_type
+        self._autoreset_type = request.autoreset_type
         return GymConnectorStartResponse()
 
     def __del__(self):

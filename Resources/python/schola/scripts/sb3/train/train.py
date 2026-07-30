@@ -20,6 +20,7 @@ from typing import (
 
 from schola.scripts.common.settings import (
     ExternalSimulatorConfig,
+    GymSimulatorConfig,
     get_activation_function,
 )
 from schola.scripts.common.command_template import ScholaCommandTemplate

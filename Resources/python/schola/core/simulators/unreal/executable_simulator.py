@@ -118,7 +118,7 @@ class UnrealExecutable(BaseUnrealSimulator):
         """
         return [UnrealExecutable(**self.get_spawn_args()) for _ in range(count)]
 
-    def get_simulator_args(self) -> dict[str, Any]:
+    def _get_executable_arg_dict(self, validate_path: bool = False) -> dict[str, Any]:
         return {
             "executable_path": self.executable_path,
             "headless_mode": self.headless_mode,
@@ -127,14 +127,16 @@ class UnrealExecutable(BaseUnrealSimulator):
             "set_fps": self.set_fps,
             "disable_script": self.disable_script,
             "extra_args": self.extra_args.copy() if self.extra_args else None,
-            "validate_path": self.validate_path,
+            "validate_path": validate_path,
         }
 
+    def get_simulator_args(self) -> dict[str, Any]:
+        """Return a dictionary of arguments used to create a new instance of this simulator via constructor."""
+        return self._get_executable_arg_dict(validate_path=self.validate_path)
+
     def get_spawn_args(self) -> dict[str, Any]:
-        """Return a dictionary of arguments used to create a new instance of this simulator."""
-        args = self.get_simulator_args()
-        args["validate_path"] = False
-        return args
+        """Return a dictionary of arguments used when spawning a new instance of this simulator via the spawn() method."""
+        return self._get_executable_arg_dict(validate_path=False)
 
     def make_args(self) -> list[str]:
         """

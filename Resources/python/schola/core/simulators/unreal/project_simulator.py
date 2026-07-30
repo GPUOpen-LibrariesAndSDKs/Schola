@@ -69,12 +69,12 @@ def resolve_build_arguments(
     ubt_path = Path(ubt_path).resolve() if ubt_path is not None else None
 
     if ubt_path is None:
-        ue_version = get_ue_version(uproject_path)
+        ue_version = get_ue_version(uproject_file)
         if ue_version is None:
             raise ValueError(
                 "Could not determine Unreal Engine version from .uproject file"
             )
-        project_folder = uproject_path.parent
+        project_folder = uproject_file.parent
         ubt_path = get_ubt_path(project_folder, ue_version)
 
     if ubt_path is None:

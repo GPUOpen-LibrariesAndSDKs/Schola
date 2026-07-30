@@ -5,7 +5,7 @@
 from concurrent import futures
 
 
-class SharedThreadPool(futures.ThreadPoolExecutor):
+class SharedThreadPoolExecutor(futures.ThreadPoolExecutor):
     """
     Executor that shares one underlying thread pool across multiple owners.
 
@@ -23,7 +23,7 @@ class SharedThreadPool(futures.ThreadPoolExecutor):
         super().__init__(*args, **kwargs)
         self._refs = 0
 
-    def share(self) -> "SharedThreadPool":
+    def share(self) -> "SharedThreadPoolExecutor":
         """
         Acquire a reference to this shared pool.
 
@@ -47,8 +47,6 @@ class SharedThreadPool(futures.ThreadPoolExecutor):
         The underlying :class:`~concurrent.futures.ThreadPoolExecutor` is shut
         down only when the reference count reaches zero.
         """
-        if self._refs <= 0:
-            return
         self._refs -= 1
-        if self._refs == 0:
+        if self._refs <= 0:
             super().shutdown(wait=wait, cancel_futures=cancel_futures)

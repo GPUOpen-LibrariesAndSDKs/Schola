@@ -18,7 +18,7 @@ from schola.core.simulators.gym.servicer import (
     GymToGymServiceServicer,
     VecGymToGymServiceServicer,
 )
-from schola.core.utils.shared_thread_pool import SharedThreadPool
+from schola.core.utils.shared_thread_pool_executor import SharedThreadPoolExecutor
 import schola.generated.GymConnector_pb2_grpc as gym_grpc
 
 logger = logging.getLogger(__name__)
@@ -53,7 +53,7 @@ class GymSimulator(BaseSimulator):
         env_id: str,
         num_envs: int = 1,
         wrappers: list[type[gym.Wrapper]] | None = None,
-        thread_pool: SharedThreadPool | None = None,
+        thread_pool: SharedThreadPoolExecutor | None = None,
     ):
         if num_envs < 1:
             raise ValueError(f"num_envs must be >= 1, got {num_envs}")
@@ -87,7 +87,7 @@ class GymSimulator(BaseSimulator):
         Return additional GymSimulator instances that share launch settings.
 
         If this instance has no thread pool yet, a shared
-        :class:`~schola.core.utils.shared_thread_pool.SharedThreadPool` is
+        :class:`~schola.core.utils.shared_thread_pool_executor.SharedThreadPool` is
         created and assigned to this instance and every spawned clone. If a pool
         is already set, a new pool is created and distributed across the new instances.
 
@@ -110,7 +110,7 @@ class GymSimulator(BaseSimulator):
             total_workers = self.num_envs * (count + 1)
         else:
             total_workers = self.num_envs * (count)
-        thread_pool: SharedThreadPool = SharedThreadPool(max_workers=total_workers)
+        thread_pool: SharedThreadPoolExecutor = SharedThreadPoolExecutor(max_workers=total_workers)
 
         if self._thread_pool is None:
             self._thread_pool = thread_pool.share()
@@ -145,7 +145,7 @@ class GymSimulator(BaseSimulator):
             servicer = VecGymToGymServiceServicer(env_factories, self._wrappers)
 
         if self._thread_pool is None:
-            self._thread_pool = SharedThreadPool(max_workers=self.num_envs).share()
+            self._thread_pool = SharedThreadPoolExecutor(max_workers=self.num_envs).share()
 
         server = grpc.server(self._thread_pool, options=_GRPC_OPTIONS)  # type: ignore[arg-type]
         gym_grpc.add_GymServiceServicer_to_server(servicer, server)

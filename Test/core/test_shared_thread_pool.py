@@ -5,11 +5,11 @@
 import time
 from concurrent import futures
 
-from schola.core.utils.shared_thread_pool import SharedThreadPool
+from schola.core.utils.shared_thread_pool_executor import SharedThreadPoolExecutor
 
 
 def test_shutdown_only_after_last_reference_released():
-    pool = SharedThreadPool(max_workers=2)
+    pool = SharedThreadPoolExecutor(max_workers=2)
     pool.share()
     pool.share()
 
@@ -26,7 +26,7 @@ def test_shutdown_only_after_last_reference_released():
 
 
 def test_submit_delegates_to_underlying_executor():
-    pool = SharedThreadPool(max_workers=1).share()
+    pool = SharedThreadPoolExecutor(max_workers=1).share()
 
     future = pool.submit(lambda x: x + 1, 41)
     assert future.result(timeout=1) == 42
@@ -35,6 +35,6 @@ def test_submit_delegates_to_underlying_executor():
 
 
 def test_shutdown_without_share_is_noop():
-    pool = SharedThreadPool(max_workers=1)
+    pool = SharedThreadPoolExecutor(max_workers=1)
     pool.shutdown(wait=True)
     assert pool.ref_count == 0

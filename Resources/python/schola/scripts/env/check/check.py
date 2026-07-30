@@ -49,7 +49,6 @@ def main(args: EnvCheckScriptSettings) -> None:
                     "using a single simulator.",
                     sim_args.num_simulators,
                 )
-                sim_args = replace(sim_args, num_simulators=1)
 
             protocol_args = args.environment_settings.protocol_settings
             

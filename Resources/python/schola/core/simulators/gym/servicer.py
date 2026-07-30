@@ -381,9 +381,7 @@ class VecGymToGymServiceServicer(GymServiceServicer):
                         to_proto(self.envs[0].observation_space, initial_obs[i]),
                         initial_agent_state.observations,
                     )
-                    initial_agent_state.info.update(
-                        _info_as_str_map(initial_infos[i])
-                    )
+                    initial_agent_state.info.update(_info_as_str_map(initial_infos[i]))
 
             return output_state
 

@@ -1,7 +1,7 @@
 # Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
 """Bridge Schola imitation protocols to Minari's :class:`minari.DataCollector` API."""
 
-from typing import Any, Optional, SupportsFloat
+from typing import Any, SupportsFloat
 
 import gymnasium as gym
 from minari import DataCollector

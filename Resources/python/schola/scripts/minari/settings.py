@@ -7,7 +7,7 @@ Cyclopts dataclasses for Minari dataset collection with Schola.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Annotated, Optional
+from typing import TYPE_CHECKING, Annotated
 from dataclasses import dataclass, field
 from pathlib import Path
 from cyclopts import Parameter, validators
@@ -18,7 +18,6 @@ from schola.scripts.common.settings import (
     ExternalSimulatorConfig,
     IgnoreParameter,
 )
-
 
 @dataclass
 class MinariCollectionSettings:
@@ -65,7 +64,6 @@ class MinariCollectionSettings:
         if self.data_path and not self.data_path.exists():
             self.data_path.mkdir(parents=True, exist_ok=True)
 
-
 @dataclass
 class MinariLoggingSettings:
     """
@@ -77,7 +75,6 @@ class MinariLoggingSettings:
     ] = 0
     "Verbosity level for Schola-specific logging. This controls the level of detail in the output from Schola-related components during data collection."
 
-
 @dataclass
 class MinariEnvironmentSettings(EnvironmentSettings[AllSimulatorConfigs]):
     """
@@ -88,7 +85,6 @@ class MinariEnvironmentSettings(EnvironmentSettings[AllSimulatorConfigs]):
         AllSimulatorConfigs,
         IgnoreParameter,
     ] = field(default_factory=ExternalSimulatorConfig)
-
 
 @dataclass
 class MinariScriptSettings:
@@ -110,7 +106,6 @@ class MinariScriptSettings:
         MinariEnvironmentSettings, Parameter(group="Environment Arguments", name="*")
     ] = field(default_factory=MinariEnvironmentSettings)
     "Settings for configuring the environment."
-
 
 # Deprecated: use *Settings names. Kept for external isinstance / imports.
 MinariScriptArgs = MinariScriptSettings

@@ -5,7 +5,7 @@ Cyclopts dataclasses for evaluating a saved SB3 policy with Schola.
 """
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Annotated, Optional, Union
+from typing import TYPE_CHECKING, Annotated
 from pathlib import Path
 from cyclopts import Parameter, validators
 from schola.scripts.common.settings import (
@@ -17,7 +17,6 @@ from schola.scripts.common.settings import (
 from schola.scripts.sb3.settings import Sb3BaseLoggingSettings, Sb3EnvironmentSettings
 from schola.scripts.sb3.settings import BasePPOSettings, BaseSACSettings
 
-
 @dataclass
 class Sb3EvalScriptSettings:
     """
@@ -25,7 +24,7 @@ class Sb3EvalScriptSettings:
     """
 
     checkpoint: Annotated[
-        Optional[Path],
+        Path | None,
         Parameter(
             group="Evaluation Arguments",
             validator=validators.Path(exists=True, file_okay=True, dir_okay=False),
@@ -44,7 +43,7 @@ class Sb3EvalScriptSettings:
     "If True, the policy mean (or mode) is used; if False, stochastic actions are sampled."
 
     vecnormalize: Annotated[
-        Optional[Path],
+        Path | None,
         Parameter(
             group="Evaluation Arguments",
             validator=validators.Path(exists=True, file_okay=True, dir_okay=False),
@@ -63,6 +62,6 @@ class Sb3EvalScriptSettings:
     "How to launch or attach to the Unreal simulator and gRPC protocol for the environment."
 
     algorithm_settings: Annotated[
-        Union[BasePPOSettings, BaseSACSettings], IgnoreParameter
+        BasePPOSettings | BaseSACSettings, IgnoreParameter
     ] = field(default_factory=BasePPOSettings)
     "The algorithm used to train the checkpoint that is being evaluated."

@@ -12,7 +12,7 @@ import os
 import logging
 from os.path import isfile, join
 import re
-from typing import Annotated, Any, List, Optional
+from typing import Annotated, Any
 
 # Logging setup
 if not logging.getLogger().handlers:
@@ -21,7 +21,6 @@ if not logging.getLogger().handlers:
         format="%(levelname)s %(name)s: %(message)s",
     )
 logger = logging.getLogger(__name__)
-
 
 def get_files(folder):
     """
@@ -41,7 +40,6 @@ def get_files(folder):
         file_name for file_name in os.listdir(folder) if isfile(join(folder, file_name))
     )
 
-
 def get_proto_files(folder):
     """
     List ``*.proto`` files in a directory.
@@ -59,7 +57,6 @@ def get_proto_files(folder):
     return [
         file_name for file_name in get_files(folder) if file_name.endswith(".proto")
     ]
-
 
 def remove_stale_generated_files(
     folder: Path, expected_files: set[str], suffixes: tuple[str, ...]
@@ -82,8 +79,7 @@ def remove_stale_generated_files(
             logger.info("Removing stale generated file %s", stale_file)
             stale_file.unlink()
 
-
-def get_expected_generated_files(proto_files: List[str], add_type_stubs: bool):
+def get_expected_generated_files(proto_files: list[str], add_type_stubs: bool):
     """
     Compute expected generated basenames for the current ``.proto`` set.
 
@@ -121,7 +117,6 @@ def get_expected_generated_files(proto_files: List[str], add_type_stubs: bool):
 
     return cpp_private, cpp_public, python_files
 
-
 def get_generated_cpp_file_types(folder):
     """
     Classify generated C++ protobuf / gRPC outputs in a folder.
@@ -157,7 +152,6 @@ def get_generated_cpp_file_types(folder):
             output["proto-header"].append(file_name)
     return output
 
-
 def get_generated_python_file_types(folder):
     """
     Classify generated Python ``_pb2`` and ``_pb2_grpc`` modules.
@@ -186,7 +180,6 @@ def get_generated_python_file_types(folder):
 
     return output
 
-
 def fix_imports(folder):
     """
     Rewrite plain protobuf imports to ``schola.generated`` package paths.
@@ -210,7 +203,6 @@ def fix_imports(folder):
             f.seek(0)
             f.writelines(file_contents)
             f.truncate()
-
 
 def disable_warnings(folder, file_paths, warnings):
     """
@@ -250,7 +242,6 @@ def disable_warnings(folder, file_paths, warnings):
             f.seek(0)
             f.writelines(file_contents)
             f.truncate()
-
 
 def add_api_macro(folder, file_paths, api_macro):
     """
@@ -301,8 +292,7 @@ def add_api_macro(folder, file_paths, api_macro):
                     file_path,
                 )
 
-
-def ensure_ue_verify_macro_sandbox(file_contents: List[str]) -> bool:
+def ensure_ue_verify_macro_sandbox(file_contents: list[str]) -> bool:
     """
     UE defines ``verify`` as a macro; Abseil's btree containers use a member
     named ``verify``. Sandboxing restores correct parsing for protobuf/gRPC includes.
@@ -346,10 +336,9 @@ def ensure_ue_verify_macro_sandbox(file_contents: List[str]) -> bool:
         i += 1
     return modified
 
-
 def add_third_party_include_guards(
     folder: Path,
-    file_paths: List[str],
+    file_paths: list[str],
     include_prefix: str,
     port_def_include: str,
     port_undef_include: str,
@@ -470,8 +459,7 @@ def add_third_party_include_guards(
                 f.writelines(file_contents)
                 f.truncate()
 
-
-def move_files(src_folder: Path, files: List[str], target_folder: Path):
+def move_files(src_folder: Path, files: list[str], target_folder: Path):
     """
     Move a list of files from ``src_folder`` into ``target_folder``.
 
@@ -512,13 +500,12 @@ def move_files(src_folder: Path, files: List[str], target_folder: Path):
             except Exception as e:
                 logger.error("Failed to move %s -> %s: %s", src, dest, e)
 
-
 def make_proto_files(
     protoc_path,
     proto_folder,
     python_folder,
     cpp_folder,
-    proto_files: List[str],
+    proto_files: list[str],
     add_type_stubs=False,
     cpp_output_options="",
 ):
@@ -552,13 +539,12 @@ def make_proto_files(
     for file in proto_files:
         subprocess.run([protoc_path] + args + [join(proto_folder, file)], check=True)
 
-
 def make_grpc_files(
     protoc_path,
     proto_folder,
     plugin_path,
     target_folder,
-    proto_files: List[str],
+    proto_files: list[str],
     output_options="",
 ):
     """
@@ -588,11 +574,9 @@ def make_grpc_files(
             [protoc_path, I_arg, grpc_out, plugin, join(proto_folder, file)], check=True
         )
 
-
 from cyclopts import App, Parameter
 
 app = App(name="compile-proto", help="Compile Schola Protobuf files to python/c++!")
-
 
 def default_warnings(value: Any):
     """
@@ -610,12 +594,11 @@ def default_warnings(value: Any):
     """
     return ["4073", "4125", "4800"]
 
-
 @app.default
 def main(
     plugin_folder: Path = Path("."),
     warnings_to_disable: Annotated[
-        Optional[List[str]], Parameter(show_default=default_warnings)
+        list[str] | None, Parameter(show_default=default_warnings)
     ] = None,
     add_type_stubs: bool = True,
 ):
@@ -753,7 +736,6 @@ def main(
 
     # generated code doesn't import correctly so we need to prepend Schola.generated._____
     fix_imports(python_code_folder)
-
 
 if __name__ == "__main__":
     app()

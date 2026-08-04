@@ -15,7 +15,7 @@ def get_plugins(group_name: str) -> list[object]:
 
     Returns
     -------
-    List
+    list[object]
         A list of loaded plugin objects for the specified group name.
     """
     from importlib.metadata import entry_points

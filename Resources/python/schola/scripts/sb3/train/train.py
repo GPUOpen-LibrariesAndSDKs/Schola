@@ -8,16 +8,7 @@ from dataclasses import asdict
 import os
 import logging
 import signal
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Optional,
-    Tuple,
-    Type,
-    cast,
-)
-
+from typing import Any, Callable, cast
 
 from schola.scripts.common.settings import (
     ExternalSimulatorConfig,
@@ -41,7 +32,6 @@ if not logging.getLogger().handlers:
     )
 
 logger = logging.getLogger(__name__)
-
 
 def warn_if_small_image_observation(observation_space, threshold: int = 64):
     """Issue a panel warning if any Box observation that looks image-like has
@@ -81,8 +71,7 @@ def warn_if_small_image_observation(observation_space, threshold: int = 64):
             )
             break
 
-
-def main(args: Sb3TrainScriptSettings) -> Optional[Tuple[float, float]]:
+def main(args: Sb3TrainScriptSettings) -> (tuple[float, float]) | None:
     """
     Main function for training a Stable Baselines3 model using Schola.
 
@@ -93,7 +82,7 @@ def main(args: Sb3TrainScriptSettings) -> Optional[Tuple[float, float]]:
 
     Returns
     -------
-    Optional[Tuple[float,float]]
+    tuple[float, float] | None
         The mean and standard deviation of the rewards if evaluation is enabled, otherwise None.
     """
 
@@ -137,7 +126,7 @@ def main(args: Sb3TrainScriptSettings) -> Optional[Tuple[float, float]]:
 
     # initialize so we can force closure at the end
     env = None
-    model: Optional[BaseAlgorithm] = None
+    model: BaseAlgorithm | None = None
     try:
         # This context manager redirects GRPC errors into custom error types to help debug
         with ScholaErrorContextManager() as err_ctxt:
@@ -195,7 +184,7 @@ def main(args: Sb3TrainScriptSettings) -> Optional[Tuple[float, float]]:
                     )
 
             if not model_loaded:
-                policy_kwargs: Optional[dict[str, Any]] = None
+                policy_kwargs: dict[str, Any] | None = None
                 if (
                     args.network_architecture_settings.activation
                     or args.network_architecture_settings.critic_parameters
@@ -388,9 +377,7 @@ def main(args: Sb3TrainScriptSettings) -> Optional[Tuple[float, float]]:
             env.close()
         raise
 
-
 app = App(name="train", help="Train a model using StableBaselines3")
-
 
 class MetaTrainSB3Command(ScholaCommandTemplate[Sb3TrainScriptSettings]):
     """
@@ -416,12 +403,11 @@ class MetaTrainSB3Command(ScholaCommandTemplate[Sb3TrainScriptSettings]):
         }
 
     @property
-    def script_args_type(self) -> Type[Sb3TrainScriptSettings]:
+    def script_args_type(self) -> type[Sb3TrainScriptSettings]:
         return Sb3TrainScriptSettings
 
     @property
     def main_func(self) -> Callable[[Sb3TrainScriptSettings], Any]:
         return main
-
 
 app = MetaTrainSB3Command(app, logger).make()

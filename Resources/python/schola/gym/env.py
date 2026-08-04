@@ -5,7 +5,8 @@ Implementation of gym.vector.VectorEnv backed by a Schola Environment.
 """
 
 from collections import defaultdict
-from typing import Any, Dict, List, Mapping, SupportsFloat, Tuple, TypeVar, cast
+from collections.abc import Mapping
+from typing import Any, SupportsFloat, TypeVar, cast
 
 from schola.core.protocols.base_protocol import AutoResetType, BaseRLProtocol
 from schola.core.protocols.protobuf.grpc_protocol import coerce_auto_reset_type
@@ -116,7 +117,7 @@ class GymEnv(gym.Env):
 
     def step(
         self, action: Any
-    ) -> Tuple[Any, SupportsFloat, bool, bool, Dict[str, Any]]:
+    ) -> tuple[Any, SupportsFloat, bool, bool, dict[str, Any]]:
         """Take one environment step for the single agent.
 
         Parameters
@@ -145,7 +146,7 @@ class GymEnv(gym.Env):
             rewards[0][self._agent_id],
             terminateds[0][self._agent_id],
             truncateds[0][self._agent_id],
-            cast(Dict[str, Any], nested_infos[0][self._agent_id]),
+            cast(dict[str, Any], nested_infos[0][self._agent_id]),
         )
         return observations, rewards, terminated, truncated, infos
 
@@ -172,7 +173,7 @@ class GymVectorEnv(VectorEnv):
 
     Attributes
     ----------
-    reset_infos : List[Dict[str, Any]]
+    reset_infos : list[dict[str, Any]]
         One ``info`` dict per flattened agent slot (length ``num_envs``), updated on each
         :meth:`reset`. Values are strings from the simulator in typical setups.
         For Gymnasium's batched layout (arrays plus ``_<key>`` masks), use the ``infos``
@@ -210,7 +211,7 @@ class GymVectorEnv(VectorEnv):
 
         self._define_environment()
 
-        self.reset_infos: List[Dict[str, Any]] = [{} for _ in range(self.num_envs)]
+        self.reset_infos: list[dict[str, Any]] = [{} for _ in range(self.num_envs)]
 
         super().__init__()
 
@@ -287,7 +288,7 @@ class GymVectorEnv(VectorEnv):
     def reset(
         self,
         *,
-        seed: List[int] | int | None = None,
+        seed: list[int] | int | None = None,
         options: dict[str, Any] | list[dict[str, Any]] | None = None,
     ) -> tuple[Any, dict[str, Any]]:
         # info values are ``str`` in practice; typed ``Any`` to match Gymnasium
@@ -364,18 +365,18 @@ class GymVectorEnv(VectorEnv):
 
     def unbatch_actions(
         self, actions: Mapping[int, np.ndarray]
-    ) -> Mapping[int, Dict[str, Dict[str, np.ndarray]]]:
+    ) -> Mapping[int, dict[str, dict[str, np.ndarray]]]:
         """
-        Unbatch actions from Dict[ObsID,Batched] to a nested Dict[EnvId,Dict[AgentId,Dict[ObsId,Value]]], effectively moving the env, and agent dimensions into Dictionaries.
+        Unbatch actions from dict[ObsID,Batched] to a nested dict[EnvId,dict[AgentId,dict[ObsId,Value]]], effectively moving the env, and agent dimensions into Dictionaries.
 
         Parameters
         ----------
-        actions : Dict[int,np.ndarray]
+        actions : dict[int,np.ndarray]
             The batched actions to unbatch.
 
         Returns
         -------
-        Dict[int,Dict[int,Dict[str,np.ndarray]]]
+        dict[int,dict[int,dict[str,np.ndarray]]]
             The unbatched actions.
         """
         # To prevent issues with non-iterable spaces we use the regular action space if num_envs ==1
@@ -383,8 +384,8 @@ class GymVectorEnv(VectorEnv):
         return self.id_manager.nest_list_to_dict_of_dicts([value for value in it])
 
     def step(
-        self, actions: Dict[int, np.ndarray]
-    ) -> Tuple[Any, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
+        self, actions: dict[int, np.ndarray]
+    ) -> tuple[Any, np.ndarray, np.ndarray, np.ndarray, dict[str, Any]]:
         unbatched_actions = self.unbatch_actions(actions)
         (
             observations,

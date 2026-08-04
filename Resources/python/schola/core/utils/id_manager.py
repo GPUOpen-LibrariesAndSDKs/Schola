@@ -52,7 +52,7 @@ class IdManager:
 
     Parameters
     ----------
-    ids : List[List[int]]
+    ids : list[list[int]]
         A nested list of lists of ids to manage, index in the list is first id, second id is stored in the second list.
     agent_types : dict or list of dict, optional
             Optional per-agent type metadata, either ``{env_id: {agent_id: type}}``
@@ -60,7 +60,7 @@ class IdManager:
 
     Attributes
     ----------
-    ids : List[List[int]]
+    ids : list[list[int]]
         The nested list of lists of ids to manage.
 
     """
@@ -208,7 +208,7 @@ class IdManager:
 
         Returns
         -------
-        dict[int, dict[int, T]]
+        dict[int, dict[str, T]]
             A nested dictionary of the values in `id_list` or `default` if values are missing.
         """
         output_dict = {
@@ -248,21 +248,21 @@ class IdManager:
 
         Parameters
         ----------
-        key : Union[int, Tuple[int,int]]
+        key : int | tuple[int, str]
             The key to convert.
 
         Returns
         -------
-        Union[Tuple[int,int], int]
+        tuple[int, str] | int
             The converted key.
 
         Raises
         ------
         NotImplementedError
-            If the key is not of type int or Tuple[int,int].
+            If the key is not of type int or tuple[int, str].
         """
         raise NotImplementedError(
-            "get item not supported for keys that aren't int or Tuple[int,int]"
+            "get item not supported for keys that aren't int or tuple[int, str]"
         )
 
     @__getitem__.register # type: ignore
@@ -286,7 +286,7 @@ class IdManager:
 
         Returns
         -------
-        Tuple[int,int]
+        tuple[int, str]
             The nested id.
         """
         return self.id_list[flat_id]
@@ -299,7 +299,7 @@ class IdManager:
         ----------
         first_id : int
             The first id.
-        second_id : int
+        second_id : str
             The second id.
 
         Returns
@@ -316,7 +316,7 @@ class IdManager:
 
         Returns
         -------
-        List[Tuple[int, str]]
+        list[tuple[int, str]]
             List of nested ids.
         """
         id_list: list[tuple[int, str]] = []
@@ -332,7 +332,7 @@ class IdManager:
 
         Returns
         -------
-        list[dict[int,str]]
+        list[dict[str, int]]
             List of dictionaries mapping nested ids to flattened ids.
         """
         id_map: list[dict[str, int]] = [{} for _ in self.ids]
@@ -354,7 +354,7 @@ class IdManager:
 
         Returns
         -------
-        List[int]
+        list[str]
             The second ids for the given first id.
         """
         return self.ids[first_id]

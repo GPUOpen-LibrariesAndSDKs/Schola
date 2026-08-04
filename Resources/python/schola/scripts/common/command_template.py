@@ -15,9 +15,9 @@ from typing import (
     Generic,
     Iterable,
     NewType,
-    Type,
     TypeVar,
 )
+
 
 from cyclopts import App, ArgumentCollection, Group, Parameter
 import cyclopts
@@ -33,7 +33,6 @@ from schola.scripts.common.settings import (
 )
 
 ScriptArgsType = TypeVar("ScriptArgsType")
-
 
 def load_yaml_file(file_path: Path, logger: logging.Logger) -> dict[str, Any]:
     """
@@ -66,7 +65,6 @@ def load_yaml_file(file_path: Path, logger: logging.Logger) -> dict[str, Any]:
         return {}
     return config_dict
 
-
 class _ScholaConfig(cyclopts.config.Dict):
     """
     Cyclopts dict config source tailored for Schola meta-CLI merging.
@@ -96,7 +94,6 @@ class _ScholaConfig(cyclopts.config.Dict):
             root_keys=self.root_keys,
             allow_unknown=self.allow_unknown,
         )
-
 
 class ScholaCommandTemplate(Generic[ScriptArgsType]):
     """
@@ -156,7 +153,7 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
         return "external"
 
     @property
-    def script_args_type(self) -> Type[ScriptArgsType]:
+    def script_args_type(self) -> type[ScriptArgsType]:
         raise NotImplementedError(
             "script_args_type must be implemented in the subclass"
         )
@@ -165,7 +162,7 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
     def main_func(self) -> Callable[[ScriptArgsType], Any]:
         raise NotImplementedError("main_func must be implemented in the subclass")
 
-    def make_simulator_command(self, simulator_type: Type[BaseSimulatorConfig[Any]]):
+    def make_simulator_command(self, simulator_type: type[BaseSimulatorConfig[Any]]):
         SimulatorType = NewType("SimulatorType", simulator_type)  # type: ignore
         _main_func = self.main_func
         try:
@@ -198,7 +195,7 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
 
             return non_default_simulator_command
 
-    def make_algorithm_command(self, algorithm_app: App, algorithm_type: Type[Any]):
+    def make_algorithm_command(self, algorithm_app: App, algorithm_type: type[Any]):
         AlgorithmType = NewType("AlgorithmType", algorithm_type)  # type: ignore
         _main_func = self.main_func
         _logger = self._logger
@@ -420,7 +417,7 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
             algorithm_app[simulator_name].help = self.simulator_help[simulator_name]
 
     @property
-    def algorithm_table(self) -> dict[str, Type[Any]]:
+    def algorithm_table(self) -> dict[str, type[Any]]:
         raise NotImplementedError("algorithm_table must be implemented in the subclass")
 
     @property

@@ -31,7 +31,7 @@ from gymnasium import spaces
 import copy
 from schola.rllib.env import RayVecEnv
 from torch.export.dynamic_shapes import Dim
-from typing import Any, List, NotRequired, Optional, Set, Tuple, Dict, TypedDict, Union, cast
+from typing import Any, TypedDict, cast
 import logging
 
 from schola.rllib.policy_mapping import PolicyMappingFn
@@ -199,7 +199,7 @@ def _(arg: Algorithm, path: pathlib.Path) -> None:
             "No single environment spaces found on Algorithm while exporting to ONNX. Expected key '__env_single__'"
         )
 
-    obs_space, act_space = cast(Tuple[gym.Space[Any], gym.Space[Any]], arg.spaces["__env_single__"])
+    obs_space, act_space = cast(tuple[gym.Space[Any], gym.Space[Any]], arg.spaces["__env_single__"])
     
     if arg.env_runner is not None:
         module = arg.env_runner.module # type: ignore
@@ -300,7 +300,7 @@ class ScholaRLModule(ScholaModel):
         )
 
     # override the default here because ray outputs extra variance dimensions that we don't need for box spaces
-    def get_logit_dimensions(self) -> Dict[str, int]:
+    def get_logit_dimensions(self) -> dict[str, int]:
         custom_flat_dim_func = lambda space: (
             2 * flatdim(space) if isinstance(space, gym.spaces.Box) else flatdim(space)
         )
@@ -450,7 +450,7 @@ class RllibScholaModel(ScholaModel):
         return dict(
             map(
                 lambda x: (str(x[0]), x[1].unsqueeze(0)),
-                enumerate(cast(List[th.Tensor], self._model.get_initial_state())),
+                enumerate(cast(list[th.Tensor], self._model.get_initial_state())),
             )
         )
 
@@ -466,7 +466,7 @@ class RllibScholaModel(ScholaModel):
             .to_dict()
         )
 
-    def forward(self, *args: th.Tensor) -> Tuple[th.Tensor, ...]:
+    def forward(self, *args: th.Tensor) -> tuple[th.Tensor, ...]:
         """
         Forward pass through the model. Removes variance outputs, to make compatible with Unreal.
         """
@@ -500,7 +500,7 @@ class RllibScholaModel(ScholaModel):
         return self.make_outputs(logits) + state_outputs
 
     # override the default here because ray outputs extra variance dimensions that we don't need for box spaces
-    def get_logit_dimensions(self) -> Dict[str, int]:
+    def get_logit_dimensions(self) -> dict[str, int]:
         custom_flat_dim_func = lambda space: (
             2 * flatdim(space) if isinstance(space, gym.spaces.Box) else flatdim(space)
         )

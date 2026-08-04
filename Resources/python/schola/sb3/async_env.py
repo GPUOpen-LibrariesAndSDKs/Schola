@@ -8,7 +8,7 @@ Supports multiple (simulator, protocol) pairs on one event loop.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Coroutine, Mapping
+from collections.abc import Coroutine, Mapping, Sequence
 import logging
 import sys
 import time
@@ -16,7 +16,7 @@ from collections import defaultdict
 from concurrent.futures import Future
 from copy import deepcopy
 from threading import Thread
-from typing import Any, Dict, List, Optional, Sequence, Tuple, TypeVar, Union, cast
+from typing import Any, TypeVar, cast
 
 import gymnasium as gym
 import numpy as np
@@ -39,22 +39,22 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 def _merge_async_definitions(
-    results: List[
-        Tuple[
-            List[List[str]],
-            List[Dict[str, str]],
-            Dict[int, Dict[str, gym.Space]],
-            Dict[int, Dict[str, gym.Space]],
+    results: list[
+        tuple[
+            list[list[str]],
+            list[dict[str, str]],
+            dict[int, dict[str, gym.Space]],
+            dict[int, dict[str, gym.Space]],
         ]
     ],
-) -> Tuple[
+) -> tuple[
     IdManager,
-    List[Dict[str, str]],
+    list[dict[str, str]],
     gym.Space,
     gym.Space,
-    List[IdManager],
-    List[int],
-    List[int],
+    list[IdManager],
+    list[int],
+    list[int],
 ]:
     """
     Merge per-protocol definitions into global env indices.
@@ -64,13 +64,13 @@ def _merge_async_definitions(
     id_manager, agent_types, obs_space, action_space,
     segment_id_managers, segment_flat_sizes, segment_env_bases
     """
-    merged_ids: List[List[str]] = []
-    merged_agent_types: List[Dict[str, str]] = []
-    merged_obs: Dict[int, Dict[str, gym.Space]] = {}
-    merged_act: Dict[int, Dict[str, gym.Space]] = {}
-    segment_id_managers: List[IdManager] = []
-    segment_flat_sizes: List[int] = []
-    segment_env_bases: List[int] = []
+    merged_ids: list[list[str]] = []
+    merged_agent_types: list[dict[str, str]] = []
+    merged_obs: dict[int, dict[str, gym.Space]] = {}
+    merged_act: dict[int, dict[str, gym.Space]] = {}
+    segment_id_managers: list[IdManager] = []
+    segment_flat_sizes: list[int] = []
+    segment_env_bases: list[int] = []
     env_offset = 0
     for ids, agent_types, obs_defns, action_defns in results:
         segment_env_bases.append(env_offset)
@@ -98,33 +98,33 @@ def _merge_async_definitions(
 
 
 def _merge_step_results(
-    segment_results: List[
-        Tuple[
-            List[Dict[str, Any]],
-            List[Dict[str, Any]],
-            List[Dict[str, bool]],
-            List[Dict[str, bool]],
-            List[Dict[str, Dict[str, str]]],
-            Dict[int, Dict[str, Any]],
+    segment_results: list[
+        tuple[
+            list[dict[str, Any]],
+            list[dict[str, Any]],
+            list[dict[str, bool]],
+            list[dict[str, bool]],
+            list[dict[str, dict[str, str]]],
+            dict[int, dict[str, Any]],
             dict[int, dict[str, dict[str, str]]],
         ]
     ],
-    segment_env_bases: List[int],
-) -> Tuple[
-    List[Dict[str, Any]],
-    List[Dict[str, Any]],
-    List[Dict[str, bool]],
-    List[Dict[str, bool]],
-    List[Dict[str, Dict[str, str]]],
+    segment_env_bases: list[int],
+) -> tuple[
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, bool]],
+    list[dict[str, bool]],
+    list[dict[str, dict[str, str]]],
     dict[int, dict[str, Any]],
     dict[int, dict[str, dict[str, str]]],
 ]:
-    merged_obs: List[Dict[str, Any]] = []
-    merged_rew: List[Dict[str, Any]] = []
-    merged_term: List[Dict[str, bool]] = []
-    merged_trunc: List[Dict[str, bool]] = []
-    merged_infos: List[Dict[str, Dict[str, str]]] = []
-    merged_init_obs: Dict[int, Dict[str, Any]] = {}
+    merged_obs: list[dict[str, Any]] = []
+    merged_rew: list[dict[str, Any]] = []
+    merged_term: list[dict[str, bool]] = []
+    merged_trunc: list[dict[str, bool]] = []
+    merged_infos: list[dict[str, dict[str, str]]] = []
+    merged_init_obs: dict[int, dict[str, Any]] = {}
     merged_init_infos: dict[int, dict[str, dict[str, str]]] = {}
     for i, res in enumerate(segment_results):
         obs, rew, term, trunc, infos, init_o, init_i = res
@@ -325,8 +325,8 @@ class AsyncVecEnv(BaseVecEnv):
 
     def reset(self) -> VecEnvObs:
         async def _do_reset() -> tuple[list[dict[str, Any]], list[dict[str,dict[str,str]]]]:
-            obs_all: List[Any] = []
-            info_all: List[Any] = []
+            obs_all: list[Any] = []
+            info_all: list[Any] = []
             off = 0
             for proto, nflat in zip(self.protocols, self._segment_flat_sizes):
                 seeds = self._seeds[off : off + nflat] if self._seeds else None
@@ -371,7 +371,7 @@ class AsyncVecEnv(BaseVecEnv):
 
     def step_wait(
         self,
-    ) -> Tuple[VecEnvObs, np.ndarray, np.ndarray, List[Dict[str, str]]]:
+    ) -> tuple[VecEnvObs, np.ndarray, np.ndarray, list[dict[str, str]]]:
         assert self._step_future is not None
         segment_results = self._step_future.result()
         merged = _merge_step_results(segment_results, self._segment_env_bases)

@@ -21,7 +21,6 @@ import subprocess
 import sys
 import shlex
 from pathlib import Path
-from typing import List, Optional
 
 from cyclopts import App
 
@@ -36,13 +35,11 @@ app = App(
     name="build-plugin", help="Package an Unreal plugin using RunUAT BuildPlugin."
 )
 
-
-def _which(cmd: str) -> Optional[str]:
+def _which(cmd: str) -> str | None:
     """Return full path to an executable if found on PATH, otherwise None."""
     return shutil.which(cmd)
 
-
-def _run(cmd: List[str], cwd: Optional[Path] = None):
+def _run(cmd: list[str], cwd: Path | None = None):
     """Run a subprocess command and raise on failure with helpful context."""
     logger.info("Running: %s", " ".join(shlex.quote(p) for p in cmd))
     try:
@@ -51,8 +48,7 @@ def _run(cmd: List[str], cwd: Optional[Path] = None):
         logger.error("Command failed with exit code %s: %s", e.returncode, e.cmd)
         raise
 
-
-def find_uplugin(folder: Path) -> Optional[Path]:
+def find_uplugin(folder: Path) -> Path | None:
     """Return the first .uplugin file found in folder (non-recursive)."""
     if not folder.exists() or not folder.is_dir():
         return None
@@ -61,14 +57,14 @@ def find_uplugin(folder: Path) -> Optional[Path]:
             return f.resolve()
     return None
 
-
 @app.default
+
 def main(
     plugin_folder: Path = Path("."),
-    uat_path: Optional[str] = None,
-    package_dir: Optional[Path] = None,
-    target_platform: Optional[str] = None,
-    ue_version: Optional[str] = None,
+    uat_path: str | None = None,
+    package_dir: Path | None = None,
+    target_platform: str | None = None,
+    ue_version: str | None = None,
     clean: bool = False,
     extra_args: str = "",
     verbose: bool = False,
@@ -80,15 +76,15 @@ def main(
     ----------
     plugin_folder : Path
         Path to the root of the plugin (should contain a .uplugin file).
-    uat_path : Optional[str]
+    uat_path : str | None
         Explicit path to RunUAT (e.g. RunUAT.bat). If not provided, a reasonable
         default for UE_5.6 on Windows will be used.
-    package_dir : Optional[Path]
+    package_dir : Path | None
         Output directory for the packaged plugin. If not provided, a
         'Packaged/<platform-or-All>' folder under the plugin folder is used.
-    target_platform : Optional[str]
+    target_platform : str | None
         Target platform to pass to BuildPlugin (e.g. 'Win64').
-    ue_version : Optional[str]
+    ue_version : str | None
         Unreal Engine version hint (unused except for diagnostic).
     clean : bool
         If True, remove the package_dir before running BuildPlugin.
@@ -160,7 +156,7 @@ def main(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # Build command
-    cmd: List[str] = [
+    cmd: list[str] = [
         str(uat_path_resolved),
         "BuildPlugin",
         f"-Plugin={str(uplugin)}",
@@ -177,7 +173,6 @@ def main(
     _run(cmd, cwd=plugin_folder)
 
     logger.info("Plugin packaging complete. Output directory: %s", out_dir)
-
 
 if __name__ == "__main__":
     app()

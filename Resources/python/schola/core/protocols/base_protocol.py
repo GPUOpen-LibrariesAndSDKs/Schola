@@ -286,7 +286,7 @@ class BaseImitationProtocol(BaseProtocol, ABC):
 
     @abstractmethod
     def send_startup_msg(
-        self, seeds: list[int] | None = None, options: list[Any] | None = None
+        self, seeds: list[int | None] | None = None, options: list[Any] | None = None
     ) -> Any:
         """
         Send the startup message for imitation learning data collection.
@@ -321,7 +321,7 @@ class BaseImitationProtocol(BaseProtocol, ABC):
 
         Returns
         -------
-        Tuple[List[List[str]], Dict[int, Dict[str, str]], Dict[int,Dict[str,gym.Space]], Dict[int,Dict[str,gym.Space]]]
+        tuple[list[list[str]], dict[int, dict[str, str]], dict[int, dict[str, gym.Space]], dict[int, dict[str, gym.Space]]]
             A tuple containing:
             - List of agent IDs per environment
             - Agent types indexed by environment and agent
@@ -348,7 +348,7 @@ class BaseImitationProtocol(BaseProtocol, ABC):
 
         Returns
         -------
-        Tuple[List[Dict[str,Any]], List[Dict[str,float]], List[Dict[str,bool]], List[Dict[str,bool]], List[Dict[str,Dict[str,str]]], Dict[int,Dict[str, Any]], Dict[int,Dict[str, str]], List[Dict[str,Any]]]
+        tuple[list[dict[str, Any]], list[dict[str, float]], list[dict[str, bool]], list[dict[str, bool]], list[dict[str, dict[str, str]]], dict[int, dict[str, Any]], dict[int, dict[str, str]], list[dict[str, Any]]]
             A tuple containing:
             - Observations for each timestep
             - Rewards for each timestep

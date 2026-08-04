@@ -96,7 +96,7 @@ class BaseGrpcProtocol(SocketProtocolMixin):
 
     def prepare_reset_msg(
         self,
-        seeds: list[Any] | None = None,
+        seeds: list[int | None] | None = None,
         options: list[Any] | None = None,
     ) -> state_updates.StateUpdate:
         state_update = state_updates.StateUpdate(reset=state_updates.Reset())
@@ -257,7 +257,7 @@ class GrpcProtocol(BaseGrpcProtocol, BaseRLProtocol):
 
         response: state.State = self.gym_stub.UpdateState(state_update)
         obs, info = from_proto(response.initial_state)
-        # Convert from Dict[Dict[envID, Dict[agentID, Any]]] to list[Dict[agentID, Any]]
+        # Convert from dict[dict[envID, dict[agentID, Any]]] to list[dict[agentID, Any]]
         observations = [obs[env_id] for env_id in range(len(obs))]
         infos = [info[env_id] for env_id in range(len(info))]
         return observations, infos

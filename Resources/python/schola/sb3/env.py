@@ -4,10 +4,10 @@
 Implementation of stable_baselines3.common.vec_env.VecEnv backed by a Schola Environment.
 """
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 import logging
 from collections import defaultdict
-from typing import Any, Dict, Iterable, List, Optional, Sequence, SupportsFloat, Tuple, TypeVar, Union, cast
+from typing import Any, SupportsFloat, TypeVar, cast
 
 import gymnasium as gym
 import numpy as np
@@ -38,9 +38,9 @@ AgentObs = np.ndarray | NestedDict[str, np.ndarray] | tuple[np.ndarray, ...]
 
 def _validate_definition(
     id_manager: IdManager,
-    obs_defns: Dict[int, Dict[str, gym.Space]],
-    action_defns: Dict[int, Dict[str, gym.Space]],
-) -> Tuple[gym.Space, gym.Space]:
+    obs_defns: dict[int, dict[str, gym.Space]],
+    action_defns: dict[int, dict[str, gym.Space]],
+) -> tuple[gym.Space, gym.Space]:
     """
     Validate environment definition and return unified observation and action spaces.
 
@@ -48,14 +48,14 @@ def _validate_definition(
     ----------
     id_manager : IdManager
         Manager built from ``protocol.get_definition()`` agent id layout.
-    obs_defns : Dict[int, Dict[str, gym.Space]]
+    obs_defns : dict[int, dict[str, gym.Space]]
         Observation spaces keyed by environment id and agent id.
-    action_defns : Dict[int, Dict[str, gym.Space]]
+    action_defns : dict[int, dict[str, gym.Space]]
         Action spaces keyed by environment id and agent id.
 
     Returns
     -------
-    Tuple[gym.Space, gym.Space]
+    tuple[gym.Space, gym.Space]
         ``(obs_space, action_space)`` shared by every agent slot.
 
     Raises
@@ -103,7 +103,7 @@ class BaseVecEnv(Sb3VecEnv):
     ----------
     id_manager : IdManager
         Flattened agent indexing for every (environment, agent) pair.
-    agent_types : List[Dict[str, str]]
+    agent_types : list[dict[str, str]]
         Per-environment agent type metadata from Unreal.
     obs_space : gym.Space
         Stacked observation space passed to SB3's ``VecEnv`` constructor.
@@ -159,7 +159,7 @@ class BaseVecEnv(Sb3VecEnv):
         nested_infos: Sequence[Mapping[str, dict[str, str]]],
         initial_obs: Mapping[int, Mapping[str, VecEnvObs]],
         initial_infos: Mapping[int, Mapping[str, dict[str, str]]],
-    ) -> Tuple[VecEnvObs, np.ndarray, np.ndarray, list[dict[str, str]]]:
+    ) -> tuple[VecEnvObs, np.ndarray, np.ndarray, list[dict[str, str]]]:
         """
         Convert a protocol step payload into SB3 ``step_wait`` return values.
 
@@ -182,7 +182,7 @@ class BaseVecEnv(Sb3VecEnv):
 
         Returns
         -------
-        Tuple[Dict[str, numpy.ndarray], numpy.ndarray, numpy.ndarray, list of dict]
+        tuple[dict[str, numpy.ndarray], numpy.ndarray, numpy.ndarray, list[dict[str, str]]]
             ``(stacked_obs, rewards, dones, infos)`` where ``dones`` combines
             termination and truncation per flattened agent index.
 
@@ -248,7 +248,7 @@ class BaseVecEnv(Sb3VecEnv):
 
     def env_is_wrapped(
         self, wrapper_class, indices: VecEnvIndices = None
-    ) -> List[bool]:
+    ) -> list[bool]:
         if indices is None:
             indices = range(self.id_manager.num_ids)
         if isinstance(indices, int):
@@ -308,7 +308,7 @@ class VecEnv(BaseVecEnv):
 
     def _define_environment(
         self, protocol: BaseRLProtocol
-    ) -> Tuple[IdManager, list[dict[str, str]], gym.Space, gym.Space]:
+    ) -> tuple[IdManager, list[dict[str, str]], gym.Space, gym.Space]:
         """
         Fetch and validate the Schola definition for SB3 stacking.
 
@@ -319,7 +319,7 @@ class VecEnv(BaseVecEnv):
 
         Returns
         -------
-        Tuple[IdManager, List[Dict[str, str]], gym.Space, gym.Space]
+        tuple[IdManager, list[dict[str, str]], gym.Space, gym.Space]
             ``(id_manager, agent_types, obs_space, action_space)`` after validation.
 
         Raises
@@ -383,7 +383,7 @@ class VecEnv(BaseVecEnv):
 
     def step_wait(
         self,
-    ) -> Tuple[VecEnvObs, np.ndarray, np.ndarray, List[Dict[str, str]]]:
+    ) -> tuple[VecEnvObs, np.ndarray, np.ndarray, list[dict[str, str]]]:
         assert (
             self.next_actions is not None
         ), "step_async must be called before step_wait"

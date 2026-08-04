@@ -69,13 +69,13 @@ class GrpcImitationProtocol(BaseImitationProtocol, SocketProtocolMixin):
 
     def send_startup_msg(
         self,
-        seeds: list[Any] | None = None,
-        options: list[Any] | None = None,
+        seeds: list[int | None] | None = None,
+        options: list[dict[str, Any]] | None = None,
     ) -> None:
         start_msg = imitation_messages.ImitationConnectorStartRequest()
 
         if seeds is not None or options is not None:
-            resolved_seeds: list[Any]
+            resolved_seeds: list[int | None]
             resolved_options: list[dict[str, Any]]
             if seeds is None:
                 resolved_seeds = [None] * len(options or [])

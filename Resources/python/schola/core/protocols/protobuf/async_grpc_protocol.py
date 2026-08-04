@@ -12,6 +12,8 @@ import gymnasium as gym
 
 from schola.core.protocols.base_protocol import AutoResetType, DEFAULT_AUTO_RESET_TYPE
 from schola.core.protocols.async_base_protocol import AsyncBaseRLProtocol
+from schola.core.utils.dict_helpers import NestedDict
+from schola.generated.Definitions_pb2 import TrainingDefinition
 import schola.generated.GymConnector_pb2 as util_messages
 import schola.generated.GymConnector_pb2_grpc as gym_grpc
 import schola.generated.State_pb2 as state
@@ -104,11 +106,11 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
         self,
     ) -> tuple[
         list[list[str]],
-        dict[int, dict[str, str]],
+        list[dict[str, str]],
         dict[int, dict[str, gym.Space[Any]]],
         dict[int, dict[str, gym.Space[Any]]],
     ]:
-        training_defn = await self.gym_stub.RequestTrainingDefinition(
+        training_defn : TrainingDefinition = await self.gym_stub.RequestTrainingDefinition(
             util_messages.TrainingDefinitionRequest()
         )
 
@@ -132,7 +134,7 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
 
     async def send_action_msg(
         self,
-        actions: Mapping[int, Mapping[str, Any]],
+        actions: Mapping[int, NestedDict[str, Any]],
         action_space: Mapping[str, gym.Space[Any]],
     ) -> tuple[
         list[dict[str, Any]],

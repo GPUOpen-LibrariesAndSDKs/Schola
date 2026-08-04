@@ -7,7 +7,7 @@ Script to train an rllib model using Schola.
 import logging
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple, Type, Union
+from typing import TYPE_CHECKING, Any, Callable
 
 from schola.scripts.common.settings import (
     get_activation_function,
@@ -32,14 +32,13 @@ if not logging.getLogger().handlers:
     )
 logger = logging.getLogger(__name__)
 
-
 app = App(name="train", help="Train a Model using ray")
 STOP_METRIC = "num_env_steps_sampled_lifetime"
 
 if TYPE_CHECKING:
     import ray.tune
 
-def _get_restored_env_steps(checkpoint_path: Optional[Path]) -> int:
+def _get_restored_env_steps(checkpoint_path: Path | None) -> int:
     """
     Read the sampled environment-step count from an RLlib checkpoint.
 
@@ -110,12 +109,11 @@ def _get_restored_env_steps(checkpoint_path: Optional[Path]) -> int:
         return 0
     return restored_steps
 
-
 def _make_stop_criterion(
     timesteps: int,
-    checkpoint_path: Optional[Path],
+    checkpoint_path: Path | None,
     reset_timestep: bool = False,
-) -> Dict[str, int]:
+) -> dict[str, int]:
     """
     Build Ray Tune's stop criterion for ``num_env_steps_sampled_lifetime``.
 
@@ -153,8 +151,8 @@ def _make_stop_criterion(
         STOP_METRIC: timesteps,
     }
 
-
 # forward declare here for type hinting with no load
+
 def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
     """
     Main function for launching training with ray.
@@ -258,7 +256,7 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
 
     # Use NEW API stack with RayEnv/RayVecEnv (new stack interface)
     # Auto-assignment: RayEnv for local runner (num_env_runners=0), RayVecEnv for remote runners
-    config: Union[PPOConfig, SACConfig, APPOConfig, IMPALAConfig] = (
+    config: PPOConfig | SACConfig | APPOConfig | IMPALAConfig = (
         algorithm_config.api_stack(
             enable_rl_module_and_learner=True,  # Enable new stack
             enable_env_runner_and_connector_v2=True,  # Enable EnvRunner
@@ -385,7 +383,6 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
         logger.info("Models exported to ONNX at %s", results.trials[-1].path)
     return results
 
-
 class RllibTrainCommand(ScholaCommandTemplate[RllibScriptSettings]):
     """
     ``ScholaCommandTemplate`` configuration for Ray RLlib (PPO, SAC, IMPALA, APPO).
@@ -396,7 +393,7 @@ class RllibTrainCommand(ScholaCommandTemplate[RllibScriptSettings]):
     """
 
     @property
-    def algorithm_table(self) -> Dict[str, Type[Any]]:
+    def algorithm_table(self) -> dict[str, type[Any]]:
         return {
             "sac": SACSettings,
             "ppo": PPOSettings,
@@ -405,7 +402,7 @@ class RllibTrainCommand(ScholaCommandTemplate[RllibScriptSettings]):
         }
 
     @property
-    def algorithm_help(self) -> Dict[str, str]:
+    def algorithm_help(self) -> dict[str, str]:
         return {
             "sac": "Train a model using Soft Actor-Critic(SAC) with rllib.",
             "ppo": "Train a model using Proximal Policy Optimization(PPO) with rllib.",
@@ -414,13 +411,12 @@ class RllibTrainCommand(ScholaCommandTemplate[RllibScriptSettings]):
         }
 
     @property
-    def script_args_type(self) -> Type[RllibScriptSettings]:
+    def script_args_type(self) -> type[RllibScriptSettings]:
         return RllibScriptSettings
 
     @property
     def main_func(self) -> Callable[[RllibScriptSettings], Any]:
         return main
-
 
 app = RllibTrainCommand(app, logger).make()
 

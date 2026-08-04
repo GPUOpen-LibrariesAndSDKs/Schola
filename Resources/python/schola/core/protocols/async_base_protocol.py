@@ -177,7 +177,7 @@ class AsyncBaseRLProtocol(AsyncBaseProtocol, ABC):
         **kwargs: Any,
     ) -> tuple[
         list[list[str]],
-        dict[int, dict[str, str]],
+        list[dict[str, str]],
         dict[int, dict[str, gym.Space[Any]]],
         dict[int, dict[str, gym.Space[Any]]],
     ]:
@@ -186,7 +186,7 @@ class AsyncBaseRLProtocol(AsyncBaseProtocol, ABC):
 
         Returns
         -------
-        tuple[list[list[str]], dict[int, dict[str, str]], dict[int, dict[str, gym.Space]], dict[int, dict[str, gym.Space]]]
+        tuple[list[list[str]], list[dict[str, str]], dict[int, dict[str, gym.Space]], dict[int, dict[str, gym.Space]]]
             A tuple containing:
             - List of agent IDs per environment
             - Agent types indexed by environment and agent

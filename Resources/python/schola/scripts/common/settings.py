@@ -8,14 +8,8 @@ from collections.abc import Sequence
 from enum import Enum
 from typing import (
     Annotated,
-    Dict,
     Generic,
     Literal,
-    Optional,
-    Tuple,
-    List,
-    Type,
-    Union,
 )
 
 from dataclasses import dataclass, field
@@ -46,7 +40,7 @@ class ActivationFunctionEnum(str, Enum):
     TanH = "tanh"  #: Hyperbolic Tangent activation function.
 
 
-def get_activation_function(activation: ActivationFunctionEnum) -> Type["torch.nn.Module"]:  # type: ignore
+def get_activation_function(activation: ActivationFunctionEnum) -> type["torch.nn.Module"]:  # type: ignore
     """
     Get the PyTorch activation function class for the specified activation type.
 
@@ -102,7 +96,7 @@ class BaseSimulatorConfig(Generic[T], ABC):
         return [self.make() for _ in range(n)]
 
     @abstractmethod
-    def get_sim_cls(self) -> Type[T]: ...
+    def get_sim_cls(self) -> type[T]: ...
 
 
 @dataclass
@@ -122,10 +116,10 @@ class SingularExecutableSimulatorConfig(BaseSimulatorConfig["UnrealExecutable"])
     headless: Annotated[bool, Parameter(alias="-h")] = False
     "Flag indicating if the standalone Unreal Engine process should run in headless mode"
 
-    map: Optional[str] = None
+    map: str | None = None
     "Map to load when launching a standalone Unreal Engine process"
 
-    fps: Optional[int] = None
+    fps: int | None = None
     "Fixed FPS to use when running standalone, if None no fixed timestep is used"
 
     display_logs: bool = True
@@ -151,7 +145,7 @@ class SingularExecutableSimulatorConfig(BaseSimulatorConfig["UnrealExecutable"])
             self.disable_script,
         )
 
-    def get_sim_cls(self) -> Type["UnrealExecutable"]:
+    def get_sim_cls(self) -> type["UnrealExecutable"]:
         from schola.core.simulators.unreal.executable_simulator import UnrealExecutable
 
         return UnrealExecutable
@@ -375,7 +369,7 @@ AllSingularSimulatorConfigs = (
 )
 
 
-def protocol_port_for_index(base_port: Optional[int], index: int) -> Optional[int]:
+def protocol_port_for_index(base_port: int | None, index: int) -> int | None:
     """
     Return the port for simulator index i when using a base port.
 
@@ -412,13 +406,13 @@ class GrpcProtocolConfig:
     Settings for the gRPC protocol in Schola.
     """
 
-    port: Annotated[Optional[int], Parameter(alias="-p")] = None
+    port: Annotated[int | None, Parameter(alias="-p")] = None
     "Port to connect to the Unreal Engine process, if None an open port will be automatically selected when running standalone. Port is required if connecting to an existing Unreal Engine process."
 
     url: Annotated[str, Parameter(alias="-u")] = "localhost"
     "URL to connect to the Unreal Engine process."
 
-    environment_start_timeout: Optional[int] = 45
+    environment_start_timeout: int | None = 45
     "Timeout for waiting to see if the environment is ready before assuming it crashed, in seconds."
 
     port_offset_mode: PortOffsetMode = PortOffsetMode.PER_WORKER
@@ -489,7 +483,7 @@ class CheckpointSettings:
     save_freq: Annotated[int, Parameter(validator=validators.Number(gte=0))] = 100000
     "Frequency with which to save checkpoints."
 
-    name_prefix_override: Optional[str] = None
+    name_prefix_override: str | None = None
     "Override the name prefix for the checkpoint files (e.g. SAC, PPO, etc.)"
 
     export_onnx: bool = False
@@ -504,7 +498,7 @@ class CheckpointSettings:
         return self.enable_checkpoints or self.save_final_policy or self.export_onnx
 
     @property
-    def storage_path(self) -> Optional[str]:
+    def storage_path(self) -> str | None:
         """Tune storage_path, or None to keep checkpoint_dir untouched"""
         return str(self.checkpoint_dir.resolve()) if self.should_persist else None
 
@@ -535,13 +529,13 @@ class EnvironmentSettings(Generic[SimulatorSettingsT]):
     ] = field(default_factory=GrpcProtocolConfig)
     "Settings for the protocol to use for communicating with the external simulator"
 
-    env_options: Annotated[Dict[str, str], Parameter(group="Environment Arguments")] = (
+    env_options: Annotated[dict[str, str], Parameter(group="Environment Arguments")] = (
         field(default_factory=dict)
     )
     "Key=value reset options forwarded to the simulator on the first env.reset(). Repeat the flag to set multiple keys, e.g. --env-options.level=1 --env-options.curriculum=easy."
 
     seed: Annotated[
-        Optional[int], Parameter(group="Environment Arguments", alias="--seed")
+        int | None, Parameter(group="Environment Arguments", alias="--seed")
     ] = None
     "Unified repeatable seed for simulator and framework RNG (e.g. RLlib workers). If None, SeedEnvironment is not called in Unreal, and framework RNG is left unseeded."
 
@@ -559,7 +553,7 @@ class Sb3LauncherExtension:
     Default implementations return empty lists (no-op).
     """
 
-    def get_extra_KVWriters(self) -> List["stable_baselines3.common.logger.KVWriter"]:  # type: ignore
+    def get_extra_KVWriters(self) -> list["stable_baselines3.common.logger.KVWriter"]:  # type: ignore
         """
         Returns a list of additional KVWriter to add to the training loop.
 
@@ -570,7 +564,7 @@ class Sb3LauncherExtension:
         """
         return []
 
-    def get_extra_callbacks(self) -> List["stable_baselines3.common.callbacks.BaseCallback"]:  # type: ignore
+    def get_extra_callbacks(self) -> list["stable_baselines3.common.callbacks.BaseCallback"]:  # type: ignore
         """
         Returns a list of additional callbacks to add to the training loop.
 
@@ -595,7 +589,7 @@ class RllibLauncherExtension:
     Default implementation returns an empty list (no-op).
     """
 
-    def get_extra_callbacks(self) -> List["ray.tune.callback.Callback"]:
+    def get_extra_callbacks(self) -> list["ray.tune.callback.Callback"]:
         """
         Returns a list of additional callbacks to add to the training loop.
 

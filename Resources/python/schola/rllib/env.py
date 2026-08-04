@@ -13,7 +13,7 @@ This module provides two environment classes for interfacing Unreal Engine with 
 
 2. RayVecEnv: Vectorized multi-environment implementation (inherits from BaseRayEnv, VectorMultiAgentEnv)
    - Automatically selected when num_envs > 1
-   - Returns List[MultiAgentDict] format
+   - Returns list[MultiAgentDict] format
    - NOT compatible with gymnasium wrappers
    - Supports multiple parallel environments
 
@@ -28,7 +28,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
-from typing import Any, Hashable, Iterable, List, Optional, Tuple, Dict, TypeVar, Union, cast
+from typing import Any, Hashable, cast
 import logging
 
 import gymnasium as gym
@@ -253,7 +253,7 @@ class BaseRayEnv(ABC):
         self._observation_space = self._single_observation_space
         self._action_space = self._single_action_space
 
-    def _validate_environments(self, ids: List[List[str]]):
+    def _validate_environments(self, ids: list[list[str]]):
         """
         Validate that environments and agents are properly configured.
 
@@ -362,7 +362,7 @@ class BaseRayEnv(ABC):
         first_env_id, _ = self.id_manager[0]
         return self.id_manager.agent_types_for_env(first_env_id)
 
-    def make_agent_to_policy(self) -> Dict[str, str]:
+    def make_agent_to_policy(self) -> dict[str, str]:
         """Resolve each possible agent to its policy id from AgentType metadata.
 
         Non-empty AgentType values group compatible agents under one policy.
@@ -740,7 +740,7 @@ class RayVecEnv(BaseRayEnv, VectorMultiAgentEnv): # type: ignore
     - Multi-agent support within each environment
     - Automatic episode reset (autoreset_mode="next_step")
     - Protocol-based communication with Unreal Engine
-    - Always returns List[MultiAgentDict] format
+    - Always returns list[MultiAgentDict] format
     - Follows RLlib's VectorMultiAgentEnv pattern with self.envs list
 
     Note:
@@ -831,7 +831,7 @@ class RayVecEnv(BaseRayEnv, VectorMultiAgentEnv): # type: ignore
                 deepcopied in every branch.
 
         Returns:
-            Tuple of (observations, infos) as List[MultiAgentDict] format.
+            tuple of (observations, infos) as list[MultiAgentDict] format.
         """
         # SB3-style one-shot consumption: only the "options omitted" path
         # consumes the cache. Explicit ``dict`` values, or explicit
@@ -899,10 +899,10 @@ class RayVecEnv(BaseRayEnv, VectorMultiAgentEnv): # type: ignore
         Step all sub-environments with the given actions.
 
         Args:
-            actions: List of action dicts (List[MultiAgentDict])
+            actions: list of action dicts (list[MultiAgentDict])
 
         Returns:
-            Tuple of (observations, rewards, terminateds, truncateds, infos) as List[MultiAgentDict] format.
+            tuple of (observations, rewards, terminateds, truncateds, infos) as list[MultiAgentDict] format.
         """
         # Convert actions list to dict format expected by protocol
         action_dict = {i: actions[i] for i in range(len(actions))}

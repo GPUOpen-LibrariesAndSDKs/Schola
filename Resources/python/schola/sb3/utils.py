@@ -5,7 +5,7 @@ Utility functions for working with stable baselines 3
 """
 
 from collections.abc import Mapping
-from typing import Any, Dict, List, Tuple, cast
+from typing import Any, cast
 from functools import singledispatch
 from numpy.typing import NDArray
 import torch as th
@@ -176,12 +176,12 @@ def split_box_value(
     ----------
     value : np.ndarray
         The value to split.
-    original_spaces : Dict[str, Box]
+    original_spaces : dict[str, Box]
         Dictionary mapping names to the original Box spaces.
 
     Returns
     -------
-    Dict[str, np.ndarray]
+    dict[str, np.ndarray]
         Dictionary mapping names to split values.
     """
     result = {}
@@ -207,8 +207,8 @@ def split_box_value(
 
 
 def split_multibinary_value(
-    value: np.ndarray, original_spaces: Dict[str, gym.Space[Any]] | gym.spaces.Dict
-) -> Dict[str, np.ndarray]:
+    value: np.ndarray, original_spaces: dict[str, gym.Space[Any]] | gym.spaces.Dict
+) -> dict[str, np.ndarray]:
     """
     Split a MultiBinary space value back into original MultiBinary spaces.
 
@@ -216,12 +216,12 @@ def split_multibinary_value(
     ----------
     value : np.ndarray
         The value to split.
-    original_spaces : Dict[str, MultiBinary]
+    original_spaces : dict[str, MultiBinary]
         Dictionary mapping names to the original MultiBinary spaces.
 
     Returns
     -------
-    Dict[str, np.ndarray]
+    dict[str, np.ndarray]
         Dictionary mapping names to split values.
     """
     result = {}
@@ -253,12 +253,12 @@ def split_multidiscrete_value(
     ----------
     value : np.ndarray
         The value to split.
-    original_spaces : Dict[str, Discrete | MultiDiscrete]
+    original_spaces : dict[str, Discrete | MultiDiscrete]
         Dictionary mapping names to the original Discrete or MultiDiscrete spaces.
 
     Returns
     -------
-    Dict[str, np.ndarray]
+    dict[str, np.ndarray]
         Dictionary mapping names to split values.
     """
     result = {}
@@ -292,12 +292,12 @@ def split_value(
     ----------
     value : np.ndarray
         The value to split.
-    original_spaces : Dict[str, gym.Space]
+    original_spaces : dict[str, gym.Space]
         Dictionary mapping names to the original spaces that were merged.
 
     Returns
     -------
-    Dict[str, np.ndarray]
+    dict[str, np.ndarray]
         Dictionary mapping names to split values.
     """
     first_space = next(iter(original_spaces.values()))
@@ -348,13 +348,13 @@ class VecMergeDictActionWrapper(VecEnvWrapper):
 
     def step(
         self, actions: NDArray[Any]
-    ) -> Tuple[VecEnvObs, np.ndarray, np.ndarray, List[Dict]]:
+    ) -> tuple[VecEnvObs, np.ndarray, np.ndarray, list[dict]]:
         return self.venv.step(actions)
 
     def step_async(self, actions: np.ndarray) -> None:
         self.venv.step_async(actions)
 
-    def step_wait(self) -> Tuple[VecEnvObs, np.ndarray, np.ndarray, List[Dict]]:
+    def step_wait(self) -> tuple[VecEnvObs, np.ndarray, np.ndarray, list[dict]]:
         return self.venv.step_wait()
 
 
@@ -438,12 +438,12 @@ class RenderImagesWrapper(VecEnvWrapper):
 
         Parameters
         ----------
-        obs: Dict[str,np.ndarray]
+        obs: dict[str, np.ndarray]
             Maps the names of the observations to the observation data.
 
         Returns
         -------
-        Dict[str,np.ndarray]
+        dict[str, np.ndarray]
             The original observation.
         """
         assert isinstance(obs, dict), f"Expected Observations to be a dict but got {type(obs)}"
@@ -462,7 +462,7 @@ class RenderImagesWrapper(VecEnvWrapper):
 
     def step(
         self, actions: np.ndarray
-    ) -> Tuple[VecEnvObs, np.ndarray, np.ndarray, List[Dict]]:
+    ) -> tuple[VecEnvObs, np.ndarray, np.ndarray, list[dict]]:
 
         obs, rewards, dones, infos = self.venv.step(actions)
         return self.update_images(obs), rewards, dones, infos
@@ -470,6 +470,6 @@ class RenderImagesWrapper(VecEnvWrapper):
     def step_async(self, actions: np.ndarray) -> None:
         self.venv.step_async(actions)
 
-    def step_wait(self) -> Tuple[VecEnvObs, np.ndarray, np.ndarray, List[Dict]]:
+    def step_wait(self) -> tuple[VecEnvObs, np.ndarray, np.ndarray, list[dict]]:
         obs, rewards, dones, infos = self.venv.step_wait()
         return self.update_images(obs), rewards, dones, infos

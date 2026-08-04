@@ -1,7 +1,7 @@
 # Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
 """Bridge Schola imitation protocols to Minari's :class:`minari.DataCollector` API."""
 
-from typing import Any, Optional
+from typing import Any, Optional, SupportsFloat
 
 import gymnasium as gym
 from minari import DataCollector
@@ -28,14 +28,16 @@ class _FakeGymEnv(gym.Env):
     def reset(self, * , seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[Any, dict[str, Any]]:
         return self.initial_obs, self.initial_infos
 
-    def step(self, action):
+    def step(self, action: Any) -> tuple[Any, float, bool, bool, dict[str, Any]]:
+        # ignore the typing here for simplicity, this class is only used for the Datacollector and is mocking
+        # a gym env for the parent class
         return (
             self.observations,
             self.rewards,
             self.terminations,
             self.truncations,
             self.infos,
-        )
+        ) # type: ignore
 
 
 class ScholaDataCollector(DataCollector):
@@ -52,8 +54,8 @@ class ScholaDataCollector(DataCollector):
         self,
         protocol: BaseImitationProtocol,
         simulator: BaseSimulator,
-        seed: Optional[int] = None,
-        options: Optional[dict] = None,
+        seed: int | None = None,
+        options: dict[str, Any] | None = None,
         record_infos: bool = False,
     ):
         self.protocol = protocol
@@ -88,7 +90,7 @@ class ScholaDataCollector(DataCollector):
             "Reset is not implemented for Minari DataCollection with Schola. The Environment will reset itself."
         )
 
-    def step(self, *args, **kwargs):
+    def step(self, *args, **kwargs) -> tuple[Any, SupportsFloat, bool, bool, dict[str, Any]]:
         (
             observations,
             rewards,
@@ -126,6 +128,7 @@ class ScholaDataCollector(DataCollector):
             self.env.initial_obs = initial_obs[self._env_id][self._agent_id]
             self.env.initial_infos = initial_infos[self._env_id][self._agent_id]
             super().reset()
+        return step_output
 
     def close(self):
         self.protocol.close()

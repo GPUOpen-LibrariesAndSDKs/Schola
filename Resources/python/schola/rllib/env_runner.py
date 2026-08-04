@@ -98,7 +98,7 @@ class ScholaEnvRunner(MultiAgentEnvRunner):
                 env_ctx,
                 worker_index=self.worker_index,
                 num_workers=self.config.num_env_runners,
-                remote=self.config.remote_worker_envs,
+                remote=self.config.remote_worker_envs if self.config.remote_worker_envs is not None else False,
             )
 
         assert "protocol" in env_ctx, "Protocol must be provided in the env_config"
@@ -138,10 +138,14 @@ class ScholaEnvRunner(MultiAgentEnvRunner):
         self._needs_initial_reset = True
 
         # Call the `on_environment_created` callback.
+        callbacks_functions = self.config.callbacks_on_environment_created
+        if not isinstance(callbacks_functions, list) and callbacks_functions is not None:
+           callbacks_functions = [callbacks_functions]
+
         make_callback(
             "on_environment_created",
             callbacks_objects=self._callbacks,
-            callbacks_functions=self.config.callbacks_on_environment_created,
+            callbacks_functions=callbacks_functions,
             kwargs=dict(
                 env_runner=self,
                 metrics_logger=self.metrics,

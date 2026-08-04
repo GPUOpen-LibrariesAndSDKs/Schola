@@ -224,7 +224,7 @@ def get_sln_file_from_project(project_folder: Path) -> Path | None:
 
     Returns
     -------
-    Optional[Path]
+    Path | None
         Path to the .sln file if found, None otherwise.
     """
     for file in os.listdir(project_folder):

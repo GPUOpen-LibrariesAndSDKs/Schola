@@ -4,7 +4,7 @@ Utility Functions and Classes for manipulating dictionaries.
 """
 
 import itertools
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from typing import TypeVar, cast
 
 V = TypeVar("V")
@@ -14,7 +14,7 @@ Z = TypeVar("Z")
 
 # Define a recursive type for a nested dictionary and nested dictionary iterator
 NestedIterator = Iterator[tuple[K, V | "NestedIterator[K, V]"]]
-NestedDict = dict[K, V | "NestedDict[K, V]"]
+NestedDict = Mapping[K, V | "NestedDict[K, V]"]
 _IteratorState = Iterator[tuple[object, object]]
 
 
@@ -24,7 +24,7 @@ def _flatten(
     for key, value in _iterator:
         new_prefix = f"{prefix}_{key}" if prefix else key
         if isinstance(value, Iterator):
-            yield from _flatten(cast(NestedIterator[str, V], value), new_prefix)
+            yield from _flatten(value, new_prefix)
         else:
             yield (new_prefix, value)
 
@@ -100,7 +100,7 @@ def _unflatten(
         if isinstance(value, Iterator):
             yield (
                 key,
-                _unflatten(cast(NestedIterator[str, V], value), flat_dict, flat_prefix),
+                _unflatten(value, flat_dict, flat_prefix),
             )
         else:
             yield (key, flat_dict[flat_prefix])
@@ -109,7 +109,7 @@ def _unflatten(
 def _leaves(_iterator: NestedIterator[K, V]) -> Iterator[tuple[K, V]]:
     for key, value in _iterator:
         if isinstance(value, Iterator):
-            yield from _leaves(cast(NestedIterator[K, V], value))
+            yield from _leaves(value)
         else:
             yield (key, value)
 
@@ -139,8 +139,8 @@ class DIterator(NestedIterator[K, V]):
     @staticmethod
     def _make_iterator(_dict: NestedDict[K, V]) -> NestedIterator[K, V]:
         for key, value in _dict.items():
-            if isinstance(value, dict):
-                yield (key, DIterator._make_iterator(cast(NestedDict[K, V], value)))
+            if isinstance(value, Mapping):
+                yield (key, DIterator[K,V]._make_iterator(value))
             else:
                 yield (key, value)
 

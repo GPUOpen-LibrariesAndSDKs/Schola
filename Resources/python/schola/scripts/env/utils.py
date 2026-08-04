@@ -56,8 +56,8 @@ def inspect_agents(
     env: GymVectorEnv,
     *,
     logger: logging.Logger,
-    seed: Optional[int] = None,
-    options: Optional[Dict[str, str]] = None,
+    seed: int | None = None,
+    options: dict[str, str] | None = None,
 ) -> None:
     """Call ``reset`` once and log per-agent spaces and initial observations."""
     observations, _infos = env.reset(

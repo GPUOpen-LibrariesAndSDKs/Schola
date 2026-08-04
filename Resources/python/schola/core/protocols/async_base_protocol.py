@@ -4,6 +4,7 @@ Asyncio versions of the base protocol classes for Unreal Connections.
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from typing import Any
 
 import gymnasium as gym
@@ -100,7 +101,7 @@ class AsyncBaseProtocol(ABC):
 
         Returns
         -------
-        Dict[str, Any]
+        dict[str, Any]
             A dictionary of protocol properties that can be passed to simulators.
         """
         return dict()
@@ -137,7 +138,7 @@ class AsyncBaseProtocolMixin:
 
         Returns
         -------
-        Dict[str, Any]
+        dict[str, Any]
             A dictionary of properties provided by this mixin.
         """
         return dict()
@@ -185,7 +186,7 @@ class AsyncBaseRLProtocol(AsyncBaseProtocol, ABC):
 
         Returns
         -------
-        Tuple[List[List[str]], Dict[int, Dict[str, str]], Dict[int, Dict[str, gym.Space]], Dict[int, Dict[str, gym.Space]]]
+        tuple[list[list[str]], dict[int, dict[str, str]], dict[int, dict[str, gym.Space]], dict[int, dict[str, gym.Space]]]
             A tuple containing:
             - List of agent IDs per environment
             - Agent types indexed by environment and agent
@@ -199,7 +200,7 @@ class AsyncBaseRLProtocol(AsyncBaseProtocol, ABC):
         self,
         seeds: list[Any] | None = None,
         options: list[Any] | None = None,
-    ) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    ) -> tuple[list[dict[str, dict[str, Any]]], list[dict[str, dict[str, str]]]]:
         """
         Send a reset message to restart the environment.
 
@@ -212,40 +213,40 @@ class AsyncBaseRLProtocol(AsyncBaseProtocol, ABC):
 
         Returns
         -------
-        Tuple[List[Dict[str, Any]], List[Dict[str, str]]]
+        tuple[list[dict[str, Any]], list[dict[str, str]]]
             A tuple containing:
-            - List of initial observations for each environment
-            - List of initial info dicts for each environment
+            - List of initial observations for each environment and agent
+            - List of initial info dicts for each environment and agent
         """
         ...
 
     @abstractmethod
     async def send_action_msg(
         self,
-        actions: dict[int, dict[str, Any]],
-        action_space: dict[str, gym.Space[Any]],
+        actions: Mapping[int, Mapping[str, Any]],
+        action_space: Mapping[str, gym.Space[Any]],
     ) -> tuple[
         list[dict[str, Any]],
         list[dict[str, float]],
         list[dict[str, bool]],
         list[dict[str, bool]],
         list[dict[str, dict[str, str]]],
-        dict[int, dict[str, Any]],
-        dict[int, dict[str, str]],
+        dict[int, dict[str, dict[str, Any]]],
+        dict[int, dict[str, dict[str, str]]],
     ]:
         """
         Send actions to the environment and receive the next state.
 
         Parameters
         ----------
-        actions : Dict[int, Dict[str, Any]]
+        actions : dict[int, dict[str, Any]]
             Actions to take, indexed by environment ID and agent ID.
-        action_space : Dict[str, gym.Space]
+        action_space : dict[str, gym.Space]
             The action spaces used to serialize the actions.
 
         Returns
         -------
-        Tuple[List[Dict[str, Any]], List[Dict[str, float]], List[Dict[str, bool]], List[Dict[str, bool]], List[Dict[str, Dict[str, str]]], Dict[int, Dict[str, Any]], Dict[int, Dict[str, str]]]
+        tuple[list[dict[str, Any]], list[dict[str, float]], list[dict[str, bool]], list[dict[str, bool]], list[dict[str, dict[str, str]]], dict[int, dict[str, Any]], dict[int, dict[str, str]]]
             A tuple containing:
             - Observations for each environment
             - Rewards for each environment

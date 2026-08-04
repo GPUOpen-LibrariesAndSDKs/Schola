@@ -223,7 +223,7 @@ class UnrealProject(UnrealExecutable):
         Use a fixed fps while running
     disable_script : bool, default=True
         Whether to disable the autolaunch script setting in the Unreal Engine Schola Plugin
-    extra_executable_args : Optional[List[str]]
+    extra_executable_args : list[str], optional
         Additional arguments to pass to the command line when launching the executable.
 
     Attributes
@@ -234,7 +234,7 @@ class UnrealProject(UnrealExecutable):
         Resolved path to the ``.uproject`` file
     build_dir : Path
         Directory where the built executable is staged
-    ubt_path : Optional[Path]
+    ubt_path : Path, optional
         Path to the Unreal Build Tool
     use_cached_build : bool
         Whether to use a cached build if it exists. If True, will only build if the executable does not exist.

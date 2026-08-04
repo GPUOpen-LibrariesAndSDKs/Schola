@@ -4,7 +4,9 @@
 from collections import defaultdict
 from itertools import chain
 import pathlib
+from ray.rllib.algorithms import AlgorithmConfig
 from ray.rllib.algorithms.algorithm import Algorithm
+from ray.rllib.env.multi_agent_episode import MultiAgentEpisode
 from ray.rllib.algorithms.sac import SACTorchPolicy
 from ray.rllib.core.rl_module import MultiRLModule
 from ray.rllib.core.rl_module.rl_module import RLModule
@@ -13,10 +15,11 @@ from ray.rllib.models import ModelV2
 from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
 from ray.rllib.policy.torch_policy_v2 import TorchPolicyV2
 from ray.rllib.utils.torch_utils import flatten_inputs_to_1d_tensor
+from ray.rllib.utils.typing import AgentID, AlgorithmConfigDict, EpisodeType
 import torch.nn as nn
 from gymnasium.spaces import Box, flatdim
 from functools import singledispatch
-from ray.rllib.policy import Policy
+from ray.rllib.policy import Policy, TorchPolicy
 
 import torch as th
 from ray.rllib.policy.sample_batch import SampleBatch
@@ -28,8 +31,10 @@ from gymnasium import spaces
 import copy
 from schola.rllib.env import RayVecEnv
 from torch.export.dynamic_shapes import Dim
-from typing import Any, List, Optional, Set, Tuple, Dict, Union
+from typing import Any, List, NotRequired, Optional, Set, Tuple, Dict, TypedDict, Union, cast
 import logging
+
+from schola.rllib.policy_mapping import PolicyMappingFn
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +87,7 @@ def _(
         path = path / "default_policy.onnx"
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
-    assert isinstance(arg, TorchPolicyV2), f"Expected TorchPolicyV2, got {type(arg)}"
+    assert isinstance(arg, (TorchPolicyV2, TorchPolicy)), f"Expected TorchPolicyV2 or SACTorchPolicy, got {type(arg)}"
 
     schola_model = RllibScholaModel(
         arg, observation_space=observation_space, action_space=action_space
@@ -94,8 +99,8 @@ def _(
 def _(
     arg: dict,
     path: pathlib.Path,
-    observation_spaces: Dict[str, gym.Space[Any]] | None = None,
-    action_spaces: Dict[str, gym.Space[Any]] | None = None,
+    observation_spaces: dict[str, gym.Space[Any]] | None = None,
+    action_spaces: dict[str, gym.Space[Any]] | None = None,
 ):
     observation_spaces = observation_spaces if observation_spaces is not None else {}
     action_spaces = action_spaces if action_spaces is not None else {}
@@ -150,9 +155,9 @@ def _(
 def _(
     arg: MultiRLModule,
     path: pathlib.Path,
-    observation_spaces: Dict[str, gym.Space] = None,
-    action_spaces: Dict[str, gym.Space] = None,
-):
+    observation_spaces: dict[str, gym.Space[Any]],
+    action_spaces: dict[str, gym.Space[Any]],
+) -> None:
     """
     Export a multiagent module to ONNX format.
     Parameters
@@ -181,9 +186,11 @@ def _(
             module, path / f"{k}.onnx", observation_spaces[k], action_spaces[k]
         )
 
+def _flatten_inputs_to_1d_tensor(inputs: dict[str, Any], spaces: dict[str, gym.Space[Any]]) -> th.Tensor:
+    return th.as_tensor(flatten_inputs_to_1d_tensor(inputs, spaces))
 
 @export_onnx_from_policy.register
-def _(arg: Algorithm, path: pathlib.Path):
+def _(arg: Algorithm, path: pathlib.Path) -> None:
     # arg.spaces["__env_single__"] is a tuple (observation_space, action_space)
     if arg.spaces is None:
         raise RuntimeError("No spaces found on Algorithm while exporting to ONNX")
@@ -192,13 +199,13 @@ def _(arg: Algorithm, path: pathlib.Path):
             "No single environment spaces found on Algorithm while exporting to ONNX. Expected key '__env_single__'"
         )
 
-    obs_space, act_space = arg.spaces["__env_single__"]
-
+    obs_space, act_space = cast(Tuple[gym.Space[Any], gym.Space[Any]], arg.spaces["__env_single__"])
+    
     if arg.env_runner is not None:
-        module = arg.env_runner.module
+        module = arg.env_runner.module # type: ignore
     elif arg.env_runner_group is not None:
         module = arg.env_runner_group.foreach_env_runner(
-            lambda er: er.module,
+            lambda er: er.module, #type: ignore
             remote_worker_ids=[1],
             local_env_runner=False,
         )[0]
@@ -209,15 +216,31 @@ def _(arg: Algorithm, path: pathlib.Path):
     # The space will be defined as a Dict Space with agent_ids as the key, so we condense down to policy_ids.
     # All agent's mapping to the same policy will have the same observation space so we can just overwrite the values.
     # We can't use the policy observation space as it is already flattened.
-    if isinstance(module, MultiRLModule) and arg.get_config() is not None:
-        obs_space = {
-            arg.get_config().policy_mapping_fn(k): v for k, v in obs_space.items()
-        }
-        act_space = {
-            arg.get_config().policy_mapping_fn(k): v for k, v in act_space.items()
-        }
+    if isinstance(module, MultiRLModule) and (config := arg.get_config()) is not None:
+        assert isinstance(obs_space, gym.spaces.Dict), f"Expected MultiAgent Algorithm to have a Dict Observation space with agent_ids as the keys but got {type(obs_space)}"
+        assert isinstance(act_space, gym.spaces.Dict), f"Expected MultiAgent Algorithm to have a Dict Action space with agent_ids as the keys but got {type(act_space)}"
+        policy_mapping_fn: PolicyMappingFn | None = None
+        if isinstance(config, AlgorithmConfig):
+            # ignore old stack type annotations here
+            policy_mapping_fn = cast(PolicyMappingFn | None, config.policy_mapping_fn)
+        elif isinstance(config, AlgorithmConfigDict) and "policy_mapping_fn" in config:
+            policy_mapping_fn = cast(PolicyMappingFn | None, config["policy_mapping_fn"])
+        
+        # Can only map if we have a dictionary 
+        if policy_mapping_fn is not None:
+            dummy_episode: EpisodeType = MultiAgentEpisode()
+            obs_space = gym.spaces.Dict({
+                policy_mapping_fn(k, dummy_episode): v for k, v in obs_space.items()
+            })
+            act_space = gym.spaces.Dict({
+                policy_mapping_fn(k, dummy_episode): v for k, v in act_space.items()
+            })
+        
     export_onnx_from_policy(module, path, obs_space, act_space)
 
+class ModelOutputDict(TypedDict):
+    action_dist_inputs: th.Tensor
+    state_out: NestedDict[str, th.Tensor]
 
 class ScholaRLModule(ScholaModel):
     """
@@ -257,7 +280,7 @@ class ScholaRLModule(ScholaModel):
                 action_space if action_space is not None else rl_module.action_space
             ),
         )
-        self.rl_module = rl_module.to("cpu")
+        self.rl_module = cast(TorchRLModule, rl_module.to("cpu"))
         self.rl_module.eval()
         if observation_space is None and isinstance(
             self.rl_module.observation_space, gym.spaces.Box
@@ -267,7 +290,7 @@ class ScholaRLModule(ScholaModel):
             )
         self.ignored_state_keys = ignored_state_keys
 
-    @property
+    @cached_property
     def initial_state_dict(self) -> NestedDict[str, th.Tensor]:
         # drop any critic state as we don't need it for onnx export
         return kfilter_dict(
@@ -275,10 +298,6 @@ class ScholaRLModule(ScholaModel):
             self.rl_module.get_initial_state(),
             any_key=False,
         )
-
-    @property
-    def num_state_inputs(self) -> int:
-        return len(self.state_input_dict.keys())
 
     # override the default here because ray outputs extra variance dimensions that we don't need for box spaces
     def get_logit_dimensions(self) -> Dict[str, int]:
@@ -293,7 +312,7 @@ class ScholaRLModule(ScholaModel):
         # must always be even so we can just divide here
         return logits[: len(logits) // 2]
 
-    def forward(self, *args: th.Tensor) -> Tuple[th.Tensor]:
+    def forward(self, *args: th.Tensor) -> tuple[th.Tensor, ...]:
 
         # split the state and observation inputs into two separate dictionaries
         # Note: zip stops on the shortest iterator, so this will eventually read all the inputs
@@ -308,8 +327,8 @@ class ScholaRLModule(ScholaModel):
         if self.rl_module.is_stateful():
             # using LSTM, so we need to add an extra dim before flattening
 
-            module_inputs = {
-                "obs": flatten_inputs_to_1d_tensor(
+            module_inputs : dict[str, Any] = {
+                "obs": _flatten_inputs_to_1d_tensor(
                     tensor_dict, self.observation_space.spaces
                 ).unsqueeze(
                     1
@@ -337,15 +356,15 @@ class ScholaRLModule(ScholaModel):
             # flatten the observation inputs keeping the batch and sequence dimensions
         else:
             module_inputs = {
-                "obs": flatten_inputs_to_1d_tensor(
+                "obs": _flatten_inputs_to_1d_tensor(
                     tensor_dict, self.observation_space.spaces
                 )
             }
 
-        model_out = self.rl_module.forward_inference(module_inputs)
+        model_out = cast(ModelOutputDict, self.rl_module.forward_inference(module_inputs))
 
         # Convert logits to actual outputs in the respective action spaces
-        outputs = self.make_outputs(model_out["action_dist_inputs"])
+        outputs = self.make_outputs(cast(th.Tensor, model_out["action_dist_inputs"]))
         state_outputs = (
             DIterator(model_out.get("state_out", {}))
             .kfilter(lambda x: not x.startswith(self.ignored_state_keys), any_key=False)
@@ -398,9 +417,9 @@ class RllibScholaModel(ScholaModel):
 
     def __init__(
         self,
-        policy: TorchPolicyV2,
-        observation_space: Optional[gym.Space] = None,
-        action_space: Optional[gym.Space] = None,
+        policy: TorchPolicyV2 | TorchPolicy,
+        observation_space: gym.Space[Any] | None = None,
+        action_space: gym.Space[Any] | None = None,
     ):
         super().__init__(
             observation_space=(
@@ -416,26 +435,26 @@ class RllibScholaModel(ScholaModel):
         # for SAC the model.forward is a no-op, so we need to use the action model instead
         if isinstance(policy, SACTorchPolicy):
             # ignore typing here because rllib erases the type of the model
-            self._model: TorchModelV2 = policy.model.action_model.to("cpu") # type: ignore
+            self._model = cast(TorchModelV2, policy.model.action_model.to("cpu")) # type: ignore
         else:
-            self._model: TorchModelV2 = policy.model.to("cpu") # type: ignore
+            self._model = cast(TorchModelV2, policy.model.to("cpu")) # type: ignore
         # update the dummy batch here
         self._policy._dummy_batch = (
             self._policy._get_dummy_batch_from_view_requirements(1)
         )
         self._policy._lazy_tensor_dict(self._policy._dummy_batch)
 
-    @property
+    @cached_property
     def initial_state_dict(self) -> NestedDict[str, th.Tensor]:
         # State is a 2D tensor with shape [seq_len, state_dim]
         return dict(
             map(
                 lambda x: (str(x[0]), x[1].unsqueeze(0)),
-                enumerate(self._model.get_initial_state()),
+                enumerate(cast(List[th.Tensor], self._model.get_initial_state())),
             )
         )
 
-    @property
+    @cached_property
     def state_metadata(self) -> NestedDict[str, StateMetadata]:
         return (
             DIterator(self.initial_state_dict)

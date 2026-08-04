@@ -134,7 +134,7 @@ def _sample_eval_episodes_via_env_runners(
     try:
         rl_module_state = marl.get_state(inference_only=True)
         group.foreach_env_runner(
-            lambda r: r.set_state({COMPONENT_RL_MODULE: rl_module_state}),
+            lambda r: r.set_state({COMPONENT_RL_MODULE: rl_module_state}), # type: ignore
             local_env_runner=local_only,
         )
 
@@ -213,13 +213,15 @@ def main(args: RllibEvalScriptSettings) -> Dict[str, Any]:
                 "this parameter will be ignored."
             )
 
+    if args.checkpoint is None:
+        raise ValueError("Checkpoint is required")
     ckpt = args.checkpoint.resolve()
     n_sim = args.environment_settings.simulator_settings.num_simulators
     num_env_runners = 0 if n_sim <= 1 else int(n_sim)
     cli_policy_map = args.policy_map or None
 
     try:
-        rl_dir = rl_module_dir_from_algorithm_checkpoint(Path(ckpt))
+        rl_dir = rl_module_dir_from_algorithm_checkpoint(ckpt)
         logger.info("Loading MultiRLModule from %s", rl_dir)
         marl = cast(MultiRLModule, MultiRLModule.from_checkpoint(rl_dir))
 
@@ -230,7 +232,7 @@ def main(args: RllibEvalScriptSettings) -> Dict[str, Any]:
         agent_to_policy = resolve_policy_mapping_for_eval(
             agent_ids=agent_ids,
             module_ids=marl.keys(),
-            checkpoint=Path(ckpt),
+            checkpoint=ckpt,
             env_agent_to_policy=env_agent_to_policy,
             cli_agent_to_policy=cli_policy_map,
         )

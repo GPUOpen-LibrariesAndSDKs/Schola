@@ -18,6 +18,7 @@ from typing import (
     cast,
 )
 
+
 from schola.scripts.common.settings import (
     ExternalSimulatorConfig,
     GymSimulatorConfig,
@@ -132,6 +133,7 @@ def main(args: Sb3TrainScriptSettings) -> Optional[Tuple[float, float]]:
     from stable_baselines3.common.base_class import BaseAlgorithm
     from schola.sb3.export import save_model_as_onnx
     from stable_baselines3.common import utils
+    from stable_baselines3.common.off_policy_algorithm import OffPolicyAlgorithm
 
     # initialize so we can force closure at the end
     env = None
@@ -259,16 +261,16 @@ def main(args: Sb3TrainScriptSettings) -> Optional[Tuple[float, float]]:
                     )
 
             if args.resume_settings.load_replay_buffer:
-                if hasattr(model, "load_replay_buffer"):
+                if isinstance(model, OffPolicyAlgorithm):
                     try:
                         model.load_replay_buffer(
                             args.resume_settings.load_replay_buffer
-                        )  # type: ignore
+                        )
                     except Exception:
                         logger.warning("Error loading saved Replay Buffer. Skipping.")
                 else:
                     logger.warning(
-                        "resume_settings.load_replay_buffer was true but Model does not have a Replay Buffer to load to. Skipping."
+                        "resume_settings.load_replay_buffer was true but Model does not have a Replay Buffer to load. Skipping."
                     )
 
             callbacks = []

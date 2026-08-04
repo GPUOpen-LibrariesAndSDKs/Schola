@@ -105,7 +105,7 @@ class GrpcImitationProtocol(BaseImitationProtocol, SocketProtocolMixin):
         self,
     ) -> tuple[
         list[list[str]],
-        dict[int, dict[str, str]],
+        list[dict[str, str]],
         dict[int, dict[str, gym.Space[Any]]],
         dict[int, dict[str, gym.Space[Any]]],
     ]:
@@ -122,8 +122,8 @@ class GrpcImitationProtocol(BaseImitationProtocol, SocketProtocolMixin):
         list[dict[str, bool]],
         list[dict[str, bool]],
         list[dict[str, dict[str, str]]],
-        dict[int, dict[str, Any]],
-        dict[int, dict[str, str]],
+        dict[int, dict[str, dict[str, Any]]],
+        dict[int, dict[str, dict[str, str]]],
         list[dict[str, Any]],
     ]:
         data_request = imitation_messages.ImitationStateRequest()

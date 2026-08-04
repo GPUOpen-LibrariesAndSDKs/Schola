@@ -263,7 +263,7 @@ class CustomProgressBarCallback(BaseCallback):
     stable_baselines3.common.callbacks.ProgressBarCallback : The original progress bar callback from stable baselines3.
     """
 
-    pbar: tqdm
+    pbar: tqdm # type: ignore
 
     def __init__(self) -> None:
         super().__init__()

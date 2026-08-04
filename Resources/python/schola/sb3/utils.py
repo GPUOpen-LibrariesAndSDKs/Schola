@@ -4,8 +4,10 @@
 Utility functions for working with stable baselines 3
 """
 
+from collections.abc import Mapping
 from typing import Any, Dict, List, Tuple, cast
 from functools import singledispatch
+from numpy.typing import NDArray
 import torch as th
 import os
 import gymnasium as gym
@@ -243,7 +245,7 @@ def split_multibinary_value(
 def split_multidiscrete_value(
     value: np.ndarray,
     original_spaces: dict[str, gym.Space[Any]] | gym.spaces.Dict,
-) -> Dict[str, np.ndarray]:
+) -> dict[str, np.ndarray]:
     """
     Split a MultiDiscrete space value back into original Discrete/MultiDiscrete spaces.
 
@@ -281,8 +283,8 @@ def split_multidiscrete_value(
 
 
 def split_value(
-    value: np.ndarray, original_spaces: dict[str, gym.Space[Any]] | gym.spaces.Dict
-) -> dict[str, np.ndarray]:
+    value: NDArray[Any], original_spaces: dict[str, gym.Space[Any]] | gym.spaces.Dict
+) -> dict[str, NDArray[Any]]:
     """
     Split a value from a merged space back into a dictionary of values for the original spaces.
 
@@ -345,9 +347,9 @@ class VecMergeDictActionWrapper(VecEnvWrapper):
         return self.venv.reset()
 
     def step(
-        self, action: np.ndarray
+        self, actions: NDArray[Any]
     ) -> Tuple[VecEnvObs, np.ndarray, np.ndarray, List[Dict]]:
-        return self.venv.step(action)
+        return self.venv.step(actions)
 
     def step_async(self, actions: np.ndarray) -> None:
         self.venv.step_async(actions)
@@ -360,7 +362,7 @@ try:
     from matplotlib import pyplot as plt
 except ImportError:
     # matplot lib is not installed, raise a lazy error if someone tries to use the RenderImagesWrapper
-    plt = None
+    plt = None # type: ignore
 
 
 class RenderImagesWrapper(VecEnvWrapper):
@@ -378,9 +380,9 @@ class RenderImagesWrapper(VecEnvWrapper):
             raise ImportError(
                 "You must install matplotlib in order to use the RenderImagesWrapper."
             )
-        self.image_obs = []
+        self.image_obs : list[tuple[str, gym.spaces.Box]] = []
         self._num_envs = venv.num_envs
-        assert isinstance(venv.observation_space, gym.spaces.Dict), "Observation space must be a Dict"
+        assert isinstance(venv.observation_space, gym.spaces.Dict), "RenderImagesWrapper only supports VecEnvs with Dict observation spaces."
         for obs_space_name, obs_space in venv.observation_space.spaces.items():
             if isinstance(obs_space, gym.spaces.Box):
                 self.image_obs.append((obs_space_name, obs_space))
@@ -430,7 +432,7 @@ class RenderImagesWrapper(VecEnvWrapper):
         plt.ioff()
         plt.show()
 
-    def update_images(self, obs: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
+    def update_images(self, obs: VecEnvObs) -> VecEnvObs:
         """
         Updates the images in the plt window with the given observations.
 
@@ -444,6 +446,7 @@ class RenderImagesWrapper(VecEnvWrapper):
         Dict[str,np.ndarray]
             The original observation.
         """
+        assert isinstance(obs, dict), f"Expected Observations to be a dict but got {type(obs)}"
         for col, (image_obs_name, obs_space) in enumerate(self.image_obs):
             temp_obs = np.clip(obs[image_obs_name], 0.0, 1.0)
             # yoink out the batch dim at the front of the buffer
@@ -458,10 +461,10 @@ class RenderImagesWrapper(VecEnvWrapper):
         return self.update_images(self.venv.reset())
 
     def step(
-        self, action: np.ndarray
+        self, actions: np.ndarray
     ) -> Tuple[VecEnvObs, np.ndarray, np.ndarray, List[Dict]]:
 
-        obs, rewards, dones, infos = self.venv.step(action)
+        obs, rewards, dones, infos = self.venv.step(actions)
         return self.update_images(obs), rewards, dones, infos
 
     def step_async(self, actions: np.ndarray) -> None:

@@ -4,18 +4,16 @@
 Utility Functions and Classes for managing environment and agent ids.
 """
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping, Sequence
 from functools import cached_property, singledispatchmethod
 from typing import TypeVar, cast, overload
+
+from schola.core.utils.dict_helpers import NestedDict
 
 K = TypeVar("K")
 V = TypeVar("V")
 T = TypeVar("T")
 AgentTypes = dict[int, dict[str, str]] | list[dict[str, str]]
-
-
-# A generic recursive dictionary type
-NestedDict = dict[K, V | "NestedDict[K, V]"]
 
 
 def nested_get(dct: NestedDict[K, V], keys: Iterable[K], default: V) -> V:
@@ -45,6 +43,7 @@ def nested_get(dct: NestedDict[K, V], keys: Iterable[K], default: V) -> V:
             return default
         curr_dct = nested_dct[key]
     return cast(V, curr_dct)
+
 
 
 class IdManager:
@@ -138,14 +137,14 @@ class IdManager:
 
         Parameters
         ----------
-        nested_id_dict : Dict[int, Dict[int, T]]
+        nested_id_dict : dict[int, dict[str, T]]
             The dictionary to flatten.
-        default : Optional[T], optional
+        default : T, optional
             The default value to use if a key is not found, by default None.
 
         Returns
         -------
-        List[T]
+        list[T | None]
             A flattened list of the values found in the dictionary.
         """
         output_list: list[T | None] = [default] * self.num_ids
@@ -155,46 +154,61 @@ class IdManager:
         return output_list
 
     def flatten_list_of_dicts(
-        self, nested_id_list: list[dict[str, T]], default: T | None = None
-    ) -> list[T | None]:
+        self, nested_id_list: Sequence[Mapping[str, T]]
+    ) -> list[T]:
         """
         Flatten a list of dictionaries with nested ids into a single list.
 
         Parameters
         ----------
-        nested_id_list : List[Dict[str, T]]
+        nested_id_list : Sequence[Mapping[str, T]]
             A list of dictionaries to flatten, where the list index represents
             the first id and dictionary keys represent the second ids.
-        default : Optional[T], optional
-            The default value to use if a key is not found, by default None.
 
         Returns
         -------
-        List[T]
+        list[T]
             A flattened list of the values found in the nested structure. Ordered by UID.
+        
+        Raises
+        ------
+        KeyError
+            If the nested id list does not have a value for a given id in this IdManager.
+        """
+        return [
+            nested_id_list[first_id][second_id]
+            for first_id, agent_ids in enumerate(self.ids)
+            for second_id in agent_ids
+        ]
+
+    def flatten_incomplete_list_of_dicts(
+        self, incomplete_id_list: Sequence[Mapping[str, T]], default: T = None
+    ) -> list[T | None]:
+        """
+        Flatten a list of dictionaries with incomplete nested ids into a single list.
         """
         output_list: list[T | None] = [default] * self.num_ids
-        for first_id, nested_ids in enumerate(nested_id_list):
+        for first_id, nested_ids in enumerate(incomplete_id_list):
             for second_id, value in nested_ids.items():
                 output_list[self.id_map[first_id][second_id]] = value
         return output_list
 
-    def nest_list_to_dict_of_dicts(
-        self, id_list: Iterable[T], default: T | None = None
-    ) -> dict[int, dict[str, T | None]]:
+    def nest_incomplete_list_to_dict_of_dicts(
+        self, id_list: Sequence[T], default: T = None
+    ) -> dict[int, dict[str, T]]:
         """
         Nest a list of values, indexed by flattened id, into a dictionary of nested ids.
 
         Parameters
         ----------
-        id_list : List[T]
+        id_list : list[T]
             The list of values to convert into a nested dictionary.
-        default : Optional[T], optional
+        default : T, optional
             The default value to use if a key is not found, by default None.
 
         Returns
         -------
-        Dict[int, Dict[int, T]]
+        dict[int, dict[int, T]]
             A nested dictionary of the values in `id_list` or `default` if values are missing.
         """
         output_dict = {
@@ -205,7 +219,22 @@ class IdManager:
             first_id, second_id = self.id_list[flat_id]
             output_dict[first_id][second_id] = body
         return output_dict
-
+    
+    def nest_list_to_dict_of_dicts(
+        self, id_list: Sequence[T]
+    ) -> dict[int, dict[str, T]]:
+        """
+        Nest a sequence of values, indexed by flattened id, into a dictionary of nested ids.
+        """
+        assert len(id_list) == self.num_ids, "the list of values to nest must be the same length as the number of ids without a default value"
+        return {
+            first_id: {
+                second_id: id_list[self.id_map[first_id][second_id]]
+                for second_id in nested_ids
+            }
+            for first_id, nested_ids in enumerate(self.ids)
+        }
+    
     @overload
     def __getitem__(self, key: int) -> tuple[int,str]: ...
 
@@ -303,7 +332,7 @@ class IdManager:
 
         Returns
         -------
-        List[Dict[int,str]]
+        list[dict[int,str]]
             List of dictionaries mapping nested ids to flattened ids.
         """
         id_map: list[dict[str, int]] = [{} for _ in self.ids]

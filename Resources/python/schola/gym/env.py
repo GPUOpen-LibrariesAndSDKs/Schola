@@ -364,7 +364,7 @@ class GymVectorEnv(VectorEnv):
 
     def unbatch_actions(
         self, actions: Mapping[int, np.ndarray]
-    ) -> Dict[int, Dict[int, Dict[str, np.ndarray]]]:
+    ) -> Mapping[int, Dict[str, Dict[str, np.ndarray]]]:
         """
         Unbatch actions from Dict[ObsID,Batched] to a nested Dict[EnvId,Dict[AgentId,Dict[ObsId,Value]]], effectively moving the env, and agent dimensions into Dictionaries.
 
@@ -385,7 +385,7 @@ class GymVectorEnv(VectorEnv):
     def step(
         self, actions: Dict[int, np.ndarray]
     ) -> Tuple[Any, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
-        actions = self.unbatch_actions(actions)
+        unbatched_actions = self.unbatch_actions(actions)
         (
             observations,
             rewards,
@@ -395,7 +395,7 @@ class GymVectorEnv(VectorEnv):
             initial_obs,
             initial_infos,
         ) = self.protocol.send_action_msg(
-            actions, defaultdict(lambda: self.single_action_space)
+            unbatched_actions, defaultdict(lambda: self.single_action_space)
         )
 
         array_rewards = np.asarray(self.id_manager.flatten_list_of_dicts(rewards))

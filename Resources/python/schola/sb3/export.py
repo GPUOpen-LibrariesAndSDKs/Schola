@@ -3,7 +3,7 @@
 """ONNX export helpers for Stable-Baselines3 policies trained or deployed with Schola."""
 
 import logging
-from typing import Generic, Optional, Tuple, TypeVar
+from typing import Generic, TypeVar
 
 from stable_baselines3.sac.policies import SACPolicy
 from stable_baselines3.td3.policies import TD3Policy
@@ -68,7 +68,7 @@ class SB3ScholaModel(ScholaModel, Generic[T]):
         The wrapped action network.
     """
 
-    def __init__(self, policy: T, action_space: Optional[gym.Space] = None):
+    def __init__(self, policy: T, action_space: gym.Space | None = None):
         super().__init__(
             observation_space=policy.observation_space,
             action_space=action_space or policy.action_space,
@@ -78,7 +78,7 @@ class SB3ScholaModel(ScholaModel, Generic[T]):
 
     def get_logits(self, x) -> th.Tensor: ...
 
-    def forward(self, *args) -> Tuple[th.Tensor, ...]:
+    def forward(self, *args) -> tuple[th.Tensor, ...]:
         """
         Forward pass of the model.
 
@@ -91,7 +91,7 @@ class SB3ScholaModel(ScholaModel, Generic[T]):
 
         Returns
         -------
-        Tuple[th.Tensor, ...]
+        tuple[th.Tensor, ...]
             Action outputs followed by state outputs (if stateful).
             Action outputs correspond to self.output_action_keys.
         """

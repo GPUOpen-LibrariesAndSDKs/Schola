@@ -26,12 +26,15 @@ based on the number of environments from the protocol.
 
 from abc import ABC, abstractmethod
 from collections import defaultdict
+from collections.abc import Mapping, Sequence
 from copy import deepcopy
-from typing import Any, Iterable, List, Optional, Tuple, Dict, Union
+from typing import Any, Hashable, Iterable, List, Optional, Tuple, Dict, TypeVar, Union, cast
 import logging
 
 import gymnasium as gym
 import numpy as np
+from ray.rllib.utils.typing import AgentID
+from torch._dynamo.utils import hashable
 from schola.core.error_manager import (
     EnvironmentException,
     NoAgentsException,
@@ -48,16 +51,15 @@ from schola.core.utils.id_manager import IdManager
 
 logger = logging.getLogger(__name__)
 
-
 def sorted_multi_agent_space(
-    multi_agent_space: Dict[int, gym.spaces.Dict],
+    multi_agent_space: dict[str, gym.spaces.Dict],
 ) -> gym.spaces.Dict:
     """
     Sorts the spaces in a multi-agent space alphabetically by agent ID.
 
     Parameters
     ----------
-    multi_agent_space : Dict[int,gym.spaces.Dict]
+    multi_agent_space : dict[str,gym.spaces.Dict]
         The multi-agent space to sort.
 
     Returns
@@ -100,6 +102,7 @@ class BaseRayEnv(ABC):
         _single_observation_space, _single_action_space: Per-agent spaces
         _single_observation_spaces, _single_action_spaces: Dict of agent spaces
     """
+    possible_agents: list[str]
 
     def __init__(
         self,
@@ -107,7 +110,7 @@ class BaseRayEnv(ABC):
         simulator: BaseSimulator,
         verbosity: int = 0,
         *,
-        env_config: Optional[Dict[str, Any]] = None,
+        env_config: dict[str, Any] | None = None,
     ):
         """Initialize protocol, simulator, and shared environment infrastructure.
 
@@ -119,7 +122,7 @@ class BaseRayEnv(ABC):
             Already-constructed simulator instance managing the Unreal process.
         verbosity : int
             Logging verbosity level passed through from the training driver.
-        env_config : Optional[Dict[str, Any]]
+        env_config : dict[str, Any], optional
             Optional RLlib ``env_config`` / ``EnvContext`` dict. Recognized keys:
             ``options`` -- reset options forwarded to the *first* ``reset()``
             and then cleared, matching the SB3 ``_options`` one-shot pattern.
@@ -156,7 +159,7 @@ class BaseRayEnv(ABC):
         # ``set_options(...)`` directly. deepcopy guards against mutation of
         # the source dict.
         cfg = env_config or {}
-        self._options: Dict[str, Any] = deepcopy(cfg.get("options") or {})
+        self._options: dict[str, Any] = deepcopy(cfg.get("options") or {})
 
         # 3. Send startup message with autoreset
         # Note: This may be called twice if protocol was already started (e.g., from factory function)
@@ -169,7 +172,7 @@ class BaseRayEnv(ABC):
         # 6. Initialize agent tracking (subclass-specific)
         self._init_agent_tracking()
 
-    def set_options(self, options: Optional[Dict[str, Any]] = None) -> None:
+    def set_options(self, options: dict[str, Any] | None = None) -> None:
         """
         Stage reset options to be consumed on the next ``reset()`` call.
 
@@ -186,12 +189,12 @@ class BaseRayEnv(ABC):
 
     def _init_space_attributes(self):
         """Initialize observation and action space attributes to None."""
-        self._observation_space: gym.Space | None = None
-        self._action_space: gym.Space | None = None
-        self._single_observation_space: gym.Space | None = None
-        self._single_action_space: gym.Space | None = None
-        self._single_observation_spaces: Dict[str, gym.Space] | None = None
-        self._single_action_spaces: Dict[str, gym.Space] | None = None
+        self._observation_space: gym.Space[Any] | None = None
+        self._action_space: gym.Space[Any] | None = None
+        self._single_observation_space: gym.Space[Any] | None = None
+        self._single_action_space: gym.Space[Any] | None = None
+        self._single_observation_spaces: dict[str, gym.Space[Any]] | None = None
+        self._single_action_spaces: dict[str, gym.Space[Any]] | None = None
 
     @abstractmethod
     def _init_agent_tracking(self):
@@ -219,7 +222,7 @@ class BaseRayEnv(ABC):
         """
         pass
 
-    def _build_spaces(self, obs_defns: Dict, action_defns: Dict, first_env_id: int):
+    def _build_spaces(self, obs_defns: dict[int, dict[str, gym.Space[Any]]], action_defns: dict[int, dict[str, gym.Space[Any]]], first_env_id: int):
         """
         Build observation and action spaces from protocol definitions.
 
@@ -305,30 +308,6 @@ class BaseRayEnv(ABC):
         self.protocol.close()
         self.simulator.stop()
 
-    # ===== Abstract Methods (must be implemented by subclasses) =====
-
-    @abstractmethod
-    def reset(self, **kwargs):
-        """
-        Reset environment(s).
-
-        Signature differs by subclass:
-        - RayEnv: reset(*, seed: Optional[int], ...) -> Tuple[Dict, Dict]
-        - RayVecEnv: reset(*, seed: Optional[Union[int, List[int]]], ...) -> Tuple[List[Dict], List[Dict]]
-        """
-        pass
-
-    @abstractmethod
-    def step(self, actions):
-        """
-        Step environment(s) with actions.
-
-        Signature differs by subclass:
-        - RayEnv: step(actions: Dict) -> Tuple[Dict, Dict[str, float], ...]
-        - RayVecEnv: step(actions: List[Dict]) -> Tuple[List[Dict], List[Dict[str, float]], ...]
-        """
-        pass
-
     # ===== Shared Properties (100% identical) =====
 
     @property
@@ -342,33 +321,39 @@ class BaseRayEnv(ABC):
         return len(self.possible_agents)
 
     @property
-    def observation_space(self) -> gym.Space[Any] | None:
+    def observation_space(self) -> gym.Space[Any]:
         """Observation space (Dict of agent spaces)."""
+        assert self._observation_space is not None
         return self._observation_space
 
     @property
-    def action_space(self) -> gym.Space[Any] | None:
+    def action_space(self) -> gym.Space[Any]:
         """Action space (Dict of agent spaces)."""
+        assert self._action_space is not None
         return self._action_space
 
     @property
-    def single_observation_space(self) -> gym.Space[Any] | None:
+    def single_observation_space(self) -> gym.Space[Any]:
         """Single-agent observation space."""
+        assert self._single_observation_space is not None
         return self._single_observation_space
 
     @property
-    def single_action_space(self) -> gym.Space[Any] | None:
+    def single_action_space(self) -> gym.Space[Any]:
         """Single-agent action space."""
+        assert self._single_action_space is not None
         return self._single_action_space
 
     @property
-    def single_observation_spaces(self) -> dict[str, gym.Space[Any]] | None:
+    def single_observation_spaces(self) -> dict[str, gym.Space[Any]]:
         """Dict mapping agent IDs to observation spaces."""
+        assert self._single_observation_spaces is not None
         return self._single_observation_spaces
 
     @property
-    def single_action_spaces(self) -> dict[str, gym.Space[Any]] | None:
+    def single_action_spaces(self) -> dict[str, gym.Space[Any]]:
         """Dict mapping agent IDs to action spaces."""
+        assert self._single_action_spaces is not None
         return self._single_action_spaces
 
     @property
@@ -395,8 +380,8 @@ class BaseRayEnv(ABC):
             for agent_id in self.possible_agents
         }
 
-
-class RayEnv(BaseRayEnv, MultiAgentEnv):
+# ignore type errors here as our implementation is compatible and errors are about exposing properties
+class RayEnv(BaseRayEnv, MultiAgentEnv): # type: ignore
     """
     Schola's single-environment implementation of MultiAgentEnv for Unreal Engine.
 
@@ -431,7 +416,7 @@ class RayEnv(BaseRayEnv, MultiAgentEnv):
         simulator: BaseSimulator,
         verbosity: int = 0,
         *,
-        env_config: Optional[Dict[str, Any]] = None,
+        env_config: dict[str, Any] | None = None,
     ):
         # Initialize shared base class functionality
         BaseRayEnv.__init__(
@@ -478,8 +463,8 @@ class RayEnv(BaseRayEnv, MultiAgentEnv):
         self._validate_environments(ids)
 
     def reset(
-        self, *, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None
-    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        self, *, seed: int | None = None, options: dict[str, Any] | None = None
+    ) -> tuple[dict[AgentID, Any], dict[AgentID, str]]: 
         """
         Reset the environment.
 
@@ -527,15 +512,15 @@ class RayEnv(BaseRayEnv, MultiAgentEnv):
 
         # Return dict format (env_id is always 0 for single environment)
         logger.debug(f"RayEnv.reset() returning MultiAgentDict")
-        return observations[self._env_id], infos[self._env_id]
+        return cast(tuple[dict[AgentID, Any], dict[AgentID, str]], (observations[self._env_id], infos[self._env_id]))
 
-    def step(self, actions: Dict[str, Any]) -> Tuple[
-        Dict[str, Any],
-        Dict[str, float],
-        Dict[str, bool],
-        Dict[str, bool],
-        Dict[str, Any],
-    ]:
+    def step(self, action_dict: dict[str, Any]) -> tuple[ # type: ignore
+        dict[str, Any],
+        dict[str, float],
+        dict[str, bool],
+        dict[str, bool],
+        dict[str, Any],
+    ]: 
         """
         Step the environment with the given actions.
 
@@ -546,7 +531,7 @@ class RayEnv(BaseRayEnv, MultiAgentEnv):
             Tuple of (observations, rewards, terminateds, truncateds, infos) as MultiAgentDict format.
         """
         # Convert actions to dict format expected by protocol (env_id: actions)
-        action_dict = {self._env_id: actions}
+        local_action_dict = {self._env_id: action_dict}
 
         # Agents already dead before this step, C++ restores their terminal state
         # in OutAgentStates, so the gRPC response still includes their entries.
@@ -557,7 +542,7 @@ class RayEnv(BaseRayEnv, MultiAgentEnv):
 
         # Send action and get response with no autoreset support
         observations, rewards, terminateds, truncateds, infos, _, _ = (
-            self.protocol.send_action_msg(action_dict, self._single_action_spaces)
+            self.protocol.send_action_msg(local_action_dict, self.single_action_spaces)
         )
 
         # Strip previously-dead agents from every return dict so RLlib never
@@ -645,8 +630,8 @@ class _SingleEnvWrapper(MultiAgentEnv):
         env_id: int,
         protocol: BaseRLProtocol,
         simulator: BaseSimulator,
-        single_observation_spaces: dict[str, gym.Space],
-        single_action_spaces: dict[str, gym.Space],
+        single_observation_spaces: dict[str, gym.Space[Any]],
+        single_action_spaces: dict[str, gym.Space[Any]],
         possible_agents: list[str],
         parent_vec_env: "RayVecEnv",
     ):
@@ -666,8 +651,8 @@ class _SingleEnvWrapper(MultiAgentEnv):
         )  # Convert set to list to match MultiAgentEnv type
         self.parent_vec_env = parent_vec_env
         # Set spaces
-        self.observation_spaces = self._single_observation_spaces
-        self.action_spaces = self._single_action_spaces
+        self.observation_spaces = cast(dict[Hashable, gym.Space[Any]], self._single_observation_spaces)
+        self.action_spaces = cast(dict[Hashable, gym.Space[Any]], self._single_action_spaces)
         self._single_observation_space = gym.spaces.Dict(
             self._single_observation_spaces
         )
@@ -679,21 +664,21 @@ class _SingleEnvWrapper(MultiAgentEnv):
         super().__init__()
 
     def reset(
-        self, *, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None
+        self, *, seed: int | None = None, options: dict[str, Any] | None = None
     ):
         """Reset is handled by parent RayVecEnv - this shouldn't be called directly."""
         raise NotImplementedError(
             "Single environment reset should be handled by RayVecEnv"
         )
 
-    def _reset(self, observations: Dict[str, Any]):
+    def _reset(self, observations: dict[str, Any]):
         """Inverse of reset To be called from RayVecEnv."""
         self._current_agents = set(observations.keys())
         self._terminated_agents = set()
         self._truncated_agents = set()
         self._reset_on_next_step = False
 
-    def step(self, actions: Dict[str, Any]):
+    def step(self, action_dict: dict[Hashable, Any]):
         """Step is handled by parent RayVecEnv - this shouldn't be called directly."""
         raise NotImplementedError(
             "Single environment step should be handled by RayVecEnv"
@@ -701,9 +686,9 @@ class _SingleEnvWrapper(MultiAgentEnv):
 
     def _step(
         self,
-        observations: Dict[str, Any],
-        terminateds: Dict[str, bool],
-        truncateds: Dict[str, bool],
+        observations: dict[str, Any],
+        terminateds: dict[str, bool],
+        truncateds: dict[str, bool],
     ):
         """Inverse of step To be called from RayVecEnv."""
         if self._reset_on_next_step:
@@ -721,16 +706,16 @@ class _SingleEnvWrapper(MultiAgentEnv):
             )
 
     @property
-    def agents(self) -> List[str]:
+    def agents(self) -> list[str]: # type: ignore
         return list(self._current_agents)
 
     @agents.setter
-    def agents(self, value: List[str]):
+    def agents(self, value: list[str]): # type: ignore
         """Setter for agents to support parent class initialization."""
         self._current_agents = set(value)
 
-
-class RayVecEnv(BaseRayEnv, VectorMultiAgentEnv):
+# ignore type errors here as our implementation is compatible and errors are about exposing properties for instance variables
+class RayVecEnv(BaseRayEnv, VectorMultiAgentEnv): # type: ignore
     """
     Schola's vectorized implementation of VectorMultiAgentEnv for Unreal Engine.
 
@@ -771,7 +756,7 @@ class RayVecEnv(BaseRayEnv, VectorMultiAgentEnv):
         simulator: BaseSimulator,
         verbosity: int = 0,
         *,
-        env_config: Optional[Dict[str, Any]] = None,
+        env_config: dict[str, Any] | None = None,
     ):
         # Initialize shared base class functionality
         BaseRayEnv.__init__(
@@ -799,8 +784,8 @@ class RayVecEnv(BaseRayEnv, VectorMultiAgentEnv):
                 env_id=i,
                 protocol=self.protocol,
                 simulator=self.simulator,
-                single_observation_spaces=self._single_observation_spaces,
-                single_action_spaces=self._single_action_spaces,
+                single_observation_spaces=self.single_observation_spaces,
+                single_action_spaces=self.single_action_spaces,
                 possible_agents=self.possible_agents,
                 parent_vec_env=self,
             ) 
@@ -828,9 +813,9 @@ class RayVecEnv(BaseRayEnv, VectorMultiAgentEnv):
     def reset(
         self,
         *,
-        seed: Optional[Union[int, List[int]]] = None,
-        options: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None,
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        seed: int | list[int] | None = None,
+        options: dict[str, Any] | list[dict[str, Any]] | None = None,
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         """
         Reset all sub-environments.
 
@@ -903,7 +888,7 @@ class RayVecEnv(BaseRayEnv, VectorMultiAgentEnv):
         )
         return observations, infos
 
-    def step(self, actions: list[dict[str, Any]]) -> tuple[
+    def step(self, actions: Sequence[Mapping[str, Any]]) -> tuple[ # type: ignore
         list[dict[str, Any]],
         list[dict[str, float]],
         list[dict[str, bool]],
@@ -924,7 +909,7 @@ class RayVecEnv(BaseRayEnv, VectorMultiAgentEnv):
 
         # We are in Next Step reset mode so ignore the initial_obs and initial_infos
         observations, rewards, terminateds, truncateds, infos, _, _ = (
-            self.protocol.send_action_msg(action_dict, self._single_action_spaces)
+            self.protocol.send_action_msg(action_dict, self.single_action_spaces)
         )
 
         for env_id in range(self.num_envs):

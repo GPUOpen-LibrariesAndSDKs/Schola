@@ -216,7 +216,7 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
 
     # Pass the frozen mapping to the ScholaAlgorithm via env_config (ignored by
     # make_env) so it gets checkpointed as an RLlib subcomponent.
-    env_config[ENV_CONFIG_POLICY_MAPPING_RECORD_KEY] = dict(agent_to_policy)
+    env_config[ENV_CONFIG_POLICY_MAPPING_RECORD_KEY] = agent_to_policy
 
     typed_policy_ids = {
         agent_id: policy_id
@@ -274,7 +274,7 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
         )
         .multi_agent(
             policies=policies,
-            policy_mapping_fn=make_policy_mapping_fn_from_dict(agent_to_policy),  # type: ignore
+            policy_mapping_fn=make_policy_mapping_fn_from_dict(agent_to_policy),
         )
         .resources(
             num_gpus=args.resource_settings.num_gpus,

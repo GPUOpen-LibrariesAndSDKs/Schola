@@ -3,6 +3,7 @@
 Base class for connections that use the gRPC server.
 """
 
+from collections.abc import Mapping
 from typing import Any, Literal
 
 import grpc
@@ -15,6 +16,7 @@ from schola.core.protocols.base_protocol import (
 )
 from schola.core.protocols.protobuf.deserialize import from_proto
 from schola.core.protocols.protobuf.serialize import to_proto, fill_generic
+from schola.core.utils.dict_helpers import NestedDict
 import schola.generated.GymConnector_pb2_grpc as gym_grpc
 import schola.generated.GymConnector_pb2 as util_messages
 import schola.generated.Definitions_pb2 as env_definitions
@@ -113,8 +115,8 @@ class BaseGrpcProtocol(SocketProtocolMixin):
 
     def prepare_action_msg(
         self,
-        actions: dict[int, dict[str, Any]],
-        action_space: dict[str, gym.Space[Any]],
+        actions: Mapping[int, NestedDict[str, Any]],
+        action_space: Mapping[str, gym.Space[Any]],
     ) -> state_updates.StateUpdate:
         state_update = state_updates.StateUpdate(step=state_updates.Step())
         state_update.status = state_updates.CommunicatorStatus.GOOD
@@ -231,7 +233,7 @@ class GrpcProtocol(BaseGrpcProtocol, BaseRLProtocol):
         self,
     ) -> tuple[
         list[list[str]],
-        dict[int, dict[str, str]],
+        list[dict[str, str]],
         dict[int, dict[str, gym.Space[Any]]],
         dict[int, dict[str, gym.Space[Any]]],
     ]:
@@ -249,7 +251,7 @@ class GrpcProtocol(BaseGrpcProtocol, BaseRLProtocol):
         self,
         seeds: list[Any] | None = None,
         options: list[Any] | None = None,
-    ) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    ) -> tuple[list[dict[str, dict[str, Any]]], list[dict[str, dict[str, str]]]]:
         # abort any inprogress stuff
         state_update = self.prepare_reset_msg(seeds, options)
 
@@ -262,16 +264,16 @@ class GrpcProtocol(BaseGrpcProtocol, BaseRLProtocol):
 
     def send_action_msg(
         self,
-        actions: dict[int, dict[str, Any]],
-        action_space: dict[str, gym.Space[Any]],
+        actions: Mapping[int, NestedDict[str, Any]],
+        action_space: Mapping[str, gym.Space[Any]],
     ) -> tuple[
         list[dict[str, Any]],
         list[dict[str, float]],
         list[dict[str, bool]],
         list[dict[str, bool]],
         list[dict[str, dict[str, str]]],
-        dict[int, dict[str, Any]],
-        dict[int, dict[str, str]],
+        dict[int, dict[str, dict[str, Any]]],
+        dict[int, dict[str,dict[str, str]]],
     ]:
         state_update = self.prepare_action_msg(actions, action_space)
 

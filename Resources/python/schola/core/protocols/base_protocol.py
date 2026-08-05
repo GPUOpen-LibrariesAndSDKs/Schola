@@ -17,7 +17,7 @@ from schola.core.utils.dict_helpers import NestedDict
 if sys.version_info >= (3, 11):
     from enum import StrEnum
 else:
-    from backports.strenum import StrEnum   # pyright: ignore[reportMissingImports]
+    from backports.strenum import StrEnum  # pyright: ignore[reportMissingImports]
 
 
 class AutoResetType(StrEnum):

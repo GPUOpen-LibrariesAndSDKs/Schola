@@ -51,6 +51,7 @@ from schola.core.utils.id_manager import IdManager
 
 logger = logging.getLogger(__name__)
 
+
 def sorted_multi_agent_space(
     multi_agent_space: dict[str, gym.spaces.Dict],
 ) -> gym.spaces.Dict:
@@ -102,6 +103,7 @@ class BaseRayEnv(ABC):
         _single_observation_space, _single_action_space: Per-agent spaces
         _single_observation_spaces, _single_action_spaces: Dict of agent spaces
     """
+
     possible_agents: list[str]
 
     def __init__(
@@ -222,7 +224,12 @@ class BaseRayEnv(ABC):
         """
         pass
 
-    def _build_spaces(self, obs_defns: dict[int, dict[str, gym.Space[Any]]], action_defns: dict[int, dict[str, gym.Space[Any]]], first_env_id: int):
+    def _build_spaces(
+        self,
+        obs_defns: dict[int, dict[str, gym.Space[Any]]],
+        action_defns: dict[int, dict[str, gym.Space[Any]]],
+        first_env_id: int,
+    ):
         """
         Build observation and action spaces from protocol definitions.
 
@@ -380,8 +387,9 @@ class BaseRayEnv(ABC):
             for agent_id in self.possible_agents
         }
 
+
 # ignore type errors here as our implementation is compatible and errors are about exposing properties
-class RayEnv(BaseRayEnv, MultiAgentEnv): # type: ignore
+class RayEnv(BaseRayEnv, MultiAgentEnv):  # type: ignore
     """
     Schola's single-environment implementation of MultiAgentEnv for Unreal Engine.
 
@@ -464,7 +472,7 @@ class RayEnv(BaseRayEnv, MultiAgentEnv): # type: ignore
 
     def reset(
         self, *, seed: int | None = None, options: dict[str, Any] | None = None
-    ) -> tuple[dict[AgentID, Any], dict[AgentID, str]]: 
+    ) -> tuple[dict[AgentID, Any], dict[AgentID, str]]:
         """
         Reset the environment.
 
@@ -512,15 +520,18 @@ class RayEnv(BaseRayEnv, MultiAgentEnv): # type: ignore
 
         # Return dict format (env_id is always 0 for single environment)
         logger.debug(f"RayEnv.reset() returning MultiAgentDict")
-        return cast(tuple[dict[AgentID, Any], dict[AgentID, str]], (observations[self._env_id], infos[self._env_id]))
+        return cast(
+            tuple[dict[AgentID, Any], dict[AgentID, str]],
+            (observations[self._env_id], infos[self._env_id]),
+        )
 
-    def step(self, action_dict: dict[str, Any]) -> tuple[ # type: ignore
+    def step(self, action_dict: dict[str, Any]) -> tuple[  # type: ignore
         dict[str, Any],
         dict[str, float],
         dict[str, bool],
         dict[str, bool],
         dict[str, Any],
-    ]: 
+    ]:
         """
         Step the environment with the given actions.
 
@@ -651,8 +662,12 @@ class _SingleEnvWrapper(MultiAgentEnv):
         )  # Convert set to list to match MultiAgentEnv type
         self.parent_vec_env = parent_vec_env
         # Set spaces
-        self.observation_spaces = cast(dict[Hashable, gym.Space[Any]], self._single_observation_spaces)
-        self.action_spaces = cast(dict[Hashable, gym.Space[Any]], self._single_action_spaces)
+        self.observation_spaces = cast(
+            dict[Hashable, gym.Space[Any]], self._single_observation_spaces
+        )
+        self.action_spaces = cast(
+            dict[Hashable, gym.Space[Any]], self._single_action_spaces
+        )
         self._single_observation_space = gym.spaces.Dict(
             self._single_observation_spaces
         )
@@ -663,9 +678,7 @@ class _SingleEnvWrapper(MultiAgentEnv):
 
         super().__init__()
 
-    def reset(
-        self, *, seed: int | None = None, options: dict[str, Any] | None = None
-    ):
+    def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None):
         """Reset is handled by parent RayVecEnv - this shouldn't be called directly."""
         raise NotImplementedError(
             "Single environment reset should be handled by RayVecEnv"
@@ -706,16 +719,17 @@ class _SingleEnvWrapper(MultiAgentEnv):
             )
 
     @property
-    def agents(self) -> list[str]: # type: ignore
+    def agents(self) -> list[str]:  # type: ignore
         return list(self._current_agents)
 
     @agents.setter
-    def agents(self, value: list[str]): # type: ignore
+    def agents(self, value: list[str]):  # type: ignore
         """Setter for agents to support parent class initialization."""
         self._current_agents = set(value)
 
+
 # ignore type errors here as our implementation is compatible and errors are about exposing properties for instance variables
-class RayVecEnv(BaseRayEnv, VectorMultiAgentEnv): # type: ignore
+class RayVecEnv(BaseRayEnv, VectorMultiAgentEnv):  # type: ignore
     """
     Schola's vectorized implementation of VectorMultiAgentEnv for Unreal Engine.
 
@@ -749,7 +763,7 @@ class RayVecEnv(BaseRayEnv, VectorMultiAgentEnv): # type: ignore
     """
 
     envs: list[_SingleEnvWrapper]
-    
+
     def __init__(
         self,
         protocol: BaseRLProtocol,
@@ -779,7 +793,7 @@ class RayVecEnv(BaseRayEnv, VectorMultiAgentEnv): # type: ignore
         self.render_mode = None
 
         # Create list of MultiAgentEnv instances matching RLlib's pattern
-        self.envs = [ # type: ignore
+        self.envs = [  # type: ignore
             _SingleEnvWrapper(
                 env_id=i,
                 protocol=self.protocol,
@@ -788,9 +802,9 @@ class RayVecEnv(BaseRayEnv, VectorMultiAgentEnv): # type: ignore
                 single_action_spaces=self.single_action_spaces,
                 possible_agents=self.possible_agents,
                 parent_vec_env=self,
-            ) 
+            )
             for i in range(self.num_envs)
-        ] 
+        ]
 
     def _define_environment(self):
         """Define environment spaces for multiple parallel environments."""
@@ -888,7 +902,7 @@ class RayVecEnv(BaseRayEnv, VectorMultiAgentEnv): # type: ignore
         )
         return observations, infos
 
-    def step(self, actions: Sequence[Mapping[str, Any]]) -> tuple[ # type: ignore
+    def step(self, actions: Sequence[Mapping[str, Any]]) -> tuple[  # type: ignore
         list[dict[str, Any]],
         list[dict[str, float]],
         list[dict[str, bool]],

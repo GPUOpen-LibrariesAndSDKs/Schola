@@ -45,7 +45,6 @@ def nested_get(dct: NestedDict[K, V], keys: Iterable[K], default: V) -> V:
     return cast(V, curr_dct)
 
 
-
 class IdManager:
     """
     A class to manage the mapping between nested and flattened ids.
@@ -169,7 +168,7 @@ class IdManager:
         -------
         list[T]
             A flattened list of the values found in the nested structure. Ordered by UID.
-        
+
         Raises
         ------
         KeyError
@@ -219,14 +218,16 @@ class IdManager:
             first_id, second_id = self.id_list[flat_id]
             output_dict[first_id][second_id] = body
         return output_dict
-    
+
     def nest_list_to_dict_of_dicts(
         self, id_list: Sequence[T]
     ) -> dict[int, dict[str, T]]:
         """
         Nest a sequence of values, indexed by flattened id, into a dictionary of nested ids.
         """
-        assert len(id_list) == self.num_ids, "the list of values to nest must be the same length as the number of ids without a default value"
+        assert (
+            len(id_list) == self.num_ids
+        ), "the list of values to nest must be the same length as the number of ids without a default value"
         return {
             first_id: {
                 second_id: id_list[self.id_map[first_id][second_id]]
@@ -234,12 +235,12 @@ class IdManager:
             }
             for first_id, nested_ids in enumerate(self.ids)
         }
-    
-    @overload
-    def __getitem__(self, key: int) -> tuple[int,str]: ...
 
     @overload
-    def __getitem__(self, key: tuple[int,str]) -> int: ...
+    def __getitem__(self, key: int) -> tuple[int, str]: ...
+
+    @overload
+    def __getitem__(self, key: tuple[int, str]) -> int: ...
 
     @singledispatchmethod
     def __getitem__(self, key: object) -> tuple[int, str] | int:
@@ -265,15 +266,14 @@ class IdManager:
             "get item not supported for keys that aren't int or tuple[int, str]"
         )
 
-    @__getitem__.register # type: ignore
+    @__getitem__.register  # type: ignore
     def _(self, key: int) -> tuple[int, str]:
         return self.id_list[key]
 
-    @__getitem__.register(tuple) # type: ignore
+    @__getitem__.register(tuple)  # type: ignore
     def _(self, key: tuple[int, str]) -> int:
         assert len(key) == 2, "if supplying tuple key must supply a key of length 2"
         return self.id_map[key[0]][key[1]]
-
 
     def get_nested_id(self, flat_id: int) -> tuple[int, str]:
         """

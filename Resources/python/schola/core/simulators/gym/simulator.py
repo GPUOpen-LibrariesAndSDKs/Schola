@@ -137,7 +137,7 @@ class GymSimulator(BaseSimulator):
         if self._server is not None:
             raise RuntimeError("GymSimulator gRPC server is already running")
 
-        port = int(protocol_properties["Port"]) # type: ignore[arg-type]
+        port = int(protocol_properties["Port"])  # type: ignore[arg-type]
         env_factory = functools.partial(gym.make, self.env_id)
 
         if self.num_envs == 1:

@@ -21,6 +21,7 @@ from schola.scripts.rllib.settings import (
     RllibEnvironmentSettings,
 )
 
+
 @dataclass
 class RllibEvalScriptSettings:
     """

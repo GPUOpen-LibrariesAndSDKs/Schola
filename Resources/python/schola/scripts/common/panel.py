@@ -27,6 +27,7 @@ STYLE_ERROR = "red"
 STYLE_WARNING = "yellow"
 STYLE_INFO = "cyan"
 
+
 def print_panel(
     message: str | Iterable[str], *, title: str = "", style: str = STYLE_INFO
 ) -> None:
@@ -48,6 +49,7 @@ def print_panel(
         CycloptsPanel(message=message, title=title or "Message", style=style)
     )
 
+
 def print_error(message: str | Iterable[str]) -> None:  # noqa: D401
     """
     Print an error panel and terminate with exit code 1.
@@ -63,6 +65,7 @@ def print_error(message: str | Iterable[str]) -> None:  # noqa: D401
     except SystemExit:
         raise
 
+
 def print_warning(message: str | Iterable[str]) -> None:  # noqa: D401
     """
     Print a non-fatal warning using a Rich panel (yellow styling).
@@ -73,6 +76,7 @@ def print_warning(message: str | Iterable[str]) -> None:  # noqa: D401
         Body text; iterables are joined with newlines.
     """
     print_panel(message, title="Warning", style=STYLE_WARNING)
+
 
 def print_info(message: str | Iterable[str]) -> None:  # noqa: D401
     """

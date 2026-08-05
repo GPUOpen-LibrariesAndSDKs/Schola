@@ -29,6 +29,7 @@ from schola.scripts.sb3.settings import (
     Sb3EnvironmentSettings,
 )
 
+
 @dataclass
 class BaseSb3AlgorithmSettings:
     """
@@ -53,6 +54,7 @@ class BaseSb3AlgorithmSettings:
             raise ValueError(
                 f"batch_size ({self.batch_size}) must divide n_steps ({self.n_steps})."
             )
+
 
 @dataclass
 class PPOTrainSettings(BaseSb3AlgorithmSettings, BasePPOSettings):
@@ -111,6 +113,7 @@ class PPOTrainSettings(BaseSb3AlgorithmSettings, BasePPOSettings):
             raise ValueError(
                 f"Invalid sde_sample_freq={self.sde_sample_freq}. Must be -1 (every step) or a positive integer (>0)."
             )
+
 
 @dataclass
 class SACTrainSettings(BaseSb3AlgorithmSettings, BaseSACSettings):
@@ -231,6 +234,7 @@ class SACTrainSettings(BaseSb3AlgorithmSettings, BaseSACSettings):
         #         f"Learning starts: ({self.learning_starts}) is not a multiple of train_freq: ({self.train_freq}). This may delay the start of training."
         #     )
 
+
 @dataclass
 class Sb3ResumeSettings:
     """
@@ -265,6 +269,7 @@ class Sb3ResumeSettings:
     reset_timestep: bool = False
     "Whether to reset the internal timestep counter when resuming training from a saved model. When set to True, it will reset the timestep counter to 0."
 
+
 @dataclass
 class Sb3LoggingSettings(Sb3BaseLoggingSettings):
     """
@@ -295,6 +300,7 @@ class Sb3LoggingSettings(Sb3BaseLoggingSettings):
                     f"Failed to create TensorBoard log directory '{self.log_dir}': {e}"
                 ) from e
 
+
 @dataclass
 class Sb3CheckpointSettings(CheckpointSettings):
     """
@@ -306,6 +312,7 @@ class Sb3CheckpointSettings(CheckpointSettings):
 
     save_vecnormalize: bool = False
     "Whether to save the vector normalization statistics when saving a checkpoint. This is useful for environments where observations need to be normalized, and it allows for consistent normalization when resuming training."
+
 
 @dataclass
 class Sb3NetworkArchitectureSettings:
@@ -332,6 +339,7 @@ class Sb3NetworkArchitectureSettings:
                 f"activation must be one of {list(ActivationFunctionEnum)} (got '{self.activation}')."
             )
 
+
 @dataclass
 class Sb3TrainingSettings:
     """
@@ -348,6 +356,7 @@ class Sb3TrainingSettings:
 
     disable_eval: bool = False
     "Whether to disable running evaluation after training. When set to True, it will skip evaluation after training completes."
+
 
 @dataclass
 class Sb3TrainScriptSettings:

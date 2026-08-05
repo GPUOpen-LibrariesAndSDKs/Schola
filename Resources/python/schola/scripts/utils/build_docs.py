@@ -38,9 +38,11 @@ app = App(
     name="build-docs", help="Build Schola documentation (Doxygen -> Breathe -> Sphinx)."
 )
 
+
 def _which(cmd: str) -> str | None:
     """Return full path to an executable if found on PATH, otherwise None."""
     return shutil.which(cmd)
+
 
 def _run(cmd: list[str], cwd: Path | None = None):
     """Run a subprocess command and raise on failure with helpful context."""
@@ -50,6 +52,7 @@ def _run(cmd: list[str], cwd: Path | None = None):
     except subprocess.CalledProcessError as e:
         logger.error("Command failed with exit code %s: %s", e.returncode, e.cmd)
         raise
+
 
 def _remove_tree_if_exists(path: Path, description: str) -> None:
     """Remove a directory tree if it exists; log and ignore if missing."""
@@ -62,6 +65,7 @@ def _remove_tree_if_exists(path: Path, description: str) -> None:
         return
     logger.info("Removing %s directory %s", description, path)
     shutil.rmtree(path)
+
 
 def _prune_anonymous_doxygen_namespace_rst(breathe_api_out: Path) -> None:
     """
@@ -89,8 +93,8 @@ def _prune_anonymous_doxygen_namespace_rst(breathe_api_out: Path) -> None:
             except OSError as e:
                 logger.warning("Could not remove %s: %s", path, e)
 
-@app.default
 
+@app.default
 def main(
     plugin_folder: Path = Path("."),
     doxygen: bool = True,
@@ -257,6 +261,7 @@ def main(
         raise SystemExit(sphinx_exit)
 
     logger.info("Documentation build complete. Output available at: %s", out_build_dir)
+
 
 if __name__ == "__main__":
     app()

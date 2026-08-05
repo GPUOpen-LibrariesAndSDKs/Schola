@@ -13,6 +13,7 @@ export_onnx_app = App(
     help="Convert a StableBaselines 3 policy to ONNX for Unreal Engine",
 )
 
+
 def _get_algorithm_class(algo: str):
 
     import stable_baselines3 as sb3
@@ -29,7 +30,9 @@ def _get_algorithm_class(algo: str):
         raise ValueError(f"Invalid algorithm: {algo}")
     return _ALGORITHM_CLASSES[algo.upper()]
 
+
 AlgorithmIdentifier = Literal["PPO", "A2C", "SAC", "TD3", "DDPG", "DQN"]
+
 
 @export_onnx_app.default
 def export(
@@ -56,6 +59,7 @@ def export(
         model_path=str(policy_checkpoint_path),
         export_path=str(output_path),
     )
+
 
 if __name__ == "__main__":
     export_onnx_app()

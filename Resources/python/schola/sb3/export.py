@@ -46,7 +46,8 @@ from stable_baselines3.common.base_class import BaseAlgorithm
 
 # Modifications Copyright (c) 2023-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
-T = TypeVar('T', bound=BasePolicy)
+T = TypeVar("T", bound=BasePolicy)
+
 
 class SB3ScholaModel(ScholaModel, Generic[T]):
     """
@@ -241,7 +242,7 @@ def get_scholasb3_model(
         The model to get the ScholaModel for.
     action_space : gym.Space | None
         The action space to use for the model. Useful for when the model has a merged dictionary action space (e.g. Dict with two Box Subspaces).
-    
+
     Returns
     -------
     ScholaModel

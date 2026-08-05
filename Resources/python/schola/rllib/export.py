@@ -87,7 +87,9 @@ def _(
         path = path / "default_policy.onnx"
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
-    assert isinstance(arg, (TorchPolicyV2, TorchPolicy)), f"Expected TorchPolicyV2 or SACTorchPolicy, got {type(arg)}"
+    assert isinstance(
+        arg, (TorchPolicyV2, TorchPolicy)
+    ), f"Expected TorchPolicyV2 or SACTorchPolicy, got {type(arg)}"
 
     schola_model = RllibScholaModel(
         arg, observation_space=observation_space, action_space=action_space
@@ -186,8 +188,12 @@ def _(
             module, path / f"{k}.onnx", observation_spaces[k], action_spaces[k]
         )
 
-def _flatten_inputs_to_1d_tensor(inputs: dict[str, Any], spaces: dict[str, gym.Space[Any]]) -> th.Tensor:
+
+def _flatten_inputs_to_1d_tensor(
+    inputs: dict[str, Any], spaces: dict[str, gym.Space[Any]]
+) -> th.Tensor:
     return th.as_tensor(flatten_inputs_to_1d_tensor(inputs, spaces))
+
 
 @export_onnx_from_policy.register
 def _(arg: Algorithm, path: pathlib.Path) -> None:
@@ -199,13 +205,15 @@ def _(arg: Algorithm, path: pathlib.Path) -> None:
             "No single environment spaces found on Algorithm while exporting to ONNX. Expected key '__env_single__'"
         )
 
-    obs_space, act_space = cast(tuple[gym.Space[Any], gym.Space[Any]], arg.spaces["__env_single__"])
-    
+    obs_space, act_space = cast(
+        tuple[gym.Space[Any], gym.Space[Any]], arg.spaces["__env_single__"]
+    )
+
     if arg.env_runner is not None:
-        module = arg.env_runner.module # type: ignore
+        module = arg.env_runner.module  # type: ignore
     elif arg.env_runner_group is not None:
         module = arg.env_runner_group.foreach_env_runner(
-            lambda er: er.module, #type: ignore
+            lambda er: er.module,  # type: ignore
             remote_worker_ids=[1],
             local_env_runner=False,
         )[0]
@@ -217,30 +225,38 @@ def _(arg: Algorithm, path: pathlib.Path) -> None:
     # All agent's mapping to the same policy will have the same observation space so we can just overwrite the values.
     # We can't use the policy observation space as it is already flattened.
     if isinstance(module, MultiRLModule) and (config := arg.get_config()) is not None:
-        assert isinstance(obs_space, gym.spaces.Dict), f"Expected MultiAgent Algorithm to have a Dict Observation space with agent_ids as the keys but got {type(obs_space)}"
-        assert isinstance(act_space, gym.spaces.Dict), f"Expected MultiAgent Algorithm to have a Dict Action space with agent_ids as the keys but got {type(act_space)}"
+        assert isinstance(
+            obs_space, gym.spaces.Dict
+        ), f"Expected MultiAgent Algorithm to have a Dict Observation space with agent_ids as the keys but got {type(obs_space)}"
+        assert isinstance(
+            act_space, gym.spaces.Dict
+        ), f"Expected MultiAgent Algorithm to have a Dict Action space with agent_ids as the keys but got {type(act_space)}"
         policy_mapping_fn: PolicyMappingFn | None = None
         if isinstance(config, AlgorithmConfig):
             # ignore old stack type annotations here
             policy_mapping_fn = cast(PolicyMappingFn | None, config.policy_mapping_fn)
         elif isinstance(config, AlgorithmConfigDict) and "policy_mapping_fn" in config:
-            policy_mapping_fn = cast(PolicyMappingFn | None, config["policy_mapping_fn"])
-        
-        # Can only map if we have a dictionary 
+            policy_mapping_fn = cast(
+                PolicyMappingFn | None, config["policy_mapping_fn"]
+            )
+
+        # Can only map if we have a dictionary
         if policy_mapping_fn is not None:
             dummy_episode: EpisodeType = MultiAgentEpisode()
-            obs_space = gym.spaces.Dict({
-                policy_mapping_fn(k, dummy_episode): v for k, v in obs_space.items()
-            })
-            act_space = gym.spaces.Dict({
-                policy_mapping_fn(k, dummy_episode): v for k, v in act_space.items()
-            })
-        
+            obs_space = gym.spaces.Dict(
+                {policy_mapping_fn(k, dummy_episode): v for k, v in obs_space.items()}
+            )
+            act_space = gym.spaces.Dict(
+                {policy_mapping_fn(k, dummy_episode): v for k, v in act_space.items()}
+            )
+
     export_onnx_from_policy(module, path, obs_space, act_space)
+
 
 class ModelOutputDict(TypedDict):
     action_dist_inputs: th.Tensor
     state_out: NestedDict[str, th.Tensor]
+
 
 class ScholaRLModule(ScholaModel):
     """
@@ -327,7 +343,7 @@ class ScholaRLModule(ScholaModel):
         if self.rl_module.is_stateful():
             # using LSTM, so we need to add an extra dim before flattening
 
-            module_inputs : dict[str, Any] = {
+            module_inputs: dict[str, Any] = {
                 "obs": _flatten_inputs_to_1d_tensor(
                     tensor_dict, self.observation_space.spaces
                 ).unsqueeze(
@@ -361,7 +377,9 @@ class ScholaRLModule(ScholaModel):
                 )
             }
 
-        model_out = cast(ModelOutputDict, self.rl_module.forward_inference(module_inputs))
+        model_out = cast(
+            ModelOutputDict, self.rl_module.forward_inference(module_inputs)
+        )
 
         # Convert logits to actual outputs in the respective action spaces
         outputs = self.make_outputs(cast(th.Tensor, model_out["action_dist_inputs"]))
@@ -435,9 +453,9 @@ class RllibScholaModel(ScholaModel):
         # for SAC the model.forward is a no-op, so we need to use the action model instead
         if isinstance(policy, SACTorchPolicy):
             # ignore typing here because rllib erases the type of the model
-            self._model = cast(TorchModelV2, policy.model.action_model.to("cpu")) # type: ignore
+            self._model = cast(TorchModelV2, policy.model.action_model.to("cpu"))  # type: ignore
         else:
-            self._model = cast(TorchModelV2, policy.model.to("cpu")) # type: ignore
+            self._model = cast(TorchModelV2, policy.model.to("cpu"))  # type: ignore
         # update the dummy batch here
         self._policy._dummy_batch = (
             self._policy._get_dummy_batch_from_view_requirements(1)

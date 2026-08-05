@@ -38,6 +38,7 @@ from schola.core.protocols.async_base_protocol import AsyncBaseRLProtocol
 logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
+
 def _merge_async_definitions(
     results: list[
         tuple[
@@ -308,10 +309,12 @@ class AsyncVecEnv(BaseVecEnv):
         if seed is None:
             seed = int(np.random.randint(0, np.iinfo(np.uint32).max, dtype=np.uint32))
         seeds = [int(seed + i) for i in range(self.num_envs)]
-        self._seeds = seeds # type: ignore
+        self._seeds = seeds  # type: ignore
         return seeds
 
-    def set_options(self, options: list[dict[str, Any]] | dict[str, Any] | None = None) -> None:
+    def set_options(
+        self, options: list[dict[str, Any]] | dict[str, Any] | None = None
+    ) -> None:
         if options is None:
             options = {}
         if isinstance(options, dict):
@@ -324,7 +327,9 @@ class AsyncVecEnv(BaseVecEnv):
         self._options = deepcopy(options)
 
     def reset(self) -> VecEnvObs:
-        async def _do_reset() -> tuple[list[dict[str, Any]], list[dict[str,dict[str,str]]]]:
+        async def _do_reset() -> (
+            tuple[list[dict[str, Any]], list[dict[str, dict[str, str]]]]
+        ):
             obs_all: list[Any] = []
             info_all: list[Any] = []
             off = 0
@@ -348,19 +353,19 @@ class AsyncVecEnv(BaseVecEnv):
         for proto, seg_im in zip(self.protocols, self._segment_id_managers):
             n = seg_im.num_ids
             seg_actions = actions[off : off + n]
-            next_actions = seg_im.nest_list_to_dict_of_dicts(seg_actions) # type: ignore[arg-type]
+            next_actions = seg_im.nest_list_to_dict_of_dicts(seg_actions)  # type: ignore[arg-type]
             if isinstance(self.action_space, gym.spaces.Dict):
                 for env_id, agent_id_list in enumerate(seg_im.ids):
                     for agent_id in agent_id_list:
                         next_actions[env_id][agent_id] = split_value(
                             next_actions[env_id][agent_id], self.action_space
-                        ) # type: ignore[arg-type]
-            
+                        )  # type: ignore[arg-type]
+
             next_actions = cast(dict[int, dict[str, Any]], next_actions)
             coros.append(
                 proto.send_action_msg(
                     next_actions, defaultdict(lambda: self.action_space)
-                ) 
+                )
             )
             off += n
 

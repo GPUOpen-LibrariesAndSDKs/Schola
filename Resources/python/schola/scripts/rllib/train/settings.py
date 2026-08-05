@@ -24,6 +24,7 @@ from schola.scripts.rllib.settings import (
     SACSettings,
 )
 
+
 @dataclass
 class TrainingSettings:
     """
@@ -74,6 +75,7 @@ class TrainingSettings:
                 f"train_batch_size_per_learner ({self.train_batch_size_per_learner}) must be a multiple of minibatch_size ({self.minibatch_size})."
             )
 
+
 @dataclass
 class ResumeSettings:
     """
@@ -95,6 +97,7 @@ class ResumeSettings:
     @property
     def name(self) -> str:
         return "Resume Settings"
+
 
 @dataclass
 class NetworkArchitectureSettings:
@@ -133,6 +136,7 @@ class NetworkArchitectureSettings:
             raise ValueError(
                 f"fcnet_hiddens has non-positive entries {bad}; all layer sizes must be > 0."
             )
+
 
 @dataclass
 class RllibScriptSettings:
@@ -182,6 +186,7 @@ class RllibScriptSettings:
         Parameter(group="Environment Arguments", name="*"),
     ] = field(default_factory=RllibEnvironmentSettings)
     "Settings for the environment to use during training"
+
 
 # Deprecated spellings; prefer RllibScriptSettings.
 RLlibScriptArgs = RllibScriptSettings

@@ -14,18 +14,20 @@ from schola.core.utils.id_manager import IdManager
 class _FakeGymEnv(gym.Env):
 
     def __init__(self, observation_space: gym.Space[Any], action_space: gym.Space[Any]):
-        self.observation_space : gym.Space[Any] = observation_space
-        self.action_space : gym.Space[Any]= action_space
+        self.observation_space: gym.Space[Any] = observation_space
+        self.action_space: gym.Space[Any] = action_space
         # These should all be set from the DataCollector
-        self.observations : Any | None= None
-        self.rewards : float | None = None
-        self.terminations : bool | None = None
-        self.truncations : bool | None = None
-        self.infos : dict[str, Any] = {}
-        self.initial_obs : Any | None = None
-        self.initial_infos : dict[str, Any] = {}
+        self.observations: Any | None = None
+        self.rewards: float | None = None
+        self.terminations: bool | None = None
+        self.truncations: bool | None = None
+        self.infos: dict[str, Any] = {}
+        self.initial_obs: Any | None = None
+        self.initial_infos: dict[str, Any] = {}
 
-    def reset(self, * , seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[Any, dict[str, Any]]:
+    def reset(
+        self, *, seed: int | None = None, options: dict[str, Any] | None = None
+    ) -> tuple[Any, dict[str, Any]]:
         return self.initial_obs, self.initial_infos
 
     def step(self, action: Any) -> tuple[Any, float, bool, bool, dict[str, Any]]:
@@ -37,7 +39,7 @@ class _FakeGymEnv(gym.Env):
             self.terminations,
             self.truncations,
             self.infos,
-        ) # type: ignore
+        )  # type: ignore
 
 
 class ScholaDataCollector(DataCollector):
@@ -48,6 +50,7 @@ class ScholaDataCollector(DataCollector):
     -----
     Requires exactly one environment and one agent in the Schola definition.
     """
+
     env: _FakeGymEnv
 
     def __init__(
@@ -90,7 +93,9 @@ class ScholaDataCollector(DataCollector):
             "Reset is not implemented for Minari DataCollection with Schola. The Environment will reset itself."
         )
 
-    def step(self, *args, **kwargs) -> tuple[Any, SupportsFloat, bool, bool, dict[str, Any]]:
+    def step(
+        self, *args, **kwargs
+    ) -> tuple[Any, SupportsFloat, bool, bool, dict[str, Any]]:
         (
             observations,
             rewards,

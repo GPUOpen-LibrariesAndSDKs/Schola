@@ -17,6 +17,7 @@ from schola.scripts.common.settings import (
 from schola.scripts.sb3.settings import Sb3BaseLoggingSettings, Sb3EnvironmentSettings
 from schola.scripts.sb3.settings import BasePPOSettings, BaseSACSettings
 
+
 @dataclass
 class Sb3EvalScriptSettings:
     """

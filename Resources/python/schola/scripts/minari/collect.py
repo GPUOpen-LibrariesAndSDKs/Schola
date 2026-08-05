@@ -21,6 +21,7 @@ if not logging.getLogger().handlers:
 
 logger = logging.getLogger(__name__)
 
+
 def main(args: MinariScriptSettings):
     """
     Main function for collecting a Minari dataset using Schola.
@@ -120,9 +121,11 @@ def main(args: MinariScriptSettings):
 
     return dataset
 
+
 _collect_app = App(
     name="collect", help="Collect imitation learning datasets using Minari"
 )
+
 
 class CollectMinariCommand(ScholaCommandTemplate[MinariScriptSettings]):
 
@@ -137,6 +140,7 @@ class CollectMinariCommand(ScholaCommandTemplate[MinariScriptSettings]):
     @property
     def main_func(self) -> Callable[[MinariScriptSettings], Any]:
         return main
+
 
 collect_app = CollectMinariCommand(_collect_app, logger).make()
 

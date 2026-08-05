@@ -12,6 +12,7 @@ export_onnx_app = App(
     help="Convert a Ray RLlib Algorithm Checkpoint to ONNX for Unreal Engine",
 )
 
+
 @export_onnx_app.default
 def export(
     policy_checkpoint_path: types.ExistingDirectory,
@@ -35,6 +36,7 @@ def export(
     algo = Algorithm.from_checkpoint(str(policy_checkpoint_path))
 
     export_onnx_from_policy(algo, output_path)
+
 
 if __name__ == "__main__":
     export_onnx_app()

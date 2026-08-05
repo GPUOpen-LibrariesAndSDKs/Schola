@@ -61,7 +61,9 @@ def from_proto(msg: proto_points.Point) -> dict[str, Any] | NDArray[Any]: ...
 # ---------------------------------------------------------------------------
 
 @overload
-def from_proto(msg: state.InitialAgentState) -> tuple[NDArray[Any] | dict[str, Any], dict[str, str]]: ...
+def from_proto(
+    msg: state.InitialAgentState,
+) -> tuple[NDArray[Any] | dict[str, Any], dict[str, str]]: ...
 @overload
 def from_proto(
     msg: state.InitialEnvironmentState,
@@ -69,7 +71,9 @@ def from_proto(
 @overload
 def from_proto(
     msg: state.InitialState,
-) -> tuple[dict[int, dict[str, dict[str, Any]]], dict[int, dict[str, dict[str, str]]]]: ...
+) -> tuple[
+    dict[int, dict[str, dict[str, Any]]], dict[int, dict[str, dict[str, str]]]
+]: ...
 
 # ---------------------------------------------------------------------------
 # from_proto – training state deserialization

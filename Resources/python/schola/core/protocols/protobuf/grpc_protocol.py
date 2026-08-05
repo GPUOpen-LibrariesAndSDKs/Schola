@@ -273,7 +273,7 @@ class GrpcProtocol(BaseGrpcProtocol, BaseRLProtocol):
         list[dict[str, bool]],
         list[dict[str, dict[str, str]]],
         dict[int, dict[str, dict[str, Any]]],
-        dict[int, dict[str,dict[str, str]]],
+        dict[int, dict[str, dict[str, str]]],
     ]:
         state_update = self.prepare_action_msg(actions, action_space)
 

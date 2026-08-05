@@ -31,6 +31,7 @@ if not logging.getLogger().handlers:
     )
 logger = logging.getLogger(__name__)
 
+
 def _build_eval_config(
     env_config: dict[str, Any],
     *,
@@ -73,6 +74,7 @@ def _build_eval_config(
         .rl_module(rl_module_spec=spec)
     )
 
+
 def _shape_env_runner_metrics(
     episode_returns: list[float], episode_lens: list[int]
 ) -> dict[str, Any]:
@@ -99,6 +101,7 @@ def _shape_env_runner_metrics(
             },
         }
     }
+
 
 def _sample_eval_episodes_via_env_runners(
     config: Any,
@@ -131,7 +134,7 @@ def _sample_eval_episodes_via_env_runners(
     try:
         rl_module_state = marl.get_state(inference_only=True)
         group.foreach_env_runner(
-            lambda r: r.set_state({COMPONENT_RL_MODULE: rl_module_state}), # type: ignore
+            lambda r: r.set_state({COMPONENT_RL_MODULE: rl_module_state}),  # type: ignore
             local_env_runner=local_only,
         )
 
@@ -170,6 +173,7 @@ def _sample_eval_episodes_via_env_runners(
             logger.debug("EnvRunnerGroup stop failed: %s", exc)
 
     return episode_returns, episode_lens
+
 
 def main(args: RllibEvalScriptSettings) -> dict[str, Any]:
     """Entry point for ``schola rllib eval``: load modules, run env sampling, return metrics.
@@ -263,7 +267,9 @@ def main(args: RllibEvalScriptSettings) -> dict[str, Any]:
         if not args.resource_settings.using_cluster:
             ray.shutdown()
 
+
 app = App(name="eval", help="Evaluate a trained RLlib policy from a checkpoint")
+
 
 class RllibEvalCommand(ScholaCommandTemplate[RllibEvalScriptSettings]):
     @property
@@ -277,6 +283,7 @@ class RllibEvalCommand(ScholaCommandTemplate[RllibEvalScriptSettings]):
     @property
     def main_func(self) -> Callable[[RllibEvalScriptSettings], Any]:
         return main
+
 
 app = RllibEvalCommand(app, logger).make()
 

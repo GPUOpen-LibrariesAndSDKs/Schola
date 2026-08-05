@@ -126,7 +126,9 @@ def _merge_multibinary_spaces(
             raise TypeError(f"Cannot merge MultiBinary space with {type(s)}")
 
     # Sum the dimensions
-    total_n = sum(int(np.prod(s.n)) if isinstance(s.n,tuple) else s.n for s in all_spaces)
+    total_n = sum(
+        int(np.prod(s.n)) if isinstance(s.n, tuple) else s.n for s in all_spaces
+    )
     return MultiBinary(total_n)
 
 
@@ -232,7 +234,7 @@ def split_multibinary_value(
             raise TypeError(f"Expected MultiBinary space for {name}, got {type(space)}")
 
         # Get the size for this space
-        size = int(np.prod(space.n)) if isinstance(space.n,tuple) else space.n
+        size = int(np.prod(space.n)) if isinstance(space.n, tuple) else space.n
 
         # Split along the last axis
         result[name] = value[..., start_idx : start_idx + size]
@@ -362,7 +364,7 @@ try:
     from matplotlib import pyplot as plt
 except ImportError:
     # matplot lib is not installed, raise a lazy error if someone tries to use the RenderImagesWrapper
-    plt = None # type: ignore
+    plt = None  # type: ignore
 
 
 class RenderImagesWrapper(VecEnvWrapper):
@@ -380,9 +382,11 @@ class RenderImagesWrapper(VecEnvWrapper):
             raise ImportError(
                 "You must install matplotlib in order to use the RenderImagesWrapper."
             )
-        self.image_obs : list[tuple[str, gym.spaces.Box]] = []
+        self.image_obs: list[tuple[str, gym.spaces.Box]] = []
         self._num_envs = venv.num_envs
-        assert isinstance(venv.observation_space, gym.spaces.Dict), "RenderImagesWrapper only supports VecEnvs with Dict observation spaces."
+        assert isinstance(
+            venv.observation_space, gym.spaces.Dict
+        ), "RenderImagesWrapper only supports VecEnvs with Dict observation spaces."
         for obs_space_name, obs_space in venv.observation_space.spaces.items():
             if isinstance(obs_space, gym.spaces.Box):
                 self.image_obs.append((obs_space_name, obs_space))
@@ -399,7 +403,9 @@ class RenderImagesWrapper(VecEnvWrapper):
                     cmap = "grey"
                 else:
                     cmap = None
-                default_ndarray = self.convert_to_plt_format(np.zeros(self.image_obs[col][1].shape))
+                default_ndarray = self.convert_to_plt_format(
+                    np.zeros(self.image_obs[col][1].shape)
+                )
                 self.ims[row].append(
                     self.axs[index - 1].imshow(
                         default_ndarray, cmap=cmap, vmin=0.0, vmax=1.0
@@ -446,7 +452,9 @@ class RenderImagesWrapper(VecEnvWrapper):
         dict[str, np.ndarray]
             The original observation.
         """
-        assert isinstance(obs, dict), f"Expected Observations to be a dict but got {type(obs)}"
+        assert isinstance(
+            obs, dict
+        ), f"Expected Observations to be a dict but got {type(obs)}"
         for col, (image_obs_name, obs_space) in enumerate(self.image_obs):
             temp_obs = np.clip(obs[image_obs_name], 0.0, 1.0)
             # yoink out the batch dim at the front of the buffer

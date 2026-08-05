@@ -110,8 +110,10 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
         dict[int, dict[str, gym.Space[Any]]],
         dict[int, dict[str, gym.Space[Any]]],
     ]:
-        training_defn : TrainingDefinition = await self.gym_stub.RequestTrainingDefinition(
-            util_messages.TrainingDefinitionRequest()
+        training_defn: TrainingDefinition = (
+            await self.gym_stub.RequestTrainingDefinition(
+                util_messages.TrainingDefinitionRequest()
+            )
         )
 
         uids, agent_types, obs_spaces, act_spaces = from_proto(training_defn)

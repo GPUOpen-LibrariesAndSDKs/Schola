@@ -22,6 +22,7 @@ if not logging.getLogger().handlers:
     )
 logger = logging.getLogger(__name__)
 
+
 def get_files(folder):
     """
     List regular files in a directory (non-recursive).
@@ -40,6 +41,7 @@ def get_files(folder):
         file_name for file_name in os.listdir(folder) if isfile(join(folder, file_name))
     )
 
+
 def get_proto_files(folder):
     """
     List ``*.proto`` files in a directory.
@@ -57,6 +59,7 @@ def get_proto_files(folder):
     return [
         file_name for file_name in get_files(folder) if file_name.endswith(".proto")
     ]
+
 
 def remove_stale_generated_files(
     folder: Path, expected_files: set[str], suffixes: tuple[str, ...]
@@ -78,6 +81,7 @@ def remove_stale_generated_files(
             stale_file = Path(folder) / file_name
             logger.info("Removing stale generated file %s", stale_file)
             stale_file.unlink()
+
 
 def get_expected_generated_files(proto_files: list[str], add_type_stubs: bool):
     """
@@ -117,6 +121,7 @@ def get_expected_generated_files(proto_files: list[str], add_type_stubs: bool):
 
     return cpp_private, cpp_public, python_files
 
+
 def get_generated_cpp_file_types(folder):
     """
     Classify generated C++ protobuf / gRPC outputs in a folder.
@@ -152,6 +157,7 @@ def get_generated_cpp_file_types(folder):
             output["proto-header"].append(file_name)
     return output
 
+
 def get_generated_python_file_types(folder):
     """
     Classify generated Python ``_pb2`` and ``_pb2_grpc`` modules.
@@ -180,6 +186,7 @@ def get_generated_python_file_types(folder):
 
     return output
 
+
 def fix_imports(folder):
     """
     Rewrite plain protobuf imports to ``schola.generated`` package paths.
@@ -203,6 +210,7 @@ def fix_imports(folder):
             f.seek(0)
             f.writelines(file_contents)
             f.truncate()
+
 
 def disable_warnings(folder, file_paths, warnings):
     """
@@ -242,6 +250,7 @@ def disable_warnings(folder, file_paths, warnings):
             f.seek(0)
             f.writelines(file_contents)
             f.truncate()
+
 
 def add_api_macro(folder, file_paths, api_macro):
     """
@@ -292,6 +301,7 @@ def add_api_macro(folder, file_paths, api_macro):
                     file_path,
                 )
 
+
 def ensure_ue_verify_macro_sandbox(file_contents: list[str]) -> bool:
     """
     UE defines ``verify`` as a macro; Abseil's btree containers use a member
@@ -335,6 +345,7 @@ def ensure_ue_verify_macro_sandbox(file_contents: list[str]) -> bool:
                 continue
         i += 1
     return modified
+
 
 def add_third_party_include_guards(
     folder: Path,
@@ -459,6 +470,7 @@ def add_third_party_include_guards(
                 f.writelines(file_contents)
                 f.truncate()
 
+
 def move_files(src_folder: Path, files: list[str], target_folder: Path):
     """
     Move a list of files from ``src_folder`` into ``target_folder``.
@@ -500,6 +512,7 @@ def move_files(src_folder: Path, files: list[str], target_folder: Path):
             except Exception as e:
                 logger.error("Failed to move %s -> %s: %s", src, dest, e)
 
+
 def make_proto_files(
     protoc_path,
     proto_folder,
@@ -539,6 +552,7 @@ def make_proto_files(
     for file in proto_files:
         subprocess.run([protoc_path] + args + [join(proto_folder, file)], check=True)
 
+
 def make_grpc_files(
     protoc_path,
     proto_folder,
@@ -574,9 +588,11 @@ def make_grpc_files(
             [protoc_path, I_arg, grpc_out, plugin, join(proto_folder, file)], check=True
         )
 
+
 from cyclopts import App, Parameter
 
 app = App(name="compile-proto", help="Compile Schola Protobuf files to python/c++!")
+
 
 def default_warnings(value: Any):
     """
@@ -593,6 +609,7 @@ def default_warnings(value: Any):
         Warning ids ``4125`` and ``4800``.
     """
     return ["4073", "4125", "4800"]
+
 
 @app.default
 def main(
@@ -736,6 +753,7 @@ def main(
 
     # generated code doesn't import correctly so we need to prepend Schola.generated._____
     fix_imports(python_code_folder)
+
 
 if __name__ == "__main__":
     app()

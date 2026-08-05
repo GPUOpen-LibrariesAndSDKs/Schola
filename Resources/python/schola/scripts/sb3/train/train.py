@@ -33,6 +33,7 @@ if not logging.getLogger().handlers:
 
 logger = logging.getLogger(__name__)
 
+
 def warn_if_small_image_observation(observation_space, threshold: int = 64):
     """Issue a panel warning if any Box observation that looks image-like has
     a spatial dimension smaller than `threshold`.
@@ -70,6 +71,7 @@ def warn_if_small_image_observation(observation_space, threshold: int = 64):
                 "or providing a custom features_extractor."
             )
             break
+
 
 def main(args: Sb3TrainScriptSettings) -> (tuple[float, float]) | None:
     """
@@ -377,7 +379,9 @@ def main(args: Sb3TrainScriptSettings) -> (tuple[float, float]) | None:
             env.close()
         raise
 
+
 app = App(name="train", help="Train a model using StableBaselines3")
+
 
 class MetaTrainSB3Command(ScholaCommandTemplate[Sb3TrainScriptSettings]):
     """
@@ -409,5 +413,6 @@ class MetaTrainSB3Command(ScholaCommandTemplate[Sb3TrainScriptSettings]):
     @property
     def main_func(self) -> Callable[[Sb3TrainScriptSettings], Any]:
         return main
+
 
 app = MetaTrainSB3Command(app, logger).make()

@@ -34,6 +34,7 @@ from schola.scripts.common.settings import (
 
 ScriptArgsType = TypeVar("ScriptArgsType")
 
+
 def load_yaml_file(file_path: Path, logger: logging.Logger) -> dict[str, Any]:
     """
     Load a YAML configuration file into a dictionary.
@@ -65,6 +66,7 @@ def load_yaml_file(file_path: Path, logger: logging.Logger) -> dict[str, Any]:
         return {}
     return config_dict
 
+
 class _ScholaConfig(cyclopts.config.Dict):
     """
     Cyclopts dict config source tailored for Schola meta-CLI merging.
@@ -94,6 +96,7 @@ class _ScholaConfig(cyclopts.config.Dict):
             root_keys=self.root_keys,
             allow_unknown=self.allow_unknown,
         )
+
 
 class ScholaCommandTemplate(Generic[ScriptArgsType]):
     """
@@ -250,7 +253,7 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
             script_args: Annotated[
                 ResolvedScriptArgsType,  # pyright: ignore[reportInvalidTypeForm]
                 Parameter(name="*"),
-            ] = self.script_args_type(), 
+            ] = self.script_args_type(),
             hidden_sim_config_dict: Annotated[
                 dict[str, Any] | None, Parameter(parse=False)
             ] = None,

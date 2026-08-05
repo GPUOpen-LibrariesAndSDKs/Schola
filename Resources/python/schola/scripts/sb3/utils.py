@@ -11,6 +11,7 @@ import numpy as np
 ENV_AXIS = 0
 INTERVAL_AXIS = 1
 
+
 class SingleEnvRewardCallback(BaseCallback):
     """
     Callback for logging rewards and steps taken by a single environment inside a vector environment.
@@ -111,6 +112,7 @@ class SingleEnvRewardCallback(BaseCallback):
         """
         self.last_logging_interval += self.logging_interval_size
 
+
 class RewardCallback(CallbackList):
     """
     Callback for logging rewards and steps taken by each environment in a multi-env setting.
@@ -210,6 +212,7 @@ class RewardCallback(CallbackList):
 
         return True
 
+
 import warnings
 
 # Below code is adapted from https://github.com/DLR-RM/stable-baselines3/blob/master/stable_baselines3/common/callbacks.py
@@ -249,6 +252,7 @@ except ImportError:
     # if the progress bar is used
     tqdm = None
 
+
 class CustomProgressBarCallback(BaseCallback):
     """
     Adapted version of the Progress bar from Sb3 that starts from the last timestep when resuming training from a checkpoint.
@@ -258,7 +262,7 @@ class CustomProgressBarCallback(BaseCallback):
     stable_baselines3.common.callbacks.ProgressBarCallback : The original progress bar callback from stable baselines3.
     """
 
-    pbar: tqdm # type: ignore
+    pbar: tqdm  # type: ignore
 
     def __init__(self) -> None:
         super().__init__()
@@ -272,9 +276,9 @@ class CustomProgressBarCallback(BaseCallback):
     def _on_training_start(self) -> None:
         # Initialize progress bar
         # Remove timesteps that were done in previous training sessions
-        self.pbar = tqdm(  
+        self.pbar = tqdm(
             initial=self.model.num_timesteps, total=self.locals["total_timesteps"]
-        ) # pyright: ignore[reportOptionalCall]
+        )  # pyright: ignore[reportOptionalCall]
 
     def _on_step(self) -> bool:
         # Update progress bar, we do num_envs steps per call to `env.step()`
@@ -285,5 +289,6 @@ class CustomProgressBarCallback(BaseCallback):
         # Flush and close progress bar
         self.pbar.refresh()
         self.pbar.close()
+
 
 # end of adapted code

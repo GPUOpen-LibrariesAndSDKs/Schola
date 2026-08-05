@@ -21,6 +21,7 @@ if not logging.getLogger().handlers:
 
 logger = logging.getLogger(__name__)
 
+
 def main(args: Sb3EvalScriptSettings) -> tuple[float, float]:
     """
     Load a saved SB3 policy and run ``stable_baselines3.common.evaluation.evaluate_policy``.
@@ -127,7 +128,9 @@ def main(args: Sb3EvalScriptSettings) -> tuple[float, float]:
             env.close()
         raise
 
+
 app = App(name="eval", help="Evaluate a trained Stable-Baselines3 policy")
+
 
 class MetaEvalSB3Command(ScholaCommandTemplate[Sb3EvalScriptSettings]):
     """
@@ -159,5 +162,6 @@ class MetaEvalSB3Command(ScholaCommandTemplate[Sb3EvalScriptSettings]):
     @property
     def main_func(self) -> Callable[[Sb3EvalScriptSettings], Any]:
         return main
+
 
 app = MetaEvalSB3Command(app, logger).make()

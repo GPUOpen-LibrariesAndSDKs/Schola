@@ -36,6 +36,7 @@ T = TypeVar("T")
 
 AgentObs = np.ndarray | NestedDict[str, np.ndarray] | tuple[np.ndarray, ...]
 
+
 def _validate_definition(
     id_manager: IdManager,
     obs_defns: dict[int, dict[str, gym.Space]],
@@ -373,7 +374,9 @@ class VecEnv(BaseVecEnv):
         None
             Sets :attr:`next_actions` in place.
         """
-        self.next_actions = self.id_manager.nest_list_to_dict_of_dicts(cast(Sequence[NDArray[Any]], actions))
+        self.next_actions = self.id_manager.nest_list_to_dict_of_dicts(
+            cast(Sequence[NDArray[Any]], actions)
+        )
         if isinstance(self.action_space, gym.spaces.Dict):
             for env_id, agent_id_list in enumerate(self.id_manager.ids):
                 for agent_id in agent_id_list:

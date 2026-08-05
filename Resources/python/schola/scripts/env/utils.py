@@ -17,6 +17,7 @@ from gymnasium.utils.env_checker import check_env
 from schola.core.utils.id_manager import IdManager
 from schola.gym.env import GymVectorEnv
 
+
 def _format_value_for_log(value: Any) -> str:
     if isinstance(value, np.ndarray):
         flat = value.ravel()
@@ -38,6 +39,7 @@ def _format_value_for_log(value: Any) -> str:
         return "{" + ", ".join(parts) + suffix + "}"
     return repr(value)
 
+
 def _iter_single_observations(
     env: GymVectorEnv, observations: Any
 ) -> list[tuple[int, str, Any]]:
@@ -48,6 +50,7 @@ def _iter_single_observations(
         env_id, agent_id = env.id_manager.get_nested_id(flat_id)
         slots.append((env_id, agent_id, single_obs))
     return slots
+
 
 def inspect_agents(
     env: GymVectorEnv,
@@ -90,6 +93,7 @@ def inspect_agents(
                 else False
             )
             logger.info("      Initial Obs in Space: %s", in_space)
+
 
 def run_gym_env_checker(env: gym.Env, *, logger: logging.Logger) -> None:
     """Run Gymnasium's ``check_env`` on a single-agent ``gym.Env``."""

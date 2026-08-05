@@ -23,6 +23,7 @@ from cyclopts import App, Parameter, validators
 
 from cyclopts import types
 
+
 @dataclass
 class Sb3BaseLoggingSettings:
     """
@@ -38,6 +39,7 @@ class Sb3BaseLoggingSettings:
         int, Parameter(validator=validators.Number(gte=0, lte=2))
     ] = 1
     "Verbosity level for Stable Baselines3 logging. This controls the level of detail in the output from Stable Baselines3 components during training."
+
 
 @dataclass
 class BaseSACSettings:
@@ -56,6 +58,7 @@ class BaseSACSettings:
     def name(self) -> str:
         return "SAC"
 
+
 @dataclass
 class BasePPOSettings:
 
@@ -72,6 +75,7 @@ class BasePPOSettings:
     @property
     def name(self) -> str:
         return "PPO"
+
 
 @dataclass
 class Sb3EnvironmentSettings(EnvironmentSettings[AllSimulatorConfigs]):

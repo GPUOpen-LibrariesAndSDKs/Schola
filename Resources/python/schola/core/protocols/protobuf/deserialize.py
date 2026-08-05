@@ -197,14 +197,18 @@ def _(msg: proto_points.Point) -> dict[str, Any] | NDArray[Any]:
 
 # Initial State Deserialization
 @from_proto.register
-def _(msg: state.InitialAgentState) -> tuple[NDArray[Any] | dict[str, Any], dict[str, str]]:
+def _(
+    msg: state.InitialAgentState,
+) -> tuple[NDArray[Any] | dict[str, Any], dict[str, str]]:
     observations = from_proto(msg.observations)
     infos = dict(msg.info)
     return observations, infos
 
 
 @from_proto.register
-def _(msg: state.InitialEnvironmentState) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, str]]]:
+def _(
+    msg: state.InitialEnvironmentState,
+) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, str]]]:
     observations = {}
     infos = {}
     for agent_id, agent_state in msg.agent_states.items():

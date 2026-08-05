@@ -38,6 +38,7 @@ STOP_METRIC = "num_env_steps_sampled_lifetime"
 if TYPE_CHECKING:
     import ray.tune
 
+
 def _get_restored_env_steps(checkpoint_path: Path | None) -> int:
     """
     Read the sampled environment-step count from an RLlib checkpoint.
@@ -109,6 +110,7 @@ def _get_restored_env_steps(checkpoint_path: Path | None) -> int:
         return 0
     return restored_steps
 
+
 def _make_stop_criterion(
     timesteps: int,
     checkpoint_path: Path | None,
@@ -151,7 +153,9 @@ def _make_stop_criterion(
         STOP_METRIC: timesteps,
     }
 
+
 # forward declare here for type hinting with no load
+
 
 def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
     """
@@ -383,6 +387,7 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
         logger.info("Models exported to ONNX at %s", results.trials[-1].path)
     return results
 
+
 class RllibTrainCommand(ScholaCommandTemplate[RllibScriptSettings]):
     """
     ``ScholaCommandTemplate`` configuration for Ray RLlib (PPO, SAC, IMPALA, APPO).
@@ -417,6 +422,7 @@ class RllibTrainCommand(ScholaCommandTemplate[RllibScriptSettings]):
     @property
     def main_func(self) -> Callable[[RllibScriptSettings], Any]:
         return main
+
 
 app = RllibTrainCommand(app, logger).make()
 

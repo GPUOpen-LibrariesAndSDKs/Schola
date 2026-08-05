@@ -35,9 +35,11 @@ app = App(
     name="build-plugin", help="Package an Unreal plugin using RunUAT BuildPlugin."
 )
 
+
 def _which(cmd: str) -> str | None:
     """Return full path to an executable if found on PATH, otherwise None."""
     return shutil.which(cmd)
+
 
 def _run(cmd: list[str], cwd: Path | None = None):
     """Run a subprocess command and raise on failure with helpful context."""
@@ -48,6 +50,7 @@ def _run(cmd: list[str], cwd: Path | None = None):
         logger.error("Command failed with exit code %s: %s", e.returncode, e.cmd)
         raise
 
+
 def find_uplugin(folder: Path) -> Path | None:
     """Return the first .uplugin file found in folder (non-recursive)."""
     if not folder.exists() or not folder.is_dir():
@@ -57,8 +60,8 @@ def find_uplugin(folder: Path) -> Path | None:
             return f.resolve()
     return None
 
-@app.default
 
+@app.default
 def main(
     plugin_folder: Path = Path("."),
     uat_path: str | None = None,
@@ -173,6 +176,7 @@ def main(
     _run(cmd, cwd=plugin_folder)
 
     logger.info("Plugin packaging complete. Output directory: %s", out_dir)
+
 
 if __name__ == "__main__":
     app()

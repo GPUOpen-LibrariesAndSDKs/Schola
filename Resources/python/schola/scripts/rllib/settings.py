@@ -15,6 +15,7 @@ from schola.scripts.common.settings import (
     IgnoreParameter,
 )
 
+
 class RllibAlgorithmSpecificSettings:
     """
     Base class for RLlib algorithm-specific settings. This class is intended to be inherited by specific algorithm settings classes (e.g., PPOSettings, IMPALASettings, etc.).
@@ -32,6 +33,7 @@ class RllibAlgorithmSpecificSettings:
         Add the settings to the parser or subparser
         """
         ...
+
 
 @dataclass
 class PPOSettings(RllibAlgorithmSpecificSettings):
@@ -66,6 +68,7 @@ class PPOSettings(RllibAlgorithmSpecificSettings):
             "use_gae": self.use_gae,
             "clip_param": self.clip_param,
         }
+
 
 @dataclass
 class SACSettings(RllibAlgorithmSpecificSettings):
@@ -111,6 +114,7 @@ class SACSettings(RllibAlgorithmSpecificSettings):
             "twin_q": self.twin_q,
         }
 
+
 @dataclass
 class IMPALASettings(RllibAlgorithmSpecificSettings):
     """
@@ -147,6 +151,7 @@ class IMPALASettings(RllibAlgorithmSpecificSettings):
             "vtrace_clip_pg_rho_threshold": self.vtrace_clip_pg_rho_threshold,
         }
 
+
 @dataclass
 class APPOSettings(IMPALASettings, PPOSettings):
     """
@@ -168,6 +173,7 @@ class APPOSettings(IMPALASettings, PPOSettings):
             **IMPALASettings.get_settings_dict(self),
             **PPOSettings.get_settings_dict(self),
         }
+
 
 @dataclass
 class ResourceSettings:
@@ -206,6 +212,7 @@ class ResourceSettings:
     def name(self) -> str:
         return "Resource Settings"
 
+
 @dataclass
 class LoggingSettings:
     """
@@ -234,6 +241,7 @@ class LoggingSettings:
             2: "INFO",
             3: "DEBUG",
         }[self.rllib_verbosity]
+
 
 @dataclass
 class RllibEnvironmentSettings(EnvironmentSettings[AllSimulatorConfigs]):

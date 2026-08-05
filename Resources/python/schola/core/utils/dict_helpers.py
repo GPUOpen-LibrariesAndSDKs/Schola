@@ -140,7 +140,7 @@ class DIterator(NestedIterator[K, V]):
     def _make_iterator(_dict: NestedDict[K, V]) -> NestedIterator[K, V]:
         for key, value in _dict.items():
             if isinstance(value, Mapping):
-                yield (key, DIterator[K,V]._make_iterator(value))
+                yield (key, DIterator[K, V]._make_iterator(value))
             else:
                 yield (key, value)
 

@@ -30,7 +30,6 @@ from ray.rllib.utils.typing import AgentID, EpisodeType, StateDict
 
 from schola.rllib.checkpoint import resolve_checkpoint_dir
 
-
 if TYPE_CHECKING:
     from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 
@@ -110,7 +109,10 @@ def make_policy_mapping_checkpoint_from_config(
     checkpoint when no mapping is present (for example, when resuming from a
     checkpoint trained before this component existed).
     """
-    record = cast(dict[str, str] | None, config.env_config.get(ENV_CONFIG_POLICY_MAPPING_RECORD_KEY))
+    record = cast(
+        dict[str, str] | None,
+        config.env_config.get(ENV_CONFIG_POLICY_MAPPING_RECORD_KEY),
+    )
     return ScholaPolicyMappingCheckpoint(record)
 
 
@@ -123,12 +125,12 @@ def schola_algorithm_subclass(base_algo_class: type[Algorithm]) -> type[Algorith
     """
 
     class ScholaAlgorithm(base_algo_class):
-        
+
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             super().__init__(*args, **kwargs)
             if self.config is not None:
-                self._schola_policy_mapping = make_policy_mapping_checkpoint_from_config(
-                    self.config
+                self._schola_policy_mapping = (
+                    make_policy_mapping_checkpoint_from_config(self.config)
                 )
             else:
                 self._schola_policy_mapping = ScholaPolicyMappingCheckpoint()
@@ -191,14 +193,20 @@ def load_agent_to_policy(checkpoint: Path) -> dict[str, str] | None:
             SCHOLA_POLICY_MAPPING_COMPONENT,
         )
         return None
-    restored = cast(ScholaPolicyMappingCheckpoint, ScholaPolicyMappingCheckpoint.from_checkpoint(component_dir))
+    restored = cast(
+        ScholaPolicyMappingCheckpoint,
+        ScholaPolicyMappingCheckpoint.from_checkpoint(component_dir),
+    )
     table = restored.agent_to_policy
     return table or None
 
 
 class PolicyMappingFn(Protocol):
 
-    def __call__(self, agent_id: AgentID, episode: EpisodeType, **kwargs: Any) -> str: ...
+    def __call__(
+        self, agent_id: AgentID, episode: EpisodeType, **kwargs: Any
+    ) -> str: ...
+
 
 def make_policy_mapping_fn_from_dict(
     agent_to_policy: dict[str, str],

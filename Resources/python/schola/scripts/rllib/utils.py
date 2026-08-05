@@ -14,6 +14,7 @@ from schola.scripts.common.settings import EnvironmentSettings
 from schola.scripts.common.settings import BaseSimulatorConfig
 from schola.scripts.rllib.settings import RllibEnvironmentSettings
 
+
 def discover_env_metadata(
     environment_settings: RllibEnvironmentSettings,
     *,
@@ -55,6 +56,7 @@ def discover_env_metadata(
 
     tmp_env.close()
     return agent_ids, agent_to_policy, env_config
+
 
 def build_env_config(
     environment_settings: RllibEnvironmentSettings,

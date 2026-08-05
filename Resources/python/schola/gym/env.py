@@ -110,7 +110,9 @@ class GymEnv(gym.Env):
         # and stay forward-compatible with non-string payloads.
         super().reset(seed=seed, options=options)
         # wrap options in a list if provided
-        _options : list[dict[str,Any]] | None = [options] if options is not None else None
+        _options: list[dict[str, Any]] | None = (
+            [options] if options is not None else None
+        )
         seeds = [seed] if seed is not None else None
         obs, nested_infos = self.protocol.send_reset_msg(seeds=seeds, options=_options)
         return obs[0][self._agent_id], nested_infos[0][self._agent_id]

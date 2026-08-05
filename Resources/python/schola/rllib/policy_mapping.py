@@ -27,7 +27,6 @@ from typing import (
 from ray.rllib.algorithms.algorithm import Algorithm
 from ray.rllib.utils.checkpoints import Checkpointable
 from ray.rllib.utils.typing import AgentID, EpisodeType, StateDict
-from torch._C import NoneType
 
 from schola.rllib.checkpoint import resolve_checkpoint_dir
 

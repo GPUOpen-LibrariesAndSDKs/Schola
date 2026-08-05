@@ -4,6 +4,7 @@
 Abstract simulator base types shared by simulator backends.
 """
 
+from typing import Any
 from schola.core.protocols.async_base_protocol import AsyncBaseRLProtocol
 from schola.core.protocols.base_protocol import BaseProtocol
 
@@ -80,3 +81,7 @@ class BaseSimulator:
             True if the simulator is running, False otherwise.
         """
         ...
+
+    def get_simulator_args(self) -> dict[str, Any]:
+        """Return a dictionary of arguments used to create this simulator instance."""
+        return {}

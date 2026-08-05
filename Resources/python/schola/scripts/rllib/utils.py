@@ -6,15 +6,17 @@ Shared helper functions for the Schola RLlib scripts (train, eval, export)
 from __future__ import annotations
 
 import signal
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, TypeVar
 
-if TYPE_CHECKING:
-    from schola.core.simulators.base_simulator import BaseSimulator
-    from schola.scripts.common.settings import EnvironmentSettings
+from schola.core.simulators import SupportsSpawn
+from schola.core.simulators.base_simulator import BaseSimulator
+from schola.scripts.common.settings import EnvironmentSettings
+from schola.scripts.common.settings import BaseSimulatorConfig
+from schola.scripts.rllib.settings import RllibEnvironmentSettings
 
 
 def discover_env_metadata(
-    environment_settings: "EnvironmentSettings",
+    environment_settings: RllibEnvironmentSettings,
     *,
     schola_verbosity: int = 0,
 ) -> Tuple[List[str], Dict[str, str], Dict[str, Any]]:
@@ -57,8 +59,8 @@ def discover_env_metadata(
 
 
 def build_env_config(
-    environment_settings: "EnvironmentSettings",
-    simulator: Optional["BaseSimulator"] = None,
+    environment_settings: RllibEnvironmentSettings,
+    simulator: BaseSimulator | None = None,
 ) -> Dict[str, Any]:
     """
     Build the RLlib ``env_config`` dict consumed by ``ScholaEnvRunner.make_env``.
@@ -93,7 +95,7 @@ def build_env_config(
         if simulator is not None
         else environment_settings.simulator_settings.make()
     )
-    is_external = isinstance(primary_sim, ExternalSimulator)
+
     return {
         "protocol": GrpcProtocol,
         "protocol_args": {
@@ -104,11 +106,11 @@ def build_env_config(
             "grpc_close_timeout": protocol_settings.grpc_close_timeout,
         },
         "port_offset_mode": protocol_settings.port_offset_mode.value,
-        "simulator": ExternalSimulator if is_external else UnrealExecutable,
+        "simulator": environment_settings.simulator_settings.get_sim_cls(),
         "simulator_args": (
-            primary_sim.get_simulator_args()
-            if is_external
-            else primary_sim.get_executable_args()
+            primary_sim.get_spawn_args()
+            if isinstance(primary_sim, SupportsSpawn)
+            else primary_sim.get_simulator_args()
         ),
         "options": dict(environment_settings.env_options),
     }

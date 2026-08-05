@@ -7,7 +7,7 @@ Script to train an rllib model using Schola.
 import logging
 
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, Type, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Type, Union
 
 from schola.scripts.common.settings import (
     get_activation_function,
@@ -186,10 +186,14 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
     from schola.scripts.rllib.utils import discover_env_metadata
     from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 
+    from schola.scripts.common.settings import GymSimulatorConfig
+
     sim_args = args.environment_settings.simulator_settings
     n_sim = sim_args.num_simulators
-    # Run locally if we are only running one simulator
-    num_env_runners = 0 if n_sim == 1 else n_sim
+    # Run locally if we are only running one simulator (including vectorized gym)
+    num_env_runners = (
+        0 if isinstance(sim_args, GymSimulatorConfig) or n_sim == 1 else n_sim
+    )
 
     # Discover policy metadata + env_config via a temporary environment that is
     # always cleaned up, even if construction fails (no leaked Unreal process).
@@ -402,8 +406,16 @@ class RllibTrainCommand(ScholaCommandTemplate[RllibScriptSettings]):
             "appo": "Train a model using Asynchronous Proximal Policy Optimization(APPO) with rllib.",
         }
 
+    @property
+    def script_args_type(self) -> Type[RllibScriptSettings]:
+        return RllibScriptSettings
 
-app = RllibTrainCommand(app, RllibScriptSettings, main, logger).make()
+    @property
+    def main_func(self) -> Callable[[RllibScriptSettings], Any]:
+        return main
+
+
+app = RllibTrainCommand(app, logger).make()
 
 if __name__ == "__main__":
     app.meta()

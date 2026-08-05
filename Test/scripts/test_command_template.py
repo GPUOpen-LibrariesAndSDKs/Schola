@@ -14,9 +14,11 @@ import yaml
 from cyclopts import App, Parameter, validators
 
 from schola.scripts.common.settings import (
+    AllSimulatorConfigs,
     EnvironmentSettings,
     ExternalSimulatorConfig,
     GrpcProtocolConfig,
+    IgnoreParameter,
     UnrealExecutableSimulatorConfig,
     UnrealProjectSimulatorConfig,
 )
@@ -43,12 +45,18 @@ class FakeAlgoBeta:
 
     beta_steps: Annotated[int, Parameter(validator=validators.Number(gte=1))] = 11
 
+@dataclass
+class FakeEnvironmentSettings(EnvironmentSettings[AllSimulatorConfigs]):
+    """Fake environment settings for testing."""
+    simulator_settings: Annotated[AllSimulatorConfigs, IgnoreParameter] = field(default_factory=ExternalSimulatorConfig)
 
 @dataclass
 class FakeScriptSettings:
     """Minimal script container compatible with ``ScholaCommandTemplate`` wiring."""
 
-    environment_settings: EnvironmentSettings = field(default_factory=EnvironmentSettings)
+    environment_settings: FakeEnvironmentSettings = field(
+        default_factory=FakeEnvironmentSettings
+    )
 
     algorithm_settings: Annotated[
         Union[FakeAlgoAlpha, FakeAlgoBeta], Parameter(show=False, parse=False)
@@ -71,6 +79,7 @@ FULL_SIMULATOR_KEYS: tuple[str, ...] = tuple(FULL_SIMULATOR_TABLE.keys())
 def _make_meta_alg_command_class(
     algorithm_keys: tuple[str, ...],
     simulator_keys: tuple[str, ...],
+    mock_main: MagicMock,
 ) -> Type[ScholaCommandTemplate[FakeScriptSettings]]:
     """Build a ``ScholaCommandTemplate`` subclass with a chosen number of algorithms / simulators."""
 
@@ -90,6 +99,14 @@ def _make_meta_alg_command_class(
         def simulator_table(self) -> Dict[str, Type[Any]]:
             return sim_table
 
+        @property
+        def script_args_type(self) -> Type[FakeScriptSettings]:
+            return FakeScriptSettings
+
+        @property
+        def main_func(self):
+            return mock_main
+
     return _DynamicScholaCommandTemplate
 
 
@@ -104,24 +121,8 @@ def _build_meta_alg_app(
     logger = logging.getLogger(f"test_command_template.{app_name}")
     if not logger.handlers:
         logger.addHandler(logging.NullHandler())
-    cls = _make_meta_alg_command_class(algorithm_keys, simulator_keys)
-    return cls(app, FakeScriptSettings, mock_main, logger).make().meta
-
-
-class FakeScholaCommandTemplate(ScholaCommandTemplate[FakeScriptSettings]):
-    @property
-    def algorithm_table(self) -> Dict[str, Type[Any]]:
-        return {
-            "alpha": FakeAlgoAlpha,
-            "beta": FakeAlgoBeta,
-        }
-
-    @property
-    def algorithm_help(self) -> Dict[str, str]:
-        return {
-            "alpha": "Fake algorithm alpha (tests).",
-            "beta": "Fake algorithm beta (tests).",
-        }
+    cls = _make_meta_alg_command_class(algorithm_keys, simulator_keys, mock_main)
+    return cls(app, logger).make().meta
 
 
 @pytest.fixture
@@ -135,7 +136,12 @@ def meta_app(mock_main: MagicMock):
     app = App(name="train-fake", help="Fake train CLI for template tests")
     logger = logging.getLogger("test_command_template")
     logger.addHandler(logging.NullHandler())
-    built = FakeScholaCommandTemplate(app, FakeScriptSettings, mock_main, logger).make()
+    cls = _make_meta_alg_command_class(
+        ("alpha", "beta"),
+        FULL_SIMULATOR_KEYS,
+        mock_main,
+    )
+    built = cls(app, logger).make()
     # ``make()`` returns ``app.meta``; config YAML handling lives on ``app.meta.meta.default``.
     return built.meta
 
@@ -146,19 +152,12 @@ def no_alg_meta_app(mock_main: MagicMock):
     app = App(name="train-no-alg-fake", help="Fake no-algorithm train CLI")
     logger = logging.getLogger("test_command_template_no_alg")
     logger.addHandler(logging.NullHandler())
-    class FakeScholaCommand(ScholaCommandTemplate[FakeScriptSettings]):
-        @property
-        def simulator_table(self) -> Dict[str, Type[Any]]:
-            return {
-                "executable": UnrealExecutableSimulatorConfig,
-                "external": ExternalSimulatorConfig,
-            }
-
-        @property
-        def algorithm_table(self) -> Dict[str, Type[Any]]:
-            return {}
-
-    built = FakeScholaCommand(app, FakeScriptSettings, mock_main, logger).make()
+    cls = _make_meta_alg_command_class(
+        (),
+        ("executable", "external"),
+        mock_main,
+    )
+    built = cls(app, logger).make()
     return built.meta
 
 def test_yaml_split_meta_no_alg_config_handler():
@@ -474,7 +473,7 @@ _META_ALG_CLI_ALGORITHM_SIMULATOR_COUNT_MATRIX: tuple[MetaAlgCliTestParameters, 
             _EXE_PLACEHOLDER,
         ],
         expected_sim_settings=FakeScriptSettings(
-            environment_settings=EnvironmentSettings(
+            environment_settings=FakeEnvironmentSettings(
                 simulator_settings=UnrealExecutableSimulatorConfig(
                     executable_path=Path(_EXE_PLACEHOLDER),
                 ),

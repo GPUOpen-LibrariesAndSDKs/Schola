@@ -11,7 +11,6 @@ from schola.gym.env import GymEnv, GymVectorEnv
 from schola.core.protocols.protobuf.grpc_protocol import GrpcProtocol
 from schola.core.simulators.unreal.editor_simulator import UnrealEditor
 import minigrid
-from Test.envs.gym_server import ClosedReceivedException
 
 
 def wrap(env, wrappers):

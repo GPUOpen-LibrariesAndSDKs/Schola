@@ -3,15 +3,23 @@
 Settings dataclasses for the RLlib evaluation command.
 """
 
-from typing import Annotated, Dict, Optional
+from typing import TYPE_CHECKING, Annotated, Dict, Optional
 from pathlib import Path
 from dataclasses import dataclass, field
 
 from cyclopts import Parameter, validators
 
-from schola.scripts.common.settings import EnvironmentSettings
+from schola.scripts.common.settings import (
+    EnvironmentSettings,
+    AllSimulatorConfigs,
+    ExternalSimulatorConfig,
+)
 
-from schola.scripts.rllib.settings import LoggingSettings, ResourceSettings
+from schola.scripts.rllib.settings import (
+    LoggingSettings,
+    ResourceSettings,
+    RllibEnvironmentSettings,
+)
 
 
 @dataclass
@@ -52,6 +60,6 @@ class RllibEvalScriptSettings:
     "Logging verbosity for Schola and RLlib."
 
     environment_settings: Annotated[
-        EnvironmentSettings, Parameter(group="Environment Arguments", name="*")
-    ] = field(default_factory=EnvironmentSettings)
+        RllibEnvironmentSettings, Parameter(group="Environment Arguments", name="*")
+    ] = field(default_factory=RllibEnvironmentSettings)
     "Settings for the environment to use during evaluation"

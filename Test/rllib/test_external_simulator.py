@@ -155,12 +155,12 @@ class TestDeferredPathValidation:
         with pytest.raises(FileNotFoundError):
             sim.start({"Port": 8000})
 
-    def test_get_executable_args_sets_validate_false(self, tmp_path):
-        """get_executable_args() produces validate_path=False for serialization."""
+    def test_get_spawn_args_sets_validate_false(self, tmp_path):
+        """get_spawn_args() produces validate_path=False for serialization."""
         real_file = tmp_path / "game.exe"
         real_file.write_text("fake")
         sim = UnrealExecutable(executable_path=real_file)
-        args = sim.get_executable_args()
+        args = sim.get_spawn_args()
         assert args["validate_path"] is False
 
 
@@ -193,7 +193,7 @@ class TestCredentialModes:
 
     def test_invalid_credential_mode_raises(self):
         with pytest.raises(ValueError, match="credential_mode"):
-            GrpcProtocol(url="localhost", port=8000, credential_mode="bogus")
+            GrpcProtocol(url="localhost", port=8000, credential_mode="bogus") # type: ignore
 
 
 # ---------------------------------------------------------------------------

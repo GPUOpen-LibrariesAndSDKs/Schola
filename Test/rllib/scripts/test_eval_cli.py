@@ -15,7 +15,7 @@ from schola.scripts.rllib.eval.eval import (
 )
 from schola.rllib.checkpoint import rl_module_dir_from_algorithm_checkpoint
 from schola.scripts.rllib.eval.settings import RllibEvalScriptSettings
-from schola.scripts.rllib.settings import ResourceSettings
+from schola.scripts.rllib.settings import RllibEnvironmentSettings, ResourceSettings
 
 
 @pytest.fixture
@@ -27,7 +27,13 @@ def mock_main(mocker):
 def mock_eval_app(mock_main):
     base = App(name="eval", help="Evaluate a trained RLlib policy from a checkpoint")
     logger = logging.getLogger(__name__)
-    return RllibEvalCommand(base, RllibEvalScriptSettings, mock_main, logger).make()
+
+    class TestRllibEvalCommand(RllibEvalCommand):
+        @property
+        def main_func(self):
+            return mock_main
+
+    return TestRllibEvalCommand(base, logger).make()
 
 
 @pytest.fixture
@@ -35,7 +41,7 @@ def rllib_eval_meta_app():
     """Real ``schola rllib eval`` Cyclopts meta-app (invokes ``eval_main``)."""
     base = App(name="eval", help="Evaluate a trained RLlib policy from a checkpoint")
     logger = logging.getLogger(__name__)
-    return RllibEvalCommand(base, RllibEvalScriptSettings, eval_main, logger).make()
+    return RllibEvalCommand(base, logger).make()
 
 
 @pytest.fixture
@@ -64,11 +70,7 @@ def dummy_rllib_checkpoint_dir(
         ScholaPolicyMappingCheckpoint,
     )
     from schola.scripts.rllib.utils import build_env_config, discover_env_metadata
-    from schola.scripts.common.settings import (
-        EnvironmentSettings,
-        GrpcProtocolConfig,
-        PortOffsetMode,
-    )
+    from schola.scripts.common.settings import GrpcProtocolConfig, PortOffsetMode
 
     train_port = make_vec_env_server([make_env("CartPole-v1", 0)])
 
@@ -76,7 +78,7 @@ def dummy_rllib_checkpoint_dir(
     # use, so the checkpoint matches a real run. ``fixed`` keeps the single
     # local runner on the training server port.
     env_config = build_env_config(
-        EnvironmentSettings(
+        RllibEnvironmentSettings(
             protocol_settings=GrpcProtocolConfig(
                 url="localhost", port=train_port, port_offset_mode=PortOffsetMode.FIXED
             ),
@@ -127,7 +129,7 @@ def dummy_rllib_checkpoint_dir(
         algo.train()
         ckpt = tmp_path / "rllib_eval_ckpt"
         algo.save(str(ckpt))
-        train_env_settings = EnvironmentSettings(
+        train_env_settings = RllibEnvironmentSettings(
             protocol_settings=GrpcProtocolConfig(
                 url="localhost", port=train_port, port_offset_mode=PortOffsetMode.FIXED
             ),
@@ -159,13 +161,13 @@ def test_rllib_eval_main_on_real_checkpoint(dummy_rllib_checkpoint_dir):
     """``eval_main`` restores the checkpoint, rebuilds the env from the CLI
     protocol args (pointed at the dedicated eval server) and evaluates for real."""
     pytest.importorskip("ray")
-    from schola.scripts.common.settings import EnvironmentSettings, GrpcProtocolConfig
+    from schola.scripts.common.settings import GrpcProtocolConfig
 
     ckpt, eval_port = dummy_rllib_checkpoint_dir
     args = RllibEvalScriptSettings(
         checkpoint=ckpt,
         n_eval_episodes=2,
-        environment_settings=EnvironmentSettings(
+        environment_settings=RllibEnvironmentSettings(
             protocol_settings=GrpcProtocolConfig(url="localhost", port=eval_port),
         ),
         resource_settings=ResourceSettings(using_cluster=True),
@@ -196,6 +198,7 @@ def test_rllib_eval_cli_on_real_checkpoint(
             "--using-cluster",
         ],
         result_action="return_value",
+        exit_on_error=False,
     )
     assert isinstance(results, dict)
     env_metrics = results.get("env_runners") or results.get("evaluation")
@@ -210,7 +213,11 @@ def test_eval_cli_forwards_checkpoint_and_defaults(
 ):
     ckpt = tmp_path / "checkpoint_000001"
     ckpt.mkdir()
-    mock_eval_app.meta(["--checkpoint", str(ckpt)], result_action="return_value")
+    mock_eval_app.meta(
+        ["--checkpoint", str(ckpt)],
+        result_action="return_value",
+        exit_on_error=False,
+    )
     mock_main.assert_called_once()
     args = mock_main.call_args[0][0]
     assert isinstance(args, RllibEvalScriptSettings)
@@ -224,6 +231,7 @@ def test_eval_cli_custom_episodes(mock_eval_app, mock_main, tmp_path: Path):
     mock_eval_app.meta(
         ["--checkpoint", str(ckpt), "--n-eval-episodes", "5"],
         result_action="return_value",
+        exit_on_error=False,
     )
     args = mock_main.call_args[0][0]
     assert args.n_eval_episodes == 5
@@ -235,7 +243,11 @@ def test_eval_cli_env_options_default_is_empty_dict(
     """Without ``--env-options.k=v`` the field defaults to an empty dict."""
     ckpt = tmp_path / "c"
     ckpt.mkdir()
-    mock_eval_app.meta(["--checkpoint", str(ckpt)], result_action="return_value")
+    mock_eval_app.meta(
+        ["--checkpoint", str(ckpt)],
+        result_action="return_value",
+        exit_on_error=False,
+    )
     args = mock_main.call_args[0][0]
     assert args.environment_settings.env_options == {}
 
@@ -252,6 +264,7 @@ def test_eval_cli_env_options_dotted_syntax(mock_eval_app, mock_main, tmp_path: 
             "--env-options.curriculum=easy",
         ],
         result_action="return_value",
+        exit_on_error=False,
     )
     args = mock_main.call_args[0][0]
     assert args.environment_settings.env_options == {"level": "1", "curriculum": "easy"}
@@ -265,11 +278,7 @@ def make_eval_args(tmp_path: Path):
     """Factory for ``RllibEvalScriptSettings`` over an existing (empty) checkpoint
     dir. ``num_simulators`` and ``env_options`` are the per-call knobs used by the
     settings-derived helper tests."""
-    from schola.scripts.common.settings import (
-        EnvironmentSettings,
-        ExternalSimulatorConfig,
-        GrpcProtocolConfig,
-    )
+    from schola.scripts.common.settings import ExternalSimulatorConfig, GrpcProtocolConfig
 
     def _make(
         *, num_simulators: int = 1, env_options: dict | None = None
@@ -279,7 +288,7 @@ def make_eval_args(tmp_path: Path):
         return RllibEvalScriptSettings(
             checkpoint=ckpt,
             n_eval_episodes=2,
-            environment_settings=EnvironmentSettings(
+            environment_settings=RllibEnvironmentSettings(
                 simulator_settings=ExternalSimulatorConfig(
                     num_simulators=num_simulators
                 ),

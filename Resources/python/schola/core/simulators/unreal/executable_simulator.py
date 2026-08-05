@@ -97,39 +97,28 @@ class UnrealExecutable(BaseUnrealSimulator):
         # or on the command line with the -Map flag for UnrealAutomationTool
         self.map = map
         self.extra_args = extra_args if extra_args is not None else []
+        self.validate_path = validate_path
 
-    def spawn_executable(self) -> "UnrealExecutable":
+    def spawn(self, count: int = 1) -> list["UnrealExecutable"]:
         """
-        Return a new UnrealExecutable with the same launch settings as this instance.
+        Return new UnrealExecutable instances with the same launch settings as this instance.
 
         Use this to create additional simulator instances from the same executable
-        without changing any launch options. The returned instance is not started.
+        without changing any launch options. None of the returned instances are started.
+
+        Parameters
+        ----------
+        count : int, default=1
+            Number of instances to spawn.
 
         Returns
         -------
-        UnrealExecutable
-            A new simulator instance with the same executable path and launch options.
+        list[UnrealExecutable]
+            New simulator instances with the same executable path and launch options.
         """
-        return UnrealExecutable(
-            executable_path=self.executable_path,
-            headless_mode=self.headless_mode,
-            map=self.map,
-            display_logs=self.display_logs,
-            set_fps=self.set_fps,
-            disable_script=self.disable_script,
-            extra_args=self.extra_args.copy() if self.extra_args else None,
-            validate_path=False,
-        )
+        return [UnrealExecutable(**self.get_spawn_args()) for _ in range(count)]
 
-    def get_executable_args(self) -> dict[str, Any]:
-        """
-        Get kwargs that can be used to instantiate a new UnrealExecutable with the same launch settings.
-
-        When used for serialization into Ray ``env_config``, ``validate_path``
-        is set to ``False`` so that remote workers can reconstruct the object
-        even if the head-node path does not exist on the worker filesystem.
-        The path is validated later in :meth:`start`.
-        """
+    def _get_executable_arg_dict(self, validate_path: bool = False) -> dict[str, Any]:
         return {
             "executable_path": self.executable_path,
             "headless_mode": self.headless_mode,
@@ -138,24 +127,16 @@ class UnrealExecutable(BaseUnrealSimulator):
             "set_fps": self.set_fps,
             "disable_script": self.disable_script,
             "extra_args": self.extra_args.copy() if self.extra_args else None,
-            "validate_path": False,
+            "validate_path": validate_path,
         }
 
-    def spawn_executables(self, count: int) -> list["UnrealExecutable"]:
-        """
-        Return a list of count new UnrealExecutable instances with the same launch settings.
+    def get_simulator_args(self) -> dict[str, Any]:
+        """Return a dictionary of arguments used to create a new instance of this simulator via constructor."""
+        return self._get_executable_arg_dict(validate_path=self.validate_path)
 
-        Parameters
-        ----------
-        count : int
-            Number of additional simulator instances to create.
-
-        Returns
-        -------
-        List[UnrealExecutable]
-            List of new simulator instances (none started).
-        """
-        return [self.spawn_executable() for _ in range(count)]
+    def get_spawn_args(self) -> dict[str, Any]:
+        """Return a dictionary of arguments used when spawning a new instance of this simulator via the spawn() method."""
+        return self._get_executable_arg_dict(validate_path=False)
 
     def make_args(self) -> list[str]:
         """

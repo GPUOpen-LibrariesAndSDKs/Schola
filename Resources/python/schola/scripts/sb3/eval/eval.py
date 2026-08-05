@@ -6,7 +6,7 @@ Evaluate a trained Stable-Baselines3 policy against a Schola-backed environment.
 
 import logging
 import signal
-from typing import List, Tuple, cast, Any
+from typing import Callable, List, Tuple, Type, cast, Any
 
 from cyclopts import App
 from schola.scripts.common.command_template import ScholaCommandTemplate
@@ -61,8 +61,7 @@ def main(args: Sb3EvalScriptSettings) -> Tuple[float, float]:
                     verbosity=args.logging_settings.schola_verbosity,
                 )
             else:
-                primary = cast(UnrealExecutable, sim_args.make())
-                simulators = [primary] + primary.spawn_executables(n_sim - 1)
+                simulators = sim_args.make_n(n_sim)
                 async_protocols = protocol_args.make_n_async(n_sim)
                 env = AsyncVecEnv(
                     simulators,
@@ -153,5 +152,13 @@ class MetaEvalSB3Command(ScholaCommandTemplate[Sb3EvalScriptSettings]):
             "ppo": "Evaluate a model trained using Proximal Policy Optimization(PPO) with StableBaselines3.",
         }
 
+    @property
+    def script_args_type(self) -> Type[Sb3EvalScriptSettings]:
+        return Sb3EvalScriptSettings
 
-app = MetaEvalSB3Command(app, Sb3EvalScriptSettings, main, logger).make()
+    @property
+    def main_func(self) -> Callable[[Sb3EvalScriptSettings], Any]:
+        return main
+
+
+app = MetaEvalSB3Command(app, logger).make()

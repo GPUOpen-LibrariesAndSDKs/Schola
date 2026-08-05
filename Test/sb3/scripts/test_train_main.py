@@ -15,7 +15,8 @@ import pytest
 from cyclopts import App
 from stable_baselines3.common.callbacks import CheckpointCallback
 
-from schola.scripts.common.settings import EnvironmentSettings, GrpcProtocolConfig
+from schola.scripts.common.settings import GrpcProtocolConfig, GymSimulatorConfig
+from schola.scripts.sb3.settings import Sb3EnvironmentSettings
 from schola.scripts.sb3.train.settings import (
     PPOTrainSettings,
     SACTrainSettings,
@@ -41,11 +42,13 @@ def mock_main(mocker):
 def mock_app(mock_main):
     app_obj = App(name="train", help="Train a model using StableBaselines3")
     logger = logging.getLogger("test_train_main_branches")
-    return (
-        MetaTrainSB3Command(app_obj, Sb3TrainScriptSettings, mock_main, logger)
-        .make()
-        .meta
-    )
+
+    class TestTrainSB3Command(MetaTrainSB3Command):
+        @property
+        def main_func(self):
+            return mock_main
+
+    return TestTrainSB3Command(app_obj, logger).make().meta
 
 
 @pytest.fixture(scope="function")
@@ -129,7 +132,7 @@ def _train_args(
     )
 
     return Sb3TrainScriptSettings(
-        environment_settings=EnvironmentSettings(
+        environment_settings=Sb3EnvironmentSettings(
             protocol_settings=GrpcProtocolConfig(port=1, url="localhost"),
             env_options=env_options or {},
             seed=seed,
@@ -188,7 +191,6 @@ def test_warn_if_small_image_nested_dict():
     with patch("schola.scripts.sb3.train.train.print_error") as mock_err:
         warn_if_small_image_observation(obs, threshold=64)
         mock_err.assert_called_once()
-
 
 @patch(
     "stable_baselines3.common.vec_env.vec_monitor.VecMonitor", side_effect=lambda e: e

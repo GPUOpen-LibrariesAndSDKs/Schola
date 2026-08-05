@@ -12,15 +12,18 @@ import signal
 from pathlib import Path
 from typing import (
     Any,
+    Callable,
     Dict,
     List,
     Optional,
     Tuple,
+    Type,
     cast,
 )
 
 from schola.scripts.common.settings import (
     ExternalSimulatorConfig,
+    GymSimulatorConfig,
     get_activation_function,
 )
 from schola.scripts.common.command_template import ScholaCommandTemplate
@@ -153,8 +156,7 @@ def main(args: Sb3TrainScriptSettings) -> Optional[Tuple[float, float]]:
                     UnrealExecutable,
                 )
 
-                primary = cast(UnrealExecutable, sim_args.make())
-                simulators = [primary] + primary.spawn_executables(n_sim - 1)
+                simulators = sim_args.make_n(n_sim)
                 async_protocols = protocol_args.make_n_async(n_sim)
                 env = AsyncVecEnv(
                     simulators,
@@ -406,5 +408,13 @@ class MetaTrainSB3Command(ScholaCommandTemplate[Sb3TrainScriptSettings]):
             "ppo": "Train a model using Proximal Policy Optimization(PPO) with StableBaselines3.",
         }
 
+    @property
+    def script_args_type(self) -> Type[Sb3TrainScriptSettings]:
+        return Sb3TrainScriptSettings
 
-app = MetaTrainSB3Command(app, Sb3TrainScriptSettings, main, logger).make()
+    @property
+    def main_func(self) -> Callable[[Sb3TrainScriptSettings], Any]:
+        return main
+
+
+app = MetaTrainSB3Command(app, logger).make()

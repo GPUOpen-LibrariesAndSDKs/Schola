@@ -74,6 +74,10 @@ except ImportError as e:
     )
     raise e
 
+from schola.scripts.env import env_utils_app
+
+app.command(env_utils_app, name="env")
+
 # app["compile-proto"].group = "Utilities"
 app["--version"].group = "Utilities"
 app["--help"].group = "Utilities"

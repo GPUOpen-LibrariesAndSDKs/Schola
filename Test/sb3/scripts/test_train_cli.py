@@ -13,15 +13,17 @@ from schola.scripts.sb3.train.settings import (
     Sb3TrainScriptSettings,
     PPOTrainSettings,
     SACTrainSettings,
+    Sb3TrainingSettings,
 )
 from schola.scripts.common.settings import (
     ExternalSimulatorConfig,
     GrpcProtocolConfig,
+    GymSimulatorConfig,
     UnrealExecutableSimulatorConfig,
     UnrealProjectSimulatorConfig,
     ActivationFunctionEnum,
-    EnvironmentSettings,
 )
+from schola.scripts.sb3.settings import Sb3EnvironmentSettings
 
 
 @pytest.mark.parametrize("gym_id", ["CartPole-v1", "MountainCar-v0"])
@@ -32,8 +34,9 @@ def test_launch_script(make_vec_env_server, gym_id):
 
     # Create Sb3ScriptSettings with protocol nested under environment_settings
     args = Sb3TrainScriptSettings(
-        environment_settings=EnvironmentSettings(
-            protocol_settings=GrpcProtocolConfig(port=env_server_port, url="localhost")
+        environment_settings=Sb3EnvironmentSettings(
+            simulator_settings=ExternalSimulatorConfig(num_simulators=1),
+            protocol_settings=GrpcProtocolConfig(port=env_server_port, url="localhost"),
         ),
         algorithm_settings=PPOTrainSettings(),
     )
@@ -47,8 +50,9 @@ def test_launch_script_with_dict_action_space(make_vec_env_server):
         [make_dict_action_env(DictActionBoxEnv, False) for _ in range(N_ENVS)]
     )
     args = Sb3TrainScriptSettings(
-        environment_settings=EnvironmentSettings(
-            protocol_settings=GrpcProtocolConfig(port=env_server_port, url="localhost")
+        environment_settings=Sb3EnvironmentSettings(
+            simulator_settings=ExternalSimulatorConfig(num_simulators=1),
+            protocol_settings=GrpcProtocolConfig(port=env_server_port, url="localhost"),
         ),
         algorithm_settings=PPOTrainSettings(),
     )
@@ -68,7 +72,17 @@ def mock_app(mock_main):
     # mock the main method
     app = App(name="train", help="Train a model using StableBaselines3")
     logger = logging.getLogger(__name__)
-    app = MetaTrainSB3Command(app, Sb3TrainScriptSettings, mock_main, logger).make()
+    
+    class TestTrainSB3Command(MetaTrainSB3Command):
+        @property
+        def main_func(self):
+            return mock_main
+
+        @property
+        def script_args_type(self):
+            return Sb3TrainScriptSettings
+        
+    app = TestTrainSB3Command(app, logger).make()
     return app.meta
 
 
@@ -356,6 +370,113 @@ def test_ppo_env_options_dotted_syntax(mock_app, mock_main):
         "level": "1",
         "curriculum": "easy",
     }
+
+
+def test_ppo_with_gym_simulator(mock_app, mock_main):
+    """Test that the gym simulator subcommand is correctly parsed."""
+    command, bound, _ = mock_app.parse_args(
+        ["ppo", "gym", "--env-id", "CartPole-v1"],
+        exit_on_error=False,
+    )
+
+    command(*bound.args, **bound.kwargs)
+
+    args = mock_main.call_args[0][0]
+
+    assert isinstance(args.environment_settings.simulator_settings, GymSimulatorConfig)
+    assert args.environment_settings.simulator_settings.env_id == "CartPole-v1"
+    assert args.environment_settings.simulator_settings.num_simulators == 1
+    assert args.environment_settings.simulator_settings.num_environments == 1
+
+
+def test_ppo_with_gym_simulator_num_simulators(mock_app, mock_main):
+    command, bound, _ = mock_app.parse_args(
+        ["ppo", "gym", "--env-id", "CartPole-v1", "--num-simulators", "4"],
+        exit_on_error=False,
+    )
+
+    command(*bound.args, **bound.kwargs)
+
+    args = mock_main.call_args[0][0]
+    assert args.environment_settings.simulator_settings.num_simulators == 4
+    assert args.environment_settings.simulator_settings.num_environments == 1
+
+
+def test_ppo_with_gym_simulator_num_environments(mock_app, mock_main):
+    command, bound, _ = mock_app.parse_args(
+        ["ppo", "gym", "--env-id", "CartPole-v1", "-e", "3"],
+        exit_on_error=False,
+    )
+
+    command(*bound.args, **bound.kwargs)
+
+    args = mock_main.call_args[0][0]
+    assert args.environment_settings.simulator_settings.num_environments == 3
+    assert args.environment_settings.simulator_settings.num_simulators == 1
+
+
+def test_ppo_with_gym_simulator_num_simulators_and_environments(mock_app, mock_main):
+    command, bound, _ = mock_app.parse_args(
+        [
+            "ppo",
+            "gym",
+            "--env-id",
+            "CartPole-v1",
+            "-n",
+            "2",
+            "-e",
+            "3",
+        ],
+        exit_on_error=False,
+    )
+
+    command(*bound.args, **bound.kwargs)
+
+    args = mock_main.call_args[0][0]
+    sim = args.environment_settings.simulator_settings
+    assert sim.num_simulators == 2
+    assert sim.num_environments == 3
+
+
+def test_launch_script_with_gym_simulator():
+    """End-to-end train main using the in-process Gymnasium simulator."""
+    args = Sb3TrainScriptSettings(
+        environment_settings=Sb3EnvironmentSettings(
+            simulator_settings=GymSimulatorConfig(env_id="CartPole-v1"),
+        ),
+        algorithm_settings=PPOTrainSettings(
+            n_steps=64,
+            batch_size=32,
+        ),
+        training_settings=replace(
+            Sb3TrainScriptSettings().training_settings,
+            timesteps=128,
+            disable_eval=True,
+        ),
+    )
+    main(args)
+
+
+def test_launch_script_with_gym_multi_simulator_and_vectorized_envs():
+    """``-n`` and ``-e`` compose: 2 simulators x 3 envs = 6 parallel envs."""
+    args = Sb3TrainScriptSettings(
+        environment_settings=Sb3EnvironmentSettings(
+            simulator_settings=GymSimulatorConfig(
+                env_id="CartPole-v1",
+                num_simulators=2,
+                num_environments=3,
+            ),
+        ),
+        algorithm_settings=PPOTrainSettings(
+            n_steps=64,
+            batch_size=32,
+        ),
+        training_settings=Sb3TrainingSettings(
+            timesteps=128,
+            disable_eval=True,
+        ),
+    )
+    main(args)
 
 
 def test_sac_with_executable_simulator(mock_app, mock_main, tmp_path):

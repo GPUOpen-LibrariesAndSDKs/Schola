@@ -148,7 +148,10 @@ def stub_simulator_class():
     return _StubSimulator
 
 
-from .envs.gym_server import GymToGymServiceServicer, VecGymToGymServiceServicer
+from schola.core.simulators.gym import (
+    GymToGymServiceServicer,
+    VecGymToGymServiceServicer,
+)
 from .envs.imitation_server import GymToImitationServiceServicer
 from .envs.pettingzoo_server import (
     PettingZooToGymServiceServicer,

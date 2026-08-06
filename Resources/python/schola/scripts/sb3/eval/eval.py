@@ -6,7 +6,7 @@ Evaluate a trained Stable-Baselines3 policy against a Schola-backed environment.
 
 import logging
 import signal
-from typing import Callable, List, Tuple, Type, cast, Any
+from typing import Callable, cast, Any
 
 from cyclopts import App
 from schola.scripts.common.command_template import ScholaCommandTemplate
@@ -22,7 +22,7 @@ if not logging.getLogger().handlers:
 logger = logging.getLogger(__name__)
 
 
-def main(args: Sb3EvalScriptSettings) -> Tuple[float, float]:
+def main(args: Sb3EvalScriptSettings) -> tuple[float, float]:
     """
     Load a saved SB3 policy and run ``stable_baselines3.common.evaluation.evaluate_policy``.
 
@@ -94,7 +94,7 @@ def main(args: Sb3EvalScriptSettings) -> Tuple[float, float]:
                 env.set_options(options=args.environment_settings.env_options)
 
             monitored = VecMonitor(env)
-            ev: tuple[List[float], List[float]] = evaluate_policy(
+            ev: tuple[list[float], list[float]] = evaluate_policy(
                 model,
                 monitored,
                 n_eval_episodes=args.n_eval_episodes,
@@ -156,7 +156,7 @@ class MetaEvalSB3Command(ScholaCommandTemplate[Sb3EvalScriptSettings]):
         }
 
     @property
-    def script_args_type(self) -> Type[Sb3EvalScriptSettings]:
+    def script_args_type(self) -> type[Sb3EvalScriptSettings]:
         return Sb3EvalScriptSettings
 
     @property

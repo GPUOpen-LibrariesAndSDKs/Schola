@@ -6,7 +6,7 @@ Shared SB3 script settings (logging, algorithm base types, and launcher extensio
 
 from __future__ import annotations
 
-from typing import Annotated, List, Optional, Type, Union, Any, Dict
+from typing import Annotated, Any
 
 from schola.scripts.common.settings import (
     ActivationFunctionEnum,
@@ -45,7 +45,7 @@ class Sb3BaseLoggingSettings:
 class BaseSACSettings:
 
     @property
-    def constructor(self) -> Type["SAC"]:  # type: ignore
+    def constructor(self) -> type["SAC"]:  # type: ignore
         from stable_baselines3 import SAC
 
         return SAC
@@ -63,7 +63,7 @@ class BaseSACSettings:
 class BasePPOSettings:
 
     @property
-    def constructor(self) -> Type["PPO"]:  # type: ignore
+    def constructor(self) -> type["PPO"]:  # type: ignore
         from stable_baselines3 import PPO
 
         return PPO

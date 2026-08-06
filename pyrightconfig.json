@@ -44,5 +44,6 @@
             "reportUnknownArgumentType": "none",
             "reportAny": "none"
         }
-    ]
+    ],
+    "ignore": ["docker","Docs", "Resources/python/schola/generated"]
 }

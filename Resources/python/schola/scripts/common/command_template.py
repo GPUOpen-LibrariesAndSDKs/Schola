@@ -12,16 +12,12 @@ from typing import (
     Annotated,
     Any,
     Callable,
-    Dict,
     Generic,
     Iterable,
     NewType,
-    Optional,
-    Tuple,
-    Type,
     TypeVar,
-    Union,
 )
+
 
 from cyclopts import App, ArgumentCollection, Group, Parameter
 import cyclopts
@@ -39,7 +35,7 @@ from schola.scripts.common.settings import (
 ScriptArgsType = TypeVar("ScriptArgsType")
 
 
-def load_yaml_file(file_path: Path, logger: logging.Logger) -> Dict[str, Any]:
+def load_yaml_file(file_path: Path, logger: logging.Logger) -> dict[str, Any]:
     """
     Load a YAML configuration file into a dictionary.
 
@@ -82,7 +78,7 @@ class _ScholaConfig(cyclopts.config.Dict):
     """
 
     def __call__(
-        self, app: "App", commands: Tuple[str, ...], arguments: ArgumentCollection
+        self, app: "App", commands: tuple[str, ...], arguments: ArgumentCollection
     ):
         config: dict[str, Any] = self.config.copy()
 
@@ -128,7 +124,7 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
         self._logger = logger
 
     @property
-    def simulator_table(self) -> Dict[str, Type[BaseSimulatorConfig[Any]]]:
+    def simulator_table(self) -> dict[str, type[BaseSimulatorConfig[Any]]]:
         # Ignore the type here as it is difficult to resolve with current typing tooling
         return {
             "gym": GymSimulatorConfig,
@@ -138,7 +134,7 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
         }
 
     @property
-    def simulator_help(self) -> Dict[str, str]:
+    def simulator_help(self) -> dict[str, str]:
         return {
             "gym": "Run a standard Gymnasium environment in-process via the Schola gym connector.",
             "executable": "Run Unreal from a pre-built executable.",
@@ -147,7 +143,7 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
         }
 
     @property
-    def simulator_aliases(self) -> Dict[str, str | Iterable[str] | None]:
+    def simulator_aliases(self) -> dict[str, str | Iterable[str] | None]:
         return {
             "external": "editor",
             "gym": None,
@@ -160,7 +156,7 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
         return "external"
 
     @property
-    def script_args_type(self) -> Type[ScriptArgsType]:
+    def script_args_type(self) -> type[ScriptArgsType]:
         raise NotImplementedError(
             "script_args_type must be implemented in the subclass"
         )
@@ -169,7 +165,7 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
     def main_func(self) -> Callable[[ScriptArgsType], Any]:
         raise NotImplementedError("main_func must be implemented in the subclass")
 
-    def make_simulator_command(self, simulator_type: Type[BaseSimulatorConfig[Any]]):
+    def make_simulator_command(self, simulator_type: type[BaseSimulatorConfig[Any]]):
         SimulatorType = NewType("SimulatorType", simulator_type)  # type: ignore
         _main_func = self.main_func
         try:
@@ -202,7 +198,7 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
 
             return non_default_simulator_command
 
-    def make_algorithm_command(self, algorithm_app: App, algorithm_type: Type[Any]):
+    def make_algorithm_command(self, algorithm_app: App, algorithm_type: type[Any]):
         AlgorithmType = NewType("AlgorithmType", algorithm_type)  # type: ignore
         _main_func = self.main_func
         _logger = self._logger
@@ -212,10 +208,10 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
             algorithm_args: Annotated[AlgorithmType, Parameter(name="*")] = algorithm_type(),  # type: ignore
             hidden_script_args: Annotated[ScriptArgsType, Parameter(parse=False)],
             hidden_sim_config_dict: Annotated[
-                Optional[Dict[str, Any]], Parameter(parse=False)
+                dict[str, Any] | None, Parameter(parse=False)
             ] = None,
             config_file: Annotated[
-                Optional[cyclopts.types.ExistingYamlPath],
+                cyclopts.types.ExistingYamlPath | None,
                 Parameter(
                     parse=False, show=True, help="Path to a YAML configuration file."
                 ),
@@ -255,11 +251,11 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
         def train_meta_command(
             *tokens: Annotated[str, Parameter(show=False, allow_leading_hyphen=True)],
             script_args: Annotated[
-                ResolvedScriptArgsType,
+                ResolvedScriptArgsType,  # pyright: ignore[reportInvalidTypeForm]
                 Parameter(name="*"),
             ] = self.script_args_type(),
             hidden_sim_config_dict: Annotated[
-                Optional[Dict[str, Any]], Parameter(parse=False)
+                dict[str, Any] | None, Parameter(parse=False)
             ] = None,
         ):
             # we can naively forward the hidden_sim_config_dict as we will handle the None checking when we go to actually
@@ -305,20 +301,20 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
         def train_command_config_handler(
             *tokens: Annotated[str, Parameter(show=False, allow_leading_hyphen=True)],
             config_file: Annotated[
-                Optional[cyclopts.types.ExistingYamlPath],
+                cyclopts.types.ExistingYamlPath | None,
                 Parameter(
                     parse=True, show=True, help="Path to a YAML configuration file."
                 ),
             ] = None,
         ):
-            additional_kwargs: Dict[str, Any] = {}
+            additional_kwargs: dict[str, Any] = {}
             config_dict = {}
             if config_file is not None:
                 config_dict = load_yaml_file(config_file, self._logger)
 
             # if we have a simulator, extract ``environment.simulator`` and forward it as a hidden argument
             # this lets us put it at the root level of the app instead of nested in the algorithm command
-            sim_config_dict: Optional[Dict[str, Any]] = None
+            sim_config_dict: dict[str, Any] | None = None
             if self.has_simulator:
                 sim_config_dict = self._create_simulator_config_dict(config_dict)
 
@@ -424,11 +420,11 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
             algorithm_app[simulator_name].help = self.simulator_help[simulator_name]
 
     @property
-    def algorithm_table(self) -> Dict[str, Type[Any]]:
+    def algorithm_table(self) -> dict[str, type[Any]]:
         raise NotImplementedError("algorithm_table must be implemented in the subclass")
 
     @property
-    def algorithm_help(self) -> Dict[str, str]:
+    def algorithm_help(self) -> dict[str, str]:
         return defaultdict(str)
 
     @property
@@ -452,8 +448,8 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
         return len(self.simulator_table) > 0
 
     def _create_simulator_config_dict(
-        self, config_dict: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, config_dict: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Extract ``environment.simulator`` from *config_dict* and shape it for cyclopts.
 

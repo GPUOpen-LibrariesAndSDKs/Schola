@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import signal
-from typing import Callable, Type
+from typing import Callable
 
 from cyclopts import App
 
@@ -90,7 +90,7 @@ class EnvInspectCommand(ScholaCommandTemplate[EnvInspectScriptSettings]):
         return {}
 
     @property
-    def script_args_type(self) -> Type[EnvInspectScriptSettings]:
+    def script_args_type(self) -> type[EnvInspectScriptSettings]:
         return EnvInspectScriptSettings
 
     @property

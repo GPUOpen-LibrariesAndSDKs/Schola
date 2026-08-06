@@ -4,7 +4,7 @@
 Script to convert a Ray model to an ONNX model for use in Unreal Engine.
 """
 
-from typing import Annotated, Optional
+from typing import Annotated
 from cyclopts import App, Parameter, types
 
 export_onnx_app = App(
@@ -16,7 +16,7 @@ export_onnx_app = App(
 @export_onnx_app.default
 def export(
     policy_checkpoint_path: types.ExistingDirectory,
-    output_path: Optional[types.Directory] = None,
+    output_path: types.Directory | None = None,
 ):
     """
     Export an RLlib Algorithm Checkpoint to Schola ONNX format.
@@ -25,7 +25,7 @@ def export(
     ----------
     policy_checkpoint_path : types.ExistingDirectory
         The path to the RLlib Algorithm Checkpoint.
-    output_path : Optional[types.ExistingDirectory]
+    output_path : types.ExistingDirectory | None
         The path to save the ONNX model to. If not provided, the model will be saved in the same directory as the checkpoint.
     """
     if output_path is None:

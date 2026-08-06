@@ -8,6 +8,7 @@ Supports multiple (simulator, protocol) pairs on one event loop.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Coroutine, Mapping, Sequence
 import logging
 import sys
 import time
@@ -15,17 +16,19 @@ from collections import defaultdict
 from concurrent.futures import Future
 from copy import deepcopy
 from threading import Thread
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, TypeVar, cast
 
 import gymnasium as gym
 import numpy as np
+from numpy.typing import NDArray
+from stable_baselines3.common.vec_env.base_vec_env import VecEnvObs
 
 from schola.core.simulators.base_simulator import (
     BaseSimulator,
     UnsupportedProtocolException,
 )
 from schola.core.protocols.base_protocol import AutoResetType
-from schola.core.utils.id_manager import IdManager
+from schola.core.utils.id_manager import IdManager, NestedDict
 
 from .env import BaseVecEnv, _validate_definition
 from .utils import split_value
@@ -33,25 +36,26 @@ from .utils import split_value
 from schola.core.protocols.async_base_protocol import AsyncBaseRLProtocol
 
 logger = logging.getLogger(__name__)
+T = TypeVar("T")
 
 
 def _merge_async_definitions(
-    results: List[
-        Tuple[
-            List[List[str]],
-            List[Dict[str, str]],
-            Dict[int, Dict[str, gym.Space]],
-            Dict[int, Dict[str, gym.Space]],
+    results: list[
+        tuple[
+            list[list[str]],
+            list[dict[str, str]],
+            dict[int, dict[str, gym.Space]],
+            dict[int, dict[str, gym.Space]],
         ]
     ],
-) -> Tuple[
+) -> tuple[
     IdManager,
-    List[Dict[str, str]],
+    list[dict[str, str]],
     gym.Space,
     gym.Space,
-    List[IdManager],
-    List[int],
-    List[int],
+    list[IdManager],
+    list[int],
+    list[int],
 ]:
     """
     Merge per-protocol definitions into global env indices.
@@ -61,13 +65,13 @@ def _merge_async_definitions(
     id_manager, agent_types, obs_space, action_space,
     segment_id_managers, segment_flat_sizes, segment_env_bases
     """
-    merged_ids: List[List[str]] = []
-    merged_agent_types: List[Dict[str, str]] = []
-    merged_obs: Dict[int, Dict[str, gym.Space]] = {}
-    merged_act: Dict[int, Dict[str, gym.Space]] = {}
-    segment_id_managers: List[IdManager] = []
-    segment_flat_sizes: List[int] = []
-    segment_env_bases: List[int] = []
+    merged_ids: list[list[str]] = []
+    merged_agent_types: list[dict[str, str]] = []
+    merged_obs: dict[int, dict[str, gym.Space]] = {}
+    merged_act: dict[int, dict[str, gym.Space]] = {}
+    segment_id_managers: list[IdManager] = []
+    segment_flat_sizes: list[int] = []
+    segment_env_bases: list[int] = []
     env_offset = 0
     for ids, agent_types, obs_defns, action_defns in results:
         segment_env_bases.append(env_offset)
@@ -95,34 +99,34 @@ def _merge_async_definitions(
 
 
 def _merge_step_results(
-    segment_results: List[
-        Tuple[
-            List[Dict[str, Any]],
-            List[Dict[str, Any]],
-            List[Dict[str, bool]],
-            List[Dict[str, bool]],
-            List[Dict[str, Dict[str, str]]],
-            Dict[int, Dict[str, Any]],
-            Dict[int, Dict[str, str]],
+    segment_results: list[
+        tuple[
+            list[dict[str, Any]],
+            list[dict[str, Any]],
+            list[dict[str, bool]],
+            list[dict[str, bool]],
+            list[dict[str, dict[str, str]]],
+            dict[int, dict[str, Any]],
+            dict[int, dict[str, dict[str, str]]],
         ]
     ],
-    segment_env_bases: List[int],
-) -> Tuple[
-    List[Dict[str, Any]],
-    List[Dict[str, Any]],
-    List[Dict[str, bool]],
-    List[Dict[str, bool]],
-    List[Dict[str, Dict[str, str]]],
-    Dict[int, Dict[str, Any]],
-    Dict[int, Dict[str, str]],
+    segment_env_bases: list[int],
+) -> tuple[
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, bool]],
+    list[dict[str, bool]],
+    list[dict[str, dict[str, str]]],
+    dict[int, dict[str, Any]],
+    dict[int, dict[str, dict[str, str]]],
 ]:
-    merged_obs: List[Dict[str, Any]] = []
-    merged_rew: List[Dict[str, Any]] = []
-    merged_term: List[Dict[str, bool]] = []
-    merged_trunc: List[Dict[str, bool]] = []
-    merged_infos: List[Dict[str, Dict[str, str]]] = []
-    merged_init_obs: Dict[int, Dict[str, Any]] = {}
-    merged_init_infos: Dict[int, Dict[str, str]] = {}
+    merged_obs: list[dict[str, Any]] = []
+    merged_rew: list[dict[str, Any]] = []
+    merged_term: list[dict[str, bool]] = []
+    merged_trunc: list[dict[str, bool]] = []
+    merged_infos: list[dict[str, dict[str, str]]] = []
+    merged_init_obs: dict[int, dict[str, Any]] = {}
+    merged_init_infos: dict[int, dict[str, dict[str, str]]] = {}
     for i, res in enumerate(segment_results):
         obs, rew, term, trunc, infos, init_o, init_i = res
         merged_obs.extend(obs)
@@ -181,21 +185,19 @@ class AsyncVecEnv(BaseVecEnv):
 
     def __init__(
         self,
-        simulator: Union[BaseSimulator, Sequence[BaseSimulator]],
-        protocol: Union[AsyncBaseRLProtocol, Sequence[AsyncBaseRLProtocol]],
+        simulator: BaseSimulator | Sequence[BaseSimulator],
+        protocol: AsyncBaseRLProtocol | Sequence[AsyncBaseRLProtocol],
         verbosity: int = 0,
     ):
         if sys.version_info < (3, 11):
             raise RuntimeError(
                 "AsyncVecEnv requires Python 3.11 or later (uses asyncio.TaskGroup)."
             )
-        if not is_iterable(simulator):
-            simulator = [simulator]
-        if not is_iterable(protocol):
-            protocol = [protocol]
+        _simulator = simulator if isinstance(simulator, Sequence) else [simulator]
+        _protocol = protocol if isinstance(protocol, Sequence) else [protocol]
 
-        self.simulators = list(simulator)
-        self.protocols = list(protocol)
+        self.simulators = list(_simulator)
+        self.protocols = list(_protocol)
 
         if len(self.simulators) != len(self.protocols):
             raise ValueError(
@@ -211,12 +213,12 @@ class AsyncVecEnv(BaseVecEnv):
                     f"Protocol {proto} is not supported by the simulator {sim}."
                 )
 
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
-        self._thread: Optional[Thread] = None
-        self._step_future: Optional[Future] = None
-        self._segment_id_managers: List[IdManager] = []
-        self._segment_flat_sizes: List[int] = []
-        self._segment_env_bases: List[int] = []
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._thread: Thread | None = None
+        self._step_future: Future[Any] | None = None
+        self._segment_id_managers: list[IdManager] = []
+        self._segment_flat_sizes: list[int] = []
+        self._segment_env_bases: list[int] = []
 
         def _run_loop() -> None:
             self._loop = asyncio.new_event_loop()
@@ -282,7 +284,7 @@ class AsyncVecEnv(BaseVecEnv):
         assert self._loop is not None
         return self._loop
 
-    def _run(self, coro):
+    def _run(self, coro: Coroutine[Any, Any, T]) -> T:
         """Run a coroutine on the dedicated event loop and return the result."""
         future: Future = asyncio.run_coroutine_threadsafe(coro, self.loop)
         return future.result()
@@ -303,14 +305,16 @@ class AsyncVecEnv(BaseVecEnv):
         for sim in self.simulators:
             sim.stop()
 
-    def seed(self, seed: Optional[int] = None) -> List[int]:
+    def seed(self, seed: int | None = None) -> list[int]:
         if seed is None:
             seed = int(np.random.randint(0, np.iinfo(np.uint32).max, dtype=np.uint32))
         seeds = [int(seed + i) for i in range(self.num_envs)]
-        self._seeds = seeds
+        self._seeds = seeds  # type: ignore
         return seeds
 
-    def set_options(self, options: Optional[Union[List[Dict], Dict]] = None) -> None:
+    def set_options(
+        self, options: list[dict[str, Any]] | dict[str, Any] | None = None
+    ) -> None:
         if options is None:
             options = {}
         if isinstance(options, dict):
@@ -322,10 +326,12 @@ class AsyncVecEnv(BaseVecEnv):
             )
         self._options = deepcopy(options)
 
-    def reset(self) -> Dict[str, np.ndarray]:
-        async def _do_reset() -> Tuple[List[Any], List[Any]]:
-            obs_all: List[Any] = []
-            info_all: List[Any] = []
+    def reset(self) -> VecEnvObs:
+        async def _do_reset() -> (
+            tuple[list[dict[str, Any]], list[dict[str, dict[str, str]]]]
+        ):
+            obs_all: list[Any] = []
+            info_all: list[Any] = []
             off = 0
             for proto, nflat in zip(self.protocols, self._segment_flat_sizes):
                 seeds = self._seeds[off : off + nflat] if self._seeds else None
@@ -347,13 +353,15 @@ class AsyncVecEnv(BaseVecEnv):
         for proto, seg_im in zip(self.protocols, self._segment_id_managers):
             n = seg_im.num_ids
             seg_actions = actions[off : off + n]
-            next_actions = seg_im.nest_list_to_dict_of_dicts(seg_actions)
+            next_actions = seg_im.nest_list_to_dict_of_dicts(seg_actions)  # type: ignore[arg-type]
             if isinstance(self.action_space, gym.spaces.Dict):
                 for env_id, agent_id_list in enumerate(seg_im.ids):
                     for agent_id in agent_id_list:
                         next_actions[env_id][agent_id] = split_value(
                             next_actions[env_id][agent_id], self.action_space
-                        )
+                        )  # type: ignore[arg-type]
+
+            next_actions = cast(dict[int, dict[str, Any]], next_actions)
             coros.append(
                 proto.send_action_msg(
                     next_actions, defaultdict(lambda: self.action_space)
@@ -368,7 +376,7 @@ class AsyncVecEnv(BaseVecEnv):
 
     def step_wait(
         self,
-    ) -> Tuple[Dict[str, np.ndarray], np.ndarray, np.ndarray, List[Dict[str, str]]]:
+    ) -> tuple[VecEnvObs, np.ndarray, np.ndarray, list[dict[str, str]]]:
         assert self._step_future is not None
         segment_results = self._step_future.result()
         merged = _merge_step_results(segment_results, self._segment_env_bases)

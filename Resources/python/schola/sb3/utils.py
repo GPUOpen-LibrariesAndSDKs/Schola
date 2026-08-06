@@ -4,8 +4,10 @@
 Utility functions for working with stable baselines 3
 """
 
-from typing import Dict, List, Tuple
+from collections.abc import Mapping
+from typing import Any, cast
 from functools import singledispatch
+from numpy.typing import NDArray
 import torch as th
 import os
 import gymnasium as gym
@@ -94,7 +96,7 @@ def _merge_box_spaces(space: Box, *other_spaces: Box) -> Box:
         low = np.concatenate([s.low for s in all_spaces], axis=-1)
         high = np.concatenate([s.high for s in all_spaces], axis=-1)
 
-    return Box(low=low, high=high, dtype=dtype)
+    return Box(low=low, high=high, dtype=dtype.type)
 
 
 @merge_spaces.register(MultiBinary)
@@ -124,7 +126,9 @@ def _merge_multibinary_spaces(
             raise TypeError(f"Cannot merge MultiBinary space with {type(s)}")
 
     # Sum the dimensions
-    total_n = sum(s.n for s in all_spaces)
+    total_n = sum(
+        int(np.prod(s.n)) if isinstance(s.n, tuple) else s.n for s in all_spaces
+    )
     return MultiBinary(total_n)
 
 
@@ -164,8 +168,8 @@ def _merge_discrete_spaces(
 
 
 def split_box_value(
-    value: np.ndarray, original_spaces: Dict[str, Box] | gym.spaces.Dict
-) -> Dict[str, np.ndarray]:
+    value: np.ndarray, original_spaces: dict[str, gym.Space[Any]] | gym.spaces.Dict
+) -> dict[str, np.ndarray]:
     """
     Split a Box space value back into original Box spaces.
     Values are split along the last axis, which is where they were concatenated during merge.
@@ -174,12 +178,12 @@ def split_box_value(
     ----------
     value : np.ndarray
         The value to split.
-    original_spaces : Dict[str, Box]
+    original_spaces : dict[str, Box]
         Dictionary mapping names to the original Box spaces.
 
     Returns
     -------
-    Dict[str, np.ndarray]
+    dict[str, np.ndarray]
         Dictionary mapping names to split values.
     """
     result = {}
@@ -189,8 +193,8 @@ def split_box_value(
         if not isinstance(space, Box):
             raise TypeError(f"Expected Box space for {name}, got {type(space)}")
 
-        # Get the size along the concatenation axis (last axis)
-        size = space.shape[-1] if len(space.shape) > 0 else space.shape[0]
+        # Get the size along the concatenation axis (last axis), 1 if no shape information provided
+        size = space.shape[-1] if len(space.shape) > 0 else 1
 
         # Split along the last axis
         if len(space.shape) == 0:
@@ -205,8 +209,8 @@ def split_box_value(
 
 
 def split_multibinary_value(
-    value: np.ndarray, original_spaces: Dict[str, MultiBinary] | gym.spaces.Dict
-) -> Dict[str, np.ndarray]:
+    value: np.ndarray, original_spaces: dict[str, gym.Space[Any]] | gym.spaces.Dict
+) -> dict[str, np.ndarray]:
     """
     Split a MultiBinary space value back into original MultiBinary spaces.
 
@@ -214,12 +218,12 @@ def split_multibinary_value(
     ----------
     value : np.ndarray
         The value to split.
-    original_spaces : Dict[str, MultiBinary]
+    original_spaces : dict[str, MultiBinary]
         Dictionary mapping names to the original MultiBinary spaces.
 
     Returns
     -------
-    Dict[str, np.ndarray]
+    dict[str, np.ndarray]
         Dictionary mapping names to split values.
     """
     result = {}
@@ -230,7 +234,7 @@ def split_multibinary_value(
             raise TypeError(f"Expected MultiBinary space for {name}, got {type(space)}")
 
         # Get the size for this space
-        size = space.n
+        size = int(np.prod(space.n)) if isinstance(space.n, tuple) else space.n
 
         # Split along the last axis
         result[name] = value[..., start_idx : start_idx + size]
@@ -242,8 +246,8 @@ def split_multibinary_value(
 
 def split_multidiscrete_value(
     value: np.ndarray,
-    original_spaces: Dict[str, Discrete | MultiDiscrete] | gym.spaces.Dict,
-) -> Dict[str, np.ndarray]:
+    original_spaces: dict[str, gym.Space[Any]] | gym.spaces.Dict,
+) -> dict[str, np.ndarray]:
     """
     Split a MultiDiscrete space value back into original Discrete/MultiDiscrete spaces.
 
@@ -251,12 +255,12 @@ def split_multidiscrete_value(
     ----------
     value : np.ndarray
         The value to split.
-    original_spaces : Dict[str, Discrete | MultiDiscrete]
+    original_spaces : dict[str, Discrete | MultiDiscrete]
         Dictionary mapping names to the original Discrete or MultiDiscrete spaces.
 
     Returns
     -------
-    Dict[str, np.ndarray]
+    dict[str, np.ndarray]
         Dictionary mapping names to split values.
     """
     result = {}
@@ -281,8 +285,8 @@ def split_multidiscrete_value(
 
 
 def split_value(
-    value: np.ndarray, original_spaces: Dict[str, gym.Space] | gym.spaces.Dict
-) -> Dict[str, np.ndarray]:
+    value: NDArray[Any], original_spaces: dict[str, gym.Space[Any]] | gym.spaces.Dict
+) -> dict[str, NDArray[Any]]:
     """
     Split a value from a merged space back into a dictionary of values for the original spaces.
 
@@ -290,12 +294,12 @@ def split_value(
     ----------
     value : np.ndarray
         The value to split.
-    original_spaces : Dict[str, gym.Space]
+    original_spaces : dict[str, gym.Space]
         Dictionary mapping names to the original spaces that were merged.
 
     Returns
     -------
-    Dict[str, np.ndarray]
+    dict[str, np.ndarray]
         Dictionary mapping names to split values.
     """
     first_space = next(iter(original_spaces.values()))
@@ -345,14 +349,14 @@ class VecMergeDictActionWrapper(VecEnvWrapper):
         return self.venv.reset()
 
     def step(
-        self, action: np.ndarray
-    ) -> Tuple[VecEnvObs, np.ndarray, np.ndarray, List[Dict]]:
-        return self.venv.step(action)
+        self, actions: NDArray[Any]
+    ) -> tuple[VecEnvObs, np.ndarray, np.ndarray, list[dict]]:
+        return self.venv.step(actions)
 
     def step_async(self, actions: np.ndarray) -> None:
         self.venv.step_async(actions)
 
-    def step_wait(self) -> Tuple[VecEnvObs, np.ndarray, np.ndarray, List[Dict]]:
+    def step_wait(self) -> tuple[VecEnvObs, np.ndarray, np.ndarray, list[dict]]:
         return self.venv.step_wait()
 
 
@@ -360,7 +364,7 @@ try:
     from matplotlib import pyplot as plt
 except ImportError:
     # matplot lib is not installed, raise a lazy error if someone tries to use the RenderImagesWrapper
-    plt = None
+    plt = None  # type: ignore
 
 
 class RenderImagesWrapper(VecEnvWrapper):
@@ -378,11 +382,14 @@ class RenderImagesWrapper(VecEnvWrapper):
             raise ImportError(
                 "You must install matplotlib in order to use the RenderImagesWrapper."
             )
-        self.image_obs = []
+        self.image_obs: list[tuple[str, gym.spaces.Box]] = []
         self._num_envs = venv.num_envs
+        assert isinstance(
+            venv.observation_space, gym.spaces.Dict
+        ), "RenderImagesWrapper only supports VecEnvs with Dict observation spaces."
         for obs_space_name, obs_space in venv.observation_space.spaces.items():
             if isinstance(obs_space, gym.spaces.Box):
-                self.image_obs.append((obs_space_name, obs_space.shape))
+                self.image_obs.append((obs_space_name, obs_space))
         plt.ion()
         self.axs = []
         self.ims = [[] for _ in range(self._num_envs)]
@@ -392,11 +399,13 @@ class RenderImagesWrapper(VecEnvWrapper):
                 index = row * len(self.image_obs) + col + 1
                 self.axs.append(plt.subplot(self._num_envs, len(self.image_obs), index))
                 # TODO dynamically toggle greyscale
-                if obs_space.shape[0] == 1:
+                if self.image_obs[col][1].shape[0] == 1:
                     cmap = "grey"
                 else:
                     cmap = None
-                default_ndarray = self.convert_to_plt_format(np.zeros(obs_space.shape))
+                default_ndarray = self.convert_to_plt_format(
+                    np.zeros(self.image_obs[col][1].shape)
+                )
                 self.ims[row].append(
                     self.axs[index - 1].imshow(
                         default_ndarray, cmap=cmap, vmin=0.0, vmax=1.0
@@ -429,21 +438,24 @@ class RenderImagesWrapper(VecEnvWrapper):
         plt.ioff()
         plt.show()
 
-    def update_images(self, obs: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
+    def update_images(self, obs: VecEnvObs) -> VecEnvObs:
         """
         Updates the images in the plt window with the given observations.
 
         Parameters
         ----------
-        obs: Dict[str,np.ndarray]
+        obs: dict[str, np.ndarray]
             Maps the names of the observations to the observation data.
 
         Returns
         -------
-        Dict[str,np.ndarray]
+        dict[str, np.ndarray]
             The original observation.
         """
-        for col, (image_obs_name, shape) in enumerate(self.image_obs):
+        assert isinstance(
+            obs, dict
+        ), f"Expected Observations to be a dict but got {type(obs)}"
+        for col, (image_obs_name, obs_space) in enumerate(self.image_obs):
             temp_obs = np.clip(obs[image_obs_name], 0.0, 1.0)
             # yoink out the batch dim at the front of the buffer
             for row in range(temp_obs.shape[0]):
@@ -457,15 +469,15 @@ class RenderImagesWrapper(VecEnvWrapper):
         return self.update_images(self.venv.reset())
 
     def step(
-        self, action: np.ndarray
-    ) -> Tuple[VecEnvObs, np.ndarray, np.ndarray, List[Dict]]:
+        self, actions: np.ndarray
+    ) -> tuple[VecEnvObs, np.ndarray, np.ndarray, list[dict]]:
 
-        obs, rewards, dones, infos = self.venv.step(action)
+        obs, rewards, dones, infos = self.venv.step(actions)
         return self.update_images(obs), rewards, dones, infos
 
     def step_async(self, actions: np.ndarray) -> None:
         self.venv.step_async(actions)
 
-    def step_wait(self) -> Tuple[VecEnvObs, np.ndarray, np.ndarray, List[Dict]]:
+    def step_wait(self) -> tuple[VecEnvObs, np.ndarray, np.ndarray, list[dict]]:
         obs, rewards, dones, infos = self.venv.step_wait()
         return self.update_images(obs), rewards, dones, infos

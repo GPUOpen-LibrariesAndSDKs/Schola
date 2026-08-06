@@ -3,7 +3,7 @@
 Settings dataclasses for the RLlib evaluation command.
 """
 
-from typing import TYPE_CHECKING, Annotated, Dict, Optional
+from typing import TYPE_CHECKING, Annotated
 from pathlib import Path
 from dataclasses import dataclass, field
 
@@ -29,7 +29,7 @@ class RllibEvalScriptSettings:
     """
 
     checkpoint: Annotated[
-        Optional[Path],
+        Path | None,
         Parameter(
             group="Evaluation Arguments",
             required=True,
@@ -44,7 +44,7 @@ class RllibEvalScriptSettings:
     ] = 10
     "Number of episodes ``eval_main`` samples (each env runner may take more than one per round)."
 
-    policy_map: Annotated[Dict[str, str], Parameter(group="Evaluation Arguments")] = (
+    policy_map: Annotated[dict[str, str], Parameter(group="Evaluation Arguments")] = (
         field(default_factory=dict)
     )
     "Optional agent-to-policy overrides (for example ``--policy-map agent_0=Pawn``)."

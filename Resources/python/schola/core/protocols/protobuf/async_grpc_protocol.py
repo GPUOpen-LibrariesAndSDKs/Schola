@@ -3,6 +3,7 @@
 Async gRPC protocol for non-blocking connections to the gRPC server.
 """
 
+from collections.abc import Mapping
 from typing import Any, Literal
 
 import grpc
@@ -11,6 +12,8 @@ import gymnasium as gym
 
 from schola.core.protocols.base_protocol import AutoResetType, DEFAULT_AUTO_RESET_TYPE
 from schola.core.protocols.async_base_protocol import AsyncBaseRLProtocol
+from schola.core.utils.dict_helpers import NestedDict
+from schola.generated.Definitions_pb2 import TrainingDefinition
 import schola.generated.GymConnector_pb2 as util_messages
 import schola.generated.GymConnector_pb2_grpc as gym_grpc
 import schola.generated.State_pb2 as state
@@ -103,12 +106,14 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
         self,
     ) -> tuple[
         list[list[str]],
-        dict[int, dict[str, str]],
+        list[dict[str, str]],
         dict[int, dict[str, gym.Space[Any]]],
         dict[int, dict[str, gym.Space[Any]]],
     ]:
-        training_defn = await self.gym_stub.RequestTrainingDefinition(
-            util_messages.TrainingDefinitionRequest()
+        training_defn: TrainingDefinition = (
+            await self.gym_stub.RequestTrainingDefinition(
+                util_messages.TrainingDefinitionRequest()
+            )
         )
 
         uids, agent_types, obs_spaces, act_spaces = from_proto(training_defn)
@@ -119,20 +124,20 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
         self,
         seeds: list[Any] | None = None,
         options: list[Any] | None = None,
-    ) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    ) -> tuple[list[dict[str, Any]], list[dict[str, dict[str, str]]]]:
         # abort any inprogress stuff
         state_update = self.prepare_reset_msg(seeds, options)
         response: state.State = await self.gym_stub.UpdateState(state_update)
         obs, info = from_proto(response.initial_state)
-        # Convert from Dict[Dict[envID, Dict[agentID, Any]]] to list[Dict[agentID, Any]]
+        # Convert from dict[dict[envID, dict[agentID, Any]]] to list[dict[agentID, Any]]
         observations = [obs[env_id] for env_id in range(len(obs))]
         infos = [info[env_id] for env_id in range(len(info))]
         return observations, infos
 
     async def send_action_msg(
         self,
-        actions: dict[int, dict[str, Any]],
-        action_space: dict[str, gym.Space[Any]],
+        actions: Mapping[int, NestedDict[str, Any]],
+        action_space: Mapping[str, gym.Space[Any]],
     ) -> tuple[
         list[dict[str, Any]],
         list[dict[str, float]],
@@ -140,7 +145,7 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
         list[dict[str, bool]],
         list[dict[str, dict[str, str]]],
         dict[int, dict[str, Any]],
-        dict[int, dict[str, str]],
+        dict[int, dict[str, dict[str, str]]],
     ]:
         state_update = self.prepare_action_msg(actions, action_space)
 

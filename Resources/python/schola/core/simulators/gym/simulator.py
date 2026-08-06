@@ -137,7 +137,7 @@ class GymSimulator(BaseSimulator):
         if self._server is not None:
             raise RuntimeError("GymSimulator gRPC server is already running")
 
-        port = int(protocol_properties["Port"])
+        port = int(protocol_properties["Port"])  # type: ignore[arg-type]
         env_factory = functools.partial(gym.make, self.env_id)
 
         if self.num_envs == 1:
@@ -151,7 +151,7 @@ class GymSimulator(BaseSimulator):
                 max_workers=self.num_envs
             ).share()
 
-        server = grpc.server(self._thread_pool, options=_GRPC_OPTIONS)  # type: ignore[arg-type]
+        server = grpc.server(self._thread_pool, options=_GRPC_OPTIONS)
         gym_grpc.add_GymServiceServicer_to_server(servicer, server)
         server.add_insecure_port(f"[::]:{port}")
         server.start()

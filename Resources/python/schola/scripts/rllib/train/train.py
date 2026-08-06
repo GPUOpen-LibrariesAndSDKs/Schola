@@ -7,7 +7,7 @@ Script to train an rllib model using Schola.
 import logging
 
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Tuple, Type, Union
+from typing import TYPE_CHECKING, Any, Callable
 
 from schola.scripts.common.settings import (
     get_activation_function,
@@ -32,12 +32,14 @@ if not logging.getLogger().handlers:
     )
 logger = logging.getLogger(__name__)
 
-
 app = App(name="train", help="Train a Model using ray")
 STOP_METRIC = "num_env_steps_sampled_lifetime"
 
+if TYPE_CHECKING:
+    import ray.tune
 
-def _get_restored_env_steps(checkpoint_path: Optional[Path]) -> int:
+
+def _get_restored_env_steps(checkpoint_path: Path | None) -> int:
     """
     Read the sampled environment-step count from an RLlib checkpoint.
 
@@ -111,9 +113,9 @@ def _get_restored_env_steps(checkpoint_path: Optional[Path]) -> int:
 
 def _make_stop_criterion(
     timesteps: int,
-    checkpoint_path: Optional[Path],
+    checkpoint_path: Path | None,
     reset_timestep: bool = False,
-) -> Dict[str, int]:
+) -> dict[str, int]:
     """
     Build Ray Tune's stop criterion for ``num_env_steps_sampled_lifetime``.
 
@@ -153,6 +155,8 @@ def _make_stop_criterion(
 
 
 # forward declare here for type hinting with no load
+
+
 def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
     """
     Main function for launching training with ray.
@@ -214,7 +218,7 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
 
     # Pass the frozen mapping to the ScholaAlgorithm via env_config (ignored by
     # make_env) so it gets checkpointed as an RLlib subcomponent.
-    env_config[ENV_CONFIG_POLICY_MAPPING_RECORD_KEY] = dict(agent_to_policy)
+    env_config[ENV_CONFIG_POLICY_MAPPING_RECORD_KEY] = agent_to_policy
 
     typed_policy_ids = {
         agent_id: policy_id
@@ -256,7 +260,7 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
 
     # Use NEW API stack with RayEnv/RayVecEnv (new stack interface)
     # Auto-assignment: RayEnv for local runner (num_env_runners=0), RayVecEnv for remote runners
-    config: Union[PPOConfig, SACConfig, APPOConfig, IMPALAConfig] = (
+    config: PPOConfig | SACConfig | APPOConfig | IMPALAConfig = (
         algorithm_config.api_stack(
             enable_rl_module_and_learner=True,  # Enable new stack
             enable_env_runner_and_connector_v2=True,  # Enable EnvRunner
@@ -272,7 +276,7 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
         )
         .multi_agent(
             policies=policies,
-            policy_mapping_fn=make_policy_mapping_fn_from_dict(agent_to_policy),  # type: ignore
+            policy_mapping_fn=make_policy_mapping_fn_from_dict(agent_to_policy),
         )
         .resources(
             num_gpus=args.resource_settings.num_gpus,
@@ -341,6 +345,7 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
     # Train through a Schola Algorithm subclass so the frozen policy mapping is
     # saved/restored as a native RLlib Checkpointable subcomponent ,
     # mirroring RLlib's own checkpoint behavior.
+    assert config.algo_class is not None, "Algorithm class is required"
     schola_algorithm_cls = schola_algorithm_subclass(config.algo_class)
 
     logger.info("Starting training")
@@ -393,7 +398,7 @@ class RllibTrainCommand(ScholaCommandTemplate[RllibScriptSettings]):
     """
 
     @property
-    def algorithm_table(self) -> Dict[str, Type[Any]]:
+    def algorithm_table(self) -> dict[str, type[Any]]:
         return {
             "sac": SACSettings,
             "ppo": PPOSettings,
@@ -402,7 +407,7 @@ class RllibTrainCommand(ScholaCommandTemplate[RllibScriptSettings]):
         }
 
     @property
-    def algorithm_help(self) -> Dict[str, str]:
+    def algorithm_help(self) -> dict[str, str]:
         return {
             "sac": "Train a model using Soft Actor-Critic(SAC) with rllib.",
             "ppo": "Train a model using Proximal Policy Optimization(PPO) with rllib.",
@@ -411,7 +416,7 @@ class RllibTrainCommand(ScholaCommandTemplate[RllibScriptSettings]):
         }
 
     @property
-    def script_args_type(self) -> Type[RllibScriptSettings]:
+    def script_args_type(self) -> type[RllibScriptSettings]:
         return RllibScriptSettings
 
     @property

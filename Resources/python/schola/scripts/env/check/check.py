@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import signal
 from dataclasses import replace
-from typing import Any, Callable, Type
+from typing import Any, Callable
 
 from cyclopts import App
 

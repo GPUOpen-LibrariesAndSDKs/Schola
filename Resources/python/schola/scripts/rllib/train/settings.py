@@ -3,7 +3,7 @@
 Settings dataclasses for the RLlib training command.
 """
 
-from typing import Annotated, List, Optional, Union
+from typing import Annotated
 from pathlib import Path
 from dataclasses import dataclass, field
 
@@ -83,7 +83,7 @@ class ResumeSettings:
     """
 
     resume_from: Annotated[
-        Optional[Path],
+        Path | None,
         Parameter(
             validator=validators.Path(exists=True, file_okay=True, dir_okay=True),
             alias="-r",
@@ -105,7 +105,7 @@ class NetworkArchitectureSettings:
     Dataclass for network architecture settings used in the RLlib training process. This class defines the parameters for the neural network architecture used for policy and value function approximation. This includes the hidden layer sizes, activation functions, and whether to use an attention mechanism. These settings help to control the complexity and capacity of the neural network model used in the training process.
     """
 
-    fcnet_hiddens: Annotated[List[int], Parameter(consume_multiple=True)] = field(
+    fcnet_hiddens: Annotated[list[int], Parameter(consume_multiple=True)] = field(
         default_factory=lambda: [512, 512]
     )
     "The hidden layer architecture for the fully connected network. This specifies the number of neurons in each hidden layer of the neural network used for the policy and value function approximation. The default is [512, 512], which means two hidden layers with 512 neurons each. This can be adjusted based on the complexity of the problem and the size of the input state space."
@@ -150,7 +150,7 @@ class RllibScriptSettings:
     "Settings for configuring the training process."
 
     algorithm_settings: Annotated[
-        Union[PPOSettings, SACSettings, APPOSettings, IMPALASettings],
+        PPOSettings | SACSettings | APPOSettings | IMPALASettings,
         Parameter(show=False, parse=False),
     ] = field(default_factory=PPOSettings)
     "Settings for configuring the training algorithm to use."

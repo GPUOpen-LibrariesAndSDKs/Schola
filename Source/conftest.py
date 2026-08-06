@@ -481,12 +481,12 @@ class UnrealTestRunner:
         result = command.run()
 
         logger.info("=" * 10 + " Unreal Build Output " + "=" * 10)
-        logger.info(result.stdout.decode("utf-8", errors="ignore"))
+        logger.info(result.stdout)
         logger.info("=" * 10 + " End of Unreal Build Output " + "=" * 10)
         if result.returncode != 0:
             if result.stderr:
                 logger.error("=" * 10 + " Unreal Build Error " + "=" * 10)
-                logger.error(result.stderr.decode("utf-8", errors="ignore"))
+                logger.error(result.stderr)
                 logger.error("=" * 10 + " Unreal Build Error " + "=" * 10)
             raise Exception(f"Unreal build failed with return code {result.returncode}")
              

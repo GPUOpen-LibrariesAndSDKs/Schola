@@ -12,7 +12,7 @@ import os
 import logging
 from os.path import isfile, join
 import re
-from typing import Annotated, Any, List, Optional
+from typing import Annotated, Any
 
 # Logging setup
 if not logging.getLogger().handlers:
@@ -83,7 +83,7 @@ def remove_stale_generated_files(
             stale_file.unlink()
 
 
-def get_expected_generated_files(proto_files: List[str], add_type_stubs: bool):
+def get_expected_generated_files(proto_files: list[str], add_type_stubs: bool):
     """
     Compute expected generated basenames for the current ``.proto`` set.
 
@@ -302,7 +302,7 @@ def add_api_macro(folder, file_paths, api_macro):
                 )
 
 
-def ensure_ue_verify_macro_sandbox(file_contents: List[str]) -> bool:
+def ensure_ue_verify_macro_sandbox(file_contents: list[str]) -> bool:
     """
     UE defines ``verify`` as a macro; Abseil's btree containers use a member
     named ``verify``. Sandboxing restores correct parsing for protobuf/gRPC includes.
@@ -349,7 +349,7 @@ def ensure_ue_verify_macro_sandbox(file_contents: List[str]) -> bool:
 
 def add_third_party_include_guards(
     folder: Path,
-    file_paths: List[str],
+    file_paths: list[str],
     include_prefix: str,
     port_def_include: str,
     port_undef_include: str,
@@ -471,7 +471,7 @@ def add_third_party_include_guards(
                 f.truncate()
 
 
-def move_files(src_folder: Path, files: List[str], target_folder: Path):
+def move_files(src_folder: Path, files: list[str], target_folder: Path):
     """
     Move a list of files from ``src_folder`` into ``target_folder``.
 
@@ -518,7 +518,7 @@ def make_proto_files(
     proto_folder,
     python_folder,
     cpp_folder,
-    proto_files: List[str],
+    proto_files: list[str],
     add_type_stubs=False,
     cpp_output_options="",
 ):
@@ -558,7 +558,7 @@ def make_grpc_files(
     proto_folder,
     plugin_path,
     target_folder,
-    proto_files: List[str],
+    proto_files: list[str],
     output_options="",
 ):
     """
@@ -615,7 +615,7 @@ def default_warnings(value: Any):
 def main(
     plugin_folder: Path = Path("."),
     warnings_to_disable: Annotated[
-        Optional[List[str]], Parameter(show_default=default_warnings)
+        list[str] | None, Parameter(show_default=default_warnings)
     ] = None,
     add_type_stubs: bool = True,
 ):

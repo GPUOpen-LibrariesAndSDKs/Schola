@@ -77,7 +77,7 @@ def from_proto(_msg: object) -> Any:
     Returns
     -------
     Any
-        The deserialized Python object (e.g., gym.Space, np.ndarray, Dict, etc.).
+        The deserialized Python object (e.g., gym.Space, np.ndarray, dict, etc.).
 
     Notes
     -----
@@ -197,14 +197,18 @@ def _(msg: proto_points.Point) -> dict[str, Any] | NDArray[Any]:
 
 # Initial State Deserialization
 @from_proto.register
-def _(msg: state.InitialAgentState) -> tuple[NDArray[Any], dict[str, str]]:
+def _(
+    msg: state.InitialAgentState,
+) -> tuple[NDArray[Any] | dict[str, Any], dict[str, str]]:
     observations = from_proto(msg.observations)
     infos = dict(msg.info)
     return observations, infos
 
 
 @from_proto.register
-def _(msg: state.InitialEnvironmentState) -> tuple[dict[str, Any], dict[str, str]]:
+def _(
+    msg: state.InitialEnvironmentState,
+) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, str]]]:
     observations = {}
     infos = {}
     for agent_id, agent_state in msg.agent_states.items():
@@ -215,7 +219,7 @@ def _(msg: state.InitialEnvironmentState) -> tuple[dict[str, Any], dict[str, str
 @from_proto.register
 def _(
     msg: state.InitialState,
-) -> tuple[dict[int, dict[str, Any]], dict[int, dict[str, str]]]:
+) -> tuple[dict[int, dict[str, dict[str, Any]]], dict[int, dict[str, dict[str, str]]]]:
     observations = {}
     infos = {}
     for env_id, env_state in msg.environment_states.items():
@@ -324,7 +328,7 @@ def _(
     msg: definitions.TrainingDefinition,
 ) -> tuple[
     list[list[str]],
-    dict[int, dict[str, str]],
+    list[dict[str, str]],
     dict[int, dict[str, gym.Space[Any]]],
     dict[int, dict[str, gym.Space[Any]]],
 ]:
@@ -332,7 +336,7 @@ def _(
     env_uids = [[] for _ in msg.environment_definitions]
     obs_defns: dict[int, dict[str, gym.Space[Any]]] = {}
     action_defns: dict[int, dict[str, gym.Space[Any]]] = {}
-    agent_types: dict[int, dict[str, str]] = {}
+    agent_types: list[dict[str, str]] = [{} for _ in msg.environment_definitions]
 
     for env_id, env_defn in enumerate(msg.environment_definitions):
         (
@@ -428,8 +432,8 @@ def _(
     list[dict[str, bool]],
     list[dict[str, bool]],
     list[dict[str, dict[str, str]]],
-    dict[int, dict[str, Any]],
-    dict[int, dict[str, str]],
+    dict[int, dict[str, dict[str, Any]]],
+    dict[int, dict[str, dict[str, str]]],
     list[dict[str, Any]],
 ]:
     # Deserialize training_state if present

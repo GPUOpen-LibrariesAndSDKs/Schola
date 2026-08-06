@@ -3,7 +3,7 @@
 Shared settings dataclasses for RLlib scripts (algorithms, resources, logging).
 """
 
-from typing import Annotated, Any, Dict, Type
+from typing import Annotated, Any
 from dataclasses import dataclass, field
 
 from cyclopts import Parameter, validators
@@ -21,7 +21,7 @@ class RllibAlgorithmSpecificSettings:
     Base class for RLlib algorithm-specific settings. This class is intended to be inherited by specific algorithm settings classes (e.g., PPOSettings, IMPALASettings, etc.).
     """
 
-    def get_settings_dict(self) -> Dict[str, Any]:
+    def get_settings_dict(self) -> dict[str, Any]:
         """
         Get the settings as a dictionary keyed by the correct parameter name in Ray
         """
@@ -53,7 +53,7 @@ class PPOSettings(RllibAlgorithmSpecificSettings):
     "Whether to use Generalized Advantage Estimation (GAE) for advantage calculation. GAE is a method to reduce the variance of the advantage estimates while keeping bias low. If set to False, the standard advantage calculation will be used instead."
 
     @property
-    def rllib_config(self) -> Type["PPOConfig"]:  # type: ignore
+    def rllib_config(self) -> type["PPOConfig"]:  # type: ignore
         from ray.rllib.algorithms.ppo.ppo import PPOConfig
 
         return PPOConfig
@@ -96,7 +96,7 @@ class SACSettings(RllibAlgorithmSpecificSettings):
     "Whether to use twin Q networks (double Q-learning). This helps reduce overestimation bias in Q-value estimates."
 
     @property
-    def rllib_config(self) -> Type["SACConfig"]:  # type: ignore
+    def rllib_config(self) -> type["SACConfig"]:  # type: ignore
         from ray.rllib.algorithms.sac.sac import SACConfig
 
         return SACConfig
@@ -135,7 +135,7 @@ class IMPALASettings(RllibAlgorithmSpecificSettings):
     "The clip threshold for V-trace rho values in the policy gradient."
 
     @property
-    def rllib_config(self) -> Type["IMPALAConfig"]:  # type: ignore
+    def rllib_config(self) -> type["IMPALAConfig"]:  # type: ignore
         from ray.rllib.algorithms.impala.impala import IMPALAConfig
 
         return IMPALAConfig
@@ -159,7 +159,7 @@ class APPOSettings(IMPALASettings, PPOSettings):
     """
 
     @property
-    def rllib_config(self) -> Type["APPOConfig"]:  # type: ignore
+    def rllib_config(self) -> type["APPOConfig"]:  # type: ignore
         from ray.rllib.algorithms.appo.appo import APPOConfig
 
         return APPOConfig

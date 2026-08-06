@@ -5,16 +5,19 @@ Base Class for Unreal Connections
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import sys
 from abc import ABC, abstractmethod
 from typing import Any
 
 import gymnasium as gym
 
+from schola.core.utils.dict_helpers import NestedDict
+
 if sys.version_info >= (3, 11):
     from enum import StrEnum
 else:
-    from backports.strenum import StrEnum
+    from backports.strenum import StrEnum  # pyright: ignore[reportMissingImports]
 
 
 class AutoResetType(StrEnum):
@@ -114,7 +117,7 @@ class BaseProtocol(ABC):
 
         Returns
         -------
-        Dict[str, Any]
+        dict[str, Any]
             A dictionary of protocol properties that can be passed to simulators.
         """
         return dict()
@@ -151,7 +154,7 @@ class BaseProtocolMixin:
 
         Returns
         -------
-        Dict[str, Any]
+        dict[str, Any]
             A dictionary of properties provided by this mixin.
         """
         return dict()
@@ -190,7 +193,7 @@ class BaseRLProtocol(BaseProtocol, ABC):
         **kwargs: Any,
     ) -> tuple[
         list[list[str]],
-        dict[int, dict[str, str]],
+        list[dict[str, str]],
         dict[int, dict[str, gym.Space[Any]]],
         dict[int, dict[str, gym.Space[Any]]],
     ]:
@@ -199,7 +202,7 @@ class BaseRLProtocol(BaseProtocol, ABC):
 
         Returns
         -------
-        Tuple[List[List[str]], Dict[int, Dict[str, str]], Dict[int, Dict[str, gym.Space]], Dict[int, Dict[str, gym.Space]]]
+        tuple[list[list[str]], list[dict[str, str]], dict[int, dict[str, gym.Space]], dict[int, dict[str, gym.Space]]]
             A tuple containing:
             - List of agent IDs per environment
             - Agent types indexed by environment and agent
@@ -211,7 +214,7 @@ class BaseRLProtocol(BaseProtocol, ABC):
     @abstractmethod
     def send_reset_msg(
         self, seeds: list[Any] | None = None, options: list[Any] | None = None
-    ) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    ) -> tuple[list[dict[str, dict[str, Any]]], list[dict[str, dict[str, str]]]]:
         """
         Send a reset message to restart the environment.
 
@@ -224,17 +227,17 @@ class BaseRLProtocol(BaseProtocol, ABC):
 
         Returns
         -------
-        Tuple[List[Dict[str, Any]], List[Dict[str, str]]]
+        tuple[list[dict[str, dict[str, Any]]], list[dict[str, dict[str, str]]]]
             A tuple containing:
-            - List of initial observations for each environment
-            - List of initial info dicts for each environment
+            - List of initial observations for each environment and agent
+            - List of initial info dicts for each environment and agent
         """
         ...
 
     @abstractmethod
     def send_action_msg(
         self,
-        actions: dict[int, dict[str, Any]],
+        actions: Mapping[int, NestedDict[str, Any]],
         action_space: dict[str, gym.Space[Any]],
     ) -> tuple[
         list[dict[str, Any]],
@@ -242,22 +245,22 @@ class BaseRLProtocol(BaseProtocol, ABC):
         list[dict[str, bool]],
         list[dict[str, bool]],
         list[dict[str, dict[str, str]]],
-        dict[int, dict[str, Any]],
-        dict[int, dict[str, str]],
+        dict[int, dict[str, dict[str, Any]]],
+        dict[int, dict[str, dict[str, str]]],
     ]:
         """
         Send actions to the environment and receive the next state.
 
         Parameters
         ----------
-        actions : Dict[int, Dict[str, Any]]
+        actions : dict[int, dict[str, Any]]
             Actions to take, indexed by environment ID and agent ID.
-        action_space : Dict[str, gym.Space]
+        action_space : dict[str, gym.Space]
             The action spaces used to serialize the actions.
 
         Returns
         -------
-        Tuple[List[Dict[str,Any]], List[Dict[str,float]], List[Dict[str,bool]], List[Dict[str,bool]], List[Dict[str,Dict[str,str]]], Dict[int,Dict[str, Any]], Dict[int,Dict[str, str]]]
+        tuple[list[dict[str,Any]], list[dict[str,float]], list[dict[str,bool]], list[dict[str,bool]], list[dict[str,dict[str,str]]], dict[int,dict[str, Any]], dict[int,dict[str, str]]]
             A tuple containing:
             - Observations for each environment
             - Rewards for each environment
@@ -283,7 +286,7 @@ class BaseImitationProtocol(BaseProtocol, ABC):
 
     @abstractmethod
     def send_startup_msg(
-        self, seeds: list[Any] | None = None, options: list[Any] | None = None
+        self, seeds: list[int | None] | None = None, options: list[Any] | None = None
     ) -> Any:
         """
         Send the startup message for imitation learning data collection.
@@ -309,7 +312,7 @@ class BaseImitationProtocol(BaseProtocol, ABC):
         **kwargs: Any,
     ) -> tuple[
         list[list[str]],
-        dict[int, dict[str, str]],
+        list[dict[str, str]],
         dict[int, dict[str, gym.Space[Any]]],
         dict[int, dict[str, gym.Space[Any]]],
     ]:
@@ -318,7 +321,7 @@ class BaseImitationProtocol(BaseProtocol, ABC):
 
         Returns
         -------
-        Tuple[List[List[str]], Dict[int, Dict[str, str]], Dict[int,Dict[str,gym.Space]], Dict[int,Dict[str,gym.Space]]]
+        tuple[list[list[str]], dict[int, dict[str, str]], dict[int, dict[str, gym.Space]], dict[int, dict[str, gym.Space]]]
             A tuple containing:
             - List of agent IDs per environment
             - Agent types indexed by environment and agent
@@ -336,8 +339,8 @@ class BaseImitationProtocol(BaseProtocol, ABC):
         list[dict[str, bool]],
         list[dict[str, bool]],
         list[dict[str, dict[str, str]]],
-        dict[int, dict[str, Any]],
-        dict[int, dict[str, str]],
+        dict[int, dict[str, dict[str, Any]]],
+        dict[int, dict[str, dict[str, str]]],
         list[dict[str, Any]],
     ]:
         """
@@ -345,7 +348,7 @@ class BaseImitationProtocol(BaseProtocol, ABC):
 
         Returns
         -------
-        Tuple[List[Dict[str,Any]], List[Dict[str,float]], List[Dict[str,bool]], List[Dict[str,bool]], List[Dict[str,Dict[str,str]]], Dict[int,Dict[str, Any]], Dict[int,Dict[str, str]], List[Dict[str,Any]]]
+        tuple[list[dict[str, Any]], list[dict[str, float]], list[dict[str, bool]], list[dict[str, bool]], list[dict[str, dict[str, str]]], dict[int, dict[str, Any]], dict[int, dict[str, str]], list[dict[str, Any]]]
             A tuple containing:
             - Observations for each timestep
             - Rewards for each timestep

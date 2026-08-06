@@ -7,7 +7,7 @@ Cyclopts dataclasses for Minari dataset collection with Schola.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Annotated, Optional
+from typing import TYPE_CHECKING, Annotated
 from dataclasses import dataclass, field
 from pathlib import Path
 from cyclopts import Parameter, validators
@@ -26,7 +26,7 @@ class MinariCollectionSettings:
     Dataclass for configuring Minari dataset collection parameters.
     """
 
-    dataset_id: Optional[str] = None
+    dataset_id: str | None = None
     "Unique identifier for the Minari dataset. This will be used to name the dataset when it is created."
 
     num_steps: Annotated[
@@ -34,29 +34,29 @@ class MinariCollectionSettings:
     ] = 1000
     "Total number of steps to collect for the dataset. This is the total number of environment steps that will be recorded."
 
-    seed: Optional[int] = None
+    seed: int | None = None
     "Random seed for reproducibility. If None, the environment will use a random seed."
 
-    author: Optional[str] = None
+    author: str | None = None
     "Author name for the dataset metadata."
 
-    author_email: Optional[Email] = None
+    author_email: Email | None = None
     "Author email for the dataset metadata."
 
-    code_permalink: Optional[URL] = None
+    code_permalink: URL | None = None
     "URL to the code or repository used to generate the dataset."
 
-    algorithm_name: Optional[str] = None
+    algorithm_name: str | None = None
     "Name of the algorithm or policy used to collect the data."
 
-    description: Optional[str] = None
+    description: str | None = None
     "Description of the dataset."
 
     record_infos: bool = False
     "Whether to record the info dictionaries in the dataset. If False, only observations, actions, rewards, terminations, and truncations are recorded."
 
     data_path: Annotated[
-        Optional[Path],
+        Path | None,
         Parameter(validator=validators.Path(file_okay=False, dir_okay=True)),
     ] = None
     "Directory path where Minari datasets will be stored. If None, uses the default Minari datasets directory (MINARI_DATASETS_PATH environment variable or ~/.minari/datasets/)."

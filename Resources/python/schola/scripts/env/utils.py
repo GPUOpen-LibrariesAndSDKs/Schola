@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import warnings
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from typing import Any, Mapping
 
 import gymnasium as gym
 import numpy as np
@@ -42,8 +42,8 @@ def _format_value_for_log(value: Any) -> str:
 
 def _iter_single_observations(
     env: GymVectorEnv, observations: Any
-) -> List[Tuple[int, str, Any]]:
-    slots: List[Tuple[int, str, Any]] = []
+) -> list[tuple[int, str, Any]]:
+    slots: list[tuple[int, str, Any]] = []
     for flat_id, single_obs in enumerate(
         gym.vector.utils.iterate(env.observation_space, observations)
     ):
@@ -56,8 +56,8 @@ def inspect_agents(
     env: GymVectorEnv,
     *,
     logger: logging.Logger,
-    seed: Optional[int] = None,
-    options: Optional[Dict[str, str]] = None,
+    seed: int | None = None,
+    options: dict[str, str] | None = None,
 ) -> None:
     """Call ``reset`` once and log per-agent spaces and initial observations."""
     observations, _infos = env.reset(

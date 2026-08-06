@@ -6,7 +6,7 @@ Cyclopts dataclasses for Stable-Baselines3 training with Schola (PPO, SAC, check
 
 from __future__ import annotations
 
-from typing import Annotated, List, Optional, Type, Union, Any, Dict
+from typing import Annotated, Any
 
 from schola.scripts.common.settings import (
     ActivationFunctionEnum,
@@ -99,7 +99,7 @@ class PPOTrainSettings(BaseSb3AlgorithmSettings, BasePPOSettings):
     "Frequency at which to sample the SDE noise. This determines how often the noise is sampled when using State Dependent Exploration (SDE). A value of -1 means that it will sample the noise at every step, while a positive integer will specify the number of steps between samples. This can help to control the exploration behavior of the agent."
 
     target_kl: Annotated[
-        Optional[float], Parameter(validator=validators.Number(gt=0.0))
+        float | None, Parameter(validator=validators.Number(gt=0.0))
     ] = None
     "Approximate KL-divergence threshold used to early-stop the PPO update epoch loop when the policy moves too far from the rollout distribution. When set, SB3 stops the inner epoch loop as soon as the running approximate KL exceeds this value, which stabilizes training when ``train/approx_kl`` would otherwise blow past ``clip_range``. Typical values are 0.01-0.05. Leave as None to disable (SB3's default)."
 
@@ -153,7 +153,7 @@ class SACTrainSettings(BaseSb3AlgorithmSettings, BaseSACSettings):
     gradient_steps: Annotated[int, Parameter(validator=validators.Number(gte=1))] = 1
     "Number of gradient steps to take during each training update. This specifies how many times to update the model parameters using the sampled minibatch from the replay buffer. A value of 1 means that the model is updated once per training step, while a higher value (e.g., 2) means that the model is updated multiple times. This can help to improve convergence but may also lead to overfitting if set too high."
 
-    replay_buffer_kwargs: Optional[Dict[str, Any]] = None
+    replay_buffer_kwargs: dict[str, Any] | None = None
     "Additional keyword arguments to pass to the replay buffer constructor. This allows for further customization of the replay buffer's behavior and settings when it is instantiated. For example, you can specify parameters like `buffer_size`, `seed`, or any other parameters supported by your custom replay buffer class. This can help to tailor the replay buffer to your specific needs or environment requirements."
 
     optimize_memory_usage: bool = False
@@ -242,7 +242,7 @@ class Sb3ResumeSettings:
     """
 
     resume_from: Annotated[
-        Optional[Path],
+        Path | None,
         Parameter(
             validator=validators.Path(exists=True, file_okay=True, dir_okay=False),
             alias="-r",
@@ -251,7 +251,7 @@ class Sb3ResumeSettings:
     "Path to a saved model to resume training from. This allows for continuing training from a previously saved checkpoint. The path should point to a valid model file created by Stable Baselines3. If set to None, training will start from scratch."
 
     load_vecnormalize: Annotated[
-        Optional[Path],
+        Path | None,
         Parameter(
             validator=validators.Path(exists=True, file_okay=True, dir_okay=False)
         ),
@@ -259,7 +259,7 @@ class Sb3ResumeSettings:
     "Path to a saved vector normalization statistics file to load when resuming training. This allows for loading the normalization statistics from a previous training session, ensuring that the observations are normalized consistently when resuming training. If set to None, it will not load any vector normalization statistics."
 
     load_replay_buffer: Annotated[
-        Optional[Path],
+        Path | None,
         Parameter(
             validator=validators.Path(exists=True, file_okay=True, dir_okay=False)
         ),
@@ -320,12 +320,12 @@ class Sb3NetworkArchitectureSettings:
     Network architecture settings for SB3 algorithms.
     """
 
-    policy_parameters: Annotated[List[int], Parameter(consume_multiple=True)] = field(
+    policy_parameters: Annotated[list[int], Parameter(consume_multiple=True)] = field(
         default_factory=lambda: [256, 256]
     )
     "A list of layer widths representing the policy network architecture. This defines the number of neurons in each hidden layer of the policy network. For example, [64, 64] would create a policy network with two hidden layers, each containing 64 neurons. If set to None, it will use the default architecture defined by the algorithm."
 
-    critic_parameters: Annotated[List[int], Parameter(consume_multiple=True)] = field(
+    critic_parameters: Annotated[list[int], Parameter(consume_multiple=True)] = field(
         default_factory=lambda: [256, 256]
     )
     "A list of layer widths representing the critic (value function) network architecture. This defines the number of neurons in each hidden layer of the critic network. For example, [64, 64] would create a critic network with two hidden layers, each containing 64 neurons. This is only applicable for algorithms that use a critic (e.g., SAC). If set to None, it will use the default architecture defined by the algorithm."
@@ -391,7 +391,7 @@ class Sb3TrainScriptSettings:
     "Settings for configuring the neural network architecture used for training."
 
     algorithm_settings: Annotated[
-        Union[PPOTrainSettings, SACTrainSettings], Parameter(show=False, parse=False)
+        PPOTrainSettings | SACTrainSettings, Parameter(show=False, parse=False)
     ] = field(default_factory=PPOTrainSettings)
     "The settings for the training algorithm to use. This can be either `PPOSettings` or `SACSettings`, depending on the chosen algorithm. This property allows for easy switching between different algorithms (e.g., PPO or SAC) by simply changing the instance of the settings class. The default is `PPOSettings`, which is suitable for most environments unless specified otherwise."
 

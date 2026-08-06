@@ -220,7 +220,7 @@ def run_ubt_project_build(
     map: Optional[str] = None,
     extra_ubt_args: Optional[Dict[str, Any]] = None,
 ) -> subprocess.CompletedProcess[str]:
-    """Run UBT for a project and raise when the build fails."""
+    """Run UBT for a project and return the completed process."""
     ubt_args: Dict[str, Any] = (
         extra_ubt_args.copy() if extra_ubt_args is not None else {}
     )
@@ -265,7 +265,7 @@ def build_project_executable(
     """
     uproject_file = resolve_uproject_file(uproject_path)
     staging_dir = resolve_build_dir(uproject_file, build_dir)
-    run_ubt_project_build(
+    completed_build = run_ubt_project_build(
         uproject_file,
         staging_dir,
         ubt_path=ubt_path,
@@ -273,6 +273,13 @@ def build_project_executable(
         extra_ubt_args=extra_ubt_args,
     )
     executable_path = expected_executable_path(uproject_file, staging_dir)
+    if completed_build.returncode != 0:
+        exception_message = f"Unreal Build failed with return code {completed_build.returncode} and the following output:\n"
+        if completed_build.stderr:
+            exception_message += f"stderr:\n {completed_build.stderr}\n"
+        if completed_build.stdout:
+            exception_message += f"stdout:\n {completed_build.stdout}\n"
+        raise Exception(exception_message)
     if not executable_path.exists():
         raise FileNotFoundError(f"Built executable not found at {executable_path}")
     logger.info("Built executable to: %s", executable_path)

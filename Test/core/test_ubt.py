@@ -17,6 +17,7 @@ from schola.core.utils.ubt import (
     get_engine_path_from_sln,
     get_sln_file_from_project,
     get_editor_executable_path,
+    resolve_editor_executable,
 )
 
 
@@ -308,3 +309,35 @@ class TestGetEditorExecutablePath:
         assert "UnrealEditor-Cmd" in str(editor_path)
         assert "Linux" in str(editor_path)
         assert not str(editor_path).endswith(".exe")
+
+
+class TestResolveEditorExecutable:
+    """Tests for resolve_editor_executable function"""
+
+    def test_resolve_from_uproject(self):
+        """Test resolving editor executable from a .uproject file"""
+        sln_content = """Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "UnrealBuildTool", "..\\..\\Engine\\Source\\Programs\\UnrealBuildTool\\UnrealBuildTool.csproj", "{67890}"""
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_dir = Path(tmpdir)
+            sln_path = project_dir / "TestProject.sln"
+            uproject_path = project_dir / "TestProject.uproject"
+            with open(sln_path, "w") as f:
+                f.write(sln_content)
+            uproject_path.touch()
+
+            with patch("platform.system", return_value="Windows"):
+                editor_path = resolve_editor_executable(uproject_path)
+
+            assert "UnrealEditor-Cmd.exe" in str(editor_path)
+            assert "Win64" in str(editor_path)
+
+    def test_missing_sln_raises(self):
+        """Test that missing .sln file raises FileNotFoundError"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            uproject_path = Path(tmpdir) / "TestProject.uproject"
+            uproject_path.touch()
+
+            with pytest.raises(FileNotFoundError, match="Could not locate a .sln"):
+                resolve_editor_executable(uproject_path)

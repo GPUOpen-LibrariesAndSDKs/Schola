@@ -6,11 +6,9 @@ Entry point for the ``schola`` CLI.
 
 import sys
 from cyclopts import App, Parameter, validators, group_extractors, Group
+from schola.scripts.common.console import configure_logging, console
 from schola.scripts.common.panel import print_error
 
-from rich.console import Console
-
-console = Console()
 app = App(
     console=console,
     name="schola",
@@ -64,6 +62,18 @@ from schola.scripts.utils.build_docs import app as build_docs_app
 
 app.command(build_docs_app, name="build-docs")
 
+try:
+    from schola.scripts.fabrica.app import fabrica_app
+
+    app.command(fabrica_app, name="fabrica")
+except ImportError as e:
+    print_error(
+        "Schola Fabrica optional dependencies are missing. Install via:\n"
+        "pip install 'schola[fabrica]'\n"
+        "Then re-run your schola command."
+    )
+    raise e
+
 from schola.scripts.env import env_utils_app
 
 app.command(env_utils_app, name="env")
@@ -82,6 +92,7 @@ def main():
     -----
     On unexpected exceptions, prints a Rich traceback and exits with status code ``1``.
     """
+    configure_logging()
     try:
         app()
     except Exception as e:  # keep lightweight panel reporting

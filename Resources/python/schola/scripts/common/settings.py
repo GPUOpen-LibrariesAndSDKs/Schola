@@ -22,9 +22,7 @@ from dataclasses import dataclass, field
 from cyclopts import App, Parameter, validators, group_extractors, Group, types
 from pathlib import Path
 
-from rich.console import Console
-
-console = Console()
+from schola.core.utils.ubt import expected_executable_path, resolve_build_dir
 
 from typing import TYPE_CHECKING, TypeVar
 
@@ -229,6 +227,20 @@ class SingularProjectSimulatorConfig(BaseSimulatorConfig["UnrealExecutable"]):
             disable_script=self.disable_script,
         )
 
+    @property
+    def resolved_build_dir(self) -> Path:
+        """
+        Return the build directory for the project.
+        """
+        return resolve_build_dir(self.uproject_path, self.build_dir)
+
+    @property
+    def resolved_executable_path(self) -> Path:
+        """
+        Return the executable path for the project.
+        """
+        return expected_executable_path(self.uproject_path, self.resolved_build_dir)
+    
     def get_sim_cls(self) -> type["UnrealExecutable"]:
         from schola.core.simulators.unreal.executable_simulator import UnrealExecutable
 

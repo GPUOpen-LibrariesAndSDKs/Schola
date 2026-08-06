@@ -14,3 +14,4 @@ Guides
    distributed_training
    migrating_to_v2
    testing_with_pytest
+   fabrica

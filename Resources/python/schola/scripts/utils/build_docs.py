@@ -28,11 +28,9 @@ import shlex
 
 from cyclopts import App
 
-# Logging setup
-if not logging.getLogger().handlers:
-    logging.basicConfig(
-        level=logging.INFO, format="%(levelname)s %(name)s: %(message)s"
-    )
+from schola.scripts.common.console import configure_logging
+
+configure_logging()
 logger = logging.getLogger(__name__)
 
 app = App(

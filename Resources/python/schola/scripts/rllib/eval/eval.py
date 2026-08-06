@@ -17,18 +17,16 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Tuple, Type
+from typing import Any, Callable, Dict, List, Tuple, Type, cast
 
 from cyclopts import App
 
 from schola.scripts.common.command_template import ScholaCommandTemplate
+from schola.scripts.common.console import configure_logging
 from schola.scripts.rllib.eval.settings import RllibEvalScriptSettings
 
-if not logging.getLogger().handlers:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(levelname)s %(name)s: %(message)s",
-    )
+configure_logging()
+
 logger = logging.getLogger(__name__)
 
 
@@ -212,7 +210,10 @@ def main(args: RllibEvalScriptSettings) -> Dict[str, Any]:
                 "--num-gpus is non-default but connecting to an existing cluster; "
                 "this parameter will be ignored."
             )
-
+    # checkpoint must be Path | None, to make command generation work correctly.
+    # but it is not actually optional, so we need to check for it here.
+    if args.checkpoint is None:
+        raise ValueError("Checkpoint is required")
     ckpt = args.checkpoint.resolve()
     n_sim = args.environment_settings.simulator_settings.num_simulators
     num_env_runners = 0 if n_sim <= 1 else int(n_sim)
@@ -221,7 +222,7 @@ def main(args: RllibEvalScriptSettings) -> Dict[str, Any]:
     try:
         rl_dir = rl_module_dir_from_algorithm_checkpoint(Path(ckpt))
         logger.info("Loading MultiRLModule from %s", rl_dir)
-        marl = MultiRLModule.from_checkpoint(rl_dir)
+        marl = cast(MultiRLModule, MultiRLModule.from_checkpoint(rl_dir))
 
         agent_ids, env_agent_to_policy, env_config = discover_env_metadata(
             args.environment_settings,

@@ -1,0 +1,67 @@
+# Copyright (c) 2026 Advanced Micro Devices, Inc. All Rights Reserved.
+
+"""Static prompt snippets for the Fabrica reward Deep Agent."""
+
+FABRICA_SYSTEM_PROMPT = """You are an expert Unreal Engine C++ and machine learning engineer helping author reward code for a training environment.
+
+You may use the provided tools to inspect the Unreal project (list/read/grep). You must NOT claim to have edited or written any C++ source files yourself; the harness applies your code after you return it.
+
+Hard rules:
+- When you are done reasoning, return structured output with two fields:
+  - init_body: raw UE C++ statements for the FabricaGeneratedInit function body (no function signature, no Markdown fences).
+  - reward_body: raw UE C++ statements for the FabricaGeneratedRewardForAgent function body (no function signature, no Markdown fences).
+- Only add keys to ``RewardComponents`` whose names start with the reserved prefix (default "fabrica_r:"). Never modify or remove other keys (including fabrica_ts).
+- Use ``AFabricaEnvironment::FabricaTrackedActors(TMap<FString, TObjectPtr<AActor>>)`` for stable references resolved in the init region.
+- Prefer TWeakObjectPtr or null checks before dereferencing actors.
+- Do not use network/file APIs from generated code.
+
+API reminders:
+- Base class AFabricaEnvironment (ScholaTraining) implements ICppOnlyMultiAgentEnvironment (InitializeEnvironment / Reset / Step still use per-agent TMaps). User hooks are single-agent: OnUserInitializeEnvironment(FInteractionDefinition&), OnUserReset(FInitialAgentState&), OnUserStep(const FInstancedStruct& InAction, FFabricaAgentState& OutState); the base adapts to TMaps using GetFabricaSingleAgentId() (default FString "agent"). Then FabricaGeneratedInit / FabricaGeneratedRewardForAgent run as before.
+- OnUserStep fills one FFabricaAgentState; the base Step converts to FAgentState (task success under Info key fabrica_ts), passes Info to FabricaGeneratedRewardForAgent, then sets Reward from the sum of fabrica_r: entries.
+- Read world state from ``FabricaTrackedActors``, environment members, or actor queries—not from other ``FAgentState`` fields inside the reward hook.
+- Add reward entries to `RewardComponents` with ``RewardComponents.Add(Prefix + TEXT("name"), FString::SanitizeFloat(value))`` where ``Prefix`` is ``UFabricaRewardInfo::GetComponentPrefix()`` (default ``fabrica_r:``).
+- Do not declare local variables with the same names as environment class members (e.g. if the header defines ``GoalX`` / ``FailX``, reference them as ``AFabricaSimpleLineEnvironment::GoalX`` or use different local names). UE treats shadowing as a compile error (C4458).
+- Do not write to environment members (e.g. avoid changing ``GoalX`` / ``FailX`` if the subclass already defines them).
+- UFabricaRewardInfo::GetComponentPrefix() returns the FString prefix for reward Info keys (match CLI override if documented in user message).
+"""
+
+FABRICA_SNAPSHOT_EXCERPT_TEMPLATE = """The Unreal Engine environment has the following objects in it:
+{snapshot_excerpt}
+"""
+
+FABRICA_ENV_HEADER_TEMPLATE = """The environment class is declared in the following header (UE include path: {env_header_path}; for ue_read_file / ue_list_dir use code-root-relative path: {env_header_tool_path}):
+{env_header_excerpt}
+"""
+
+FABRICA_INSTRUCTIONS_TEMPLATE = """
+
+Write a reward function for the following task in this environment: {task_text}
+
+When finished, return structured output with init_body and reward_body completing the following function signatures (bodies only; match types exactly):
+```
+void {env_class_name}::FabricaGeneratedInit()
+{{
+  // returned init_body here
+}}
+
+void {env_class_name}::FabricaGeneratedRewardForAgent(const FString& AgentId, TMap<FString, FString>& RewardComponents)
+{{
+  // returned reward_body here — add fabrica_r: keys to RewardComponents only; no return statement
+}}
+```
+"""
+
+FABRICA_FEEDBACK_TEMPLATE = """
+
+We trained a RL policy using the provided reward function code and tracked the values of the individual components in the reward function as well as global policy metrics such as success rates and episode lengths after every {policy_feedback_interval} episode(s) and the maximum, mean, minimum values encountered:
+{feedback}
+
+Please carefully analyze the policy feedback and provide a new, improved reward function that can better solve the task. Some helpful tips for analyzing the policy feedback:
+    (1) If the success rates are always near zero, then you must rewrite the entire reward function
+    (2) If the values for a certain reward component are near identical throughout, then this means RL is not able to optimize this component as it is written. You may consider
+        (a) Changing its scale or the value of its temperature parameter
+        (b) Re-writing the reward component
+        (c) Discarding the reward component
+    (3) If some reward components' magnitude is significantly larger, then you must re-scale its value to a proper range
+Please analyze each existing reward component in the suggested manner above first, and then write the reward function code. Return structured output with init_body and reward_body (see system rules).
+"""

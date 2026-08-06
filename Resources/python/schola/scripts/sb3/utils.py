@@ -248,9 +248,9 @@ try:
     warnings.filterwarnings("ignore", category=TqdmExperimentalWarning)
     from tqdm.rich import tqdm
 except ImportError:
-    # Rich not installed, we only throw an error
-    # if the progress bar is used
     tqdm = None
+
+from schola.scripts.common.console import console
 
 
 class CustomProgressBarCallback(BaseCallback):
@@ -264,11 +264,12 @@ class CustomProgressBarCallback(BaseCallback):
 
     pbar: tqdm
 
-    def __init__(self) -> None:
+    def __init__(self, *, leave: bool = True) -> None:
         super().__init__()
+        self.leave = leave
         if tqdm is None:
             raise ImportError(
-                "You must install tqdm and rich in order to use the progress bar callback. "
+                "You must install tqdm in order to use the progress bar callback. "
                 "It is included if you install stable-baselines with the extra packages: "
                 "`pip install stable-baselines3[extra]`"
             )
@@ -277,7 +278,10 @@ class CustomProgressBarCallback(BaseCallback):
         # Initialize progress bar
         # Remove timesteps that were done in previous training sessions
         self.pbar = tqdm(
-            initial=self.model.num_timesteps, total=self.locals["total_timesteps"]
+            initial=self.model.num_timesteps,
+            total=self.locals["total_timesteps"],
+            options={"console": console},
+            leave=self.leave,
         )
 
     def _on_step(self) -> bool:

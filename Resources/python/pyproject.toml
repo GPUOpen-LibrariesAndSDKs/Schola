@@ -58,6 +58,7 @@ dependencies = [
     "gymnasium>=1.1.0",
     "backports.strenum; python_version<'3.11'",
     "cyclopts>=4.0",
+    "rich",
     "torch>=2.10", # 2.10 is the earliest version for which exporting models to ONNX with Dynamo works well
 ]
 
@@ -68,11 +69,10 @@ Repository = "https://github.com/GPUOpen-LibrariesAndSDKs/Schola"
 [project.optional-dependencies]
 # Dependencies for running training with Stable Baselines 3.
 # * stable-baselines3 is required to run training with Stable Baselines 3.
-# * tqdm and rich are required to display the training progress bar from Stable Baselines 3.
+# * tqdm is required to display the training progress bar from Stable Baselines 3.
 sb3 = [
     "stable-baselines3>=2.6",
     "tqdm",
-    "rich",
 ]
 
 # Dependencies for running training with RLlib.
@@ -90,9 +90,20 @@ minari = [
     "pillow",
 ]
 
-# All dependencies (sb3, rllib, minari). 
+# Dependencies for Schola Fabrica (LLM reward codegen + SB3 scoring loop).
+# * deepagents (reward Deep Agent harness) currently requires Python >= 3.11 on PyPI.
+fabrica = [
+    "deepagents>=0.6.0,<1.0; python_version>='3.11'",
+    "langchain-openai>=0.3.0",
+    "langchain-core>=0.3.0",
+    "langgraph>=0.2.0",
+    "stable-baselines3>=2.6",
+    "tqdm",
+]
+
+# All dependencies (sb3, rllib, minari, fabrica).
 all = [
-    "schola[sb3,rllib,minari]",
+    "schola[sb3,rllib,minari,fabrica]",
 ]
 
 [project.scripts]

@@ -6,21 +6,22 @@ Cyclopts dataclasses for Stable-Baselines3 training with Schola (PPO, SAC, check
 
 from __future__ import annotations
 
-from typing import Annotated, List, Optional, Type, Union, Any, Dict
+from typing import Annotated, List, Optional, TYPE_CHECKING, Type, Union, Any, Dict
 
 from schola.scripts.common.settings import (
     ActivationFunctionEnum,
-    AllSimulatorConfigs,
-    EnvironmentSettings,
-    ExternalSimulatorConfig,
     CheckpointSettings,
-    Sb3LauncherExtension,
+    IgnoreParameter,
 )
+
 from dataclasses import dataclass, field
 from pathlib import Path
-from cyclopts import App, Parameter, validators
+from cyclopts import Parameter, validators
 
 from cyclopts import types
+
+if TYPE_CHECKING:
+    from stable_baselines3.common.callbacks import BaseCallback
 
 from schola.scripts.sb3.settings import (
     BaseSACSettings,
@@ -394,6 +395,12 @@ class Sb3TrainScriptSettings:
         Union[PPOTrainSettings, SACTrainSettings], Parameter(show=False, parse=False)
     ] = field(default_factory=PPOTrainSettings)
     "The settings for the training algorithm to use. This can be either `PPOSettings` or `SACSettings`, depending on the chosen algorithm. This property allows for easy switching between different algorithms (e.g., PPO or SAC) by simply changing the instance of the settings class. The default is `PPOSettings`, which is suitable for most environments unless specified otherwise."
+
+    custom_callbacks: Annotated[
+        list["BaseCallback"],
+        IgnoreParameter,
+    ] = field(default_factory=list)
+    "Extra Stable-Baselines3 ``BaseCallback`` instances passed to ``model.learn``. They are appended after the built-in reward, checkpoint, and progress-bar callbacks (when those are enabled). Not exposed on the CLI; set this list when embedding or wrapping the training script."
 
     @property
     def name_prefix(self):

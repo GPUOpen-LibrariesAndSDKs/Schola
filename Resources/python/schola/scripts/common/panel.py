@@ -11,8 +11,9 @@ from __future__ import annotations
 
 from typing import Iterable, Union
 import sys
-from rich.console import Console
 from cyclopts import CycloptsPanel
+
+from schola.scripts.common.console import console
 
 __all__ = [
     "print_panel",
@@ -20,8 +21,6 @@ __all__ = [
     "print_warning",
     "print_info",
 ]
-
-_console = Console()
 
 STYLE_ERROR = "red"
 STYLE_WARNING = "yellow"
@@ -45,9 +44,7 @@ def print_panel(
     """
     if not isinstance(message, str):
         message = "\n".join(str(m) for m in message)
-    _console.print(
-        CycloptsPanel(message=message, title=title or "Message", style=style)
-    )
+    console.print(CycloptsPanel(message=message, title=title or "Message", style=style))
 
 
 def print_error(message: Union[str, Iterable[str]]) -> None:  # noqa: D401

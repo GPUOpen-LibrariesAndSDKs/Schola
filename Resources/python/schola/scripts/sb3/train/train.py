@@ -5,13 +5,16 @@ Script to train a Stable Baselines3 model using Schola.
 """
 
 from dataclasses import asdict
+import json
 import os
 import logging
 import signal
+from pathlib import Path
 from typing import (
     Any,
     Callable,
     Dict,
+    List,
     Optional,
     Tuple,
     Type,
@@ -24,6 +27,7 @@ from schola.scripts.common.settings import (
     get_activation_function,
 )
 from schola.scripts.common.command_template import ScholaCommandTemplate
+from schola.scripts.common.console import configure_logging
 from schola.scripts.sb3.train.settings import (
     PPOTrainSettings,
     SACTrainSettings,
@@ -32,12 +36,7 @@ from schola.scripts.sb3.train.settings import (
 from cyclopts import App
 from schola.scripts.common.panel import print_error
 
-# Logging setup (idempotent)
-if not logging.getLogger().handlers:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(levelname)s %(name)s: %(message)s",
-    )
+configure_logging()
 
 logger = logging.getLogger(__name__)
 
@@ -98,16 +97,9 @@ def main(args: Sb3TrainScriptSettings) -> Optional[Tuple[float, float]]:
 
     if args.training_settings.pbar:
         try:
-            import tqdm
-        except Exception:
+            import tqdm  # noqa: F401
+        except ImportError:
             logger.warning("tqdm not installed. disabling PBar")
-            args.training_settings.pbar = False
-
-    if args.training_settings.pbar:
-        try:
-            import rich
-        except Exception:
-            logger.warning("rich not installed. disabling PBar")
             args.training_settings.pbar = False
 
     if args.logging_settings.enable_tensorboard:
@@ -271,7 +263,7 @@ def main(args: Sb3TrainScriptSettings) -> Optional[Tuple[float, float]]:
                         "resume_settings.load_replay_buffer was true but Model does not have a Replay Buffer to load to. Skipping."
                     )
 
-            callbacks = []
+            callbacks: List[Any] = []
 
             # grab all loggers that we can find installed in the pc,
             output_formats = []
@@ -311,6 +303,9 @@ def main(args: Sb3TrainScriptSettings) -> Optional[Tuple[float, float]]:
             if args.training_settings.pbar:
                 pbar_callback = CustomProgressBarCallback()
                 callbacks.append(pbar_callback)
+
+            if args.custom_callbacks:
+                callbacks.extend(args.custom_callbacks)
 
             if args.environment_settings.env_options:
                 # Inherited from SB3's `set_options`

@@ -5,17 +5,18 @@ A connection builds an Unreal Project if Necessary and then launches a standalon
 """
 
 import logging
+from pathlib import Path
 import platform
 import tempfile
-from pathlib import Path
 from typing import Any
-
 from schola.core.simulators.unreal.executable_simulator import UnrealExecutable
+
+logger = logging.getLogger(__name__)
 from schola.core.utils.ubt import (
     UBTCommand,
     get_project_file,
-    get_ue_version,
     get_ubt_path,
+    get_ue_version,
     get_unreal_platform,
 )
 
@@ -274,7 +275,6 @@ class UnrealProject(UnrealExecutable):
         if map is not None:
             map = try_and_resolve_map(map)
 
-        # Build if necessary
         if not use_cached_build or not executable_path.exists():
             # Either we are forcing a rebuild or the executable doesn't exist
             build_project(
@@ -284,9 +284,7 @@ class UnrealProject(UnrealExecutable):
                 map_path=map,
                 extra_ubt_args=extra_ubt_args,
             )
-            logger.info(f"Built executable to: {executable_path}")
 
-        # Initialize parent UnrealExecutable with the built executable path
         super().__init__(
             executable_path=executable_path,
             headless_mode=headless_mode,

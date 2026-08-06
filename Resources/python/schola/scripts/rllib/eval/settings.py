@@ -29,7 +29,7 @@ class RllibEvalScriptSettings:
     """
 
     checkpoint: Annotated[
-        Optional[Path],
+        Path | None,
         Parameter(
             group="Evaluation Arguments",
             required=True,

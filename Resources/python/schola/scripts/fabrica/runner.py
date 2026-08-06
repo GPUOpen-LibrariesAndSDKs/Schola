@@ -180,7 +180,7 @@ def _run_fabrica_sample(
         try:
             executable_simulator_settings = (
                 train_adapter.build_unreal_environment_from_settings(
-                    settings,
+                    settings.environment_settings,
                     sample_dir,
                 )
             )

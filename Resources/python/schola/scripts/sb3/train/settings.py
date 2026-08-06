@@ -22,6 +22,9 @@ from cyclopts import types
 
 if TYPE_CHECKING:
     from stable_baselines3.common.callbacks import BaseCallback
+    CustomCallbackList = list[BaseCallback]
+else:
+    CustomCallbackList = list[Any]
 
 from schola.scripts.sb3.settings import (
     BaseSACSettings,
@@ -397,7 +400,7 @@ class Sb3TrainScriptSettings:
     "The settings for the training algorithm to use. This can be either `PPOSettings` or `SACSettings`, depending on the chosen algorithm. This property allows for easy switching between different algorithms (e.g., PPO or SAC) by simply changing the instance of the settings class. The default is `PPOSettings`, which is suitable for most environments unless specified otherwise."
 
     custom_callbacks: Annotated[
-        list["BaseCallback"],
+        CustomCallbackList, # custom type that is only defined when type checking is enabled to avoid loading sb3 modules accidentally.
         IgnoreParameter,
     ] = field(default_factory=list)
     "Extra Stable-Baselines3 ``BaseCallback`` instances passed to ``model.learn``. They are appended after the built-in reward, checkpoint, and progress-bar callbacks (when those are enabled). Not exposed on the CLI; set this list when embedding or wrapping the training script."

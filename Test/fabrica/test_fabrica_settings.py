@@ -2,14 +2,20 @@
 
 import ast
 import inspect
+from pathlib import Path
 
 import pytest
 from cyclopts import App
 from cyclopts.exceptions import ValidationError
 
-from schola.scripts.common.settings import EnvironmentSettings, UnrealProjectSimulatorConfig
+from schola.scripts.common.settings import (
+    EnvironmentSettings,
+    ExternalSimulatorConfig,
+    UnrealProjectSimulatorConfig,
+)
 from schola.scripts.fabrica.settings import (
     FabricaEditorSnapshotSettings,
+    FabricaEnvironmentSettings,
     FabricaLLMSettings,
     FabricaLoopSettings,
     FabricaPathsSettings,
@@ -52,7 +58,7 @@ def test_resolved_code_roots_includes_env_header_and_uproject_parents(tmp_path) 
 
     settings = FabricaScriptSettings(
         paths_settings=FabricaPathsSettings(env_header=header),
-        environment_settings=EnvironmentSettings(
+        environment_settings=FabricaEnvironmentSettings(
             simulator_settings=UnrealProjectSimulatorConfig(uproject_path=uproject),
         ),
     )
@@ -74,7 +80,7 @@ def test_resolved_code_roots_adds_extra_roots_and_collapses_nested(tmp_path) -> 
             env_header=header,
             code_roots=[nested, header.parent],
         ),
-        environment_settings=EnvironmentSettings(
+        environment_settings=FabricaEnvironmentSettings(
             simulator_settings=UnrealProjectSimulatorConfig(uproject_path=uproject),
         ),
     )
@@ -86,14 +92,20 @@ def test_resolved_code_roots_keeps_sibling_extra_roots(tmp_path) -> None:
     header = tmp_path / "headers" / "Env.h"
     header.parent.mkdir(parents=True, exist_ok=True)
     header.write_text("", encoding="utf-8")
+    uproject = tmp_path / "gamedir"/ "Game.uproject"
+    uproject.parent.mkdir(parents=True, exist_ok=True)
+    uproject.write_text("{}", encoding="utf-8")
     extra = tmp_path / "plugins"
     extra.mkdir()
 
     settings = FabricaScriptSettings(
         paths_settings=FabricaPathsSettings(env_header=header, code_roots=[extra]),
+        environment_settings=FabricaEnvironmentSettings(
+            simulator_settings=UnrealProjectSimulatorConfig(uproject_path=uproject),
+        ),
     )
     roots = settings.resolved_code_roots
-    assert roots == [header.parent.resolve(), extra.resolve()]
+    assert set(roots) == set([uproject.parent.resolve(), header.parent.resolve(), extra.resolve()])
 
 
 def test_collapse_nested_code_roots_keeps_shortest_ancestor(tmp_path) -> None:

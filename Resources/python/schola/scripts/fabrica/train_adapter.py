@@ -17,13 +17,13 @@ from schola.scripts.common.settings import (
     UnrealProjectSimulatorConfig,
 )
 from schola.scripts.fabrica.episode_metrics_callback import FabricaEpisodeMetrics
-from schola.scripts.fabrica.settings import FabricaScriptSettings, make_sb3_train_settings
+from schola.scripts.fabrica.settings import FabricaScriptSettings, make_sb3_train_settings, FabricaEnvironmentSettings
 
 logger = logging.getLogger(__name__)
 
 
 def build_unreal_environment_from_settings(
-    settings: FabricaScriptSettings,
+    env_settings: FabricaEnvironmentSettings,
     artifact_dir: Path,
 ) -> UnrealExecutableSimulatorConfig:
     """
@@ -38,24 +38,19 @@ def build_unreal_environment_from_settings(
     :class:`~schola.scripts.common.settings.UnrealExecutableSimulatorConfig`, that config is
     returned unchanged.
     """
-    sim = settings.environment_settings.simulator_settings
-    if not isinstance(sim, UnrealProjectSimulatorConfig):
-        raise TypeError(
-            "Fabrica requires Unreal project simulator settings "
-            f"(got {type(sim).__name__})."
-        )
-
+    sim_settings = env_settings.simulator_settings
+    
     artifact_dir = artifact_dir.resolve()
     build_artifact_dir = artifact_dir / "unreal_build"
     build_artifact_dir.mkdir(parents=True, exist_ok=True)
 
-    uproject_file = sim.uproject_path.resolve()
+    uproject_file = sim_settings.uproject_path.resolve()
     
     # Build under the sample directory if no build directory is specified.
-    if sim.build_dir is None:
+    if sim_settings.build_dir is None:
         build_dir = build_artifact_dir
     else:
-        build_dir = sim.resolved_build_dir
+        build_dir = sim_settings.resolved_build_dir
 
     logger.info(
         "Building Unreal project %s to sample directory %s",
@@ -65,8 +60,8 @@ def build_unreal_environment_from_settings(
     completed_build = run_ubt_project_build(
         uproject_file,
         build_dir,
-        ubt_path=sim.ubt_path,
-        map=sim.map,
+        ubt_path=sim_settings.ubt_path,
+        map=sim_settings.map,
     )
     (build_artifact_dir / "ubt_stdout.txt").write_text(
         completed_build.stdout,
@@ -91,12 +86,12 @@ def build_unreal_environment_from_settings(
     logger.info("Built Unreal executable for Fabrica sample: %s", executable_path)
     return UnrealExecutableSimulatorConfig(
         executable_path=executable_path,
-        disable_script=sim.disable_script,
-        headless=sim.headless,
-        map=sim.map,
-        fps=sim.fps,
-        display_logs=sim.display_logs,
-        num_simulators=sim.num_simulators,
+        disable_script=sim_settings.disable_script,
+        headless=sim_settings.headless,
+        map=sim_settings.map,
+        fps=sim_settings.fps,
+        display_logs=sim_settings.display_logs,
+        num_simulators=sim_settings.num_simulators,
     )
 
 

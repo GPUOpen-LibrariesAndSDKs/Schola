@@ -8,16 +8,19 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime
 from functools import cached_property
 from pathlib import Path
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 from cyclopts import Parameter
 from cyclopts.types import PositiveInt
 
+from schola.core.utils.ubt import resolve_uproject_file
 from schola.scripts.common.settings import (
     EnvironmentSettings,
+    ExternalSimulatorConfig,
     UnrealExecutableSimulatorConfig,
     UnrealProjectSimulatorConfig,
 )
+from schola.scripts.sb3.settings import Sb3EnvironmentSettings
 from schola.scripts.sb3.train.settings import (
     IgnoreParameter,
     PPOTrainSettings,
@@ -30,6 +33,8 @@ from schola.scripts.sb3.train.settings import (
     Sb3TrainingSettings,
 )
 
+if TYPE_CHECKING:
+    from schola.scripts.common.settings import UnrealProjectSimulatorConfig
 
 @dataclass
 class FabricaLLMSettings:
@@ -168,6 +173,16 @@ class FabricaPathsSettings:
 
 
 @dataclass
+class FabricaEnvironmentSettings(EnvironmentSettings[UnrealProjectSimulatorConfig]):
+    """Environment settings for ``schola fabrica``."""
+
+    simulator_settings: Annotated[
+        UnrealProjectSimulatorConfig,
+        IgnoreParameter,
+    ] = field(default_factory=lambda: UnrealProjectSimulatorConfig(uproject_path=Path(".").resolve()))
+
+
+@dataclass
 class FabricaScriptSettings:
     """
     Top-level dataclass for configuring the script arguments used in the Fabrica launcher.
@@ -245,25 +260,19 @@ class FabricaScriptSettings:
     "Same role as :attr:`~schola.scripts.sb3.train.settings.Sb3TrainScriptSettings.custom_callbacks` (``stable_baselines3.common.callbacks.BaseCallback``). Not exposed on the CLI."
 
     environment_settings: Annotated[
-        EnvironmentSettings,
+        FabricaEnvironmentSettings,
         Parameter(group="Environment Arguments", name="*"),
-    ] = field(default_factory=EnvironmentSettings)
+    ] = field(default_factory=FabricaEnvironmentSettings)
 
     def resolved_uproject_path(self) -> Path | None:
         """``.uproject`` from the ``project`` simulator settings."""
         sim = self.environment_settings.simulator_settings
-        if isinstance(sim, UnrealProjectSimulatorConfig):
-            return sim.uproject_path.resolve()
-        return None
+        return resolve_uproject_file(sim.uproject_path)
 
     def resolved_snapshot_map(self) -> str | None:
         """Map to load for the editor world snapshot (from simulator settings)."""
         sim = self.environment_settings.simulator_settings
-        if isinstance(
-            sim, (UnrealProjectSimulatorConfig, UnrealExecutableSimulatorConfig)
-        ):
-            return sim.map
-        return None
+        return sim.map
 
     @cached_property
     def resolved_code_roots(self) -> list[Path]:
@@ -315,6 +324,13 @@ def make_sb3_train_settings(
     Call when SB3 training is enabled (algorithm is PPO or SAC).
     """
     log_dir = (artifact_dir / log_name).resolve()
+
+    env_settings = Sb3EnvironmentSettings(simulator_settings=executable_simulator_settings,
+        protocol_settings=run.environment_settings.protocol_settings,
+        env_options=run.environment_settings.env_options,
+        seed=run.environment_settings.seed,
+    )
+
     return Sb3TrainScriptSettings(
         training_settings=Sb3TrainingSettings(
             run.loop_settings.train_timesteps_per_sample,
@@ -326,8 +342,5 @@ def make_sb3_train_settings(
         network_architecture_settings=run.network_architecture_settings,
         algorithm_settings=run.algorithm_settings,
         custom_callbacks=run.custom_callbacks,
-        environment_settings=replace(
-            run.environment_settings,
-            simulator_settings=executable_simulator_settings,
-        ),
+        environment_settings=env_settings,
     )

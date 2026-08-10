@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Advanced Micro Devices, Inc. All Rights Reserved.
+
 [build-system]
 requires = ["setuptools>=71.0", "wheel"]
 build-backend = "setuptools.build_meta"

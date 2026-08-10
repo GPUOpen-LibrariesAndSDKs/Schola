@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Advanced Micro Devices, Inc. All Rights Reserved.
+
 """LeRobot environment configuration for Schola."""
 
 from __future__ import annotations

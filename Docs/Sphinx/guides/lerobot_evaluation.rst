@@ -1,3 +1,5 @@
+.. Copyright (c) 2026 Advanced Micro Devices, Inc. All Rights Reserved.
+
 Evaluating LeRobot Policies with Schola
 =======================================
 

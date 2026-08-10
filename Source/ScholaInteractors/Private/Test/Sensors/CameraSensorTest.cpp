@@ -570,5 +570,175 @@ bool FCameraSensorUtils_ConvertBitmap_NoTranspose_Test::RunTest(const FString& P
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FCameraSensorUtils_ConvertBitmap_AllChannelMasks_Test,
+	"Schola.Sensors.CameraSensorUtils.ConvertBitmap.AllChannelMasks",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+bool FCameraSensorUtils_ConvertBitmap_AllChannelMasks_Test::RunTest(const FString& Parameters)
+{
+	constexpr int32 Width = 2;
+	constexpr int32 Height = 2;
+	TArray<FColor> Bitmap;
+	Bitmap.Init(FColor(10, 20, 30, 40), Width * Height);
+
+	const uint8 ChannelMasks[] = {
+		static_cast<uint8>(EChannels::R),
+		static_cast<uint8>(EChannels::G),
+		static_cast<uint8>(EChannels::B),
+		static_cast<uint8>(EChannels::A),
+		static_cast<uint8>(EChannels::R) | static_cast<uint8>(EChannels::G) | static_cast<uint8>(EChannels::B) | static_cast<uint8>(EChannels::A),
+	};
+
+	const float ExpectedValues[4] = { 10.0f / 255.0f, 20.0f / 255.0f, 30.0f / 255.0f, 40.0f / 255.0f };
+
+	for (uint8 Mask : ChannelMasks)
+	{
+		FBoxPoint BoxPoint;
+		FCameraSensorUtils::ConvertBitmapToBoxPoint(Bitmap, Width, Height, Mask, BoxPoint);
+
+		int32 ExpectedChannels = 0;
+		if (Mask & static_cast<uint8>(EChannels::R)) { ++ExpectedChannels; }
+		if (Mask & static_cast<uint8>(EChannels::G)) { ++ExpectedChannels; }
+		if (Mask & static_cast<uint8>(EChannels::B)) { ++ExpectedChannels; }
+		if (Mask & static_cast<uint8>(EChannels::A)) { ++ExpectedChannels; }
+
+		TestEqual(FString::Printf(TEXT("Channel count for mask %d"), Mask), BoxPoint.Shape[0], ExpectedChannels);
+		TestEqual(FString::Printf(TEXT("Value count for mask %d"), Mask), BoxPoint.Values.Num(), ExpectedChannels * Width * Height);
+
+		int32 ChannelIndex = 0;
+		if (Mask & static_cast<uint8>(EChannels::R))
+		{
+			TestEqual(FString::Printf(TEXT("R for mask %d"), Mask), BoxPoint.Values[ChannelIndex * Width * Height], ExpectedValues[0]);
+			++ChannelIndex;
+		}
+		if (Mask & static_cast<uint8>(EChannels::G))
+		{
+			TestEqual(FString::Printf(TEXT("G for mask %d"), Mask), BoxPoint.Values[ChannelIndex * Width * Height], ExpectedValues[1]);
+			++ChannelIndex;
+		}
+		if (Mask & static_cast<uint8>(EChannels::B))
+		{
+			TestEqual(FString::Printf(TEXT("B for mask %d"), Mask), BoxPoint.Values[ChannelIndex * Width * Height], ExpectedValues[2]);
+			++ChannelIndex;
+		}
+		if (Mask & static_cast<uint8>(EChannels::A))
+		{
+			TestEqual(FString::Printf(TEXT("A for mask %d"), Mask), BoxPoint.Values[ChannelIndex * Width * Height], ExpectedValues[3]);
+		}
+	}
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FCameraSensorUtils_ConvertBitmap_Normalization_Test,
+	"Schola.Sensors.CameraSensorUtils.ConvertBitmap.Normalization",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+bool FCameraSensorUtils_ConvertBitmap_Normalization_Test::RunTest(const FString& Parameters)
+{
+	TArray<FColor> Bitmap = { FColor(0, 127, 255, 255) };
+
+	FBoxPoint BoxPoint;
+	FCameraSensorUtils::ConvertBitmapToBoxPoint(
+		Bitmap,
+		1,
+		1,
+		static_cast<uint8>(EChannels::R) | static_cast<uint8>(EChannels::G) | static_cast<uint8>(EChannels::B),
+		BoxPoint);
+
+	TestEqual(TEXT("Zero normalizes to 0"), BoxPoint.Values[0], 0.0f);
+	TestEqual(TEXT("127 normalizes correctly"), BoxPoint.Values[1], 127.0f / 255.0f);
+	TestEqual(TEXT("255 normalizes to 1"), BoxPoint.Values[2], 1.0f);
+
+	return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FCameraSensorUtils_ConvertBitmap_SizeMismatch_Test,
+	"Schola.Sensors.CameraSensorUtils.ConvertBitmap.SizeMismatch",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+bool FCameraSensorUtils_ConvertBitmap_SizeMismatch_Test::RunTest(const FString& Parameters)
+{
+	TArray<FColor> Bitmap = { FColor(255, 0, 0, 255), FColor(0, 255, 0, 255) };
+
+	FBoxPoint BoxPoint;
+	FCameraSensorUtils::ConvertBitmapToBoxPoint(
+		Bitmap,
+		1,
+		1,
+		static_cast<uint8>(EChannels::R),
+		BoxPoint);
+
+	TestEqual(TEXT("Mismatch leaves values unallocated"), BoxPoint.Values.Num(), 0);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FCameraSensor_GenerateId_FinalColorLDR_Test,
+	"Schola.Sensors.CameraSensor.GenerateId.FinalColorLDR",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+bool FCameraSensor_GenerateId_FinalColorLDR_Test::RunTest(const FString& Parameters)
+{
+	UCameraSensor* Sensor = CreateCameraSensorWithRenderTarget(
+		128,
+		128,
+		ETextureRenderTargetFormat::RTF_RGBA8,
+		ESceneCaptureSource::SCS_FinalColorLDR,
+		15);
+
+	const FString Id = Sensor->GenerateId();
+	TestTrue(TEXT("Id contains Camera prefix"), Id.Contains(TEXT("Camera")));
+	TestTrue(TEXT("Id contains capture source"), Id.Contains(TEXT("SCS_FinalColorLDR")));
+	TestTrue(TEXT("Id contains RGB channel suffix"), Id.Contains(TEXT("RGB_W128")));
+	TestTrue(TEXT("Id contains height"), Id.Contains(TEXT("H128")));
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FCameraSensor_GenerateId_SceneDepthR8_Test,
+	"Schola.Sensors.CameraSensor.GenerateId.SceneDepthR8",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+bool FCameraSensor_GenerateId_SceneDepthR8_Test::RunTest(const FString& Parameters)
+{
+	UCameraSensor* Sensor = CreateCameraSensorWithRenderTarget(
+		64,
+		64,
+		ETextureRenderTargetFormat::RTF_R8,
+		ESceneCaptureSource::SCS_SceneDepth,
+		15);
+
+	const FString Id = Sensor->GenerateId();
+	TestTrue(TEXT("Id contains R channel suffix before width"), Id.Contains(TEXT("R_W64")));
+	TestFalse(TEXT("Id excludes G channel suffix"), Id.Contains(TEXT("G_W64")));
+	TestFalse(TEXT("Id excludes B channel suffix"), Id.Contains(TEXT("B_W64")));
+	TestFalse(TEXT("Id excludes A channel suffix before width"), Id.Contains(TEXT("A_W64")));
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FCameraSensor_InitSensor_ExistingRenderTarget_Test,
+	"Schola.Sensors.CameraSensor.InitSensor.ExistingRenderTarget",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+bool FCameraSensor_InitSensor_ExistingRenderTarget_Test::RunTest(const FString& Parameters)
+{
+	UCameraSensor* Sensor = NewObject<UCameraSensor>();
+	UTextureRenderTarget2D* ExistingTarget = NewObject<UTextureRenderTarget2D>();
+	ExistingTarget->SizeX = 256;
+	ExistingTarget->SizeY = 128;
+	ExistingTarget->bNoFastClear = 1;
+	ExistingTarget->bHDR_DEPRECATED = 1;
+	Sensor->TextureTarget = ExistingTarget;
+
+	Sensor->InitSensor_Implementation();
+
+	TestEqual(TEXT("Existing render target preserved"), Sensor->TextureTarget.Get(), ExistingTarget);
+	TestEqual(TEXT("bNoFastClear cleared"), Sensor->TextureTarget->bNoFastClear, static_cast<uint8>(0));
+	TestEqual(TEXT("bHDR_DEPRECATED cleared"), Sensor->TextureTarget->bHDR_DEPRECATED, static_cast<uint8>(0));
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
 

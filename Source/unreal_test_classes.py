@@ -25,10 +25,14 @@ import re
 # Match IMPLEMENT_SIMPLE_AUTOMATION_TEST(...); `\s` spans newlines so split arguments are found.
 # matches One Word Struct Name, Test Name in quotes, and then arbitrary flags and closing parenthesis
 # , and ) need to be on the same line as the preceding content and no space between them
-AUTOMATION_TEST_PATTERN = r'^IMPLEMENT_SIMPLE_AUTOMATION_TEST\(\s*[^,\s]+,\s*"([^"]+)",\s*[^,]+\)'
+AUTOMATION_TEST_PATTERN = r'^IMPLEMENT_SIMPLE_AUTOMATION_TEST\(\s*[^,\s]+,\s*"([^"]+)",\s*([^)]+)\)'
+
+FLAGS = {
+    "requires_rhi": "NonNullRHI",
+}
 
 def iter_automation_test_paths_with_lines(source: str):
-    """Yield (test_path, lineno) for each automation test macro in C++ source.
+    """Yield (test_path, lineno, flags) for each automation test macro.
 
     lineno is 0-based (consistent with enumerate over readlines) and points to the
     line where the macro invocation starts.
@@ -38,25 +42,41 @@ def iter_automation_test_paths_with_lines(source: str):
     lineno = 0
     for match in pattern.finditer(source):
         lineno += source.count("\n", prev_start, match.start())
-        yield match.group(1), lineno
+        flags_str = match.group(2)
+        flags = set(x for x,y in FLAGS.items() if y in flags_str)
+        yield match.group(1), lineno, flags
         prev_start = match.start()
 
 logger = logging.getLogger(__name__)
 
 class UnrealTestItem(pytest.Item):
 
-    def __init__(self, name:str, test_path:str, cpp_file:pathlib.Path, line_number:int=0, **kwargs):
+    def __init__(
+        self,
+        name: str,
+        test_path: str,
+        cpp_file: pathlib.Path,
+        line_number: int = 0,
+        flags: set[str] = set(),
+        **kwargs,
+    ):
         name = name.strip()
-        super().__init__(name=name,**kwargs)
-        self.unreal_result : Optional[UnrealTestResult] = None  # Will be populated by pytest_runtestloop
+        super().__init__(name=name, **kwargs)
+        self.unreal_result: Optional[UnrealTestResult] = None  # Will be populated by pytest_runtestloop
         self.cpp_file = cpp_file
-        self.lineno = line_number 
+        self.lineno = line_number
         self.test_path = test_path
+        self.flags = flags
         try:
             self.add_marker(pytest.mark.xdist_group("unreal_automation_tests"))
-        except:
+        except Exception:
             # wasn't able to mark, probably because pytest-xdist isn't installed which is OK
             pass
+        if "requires_rhi" in flags:
+            try:
+                self.add_marker(pytest.mark.non_null_rhi)
+            except Exception:
+                pass
 
     @property
     def sanitized_test_path(self) -> str:
@@ -122,9 +142,16 @@ class UnrealTestFile(pytest.File):
             source = f.read()
         test_details = list(iter_automation_test_paths_with_lines(source))
 
-        for test_path, line_number in test_details:
-            name = test_path.split(".")[-1] # Use the last part of the full path
-            yield UnrealTestItem.from_parent(self, name=name, test_path=test_path, cpp_file=self.path, line_number=line_number)
+        for test_path, line_number, flags in test_details:
+            name = test_path.split(".")[-1]  # Use the last part of the full path
+            yield UnrealTestItem.from_parent(
+                self,
+                name=name,
+                test_path=test_path,
+                cpp_file=self.path,
+                line_number=line_number,
+                flags=flags,
+            )
 
 # Use this to have custom exceptions
 class UnrealTestException(Exception):
@@ -231,6 +258,7 @@ class UnrealTestBatch:
     report_dir: pathlib.Path
     batch_index: int
     command_line_args_folder: pathlib.Path
+    use_null_rhi: bool = True
     _process: Optional[subprocess.Popen] = None
     retries: int = 0
 
@@ -258,15 +286,15 @@ class UnrealTestBatch:
 
     @property
     def command_line_arg_string(self) -> str:
-        return " ".join(
-            [
-                "-unattended",
-                "-nullrhi",
-                "-NoTrace",
-                f'-ReportExportPath="{self.report_path}"',
-                f'-ExecCmds="Automation RunTest {self.test_string};Quit"',
-            ]
-        )
+        args = [
+            "-unattended",
+            "-NoTrace",
+            f'-ReportExportPath="{self.report_path}"',
+            f'-ExecCmds="Automation RunTest {self.test_string};Quit"',
+        ]
+        if self.use_null_rhi:
+            args.insert(1, "-nullrhi")
+        return " ".join(args)
 
     def write_command_line_args_file(self) -> None:
         with open(self.command_line_args_file, "w") as f:

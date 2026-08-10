@@ -2,6 +2,7 @@
 
 #include "Misc/AutomationTest.h"
 #include "Sensors/CameraSensor.h"
+#include "Sensors/CameraSensorUtils.h"
 #include "Engine/TextureRenderTarget2D.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -368,7 +369,7 @@ bool FCameraSensorObservationSpace_128x128_RGB_Test::RunTest(const FString& Para
 	
 	const FBoxSpace& Space = ObservationSpace.Get<FBoxSpace>();
 	
-	// Shape should be [3, 128, 128] for CHW format (3 channels, height, width)
+	// Shape should be [3, 128, 128] for row-major CHW format (3 channels, height, width)
 	TestEqual(TEXT("Shape should have 3 dimensions"), Space.Shape.Num(), 3);
 	TestEqual(TEXT("Shape[0] should be 3 (channels)"), Space.Shape[0], 3);
 	TestEqual(TEXT("Shape[1] should be 128 (height)"), Space.Shape[1], 128);
@@ -403,7 +404,7 @@ bool FCameraSensorObservationSpace_256x256_RGBA_Test::RunTest(const FString& Par
 	
 	const FBoxSpace& Space = ObservationSpace.Get<FBoxSpace>();
 	
-	// Shape should be [4, 256, 256] for CHW format
+	// Shape should be [4, 256, 256] for row-major CHW format
 	TestEqual(TEXT("Shape should have 3 dimensions"), Space.Shape.Num(), 3);
 	TestEqual(TEXT("Shape[0] should be 4 (channels)"), Space.Shape[0], 4);
 	TestEqual(TEXT("Shape[1] should be 256 (height)"), Space.Shape[1], 256);
@@ -431,7 +432,7 @@ bool FCameraSensorObservationSpace_64x64_R_Only_Test::RunTest(const FString& Par
 	
 	const FBoxSpace& Space = ObservationSpace.Get<FBoxSpace>();
 	
-	// Shape should be [1, 64, 64] for CHW format (1 channel)
+	// Shape should be [1, 64, 64] for row-major CHW format (1 channel)
 	TestEqual(TEXT("Shape should have 3 dimensions"), Space.Shape.Num(), 3);
 	TestEqual(TEXT("Shape[0] should be 1 (channel)"), Space.Shape[0], 1);
 	TestEqual(TEXT("Shape[1] should be 64 (height)"), Space.Shape[1], 64);
@@ -459,7 +460,7 @@ bool FCameraSensorObservationSpace_512x512_RG_Test::RunTest(const FString& Param
 	
 	const FBoxSpace& Space = ObservationSpace.Get<FBoxSpace>();
 	
-	// Shape should be [2, 512, 512] for CHW format (2 channels)
+	// Shape should be [2, 512, 512] for row-major CHW format (2 channels)
 	TestEqual(TEXT("Shape should have 3 dimensions"), Space.Shape.Num(), 3);
 	TestEqual(TEXT("Shape[0] should be 2 (channels)"), Space.Shape[0], 2);
 	TestEqual(TEXT("Shape[1] should be 512 (height)"), Space.Shape[1], 512);
@@ -487,7 +488,7 @@ bool FCameraSensorObservationSpace_NonSquare_Test::RunTest(const FString& Parame
 	
 	const FBoxSpace& Space = ObservationSpace.Get<FBoxSpace>();
 	
-	// Shape should be [3, 240, 320] for CHW format
+	// Shape should be [3, 240, 320] for row-major CHW format
 	TestEqual(TEXT("Shape should have 3 dimensions"), Space.Shape.Num(), 3);
 	TestEqual(TEXT("Shape[0] should be 3 (channels)"), Space.Shape[0], 3);
 	TestEqual(TEXT("Shape[1] should be 240 (height)"), Space.Shape[1], 240);
@@ -496,6 +497,73 @@ bool FCameraSensorObservationSpace_NonSquare_Test::RunTest(const FString& Parame
 	// Total dimensions should be 3 * 240 * 320 = 230400
 	TestEqual(TEXT("Total dimensions should be 230400"), Space.Dimensions.Num(), 230400);
 	
+	return true;
+}
+
+// Verify bitmap conversion preserves width/height orientation (no transpose)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FCameraSensorUtils_ConvertBitmap_NoTranspose_Test,
+	"Schola.Sensors.CameraSensorUtils.ConvertBitmap.NoTranspose",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FCameraSensorUtils_ConvertBitmap_NoTranspose_Test::RunTest(const FString& Parameters)
+{
+	constexpr int32 Width = 4;
+	constexpr int32 Height = 3;
+	const int32 ChannelStride = Width * Height;
+
+	TArray<FColor> Bitmap;
+	Bitmap.SetNum(ChannelStride);
+
+	for (int32 H = 0; H < Height; ++H)
+	{
+		for (int32 W = 0; W < Width; ++W)
+		{
+			const int32 PixelIndex = H * Width + W;
+			// R encodes (w, h); G encodes transposed (h, w) so a width/height swap is detectable.
+			Bitmap[PixelIndex] = FColor(
+				static_cast<uint8>(W * Height + H),
+				static_cast<uint8>(H * Width + W),
+				0,
+				255);
+		}
+	}
+
+	FBoxPoint BoxPoint;
+	FCameraSensorUtils::ConvertBitmapToBoxPoint(
+		Bitmap,
+		Width,
+		Height,
+		static_cast<uint8>(EChannels::R) | static_cast<uint8>(EChannels::G),
+		BoxPoint);
+
+	TestEqual(TEXT("Shape should have 3 dimensions"), BoxPoint.Shape.Num(), 3);
+	TestEqual(TEXT("Shape[0] should be 2 (channels)"), BoxPoint.Shape[0], 2);
+	TestEqual(TEXT("Shape[1] should be height"), BoxPoint.Shape[1], Height);
+	TestEqual(TEXT("Shape[2] should be width"), BoxPoint.Shape[2], Width);
+	TestEqual(TEXT("Values length should match channels * height * width"), BoxPoint.Values.Num(), ChannelStride * 2);
+
+	for (int32 H = 0; H < Height; ++H)
+	{
+		for (int32 W = 0; W < Width; ++W)
+		{
+			const int32 PixelIndex = H * Width + W;
+			const float ExpectedR = static_cast<float>(W * Height + H) / 255.0f;
+			const float ExpectedG = static_cast<float>(H * Width + W) / 255.0f;
+
+			TestEqual(
+				FString::Printf(TEXT("R channel at (%d, %d) should not be transposed"), W, H),
+				BoxPoint.Values[0 * ChannelStride + PixelIndex],
+				ExpectedR);
+
+			TestEqual(
+				FString::Printf(TEXT("G channel at (%d, %d) should not be transposed"), W, H),
+				BoxPoint.Values[1 * ChannelStride + PixelIndex],
+				ExpectedG);
+		}
+	}
+
 	return true;
 }
 

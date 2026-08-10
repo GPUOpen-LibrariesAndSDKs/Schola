@@ -1,6 +1,7 @@
 // Copyright (c) 2023 Advanced Micro Devices, Inc. All Rights Reserved.
 
 #include "Sensors/CameraSensor.h"
+#include "Sensors/CameraSensorUtils.h"
 #include "LogScholaInteractors.h"
 #include "RHICommandList.h"
 
@@ -26,12 +27,12 @@ void UCameraSensor::GetObservationSpace_Implementation(FInstancedStruct& OutObse
 	int		  Height = TextureTarget->GetSurfaceHeight();
 	FBoxSpace SpaceDefinition;
 	int		  NumChannels = GetNumChannels();
-	SpaceDefinition.Dimensions.Init(FBoxSpaceDimension(0.0, 1.0), Width * Height * (this->GetNumChannels()));
+	SpaceDefinition.Dimensions.Init(FBoxSpaceDimension(0.0, 1.0), Width * Height * NumChannels);
 	
 	// If a channel is in InvalidChannels, it cannot be observed, or if the channel hasn't been filtered
 	// e.g. Channels = R|G, InvalidChannels = A, bHasR will be True but bHasA will be False
 
-	SpaceDefinition.Shape = { this->GetNumChannels(), Height, Width };
+	SpaceDefinition.Shape = { NumChannels, Height, Width };
 
 	OutObservationSpace.InitializeAs<FBoxSpace>(MoveTemp(SpaceDefinition));
 }
@@ -55,45 +56,13 @@ void UCameraSensor::CollectObservations_Implementation(FInstancedStruct& OutObse
 		return;
 	}
 
-	TArray<float> ObservationValues;
 	OutObservations.InitializeAs<FBoxPoint>();
 	FBoxPoint& OutBoxPoint = OutObservations.GetMutable<FBoxPoint>();
 
-	TArray<FColor> Bitmap;
-	int		   Width = TextureTarget->GetSurfaceWidth();
-	int		   Height = TextureTarget->GetSurfaceHeight();
-    OutBoxPoint.Values.AddUninitialized(Width * Height * this->GetNumChannels());
-	OutBoxPoint.Shape = {this->GetNumChannels(), Width, Height};
-
-	TextureTarget->GameThread_GetRenderTargetResource()->ReadPixels(Bitmap);
-	
-	uint8 InvalidChannels = GetInvalidChannels();
-
-	for (int i = 0; i < Width*Height; i++)
-    {
-		int Index = i;
-		if (EnabledChannels & ~InvalidChannels & static_cast<uint8>(EChannels::R))
-		{
-			OutBoxPoint.Values[Index] = ((float)Bitmap[i].R / 255.0); // R
-			Index += Width*Height;
-		}
-		
-		if (EnabledChannels & ~InvalidChannels & static_cast<uint8>(EChannels::G))
-		{
-			OutBoxPoint.Values[Index] = ((float)Bitmap[i].G / 255.0); // G
-			Index += Width * Height;
-		}
-
-		if (EnabledChannels & ~InvalidChannels & static_cast<uint8>(EChannels::B))
-		{
-			OutBoxPoint.Values[Index] = ((float)Bitmap[i].B / 255.0); // B
-			Index += Width * Height;
-		}
-
-		if (EnabledChannels & ~InvalidChannels & static_cast<uint8>(EChannels::A))
-		{
-			OutBoxPoint.Values[Index] = ((float)Bitmap[i].A / 255.0); // A
-		}
+	const uint8 EnabledValidChannels = EnabledChannels & ~GetInvalidChannels();
+	if (!FCameraSensorUtils::ReadRenderTargetToBoxPoint(TextureTarget, EnabledValidChannels, OutBoxPoint))
+	{
+		UE_LOGFMT(LogScholaInteractors, Error, "UCameraSensor::CollectObservations_Implementation(): Failed to read render target into observations.");
 	}
 }
 

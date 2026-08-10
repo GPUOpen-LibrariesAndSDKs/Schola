@@ -56,12 +56,8 @@ def test_adapter_builds_target_oriented_observations(make_adapter):
         "debug": np.zeros((2, 1), dtype=np.float32),
         "front_camera": np.zeros((2, 8, 8, 3), dtype=np.uint8),
         "gripper": np.array([[5.0], [6.0]], dtype=np.float32),
-        "joint_positions": np.array(
-            [[1.0, 2.0], [3.0, 4.0]], dtype=np.float32
-        ),
-        "joint_velocities": np.array(
-            [[0.1, 0.2], [0.3, 0.4]], dtype=np.float32
-        ),
+        "joint_positions": np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32),
+        "joint_velocities": np.array([[0.1, 0.2], [0.3, 0.4]], dtype=np.float32),
         "target": np.ones((2, 3), dtype=np.float32),
     }
     converted = adapter.convert(observation)
@@ -125,9 +121,9 @@ def test_adapter_prefers_hwc_for_ambiguous_float_image_shape(make_adapter):
         num_envs=1,
     )
 
-    pixels = adapter.convert(
-        {"camera": camera_values[np.newaxis, ...]}
-    )["pixels"]["front"]
+    pixels = adapter.convert({"camera": camera_values[np.newaxis, ...]})["pixels"][
+        "front"
+    ]
 
     assert adapter.single_observation_space["pixels"]["front"].shape == (4, 5, 3)
     assert pixels.shape == (1, 4, 5, 3)
@@ -153,9 +149,7 @@ def test_adapter_rejects_unaccounted_observations(make_adapter):
 
 
 def test_adapter_rejects_duplicate_source_ownership(make_adapter):
-    observation_space = Dict(
-        {"joints": Box(-1, 1, shape=(2,), dtype=np.float32)}
-    )
+    observation_space = Dict({"joints": Box(-1, 1, shape=(2,), dtype=np.float32)})
 
     with pytest.raises(ValueError, match="used by both"):
         make_adapter(
@@ -169,9 +163,7 @@ def test_adapter_rejects_duplicate_source_ownership(make_adapter):
 
 @pytest.mark.parametrize("target_key", ["pixels", "pixels/front"])
 def test_adapter_reserves_pixel_outputs_for_cameras(make_adapter, target_key):
-    observation_space = Dict(
-        {"joints": Box(-1, 1, shape=(2,), dtype=np.float32)}
-    )
+    observation_space = Dict({"joints": Box(-1, 1, shape=(2,), dtype=np.float32)})
 
     with pytest.raises(ValueError, match="declared under cameras"):
         make_adapter(
@@ -181,9 +173,7 @@ def test_adapter_reserves_pixel_outputs_for_cameras(make_adapter, target_key):
 
 
 def test_adapter_rejects_unsupported_camera_dtype(make_adapter):
-    observation_space = Dict(
-        {"camera": Box(0, 255, shape=(8, 8, 3), dtype=np.int32)}
-    )
+    observation_space = Dict({"camera": Box(0, 255, shape=(8, 8, 3), dtype=np.int32)})
 
     with pytest.raises(TypeError, match="float or uint8"):
         make_adapter(

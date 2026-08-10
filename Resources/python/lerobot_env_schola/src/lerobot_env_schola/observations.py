@@ -22,19 +22,13 @@ BATCH_AXIS = 0
 
 def _convert_image_space(space: gym.Space, name: str) -> tuple[Box, str]:
     if not isinstance(space, Box) or len(space.shape) != SINGLE_IMAGE_NDIM:
-        raise TypeError(
-            f"Image observation {name!r} must be a three-dimensional Box"
-        )
+        raise TypeError(f"Image observation {name!r} must be a three-dimensional Box")
 
     is_float = np.issubdtype(space.dtype, np.floating)
     is_uint8 = space.dtype == np.dtype(np.uint8)
     if not (is_float or is_uint8):
-        raise TypeError(
-            f"Image observation {name!r} must use float or uint8 values"
-        )
-    if is_float and not (
-        np.all(space.low >= 0) and np.all(space.high <= 1)
-    ):
+        raise TypeError(f"Image observation {name!r} must use float or uint8 values")
+    if is_float and not (np.all(space.low >= 0) and np.all(space.high <= 1)):
         raise ValueError(
             f"Floating-point image observation {name!r} must be bounded "
             "within [0, 1]"
@@ -66,9 +60,7 @@ def _convert_image_value(value: Any, mode: str) -> np.ndarray:
     image = np.asarray(value)
     if mode.startswith("chw"):
         if image.ndim not in (SINGLE_IMAGE_NDIM, BATCHED_IMAGE_NDIM):
-            raise ValueError(
-                f"Expected a CHW image batch, got shape {image.shape}"
-            )
+            raise ValueError(f"Expected a CHW image batch, got shape {image.shape}")
         image = np.moveaxis(image, CHW_CHANNEL_AXIS, HWC_CHANNEL_AXIS)
     if mode.endswith("float"):
         image = np.rint(np.clip(image, 0, 1) * UINT8_MAX).astype(np.uint8)
@@ -90,9 +82,7 @@ class ObservationAdapter:
         self._vector_dtypes: dict[str, np.dtype] = {}
 
         self._validate_config(source_space)
-        self.single_observation_space = self._make_observation_space(
-            source_space
-        )
+        self.single_observation_space = self._make_observation_space(source_space)
 
     def _validate_config(self, space: gym.Space) -> None:
         if not isinstance(space, Dict):
@@ -101,9 +91,7 @@ class ObservationAdapter:
                 "can be grouped for LeRobot."
             )
 
-        duplicate_outputs = (
-            set(self.config.vectors) & self.config.passthrough.keys()
-        )
+        duplicate_outputs = set(self.config.vectors) & self.config.passthrough.keys()
         if duplicate_outputs:
             raise ValueError(
                 "Vector and passthrough outputs overlap: "
@@ -126,8 +114,7 @@ class ObservationAdapter:
         def claim_source(source_key: str, owner: str) -> None:
             if source_key not in space.spaces:
                 raise ValueError(
-                    f"{owner} references unknown Schola observation "
-                    f"{source_key!r}"
+                    f"{owner} references unknown Schola observation " f"{source_key!r}"
                 )
             if source_key in owners:
                 raise ValueError(
@@ -186,9 +173,7 @@ class ObservationAdapter:
             output_spaces["pixels"] = Dict(camera_spaces)
 
         for target_key, source_keys in self.config.vectors.items():
-            source_spaces = [
-                space.spaces[source_key] for source_key in source_keys
-            ]
+            source_spaces = [space.spaces[source_key] for source_key in source_keys]
             dtype = np.result_type(
                 np.float32,
                 *(source_space.dtype for source_space in source_spaces),
@@ -217,9 +202,7 @@ class ObservationAdapter:
 
         return Dict(output_spaces)
 
-    def convert(
-        self, observation: Mapping[str, Any]
-    ) -> dict[str, Any]:
+    def convert(self, observation: Mapping[str, Any]) -> dict[str, Any]:
         """Convert one batched Schola observation."""
         converted: dict[str, Any] = {}
 
@@ -234,9 +217,7 @@ class ObservationAdapter:
 
         for target_key, source_keys in self.config.vectors.items():
             values = [
-                np.asarray(observation[source_key]).reshape(
-                    self.num_envs, -1
-                )
+                np.asarray(observation[source_key]).reshape(self.num_envs, -1)
                 for source_key in source_keys
             ]
             converted[target_key] = np.concatenate(values, axis=-1).astype(

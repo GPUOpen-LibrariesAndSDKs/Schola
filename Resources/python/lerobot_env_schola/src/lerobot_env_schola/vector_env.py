@@ -107,7 +107,9 @@ class LeRobotScholaVectorEnv(gym.vector.VectorWrapper):
         self.single_observation_space = (
             self.observation_adapter.single_observation_space
         )
-        self.observation_space = batch_space(self.single_observation_space, n=env.num_envs)
+        self.observation_space = batch_space(
+            self.single_observation_space, n=env.num_envs
+        )
         self._validate_render_camera()
 
     def _validate_render_camera(self) -> None:
@@ -128,16 +130,24 @@ class LeRobotScholaVectorEnv(gym.vector.VectorWrapper):
                 "render_camera can only be set when observations are mapped as pixels/<camera>"
             )
         elif pixels_space is None and self.render_camera is not None:
-            raise ValueError("render_camera was set, but no observations are mapped under pixels")
+            raise ValueError(
+                "render_camera was set, but no observations are mapped under pixels"
+            )
 
     def _convert_action(self, action: np.ndarray) -> Any:
         action = np.asarray(action)
         expected_shape = self.action_space.shape
         if action.shape != expected_shape:
-            raise ValueError(f"Expected LeRobot action shape {expected_shape}, got {action.shape}")
+            raise ValueError(
+                f"Expected LeRobot action shape {expected_shape}, got {action.shape}"
+            )
 
-        unflattened = [unflatten(self.env.single_action_space, value) for value in action]
-        batched_action = create_empty_array(self.env.single_action_space, n=self.num_envs)
+        unflattened = [
+            unflatten(self.env.single_action_space, value) for value in action
+        ]
+        batched_action = create_empty_array(
+            self.env.single_action_space, n=self.num_envs
+        )
         return concatenate(self.env.single_action_space, unflattened, batched_action)
 
     def _normalize_info(self, info: dict[str, Any]) -> dict[str, Any]:
@@ -145,13 +155,9 @@ class LeRobotScholaVectorEnv(gym.vector.VectorWrapper):
         if self.success_key is not None and self.success_key in normalized:
             source_mask = normalized.get(f"_{self.success_key}")
             if source_mask is None:
-                normalized["is_success"] = _coerce_success(
-                    normalized[self.success_key]
-                )
+                normalized["is_success"] = _coerce_success(normalized[self.success_key])
             else:
-                source_values = np.asarray(
-                    normalized[self.success_key], dtype=object
-                )
+                source_values = np.asarray(normalized[self.success_key], dtype=object)
                 source_mask = np.asarray(source_mask, dtype=np.bool_)
                 success_values = np.zeros(source_mask.shape, dtype=np.bool_)
                 success_values[source_mask] = _coerce_success(
@@ -249,5 +255,7 @@ class LeRobotScholaVectorEnv(gym.vector.VectorWrapper):
 
         call = getattr(self.env, "call", None)
         if call is None:
-            raise AttributeError(f"{type(self.env).__name__} does not support call({name!r})")
+            raise AttributeError(
+                f"{type(self.env).__name__} does not support call({name!r})"
+            )
         return tuple(call(name, *args, **kwargs))

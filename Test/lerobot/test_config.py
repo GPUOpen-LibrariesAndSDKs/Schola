@@ -37,8 +37,7 @@ def test_schola_config_does_not_use_gym_make():
 def test_target_oriented_observations_parse_from_yaml(tmp_path):
     config_path = tmp_path / "schola_eval.yaml"
     config_path.write_text(
-        dedent(
-            """
+        dedent("""
             env:
               type: schola
               observations:
@@ -56,8 +55,7 @@ def test_target_oriented_observations_parse_from_yaml(tmp_path):
               n_episodes: 1
               batch_size: 1
               use_async_envs: false
-            """
-        ),
+            """),
         encoding="utf-8",
     )
 
@@ -75,24 +73,16 @@ def test_target_oriented_observations_parse_from_yaml(tmp_path):
 def test_features_are_inferred_from_normalized_spaces(caplog):
     observation_space = gym.spaces.Dict(
         {
-            "agent_pos": gym.spaces.Box(
-                -1, 1, shape=(3,), dtype=np.float32
-            ),
+            "agent_pos": gym.spaces.Box(-1, 1, shape=(3,), dtype=np.float32),
             "pixels": gym.spaces.Dict(
                 {
-                    "front": gym.spaces.Box(
-                        0, 255, shape=(8, 8, 3), dtype=np.uint8
-                    ),
-                    "wrist": gym.spaces.Box(
-                        0, 255, shape=(4, 4, 3), dtype=np.uint8
-                    ),
+                    "front": gym.spaces.Box(0, 255, shape=(8, 8, 3), dtype=np.uint8),
+                    "wrist": gym.spaces.Box(0, 255, shape=(4, 4, 3), dtype=np.uint8),
                 }
             ),
         }
     )
-    action_space = gym.spaces.Box(
-        -1, 1, shape=(2,), dtype=np.float32
-    )
+    action_space = gym.spaces.Box(-1, 1, shape=(2,), dtype=np.float32)
 
     with caplog.at_level(logging.INFO, logger="lerobot_env_schola.config"):
         features, features_map = infer_features_from_spaces(
@@ -102,12 +92,8 @@ def test_features_are_inferred_from_normalized_spaces(caplog):
 
     assert features == {
         "agent_pos": PolicyFeature(type=FeatureType.STATE, shape=(3,)),
-        "pixels/front": PolicyFeature(
-            type=FeatureType.VISUAL, shape=(8, 8, 3)
-        ),
-        "pixels/wrist": PolicyFeature(
-            type=FeatureType.VISUAL, shape=(4, 4, 3)
-        ),
+        "pixels/front": PolicyFeature(type=FeatureType.VISUAL, shape=(8, 8, 3)),
+        "pixels/wrist": PolicyFeature(type=FeatureType.VISUAL, shape=(4, 4, 3)),
         ACTION: PolicyFeature(type=FeatureType.ACTION, shape=(2,)),
     }
     assert features_map == {
@@ -142,9 +128,7 @@ def test_create_envs_builds_schola_vector_env(make_vec_env_server):
         task_description="Swing the pendulum upright.",
         episode_length=200,
         render_fps=24,
-        observations=ScholaObservationConfig(
-            vectors={"agent_pos": ["joints"]}
-        ),
+        observations=ScholaObservationConfig(vectors={"agent_pos": ["joints"]}),
         simulator=ExternalSimulatorConfig(),
         protocol=GrpcProtocolConfig(url="localhost", port=port),
     )
@@ -185,9 +169,7 @@ def test_create_envs_builds_schola_vector_env(make_vec_env_server):
 def test_create_envs_rejects_mismatched_schola_vector_size(make_vec_env_server):
     port = make_vec_env_server([make_env("CartPole-v1", i) for i in range(2)])
     cfg = ScholaEnvConfig(
-        observations=ScholaObservationConfig(
-            vectors={"agent_pos": ["observation"]}
-        ),
+        observations=ScholaObservationConfig(vectors={"agent_pos": ["observation"]}),
         simulator=ExternalSimulatorConfig(),
         protocol=GrpcProtocolConfig(url="localhost", port=port),
     )

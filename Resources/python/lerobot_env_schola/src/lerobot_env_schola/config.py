@@ -9,7 +9,14 @@ from typing import TYPE_CHECKING, Any
 from gymnasium.spaces import Box, Dict
 from lerobot.configs import FeatureType, PolicyFeature
 from lerobot.envs.configs import EnvConfig
-from lerobot.utils.constants import ACTION, OBS_ENV_STATE, OBS_IMAGE, OBS_IMAGES, OBS_STATE, OBS_STR
+from lerobot.utils.constants import (
+    ACTION,
+    OBS_ENV_STATE,
+    OBS_IMAGE,
+    OBS_IMAGES,
+    OBS_STATE,
+    OBS_STR,
+)
 from schola.scripts.common.settings import ExternalSimulatorConfig, GrpcProtocolConfig
 
 if TYPE_CHECKING:
@@ -87,7 +94,9 @@ def infer_features_from_spaces(
             features_map[key] = OBS_IMAGE
             continue
 
-        feature_type = FeatureType.ENV if key == "environment_state" else FeatureType.STATE
+        feature_type = (
+            FeatureType.ENV if key == "environment_state" else FeatureType.STATE
+        )
         features[key] = PolicyFeature(type=feature_type, shape=space.shape)
         if key == "agent_pos":
             features_map[key] = OBS_STATE
@@ -97,7 +106,9 @@ def infer_features_from_spaces(
             features_map[key] = f"{OBS_STR}.{key}"
 
     if not action_space.shape:
-        raise ValueError("The flattened Schola action space must have at least one dimension")
+        raise ValueError(
+            "The flattened Schola action space must have at least one dimension"
+        )
     features[ACTION] = PolicyFeature(type=FeatureType.ACTION, shape=action_space.shape)
     features_map[ACTION] = ACTION
 
@@ -211,7 +222,9 @@ class ScholaEnvConfig(EnvConfig):
                 )
             if self.features:
                 if self.features.keys() != self.features_map.keys():
-                    raise ValueError("features and features_map must contain the same keys")
+                    raise ValueError(
+                        "features and features_map must contain the same keys"
+                    )
             else:
                 self.features, self.features_map = infer_features_from_spaces(
                     env.single_observation_space,

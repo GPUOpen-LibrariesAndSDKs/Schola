@@ -7,10 +7,11 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
-// Helper function to create a CameraSensor with a TextureRenderTarget2D
+// These tests exercise channel/observation-space logic only (no pixel readback or scene capture).
+// Do not add EAutomationTestFlags::NonNullRHI unless a test reads GPU resources (e.g. CollectObservations).
 static UCameraSensor* CreateCameraSensorWithRenderTarget(
-	int32 Width, 
-	int32 Height, 
+	int32 Width,
+	int32 Height,
 	ETextureRenderTargetFormat Format,
 	ESceneCaptureSource CaptureSource,
 	uint8 EnabledChannels)
@@ -18,12 +19,14 @@ static UCameraSensor* CreateCameraSensorWithRenderTarget(
 	UCameraSensor* Sensor = NewObject<UCameraSensor>();
 	UTextureRenderTarget2D* RenderTarget = NewObject<UTextureRenderTarget2D>();
 	RenderTarget->RenderTargetFormat = Format;
-	RenderTarget->InitAutoFormat(Width, Height);
-	
+	// Set dimensions directly; InitAutoFormat would allocate RHI resources unnecessarily here.
+	RenderTarget->SizeX = Width;
+	RenderTarget->SizeY = Height;
+
 	Sensor->TextureTarget = RenderTarget;
 	Sensor->CaptureSource = CaptureSource;
 	Sensor->EnabledChannels = EnabledChannels;
-	
+
 	return Sensor;
 }
 

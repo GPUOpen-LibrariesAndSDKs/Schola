@@ -18,6 +18,31 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class ScholaObservationConfig:
+    """Describe how Schola observations form LeRobot policy inputs.
+
+    Mapping values are Schola observation keys. Vector source order is
+    preserved when values are flattened and concatenated.
+    """
+
+    cameras: dict[str, str] = field(default_factory=dict)
+    """LeRobot camera name to Schola image observation key."""
+
+    vectors: dict[str, list[str]] = field(default_factory=dict)
+    """LeRobot vector name to ordered Schola observation keys."""
+
+    passthrough: dict[str, str] = field(default_factory=dict)
+    """LeRobot output name to an unchanged Schola observation key."""
+
+    ignore: list[str] = field(default_factory=list)
+    """Schola observation keys intentionally omitted from LeRobot."""
+
+    def is_empty(self) -> bool:
+        """Return whether no observation behavior has been configured."""
+        return not (self.cameras or self.vectors or self.passthrough or self.ignore)
+
+
 def infer_features_from_spaces(
     observation_space: Dict,
     action_space: Box,
@@ -105,8 +130,12 @@ class ScholaEnvConfig(EnvConfig):
     verbosity: int = 0
     task_description: str | None = None
     episode_length: int = 300
-    success_key: str = "is_success"
-    observation_map: dict[str, str] = field(default_factory=dict)
+    success_key: str | None = None
+    """Optional Schola ``info`` key to expose as LeRobot ``is_success``."""
+    observations: ScholaObservationConfig = field(
+        default_factory=ScholaObservationConfig
+    )
+    """Target-oriented camera, vector, passthrough, and ignore configuration."""
     render_camera: str | None = None
     render_fps: int = 30
 
@@ -133,10 +162,10 @@ class ScholaEnvConfig(EnvConfig):
                 "Schola manages vectorization through GymVectorEnv; "
                 "LeRobot async environment wrapping is not supported."
             )
-        if not self.observation_map:
+        if self.observations.is_empty():
             raise ValueError(
-                "ScholaEnvConfig requires observation_map to declare how every "
-                "Schola observation maps to LeRobot."
+                "ScholaEnvConfig requires observations to declare how Schola "
+                "observations map to LeRobot."
             )
         if self.simulator.num_simulators != 1:
             raise ValueError(
@@ -167,7 +196,7 @@ class ScholaEnvConfig(EnvConfig):
                 task_description=self.task_description or self.task or "schola",
                 max_episode_steps=self.episode_length,
                 success_key=self.success_key,
-                observation_map=self.observation_map,
+                observation_config=self.observations,
                 render_camera=self.render_camera,
                 render_fps=self.render_fps,
             )

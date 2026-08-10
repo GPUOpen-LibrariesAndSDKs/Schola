@@ -18,6 +18,7 @@ def test_installed_plugin_is_discovered_by_lerobot():
         ],
         capture_output=True,
         text=True,
+        timeout=30,
     )
 
     assert result.returncode == 0, result.stderr

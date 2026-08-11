@@ -23,9 +23,10 @@ struct SCHOLAINTERACTORS_API FCameraSensorUtils
 	 * @param[in] Width Texture width in pixels.
 	 * @param[in] Height Texture height in pixels.
 	 * @param[in] EnabledValidChannels Bitmask of RGBA channels to include (already filtered).
-	 * @param[out] OutBoxPoint Populated box point.
+	 * @param[out] OutBoxPoint Populated box point; left unchanged when Bitmap size does not match Width * Height.
+	 * @return True if the bitmap was converted successfully.
 	 */
-	static void ConvertBitmapToBoxPoint(
+	static bool ConvertBitmapToBoxPoint(
 		const TArray<FColor>& Bitmap,
 		int32 Width,
 		int32 Height,

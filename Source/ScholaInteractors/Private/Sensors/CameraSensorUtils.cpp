@@ -30,18 +30,14 @@ namespace
 	}
 }
 
-void FCameraSensorUtils::ConvertBitmapToBoxPoint(
+bool FCameraSensorUtils::ConvertBitmapToBoxPoint(
 	const TArray<FColor>& Bitmap,
 	int32 Width,
 	int32 Height,
 	uint8 EnabledValidChannels,
 	FBoxPoint& OutBoxPoint)
 {
-	const int32 NumChannels = CountEnabledChannels(EnabledValidChannels);
 	const int32 ChannelStride = Width * Height;
-
-	OutBoxPoint.Values.SetNum(ChannelStride * NumChannels);
-	OutBoxPoint.Shape = { NumChannels, Height, Width };
 
 	if (Bitmap.Num() != ChannelStride)
 	{
@@ -51,8 +47,13 @@ void FCameraSensorUtils::ConvertBitmapToBoxPoint(
 			"FCameraSensorUtils::ConvertBitmapToBoxPoint(): Bitmap size ({0}) does not match Width * Height ({1}).",
 			Bitmap.Num(),
 			ChannelStride);
-		return;
+		return false;
 	}
+
+	const int32 NumChannels = CountEnabledChannels(EnabledValidChannels);
+
+	OutBoxPoint.Values.SetNum(ChannelStride * NumChannels);
+	OutBoxPoint.Shape = { NumChannels, Height, Width };
 
 	for (int32 PixelIndex = 0; PixelIndex < ChannelStride; ++PixelIndex)
 	{
@@ -85,6 +86,8 @@ void FCameraSensorUtils::ConvertBitmapToBoxPoint(
 				static_cast<float>(Bitmap[PixelIndex].A) / 255.0f;
 		}
 	}
+
+	return true;
 }
 
 bool FCameraSensorUtils::ReadRenderTargetToBoxPoint(
@@ -115,6 +118,5 @@ bool FCameraSensorUtils::ReadRenderTargetToBoxPoint(
 		return false;
 	}
 
-	ConvertBitmapToBoxPoint(Bitmap, Width, Height, EnabledValidChannels, OutBoxPoint);
-	return true;
+	return ConvertBitmapToBoxPoint(Bitmap, Width, Height, EnabledValidChannels, OutBoxPoint);
 }

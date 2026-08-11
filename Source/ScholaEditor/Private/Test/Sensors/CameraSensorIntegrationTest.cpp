@@ -134,12 +134,14 @@ bool FCameraSensorIntegration_InvalidChannelsStripped_Test::RunTest(const FStrin
 	Bitmap.Init(FColor(200, 100, 50, 255), 8 * 8);
 
 	FBoxPoint BoxPoint;
-	FCameraSensorUtils::ConvertBitmapToBoxPoint(
-		Bitmap,
-		8,
-		8,
-		Sensor->EnabledChannels & ~Sensor->GetInvalidChannels(),
-		BoxPoint);
+	TestTrue(
+		TEXT("ConvertBitmapToBoxPoint succeeds"),
+		FCameraSensorUtils::ConvertBitmapToBoxPoint(
+			Bitmap,
+			8,
+			8,
+			Sensor->EnabledChannels & ~Sensor->GetInvalidChannels(),
+			BoxPoint));
 
 	TestEqual(TEXT("Only R collected for depth"), BoxPoint.Shape[0], 1);
 	TestEqual(TEXT("R value normalized"), BoxPoint.Values[0], 200.0f / 255.0f);

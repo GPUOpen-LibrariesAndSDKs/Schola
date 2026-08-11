@@ -85,22 +85,22 @@ FString UCameraSensor::GenerateId() const
 	//Add channels to Id
 	uint8 InvalidChannels = GetInvalidChannels();
 
-	if (EnabledChannels & !InvalidChannels & static_cast<uint8>(EChannels::R))
+	if (EnabledChannels & ~InvalidChannels & static_cast<uint8>(EChannels::R))
 	{
 		Output = Output.Append("R");
 	}
 	
-	if (EnabledChannels & !InvalidChannels & static_cast<uint8>(EChannels::G))
+	if (EnabledChannels & ~InvalidChannels & static_cast<uint8>(EChannels::G))
 	{
 		Output = Output.Append("G");
 	}
 
-	if (EnabledChannels & !InvalidChannels & static_cast<uint8>(EChannels::B))
+	if (EnabledChannels & ~InvalidChannels & static_cast<uint8>(EChannels::B))
 	{
 		Output = Output.Append("B");
 	}
 
-	if (EnabledChannels & !InvalidChannels & static_cast<uint8>(EChannels::A))
+	if (EnabledChannels & ~InvalidChannels & static_cast<uint8>(EChannels::A))
 	{
 		Output = Output.Append("A");
 	}

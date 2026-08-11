@@ -534,12 +534,14 @@ bool FCameraSensorUtils_ConvertBitmap_NoTranspose_Test::RunTest(const FString& P
 	}
 
 	FBoxPoint BoxPoint;
-	FCameraSensorUtils::ConvertBitmapToBoxPoint(
-		Bitmap,
-		Width,
-		Height,
-		static_cast<uint8>(EChannels::R) | static_cast<uint8>(EChannels::G),
-		BoxPoint);
+	TestTrue(
+		TEXT("ConvertBitmapToBoxPoint succeeds"),
+		FCameraSensorUtils::ConvertBitmapToBoxPoint(
+			Bitmap,
+			Width,
+			Height,
+			static_cast<uint8>(EChannels::R) | static_cast<uint8>(EChannels::G),
+			BoxPoint));
 
 	TestEqual(TEXT("Shape should have 3 dimensions"), BoxPoint.Shape.Num(), 3);
 	TestEqual(TEXT("Shape[0] should be 2 (channels)"), BoxPoint.Shape[0], 2);
@@ -594,7 +596,9 @@ bool FCameraSensorUtils_ConvertBitmap_AllChannelMasks_Test::RunTest(const FStrin
 	for (uint8 Mask : ChannelMasks)
 	{
 		FBoxPoint BoxPoint;
-		FCameraSensorUtils::ConvertBitmapToBoxPoint(Bitmap, Width, Height, Mask, BoxPoint);
+		TestTrue(
+			FString::Printf(TEXT("ConvertBitmapToBoxPoint succeeds for mask %d"), Mask),
+			FCameraSensorUtils::ConvertBitmapToBoxPoint(Bitmap, Width, Height, Mask, BoxPoint));
 
 		int32 ExpectedChannels = 0;
 		if (Mask & static_cast<uint8>(EChannels::R)) { ++ExpectedChannels; }
@@ -639,12 +643,14 @@ bool FCameraSensorUtils_ConvertBitmap_Normalization_Test::RunTest(const FString&
 	TArray<FColor> Bitmap = { FColor(0, 127, 255, 255) };
 
 	FBoxPoint BoxPoint;
-	FCameraSensorUtils::ConvertBitmapToBoxPoint(
-		Bitmap,
-		1,
-		1,
-		static_cast<uint8>(EChannels::R) | static_cast<uint8>(EChannels::G) | static_cast<uint8>(EChannels::B),
-		BoxPoint);
+	TestTrue(
+		TEXT("ConvertBitmapToBoxPoint succeeds"),
+		FCameraSensorUtils::ConvertBitmapToBoxPoint(
+			Bitmap,
+			1,
+			1,
+			static_cast<uint8>(EChannels::R) | static_cast<uint8>(EChannels::G) | static_cast<uint8>(EChannels::B),
+			BoxPoint));
 
 	TestEqual(TEXT("Zero normalizes to 0"), BoxPoint.Values[0], 0.0f);
 	TestEqual(TEXT("127 normalizes correctly"), BoxPoint.Values[1], 127.0f / 255.0f);
@@ -658,17 +664,25 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
 bool FCameraSensorUtils_ConvertBitmap_SizeMismatch_Test::RunTest(const FString& Parameters)
 {
+	AddExpectedError(
+		TEXT("Bitmap size"),
+		EAutomationExpectedErrorFlags::Contains,
+		1);
+
 	TArray<FColor> Bitmap = { FColor(255, 0, 0, 255), FColor(0, 255, 0, 255) };
 
 	FBoxPoint BoxPoint;
-	FCameraSensorUtils::ConvertBitmapToBoxPoint(
-		Bitmap,
-		1,
-		1,
-		static_cast<uint8>(EChannels::R),
-		BoxPoint);
+	TestFalse(
+		TEXT("ConvertBitmapToBoxPoint fails on size mismatch"),
+		FCameraSensorUtils::ConvertBitmapToBoxPoint(
+			Bitmap,
+			1,
+			1,
+			static_cast<uint8>(EChannels::R),
+			BoxPoint));
 
 	TestEqual(TEXT("Mismatch leaves values unallocated"), BoxPoint.Values.Num(), 0);
+	TestEqual(TEXT("Mismatch leaves shape unallocated"), BoxPoint.Shape.Num(), 0);
 
 	return true;
 }

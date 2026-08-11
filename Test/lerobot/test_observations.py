@@ -30,11 +30,10 @@ def make_adapter():
 def test_adapter_builds_target_oriented_observations(make_adapter):
     observation_space = Dict(
         {
-            "debug": Box(-1, 1, shape=(1,), dtype=np.float32),
             "front_camera": Box(0, 255, shape=(8, 8, 3), dtype=np.uint8),
-            "gripper": Box(-1, 1, shape=(1,), dtype=np.float32),
+            "gripper": Box(-3, 3, shape=(1,), dtype=np.float32),
             "joint_positions": Box(-1, 1, shape=(2,), dtype=np.float32),
-            "joint_velocities": Box(-1, 1, shape=(2,), dtype=np.float32),
+            "joint_velocities": Box(-2, 2, shape=(2,), dtype=np.float32),
             "target": Box(-1, 1, shape=(3,), dtype=np.float32),
         }
     )
@@ -50,12 +49,10 @@ def test_adapter_builds_target_oriented_observations(make_adapter):
                 ]
             },
             passthrough={"environment_state": "target"},
-            ignore=["debug"],
         ),
     )
 
     observation = {
-        "debug": np.zeros((2, 1), dtype=np.float32),
         "front_camera": np.zeros((2, 8, 8, 3), dtype=np.uint8),
         "gripper": np.array([[5.0], [6.0]], dtype=np.float32),
         "joint_positions": np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32),
@@ -76,7 +73,10 @@ def test_adapter_builds_target_oriented_observations(make_adapter):
             dtype=np.float32,
         ),
     )
-    assert adapter.single_observation_space["agent_pos"].shape == (5,)
+    agent_pos_space = adapter.single_observation_space["agent_pos"]
+    assert agent_pos_space.shape == (5,)
+    np.testing.assert_array_equal(agent_pos_space.low, [-1, -1, -2, -2, -3])
+    np.testing.assert_array_equal(agent_pos_space.high, [1, 1, 2, 2, 3])
 
 
 def test_adapter_converts_native_schola_camera_to_lerobot_format(make_adapter):

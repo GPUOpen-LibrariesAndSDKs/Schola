@@ -9,21 +9,22 @@ from typing import Any
 
 import gymnasium as gym
 import numpy as np
-from gymnasium.spaces import Box, Dict
+from gymnasium.spaces import Box, Dict, Tuple
+from gymnasium.spaces.utils import flatten_space
 
 from lerobot_env_schola.config import ScholaObservationConfig
 
-SINGLE_IMAGE_NDIM = 3
-BATCHED_IMAGE_NDIM = 4
-CHW_CHANNEL_AXIS = -3
-HWC_CHANNEL_AXIS = -1
+SINGLE_IMAGE_NDIMS = 3
+BATCHED_IMAGE_NDIMS = 4
+CHW_CHANNEL_DIM = -3
+HWC_CHANNEL_DIM = -1
 SUPPORTED_IMAGE_CHANNELS = (1, 3, 4)
 UINT8_MAX = np.iinfo(np.uint8).max
-BATCH_AXIS = 0
+BATCH_DIM = 0
 
 
 def _convert_image_space(space: gym.Space, name: str) -> tuple[Box, str]:
-    if not isinstance(space, Box) or len(space.shape) != SINGLE_IMAGE_NDIM:
+    if not isinstance(space, Box) or len(space.shape) != SINGLE_IMAGE_NDIMS:
         raise TypeError(f"Image observation {name!r} must be a three-dimensional Box")
 
     is_float = np.issubdtype(space.dtype, np.floating)
@@ -39,10 +40,10 @@ def _convert_image_space(space: gym.Space, name: str) -> tuple[Box, str]:
     # Prefer channel-last when both edge dimensions look like channel counts.
     # This matches the normalized output layout and avoids treating a small
     # image height as channels (for example, an HWC shape of (4, 5, 3)).
-    if space.shape[HWC_CHANNEL_AXIS] in SUPPORTED_IMAGE_CHANNELS:
+    if space.shape[HWC_CHANNEL_DIM] in SUPPORTED_IMAGE_CHANNELS:
         height, width, channels = space.shape
         layout = "hwc"
-    elif space.shape[CHW_CHANNEL_AXIS] in SUPPORTED_IMAGE_CHANNELS:
+    elif space.shape[CHW_CHANNEL_DIM] in SUPPORTED_IMAGE_CHANNELS:
         channels, height, width = space.shape
         layout = "chw"
     else:
@@ -61,9 +62,9 @@ def _convert_image_space(space: gym.Space, name: str) -> tuple[Box, str]:
 def _convert_image_value(value: Any, mode: str) -> np.ndarray:
     image = np.asarray(value)
     if mode.startswith("chw"):
-        if image.ndim not in (SINGLE_IMAGE_NDIM, BATCHED_IMAGE_NDIM):
+        if image.ndim not in (SINGLE_IMAGE_NDIMS, BATCHED_IMAGE_NDIMS):
             raise ValueError(f"Expected a CHW image batch, got shape {image.shape}")
-        image = np.moveaxis(image, CHW_CHANNEL_AXIS, HWC_CHANNEL_AXIS)
+        image = np.moveaxis(image, CHW_CHANNEL_DIM, HWC_CHANNEL_DIM)
     if mode.endswith("float"):
         image = np.rint(np.clip(image, 0, 1) * UINT8_MAX).astype(np.uint8)
     return np.ascontiguousarray(image)
@@ -149,9 +150,6 @@ class ObservationAdapter:
                     f"Passthrough source {source_key!r} must use a Box space"
                 )
 
-        for source_key in self.config.ignore:
-            claim_source(source_key, "ignore")
-
         missing_keys = space.spaces.keys() - owners.keys()
         if missing_keys:
             raise ValueError(
@@ -176,25 +174,15 @@ class ObservationAdapter:
 
         for target_key, source_keys in self.config.vectors.items():
             source_spaces = [space.spaces[source_key] for source_key in source_keys]
-            dtype = np.result_type(
-                np.float32,
-                *(source_space.dtype for source_space in source_spaces),
-            )
-            low = np.concatenate(
-                [
-                    np.asarray(source_space.low).reshape(-1)
-                    for source_space in source_spaces
-                ]
-            ).astype(dtype)
-            high = np.concatenate(
-                [
-                    np.asarray(source_space.high).reshape(-1)
-                    for source_space in source_spaces
-                ]
-            ).astype(dtype)
+            flattened_space = flatten_space(Tuple(tuple(source_spaces)))
+            if not isinstance(flattened_space, Box):
+                raise TypeError(
+                    f"Vector output {target_key!r} did not flatten to a Box"
+                )
+            dtype = np.result_type(np.float32, flattened_space.dtype)
             output_spaces[target_key] = Box(
-                low=low,
-                high=high,
+                low=flattened_space.low.astype(dtype, copy=False),
+                high=flattened_space.high.astype(dtype, copy=False),
                 dtype=dtype,
             )
             self._vector_dtypes[target_key] = np.dtype(dtype)

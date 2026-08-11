@@ -11,14 +11,13 @@ import numpy as np
 from gymnasium.spaces import Box, Dict
 from gymnasium.spaces.utils import flatten_space, unflatten
 from gymnasium.vector.utils import batch_space, concatenate, create_empty_array
+from lerobot.envs.utils import NEW_ROLLOUT_OPTION
 from lerobot_env_schola.config import ScholaObservationConfig
 from lerobot_env_schola.observations import (
-    BATCH_AXIS,
-    BATCHED_IMAGE_NDIM,
+    BATCH_DIM,
+    BATCHED_IMAGE_NDIMS,
     ObservationAdapter,
 )
-
-LEROBOT_NEW_ROLLOUT_OPTION = "lerobot_new_rollout"
 
 
 def _contains_only_boxes(space: gym.Space) -> bool:
@@ -60,7 +59,7 @@ def _coerce_success(value: Any) -> Any:
 
 
 class LeRobotScholaVectorEnv(gym.vector.VectorWrapper):
-    """Adapt Schola's native vector environment to LeRobot's rollout contract."""
+    """Adapt a Gymnasium vector environment carrying Schola data to LeRobot."""
 
     def __init__(
         self,
@@ -188,7 +187,7 @@ class LeRobotScholaVectorEnv(gym.vector.VectorWrapper):
         options: dict[str, Any] | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         schola_options = dict(options or {})
-        schola_options.pop(LEROBOT_NEW_ROLLOUT_OPTION, None)
+        schola_options.pop(NEW_ROLLOUT_OPTION, None)
         observation, info = self.env.reset(
             seed=seed,
             options=schola_options or None,
@@ -229,8 +228,8 @@ class LeRobotScholaVectorEnv(gym.vector.VectorWrapper):
 
         frames = np.asarray(pixels)
         if (
-            frames.ndim != BATCHED_IMAGE_NDIM
-            or frames.shape[BATCH_AXIS] != self.num_envs
+            frames.ndim != BATCHED_IMAGE_NDIMS
+            or frames.shape[BATCH_DIM] != self.num_envs
         ):
             raise ValueError(
                 "Render observations must have shape "

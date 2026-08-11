@@ -44,12 +44,9 @@ class ScholaObservationConfig:
     passthrough: dict[str, str] = field(default_factory=dict)
     """LeRobot output name to an unchanged Schola observation key."""
 
-    ignore: list[str] = field(default_factory=list)
-    """Schola observation keys intentionally omitted from LeRobot."""
-
     def is_empty(self) -> bool:
         """Return whether no observation behavior has been configured."""
-        return not (self.cameras or self.vectors or self.passthrough or self.ignore)
+        return not (self.cameras or self.vectors or self.passthrough)
 
 
 def infer_features_from_spaces(
@@ -148,7 +145,7 @@ class ScholaEnvConfig(EnvConfig):
     observations: ScholaObservationConfig = field(
         default_factory=ScholaObservationConfig
     )
-    """Target-oriented camera, vector, passthrough, and ignore configuration."""
+    """Target-oriented camera, vector, and passthrough configuration."""
     render_camera: str | None = None
     render_fps: int = 30
 
@@ -193,13 +190,11 @@ class ScholaEnvConfig(EnvConfig):
         )
 
         if schola_env.num_envs != n_envs:
-            actual_num_envs = schola_env.num_envs
-            schola_env.close()
-            raise ValueError(
-                "LeRobot requested "
-                f"{n_envs} environment(s), but Schola exposed {actual_num_envs} "
-                "homogeneous agent slot(s). Set --eval.batch_size to match the "
-                "number exposed by Unreal."
+            logger.warning(
+                "LeRobot requested %d environment(s), but Schola exposed %d "
+                "homogeneous agent slot(s); using Schola's native vector size.",
+                n_envs,
+                schola_env.num_envs,
             )
 
         try:

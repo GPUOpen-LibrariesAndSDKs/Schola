@@ -67,16 +67,16 @@ The YAML file must provide the following values:
    The number of episodes to evaluate.
 
 ``eval.batch_size``
-   The number of homogeneous agent slots exposed by Unreal. It must match
-   exactly, even when there is only one slot.
+   LeRobot's requested vector size. Schola uses the actual number of homogeneous
+   agent slots exposed by Unreal and logs a warning if it differs.
 
 ``eval.use_async_envs``
    Must be ``false`` because Schola already supplies a vector environment.
 
 The policy's action feature size must equal the flattened size of the Schola
 action space. LeRobot supplies each action as a batch with shape
-``(eval.batch_size, action_dimension)``; the plugin reconstructs nested Schola
-``Dict`` actions before stepping the environment.
+``(number_of_unreal_slots, action_dimension)``; the plugin reconstructs nested
+Schola ``Dict`` actions before stepping the environment.
 
 The shortest typical invocation is:
 
@@ -95,7 +95,7 @@ Configure Observations
 LeRobot policies use named state and image features, while an Unreal
 environment may expose observations under arbitrary Schola keys. The
 ``observations`` section accounts for every source observation using one of
-four mappings:
+three mappings:
 
 ``cameras``
    Maps a LeRobot camera name to one Schola image key. Images may be
@@ -113,9 +113,6 @@ four mappings:
    Renames one Schola ``Box`` observation without changing its shape. The
    special output name ``environment_state`` maps to
    ``observation.environment_state``.
-
-``ignore``
-   Lists source observations intentionally omitted from policy input.
 
 A source key must appear exactly once. Unaccounted keys, duplicate use of a
 source, and unknown keys are rejected when the environment is created.
@@ -136,8 +133,6 @@ state into one policy state while exposing two cameras:
          - gripper
      passthrough:
        environment_state: target_state
-     ignore:
-       - debug
 
 Run an Evaluation
 -----------------
@@ -167,8 +162,6 @@ evaluation configuration such as ``schola_eval.yaml``:
          agent_pos:
            - joint_positions
            - joint_velocities
-       ignore:
-         - debug
 
    eval:
      n_episodes: 10
@@ -217,10 +210,10 @@ asynchronous vector layer:
      batch_size: 4
      use_async_envs: false
 
-``batch_size`` must exactly match the number of homogeneous agent slots exposed
-by the connected Unreal process. Keep ``simulator.num_simulators`` set to
-``1``; multiple externally managed processes are not supported by this
-integration.
+``batch_size`` is only a construction request from LeRobot. If it differs from
+the connected Unreal process, the plugin logs a warning and uses Unreal's
+actual slot count. Keep ``simulator.num_simulators`` set to ``1``; multiple
+externally managed processes are not supported by this integration.
 
 Feature and Action Inference
 ----------------------------
@@ -245,6 +238,5 @@ Troubleshooting
 ---------------
 
 Common configuration failures are caused by an observation key missing from all
-four mapping sections, a LeRobot batch size that differs from Unreal's agent
-count, ``use_async_envs`` being enabled, or an image whose type, bounds, or
-channel count is unsupported.
+three mapping sections, ``use_async_envs`` being enabled, or an image whose
+type, bounds, or channel count is unsupported.

@@ -24,7 +24,6 @@ from lerobot_env_schola.vector_env import LeRobotScholaVectorEnv
 from schola.gym.env import GymVectorEnv
 from schola.scripts.common.settings import ExternalSimulatorConfig, GrpcProtocolConfig
 from Test.gym.testing_env import GenericTestEnv
-from Test.gym.vec_utils import make_env
 
 
 def test_schola_config_is_registered():
@@ -51,8 +50,6 @@ def test_target_oriented_observations_parse_from_yaml(tmp_path):
                     - joint_velocities
                 passthrough:
                   environment_state: target
-                ignore:
-                  - debug
             eval:
               n_episodes: 1
               batch_size: 1
@@ -68,7 +65,6 @@ def test_target_oriented_observations_parse_from_yaml(tmp_path):
         cameras={"front": "front_camera"},
         vectors={"agent_pos": ["joint_positions", "joint_velocities"]},
         passthrough={"environment_state": "target"},
-        ignore=["debug"],
     )
 
 
@@ -168,16 +164,38 @@ def test_create_envs_builds_schola_vector_env(make_vec_env_server):
         env.close()
 
 
-def test_create_envs_rejects_mismatched_schola_vector_size(make_vec_env_server):
-    port = make_vec_env_server([make_env("CartPole-v1", i) for i in range(2)])
+def test_create_envs_uses_schola_vector_size_on_mismatch(
+    make_vec_env_server, caplog
+):
+    observation_space = gym.spaces.Dict(
+        {"observation": gym.spaces.Box(-1, 1, shape=(4,), dtype=np.float32)}
+    )
+    action_space = gym.spaces.Box(-1, 1, shape=(1,), dtype=np.float32)
+    port = make_vec_env_server(
+        [
+            partial(
+                GenericTestEnv,
+                observation_space=observation_space,
+                action_space=action_space,
+            )
+            for _ in range(2)
+        ]
+    )
     cfg = ScholaEnvConfig(
         observations=ScholaObservationConfig(vectors={"agent_pos": ["observation"]}),
         simulator=ExternalSimulatorConfig(),
         protocol=GrpcProtocolConfig(url="localhost", port=port),
     )
 
-    with pytest.raises(ValueError, match="Schola exposed 2"):
-        cfg.create_envs(n_envs=1)
+    with caplog.at_level(logging.WARNING, logger="lerobot_env_schola.config"):
+        env = cfg.create_envs(n_envs=1)["schola"][0]
+    try:
+        assert env.num_envs == 2
+        assert "using Schola's native vector size" in caplog.text
+        observations, _ = env.reset()
+        assert observations["agent_pos"].shape == (2, 4)
+    finally:
+        env.close()
 
 
 def test_create_envs_rejects_lerobot_async_vectorization():

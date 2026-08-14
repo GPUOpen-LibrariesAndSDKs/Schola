@@ -44,6 +44,51 @@ class ScholaObservationConfig:
     passthrough: dict[str, str] = field(default_factory=dict)
     """LeRobot output name to an unchanged Schola observation key."""
 
+    def __post_init__(self) -> None:
+        duplicate_outputs = set(self.vectors) & self.passthrough.keys()
+        if duplicate_outputs:
+            raise ValueError(
+                "Vector and passthrough outputs overlap: "
+                f"{sorted(duplicate_outputs)}"
+            )
+
+        reserved_outputs = {
+            key
+            for key in (*self.vectors, *self.passthrough)
+            if key == "pixels" or key.startswith("pixels/")
+        }
+        if reserved_outputs:
+            raise ValueError(
+                "'pixels' outputs must be declared under cameras, not vectors "
+                f"or passthrough: {sorted(reserved_outputs)}"
+            )
+
+        owners: dict[str, str] = {}
+
+        def claim_source(source_key: str, owner: str) -> None:
+            if source_key in owners:
+                raise ValueError(
+                    f"Schola observation {source_key!r} is used by both "
+                    f"{owners[source_key]} and {owner}"
+                )
+            owners[source_key] = owner
+
+        for camera_name, source_key in self.cameras.items():
+            if not camera_name:
+                raise ValueError("Camera names cannot be empty")
+            claim_source(source_key, f"camera {camera_name!r}")
+
+        for target_key, source_keys in self.vectors.items():
+            if not source_keys:
+                raise ValueError(
+                    f"Vector output {target_key!r} requires at least one source"
+                )
+            for source_key in source_keys:
+                claim_source(source_key, f"vector {target_key!r}")
+
+        for target_key, source_key in self.passthrough.items():
+            claim_source(source_key, f"passthrough {target_key!r}")
+
     def is_empty(self) -> bool:
         """Return whether no observation behavior has been configured."""
         return not (self.cameras or self.vectors or self.passthrough)
@@ -53,7 +98,7 @@ def infer_features_from_spaces(
     observation_space: Dict,
     action_space: Box,
 ) -> tuple[dict[str, PolicyFeature], dict[str, str]]:
-    """Infer LeRobot features from the wrapper's single-environment spaces."""
+    """Infer LeRobot features from an environment's single-environment spaces."""
     features: dict[str, PolicyFeature] = {}
     features_map: dict[str, str] = {}
 

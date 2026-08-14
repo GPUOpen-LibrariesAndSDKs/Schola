@@ -35,6 +35,38 @@ def test_schola_config_does_not_use_gym_make():
     assert cfg.gym_kwargs == {}
 
 
+def test_observation_config_rejects_overlapping_vector_and_passthrough_outputs():
+    with pytest.raises(ValueError, match="overlap"):
+        ScholaObservationConfig(
+            vectors={"agent_pos": ["joints"]},
+            passthrough={"agent_pos": "joints"},
+        )
+
+
+@pytest.mark.parametrize("target_key", ["pixels", "pixels/front"])
+def test_observation_config_reserves_pixel_outputs_for_cameras(target_key):
+    with pytest.raises(ValueError, match="declared under cameras"):
+        ScholaObservationConfig(vectors={target_key: ["joints"]})
+
+
+def test_observation_config_rejects_empty_camera_name():
+    with pytest.raises(ValueError, match="Camera names cannot be empty"):
+        ScholaObservationConfig(cameras={"": "camera"})
+
+
+def test_observation_config_rejects_empty_vector_sources():
+    with pytest.raises(ValueError, match="requires at least one source"):
+        ScholaObservationConfig(vectors={"agent_pos": []})
+
+
+def test_observation_config_rejects_duplicate_source_ownership():
+    with pytest.raises(ValueError, match="used by both"):
+        ScholaObservationConfig(
+            vectors={"agent_pos": ["joints"]},
+            passthrough={"raw_joints": "joints"},
+        )
+
+
 def test_target_oriented_observations_parse_from_yaml(tmp_path):
     config_path = tmp_path / "schola_eval.yaml"
     config_path.write_text(

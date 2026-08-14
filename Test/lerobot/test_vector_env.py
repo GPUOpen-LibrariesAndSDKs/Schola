@@ -171,6 +171,141 @@ def test_wrapper_rejects_discrete_actions(make_wrapper):
         )
 
 
+def test_wrapper_converts_target_oriented_observations(make_wrapper):
+    wrapper = make_wrapper(
+        num_envs=2,
+        observation_space=Dict(
+            {
+                "front_camera": Box(0, 255, shape=(8, 8, 3), dtype=np.uint8),
+                "gripper": Box(-3, 3, shape=(1,), dtype=np.float32),
+                "joint_positions": Box(-1, 1, shape=(2,), dtype=np.float32),
+                "joint_velocities": Box(-2, 2, shape=(2,), dtype=np.float32),
+                "target": Box(-1, 1, shape=(3,), dtype=np.float32),
+            }
+        ),
+        observation_config=ScholaObservationConfig(
+            cameras={"front": "front_camera"},
+            vectors={
+                "agent_pos": [
+                    "joint_positions",
+                    "joint_velocities",
+                    "gripper",
+                ]
+            },
+            passthrough={"environment_state": "target"},
+        ),
+    )
+
+    observation = {
+        "front_camera": np.zeros((2, 8, 8, 3), dtype=np.uint8),
+        "gripper": np.array([[5.0], [6.0]], dtype=np.float32),
+        "joint_positions": np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32),
+        "joint_velocities": np.array([[0.1, 0.2], [0.3, 0.4]], dtype=np.float32),
+        "target": np.ones((2, 3), dtype=np.float32),
+    }
+    converted = wrapper._convert_observation(observation)
+
+    assert set(converted) == {"pixels", "agent_pos", "environment_state"}
+    assert set(converted["pixels"]) == {"front"}
+    np.testing.assert_array_equal(
+        converted["agent_pos"],
+        np.array(
+            [
+                [1.0, 2.0, 0.1, 0.2, 5.0],
+                [3.0, 4.0, 0.3, 0.4, 6.0],
+            ],
+            dtype=np.float32,
+        ),
+    )
+    agent_pos_space = wrapper.single_observation_space["agent_pos"]
+    assert agent_pos_space.shape == (5,)
+    np.testing.assert_array_equal(agent_pos_space.low, [-1, -1, -2, -2, -3])
+    np.testing.assert_array_equal(agent_pos_space.high, [1, 1, 2, 2, 3])
+
+
+def test_wrapper_converts_native_schola_camera_to_lerobot_format(make_wrapper):
+    camera_values = np.empty((3, 4, 5), dtype=np.float32)
+    camera_values[0] = 0.0
+    camera_values[1] = 0.5
+    camera_values[2] = 1.0
+    wrapper = make_wrapper(
+        num_envs=1,
+        observation_space=Dict(
+            {
+                "camera": Box(camera_values, camera_values, dtype=np.float32),
+                "joints": Box(-1, 1, shape=(2,), dtype=np.float32),
+            }
+        ),
+        observation_config=ScholaObservationConfig(
+            cameras={"front": "camera"},
+            vectors={"agent_pos": ["joints"]},
+        ),
+    )
+
+    converted = wrapper._convert_observation(
+        {
+            "camera": camera_values[np.newaxis, ...],
+            "joints": np.zeros((1, 2), dtype=np.float32),
+        }
+    )
+    pixels = converted["pixels"]["front"]
+
+    assert wrapper.single_observation_space["pixels"]["front"] == Box(
+        0, 255, shape=(4, 5, 3), dtype=np.uint8
+    )
+    assert pixels.shape == (1, 4, 5, 3)
+    assert pixels.dtype == np.uint8
+    np.testing.assert_array_equal(pixels[0, 0, 0], [0, 128, 255])
+
+
+def test_wrapper_prefers_hwc_for_ambiguous_float_image_shape(make_wrapper):
+    camera_values = np.arange(4 * 5 * 3, dtype=np.float32).reshape(4, 5, 3)
+    camera_values /= camera_values.max()
+    wrapper = make_wrapper(
+        num_envs=1,
+        observation_space=Dict(
+            {"camera": Box(0.0, 1.0, shape=(4, 5, 3), dtype=np.float32)}
+        ),
+        observation_config=ScholaObservationConfig(cameras={"front": "camera"}),
+    )
+
+    pixels = wrapper._convert_observation(
+        {"camera": camera_values[np.newaxis, ...]}
+    )["pixels"]["front"]
+
+    assert wrapper.single_observation_space["pixels"]["front"].shape == (4, 5, 3)
+    assert pixels.shape == (1, 4, 5, 3)
+    np.testing.assert_array_equal(
+        pixels[0],
+        np.rint(camera_values * 255).astype(np.uint8),
+    )
+
+
+def test_wrapper_rejects_unaccounted_observations(make_wrapper):
+    with pytest.raises(ValueError, match="does not account for.*unused"):
+        make_wrapper(
+            num_envs=2,
+            observation_space=Dict(
+                {
+                    "joints": Box(-1, 1, shape=(2,), dtype=np.float32),
+                    "unused": Box(-1, 1, shape=(1,), dtype=np.float32),
+                }
+            ),
+            observation_config=ScholaObservationConfig(vectors={"agent_pos": ["joints"]}),
+        )
+
+
+def test_wrapper_rejects_unsupported_camera_dtype(make_wrapper):
+    with pytest.raises(TypeError, match="float or uint8"):
+        make_wrapper(
+            num_envs=2,
+            observation_space=Dict(
+                {"camera": Box(0, 255, shape=(8, 8, 3), dtype=np.int32)}
+            ),
+            observation_config=ScholaObservationConfig(cameras={"front": "camera"}),
+        )
+
+
 @pytest.mark.parametrize(
     ("value", "expected"),
     [("true", True), ("FALSE", False), (True, True), (np.bool_(False), False)],

@@ -4,20 +4,24 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 import gymnasium as gym
 import numpy as np
-from gymnasium.spaces import Box, Dict
+from gymnasium.spaces import Box, Dict, Tuple
 from gymnasium.spaces.utils import flatten_space, unflatten
 from gymnasium.vector.utils import batch_space, concatenate, create_empty_array
 from lerobot.envs.utils import NEW_ROLLOUT_OPTION
 from lerobot_env_schola.config import ScholaObservationConfig
-from lerobot_env_schola.observations import (
-    BATCH_DIM,
-    BATCHED_IMAGE_NDIMS,
-    ObservationAdapter,
-)
+
+SINGLE_IMAGE_NDIMS = 3
+BATCHED_IMAGE_NDIMS = 4
+CHW_CHANNEL_DIM = -3
+HWC_CHANNEL_DIM = -1
+SUPPORTED_IMAGE_CHANNELS = (1, 3, 4)
+UINT8_MAX = np.iinfo(np.uint8).max
+BATCH_DIM = 0
 
 
 def _contains_only_boxes(space: gym.Space) -> bool:
@@ -58,8 +62,55 @@ def _coerce_success(value: Any) -> Any:
     )
 
 
-class LeRobotScholaVectorEnv(gym.vector.VectorWrapper):
-    """Adapt a Gymnasium vector environment carrying Schola data to LeRobot."""
+def _convert_image_space(space: gym.Space, name: str) -> tuple[Box, str]:
+    if not isinstance(space, Box) or len(space.shape) != SINGLE_IMAGE_NDIMS:
+        raise TypeError(f"Image observation {name!r} must be a three-dimensional Box")
+
+    is_float = np.issubdtype(space.dtype, np.floating)
+    is_uint8 = space.dtype == np.dtype(np.uint8)
+    if not (is_float or is_uint8):
+        raise TypeError(f"Image observation {name!r} must use float or uint8 values")
+    if is_float and not (np.all(space.low >= 0) and np.all(space.high <= 1)):
+        raise ValueError(
+            f"Floating-point image observation {name!r} must be bounded "
+            "within [0, 1]"
+        )
+
+    # Prefer channel-last when both edge dimensions look like channel counts.
+    # This matches the normalized output layout and avoids treating a small
+    # image height as channels (for example, an HWC shape of (4, 5, 3)).
+    if space.shape[HWC_CHANNEL_DIM] in SUPPORTED_IMAGE_CHANNELS:
+        height, width, channels = space.shape
+        layout = "hwc"
+    elif space.shape[CHW_CHANNEL_DIM] in SUPPORTED_IMAGE_CHANNELS:
+        channels, height, width = space.shape
+        layout = "chw"
+    else:
+        raise ValueError(
+            f"Image observation {name!r} must have 1, 3, or 4 channels; "
+            f"got shape {space.shape}"
+        )
+
+    mode = f"{layout}_{'float' if is_float else 'uint8'}"
+    return (
+        Box(0, UINT8_MAX, shape=(height, width, channels), dtype=np.uint8),
+        mode,
+    )
+
+
+def _convert_image_value(value: Any, mode: str) -> np.ndarray:
+    image = np.asarray(value)
+    if mode.startswith("chw"):
+        if image.ndim not in (SINGLE_IMAGE_NDIMS, BATCHED_IMAGE_NDIMS):
+            raise ValueError(f"Expected a CHW image batch, got shape {image.shape}")
+        image = np.moveaxis(image, CHW_CHANNEL_DIM, HWC_CHANNEL_DIM)
+    if mode.endswith("float"):
+        image = np.rint(np.clip(image, 0, 1) * UINT8_MAX).astype(np.uint8)
+    return np.ascontiguousarray(image)
+
+
+class LeRobotScholaVectorEnv(gym.vector.VectorEnv):
+    """Adapt Schola's vector environment to LeRobot's ``gym.vector.VectorEnv`` interface."""
 
     def __init__(
         self,
@@ -73,7 +124,7 @@ class LeRobotScholaVectorEnv(gym.vector.VectorWrapper):
         render_camera: str | None = None,
         render_fps: int = 30,
     ) -> None:
-        super().__init__(env)
+        super().__init__()
         if max_episode_steps < 1:
             raise ValueError("max_episode_steps must be at least 1")
         if render_fps < 1:
@@ -84,6 +135,8 @@ class LeRobotScholaVectorEnv(gym.vector.VectorWrapper):
                 "a Box or a nested Dict containing only Box spaces."
             )
 
+        self.env = env
+        self.num_envs = env.num_envs
         self.task = task
         self.task_description = task_description
         self._max_episode_steps = max_episode_steps
@@ -100,18 +153,21 @@ class LeRobotScholaVectorEnv(gym.vector.VectorWrapper):
         self.single_action_space = flat_action_space
         self.action_space = batch_space(flat_action_space, n=env.num_envs)
 
-        self.observation_adapter = ObservationAdapter(
-            source_space=env.single_observation_space,
-            config=observation_config,
-            num_envs=env.num_envs,
-        )
-        self.single_observation_space = (
-            self.observation_adapter.single_observation_space
+        self._observation_config = observation_config
+        self._image_modes: dict[str, str] = {}
+        self._vector_dtypes: dict[str, np.dtype] = {}
+        self._validate_observation_config(env.single_observation_space)
+        self.single_observation_space = self._build_observation_space(
+            env.single_observation_space
         )
         self.observation_space = batch_space(
             self.single_observation_space, n=env.num_envs
         )
         self._validate_render_camera()
+
+    @property
+    def unwrapped(self) -> gym.vector.VectorEnv:
+        return self.env.unwrapped
 
     def _validate_render_camera(self) -> None:
         pixels_space = self.single_observation_space.spaces.get("pixels")
@@ -134,6 +190,119 @@ class LeRobotScholaVectorEnv(gym.vector.VectorWrapper):
             raise ValueError(
                 "render_camera was set, but no observations are mapped under pixels"
             )
+
+    def _validate_observation_config(self, space: gym.Space) -> None:
+        """Check the config against Schola's actual observation space.
+
+        ``ScholaObservationConfig`` validates its own internal consistency
+        (overlaps, reserved names, duplicate sources) when constructed; this
+        only checks what can't be known until the real space is available.
+        """
+        if not isinstance(space, Dict):
+            raise TypeError(
+                "Schola must expose a Dict observation space so observations "
+                "can be grouped for LeRobot."
+            )
+
+        config = self._observation_config
+        claimed_keys: set[str] = set()
+
+        def claim_source(source_key: str, owner: str) -> None:
+            if source_key not in space.spaces:
+                raise ValueError(
+                    f"{owner} references unknown Schola observation " f"{source_key!r}"
+                )
+            claimed_keys.add(source_key)
+
+        for camera_name, source_key in config.cameras.items():
+            claim_source(source_key, f"camera {camera_name!r}")
+
+        for target_key, source_keys in config.vectors.items():
+            for source_key in source_keys:
+                claim_source(source_key, f"vector {target_key!r}")
+                if not isinstance(space.spaces[source_key], Box):
+                    raise TypeError(
+                        f"Vector source {source_key!r} must use a Box space"
+                    )
+
+        for target_key, source_key in config.passthrough.items():
+            claim_source(source_key, f"passthrough {target_key!r}")
+            if not isinstance(space.spaces[source_key], Box):
+                raise TypeError(
+                    f"Passthrough source {source_key!r} must use a Box space"
+                )
+
+        missing_keys = space.spaces.keys() - claimed_keys
+        if missing_keys:
+            raise ValueError(
+                "Observation configuration does not account for Schola keys: "
+                f"{sorted(missing_keys)}"
+            )
+
+    def _build_observation_space(self, space: gym.Space) -> Dict:
+        if not isinstance(space, Dict):
+            raise TypeError(
+                "Expected the validated Schola observation space to be a Dict"
+            )
+
+        config = self._observation_config
+        output_spaces: dict[str, gym.Space] = {}
+        if config.cameras:
+            camera_spaces: dict[str, gym.Space] = {}
+            for camera_name, source_key in config.cameras.items():
+                camera_spaces[camera_name], self._image_modes[source_key] = (
+                    _convert_image_space(space.spaces[source_key], source_key)
+                )
+            output_spaces["pixels"] = Dict(camera_spaces)
+
+        for target_key, source_keys in config.vectors.items():
+            source_spaces = [space.spaces[source_key] for source_key in source_keys]
+            flattened_space = flatten_space(Tuple(tuple(source_spaces)))
+            if not isinstance(flattened_space, Box):
+                raise TypeError(
+                    f"Vector output {target_key!r} did not flatten to a Box"
+                )
+            dtype = np.result_type(np.float32, flattened_space.dtype)
+            output_spaces[target_key] = Box(
+                low=flattened_space.low.astype(dtype, copy=False),
+                high=flattened_space.high.astype(dtype, copy=False),
+                dtype=dtype,
+            )
+            self._vector_dtypes[target_key] = np.dtype(dtype)
+
+        for target_key, source_key in config.passthrough.items():
+            output_spaces[target_key] = space.spaces[source_key]
+
+        return Dict(output_spaces)
+
+    def _convert_observation(self, observation: Mapping[str, Any]) -> dict[str, Any]:
+        """Convert one batched Schola observation to LeRobot's layout."""
+        config = self._observation_config
+        converted: dict[str, Any] = {}
+
+        if config.cameras:
+            converted["pixels"] = {
+                camera_name: _convert_image_value(
+                    observation[source_key],
+                    self._image_modes[source_key],
+                )
+                for camera_name, source_key in config.cameras.items()
+            }
+
+        for target_key, source_keys in config.vectors.items():
+            values = [
+                np.asarray(observation[source_key]).reshape(self.num_envs, -1)
+                for source_key in source_keys
+            ]
+            converted[target_key] = np.concatenate(values, axis=-1).astype(
+                self._vector_dtypes[target_key],
+                copy=False,
+            )
+
+        for target_key, source_key in config.passthrough.items():
+            converted[target_key] = observation[source_key]
+
+        return converted
 
     def _convert_action(self, action: np.ndarray) -> Any:
         action = np.asarray(action)
@@ -192,7 +361,7 @@ class LeRobotScholaVectorEnv(gym.vector.VectorWrapper):
             seed=seed,
             options=schola_options or None,
         )
-        converted_observation = self.observation_adapter.convert(observation)
+        converted_observation = self._convert_observation(observation)
         self._latest_observation = converted_observation
         return converted_observation, self._normalize_info(info)
 
@@ -202,7 +371,7 @@ class LeRobotScholaVectorEnv(gym.vector.VectorWrapper):
         observation, reward, terminated, truncated, info = self.env.step(
             self._convert_action(action)
         )
-        converted_observation = self.observation_adapter.convert(observation)
+        converted_observation = self._convert_observation(observation)
         self._latest_observation = converted_observation
         return (
             converted_observation,
@@ -260,3 +429,10 @@ class LeRobotScholaVectorEnv(gym.vector.VectorWrapper):
                 f"{type(self.env).__name__} does not support call({name!r})"
             )
         return tuple(call(name, *args, **kwargs))
+
+    def close_extras(self, **kwargs: Any) -> None:
+        # `VectorEnv.__del__` may call this on an instance whose `__init__` raised
+        # before `self.env` was assigned; tolerate that instead of erroring in `__del__`.
+        env = getattr(self, "env", None)
+        if env is not None:
+            env.close(**kwargs)

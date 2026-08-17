@@ -13,13 +13,15 @@ from gymnasium.spaces import Box, Dict, Tuple
 from gymnasium.spaces.utils import flatten_space, unflatten
 from gymnasium.vector.utils import batch_space, concatenate, create_empty_array
 from lerobot.envs.utils import NEW_ROLLOUT_OPTION
-from lerobot_env_schola.config import ScholaObservationConfig
+from lerobot_env_schola.config import (
+    HWC_CHANNEL_DIM,
+    SINGLE_IMAGE_NDIMS,
+    SUPPORTED_IMAGE_CHANNELS,
+    ScholaObservationConfig,
+)
 
-SINGLE_IMAGE_NDIMS = 3
 BATCHED_IMAGE_NDIMS = 4
 CHW_CHANNEL_DIM = -3
-HWC_CHANNEL_DIM = -1
-SUPPORTED_IMAGE_CHANNELS = (1, 3, 4)
 UINT8_MAX = np.iinfo(np.uint8).max
 BATCH_DIM = 0
 

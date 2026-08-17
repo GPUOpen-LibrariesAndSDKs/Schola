@@ -26,6 +26,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+SINGLE_IMAGE_NDIMS = 3
+HWC_CHANNEL_DIM = -1
+SUPPORTED_IMAGE_CHANNELS = (1, 3, 4)
+
 
 @dataclass
 class ScholaObservationConfig:
@@ -108,8 +112,9 @@ def infer_features_from_spaces(
                 if (
                     not isinstance(camera_space, Box)
                     or camera_space.dtype.name != "uint8"
-                    or len(camera_space.shape) != 3
-                    or camera_space.shape[-1] not in (1, 3, 4)
+                    or len(camera_space.shape) != SINGLE_IMAGE_NDIMS
+                    or camera_space.shape[HWC_CHANNEL_DIM]
+                    not in SUPPORTED_IMAGE_CHANNELS
                 ):
                     raise TypeError(
                         f"Nested observation {key!r}/{camera_name!r} must be a "
@@ -131,8 +136,8 @@ def infer_features_from_spaces(
             raise ValueError(f"Observation {key!r} must have at least one dimension")
         if (
             space.dtype.name == "uint8"
-            and len(space.shape) == 3
-            and space.shape[-1] in (1, 3, 4)
+            and len(space.shape) == SINGLE_IMAGE_NDIMS
+            and space.shape[HWC_CHANNEL_DIM] in SUPPORTED_IMAGE_CHANNELS
         ):
             features[key] = PolicyFeature(type=FeatureType.VISUAL, shape=space.shape)
             features_map[key] = OBS_IMAGE

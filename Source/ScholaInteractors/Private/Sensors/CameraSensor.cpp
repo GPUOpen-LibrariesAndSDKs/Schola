@@ -23,6 +23,13 @@ void UCameraSensor::InitSensor_Implementation()
 
 void UCameraSensor::GetObservationSpace_Implementation(FInstancedStruct& OutObservationSpace) const
 {
+	if (!TextureTarget)
+	{
+		UE_LOGFMT(LogScholaInteractors, Error, "UCameraSensor::GetObservationSpace_Implementation(): RenderTarget not found. Returning empty observation space.");
+		OutObservationSpace.InitializeAs<FBoxSpace>();
+		return;
+	}
+
 	int		  Width = TextureTarget->GetSurfaceWidth();
 	int		  Height = TextureTarget->GetSurfaceHeight();
 	FBoxSpace SpaceDefinition;
@@ -106,7 +113,10 @@ FString UCameraSensor::GenerateId() const
 	}
 
 	//Add width and height
-	Output = Output.Appendf(TEXT("_W%.3f_H%.3f"), TextureTarget->GetSurfaceWidth(), TextureTarget->GetSurfaceHeight()); // Width and Height
+	if (this->TextureTarget)
+	{
+		Output = Output.Appendf(TEXT("_W%.3f_H%.3f"), TextureTarget->GetSurfaceWidth(), TextureTarget->GetSurfaceHeight()); // Width and Height
+	}
 	return Output;
 }
 

@@ -754,5 +754,28 @@ bool FCameraSensor_InitSensor_ExistingRenderTarget_Test::RunTest(const FString& 
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FCameraSensor_GetObservationSpace_NullTarget_Test,
+	"Schola.Sensors.CameraSensor.ObservationSpace.NullTarget",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+bool FCameraSensor_GetObservationSpace_NullTarget_Test::RunTest(const FString& Parameters)
+{
+	AddExpectedError(TEXT("RenderTarget not found. Returning empty observation space."), EAutomationExpectedErrorFlags::Contains, 1);
+
+	UCameraSensor* Sensor = NewObject<UCameraSensor>();
+	Sensor->TextureTarget = nullptr;
+
+	FInstancedStruct ObservationSpace;
+	Sensor->GetObservationSpace_Implementation(ObservationSpace);
+
+	TestTrue(TEXT("Observation space is a BoxSpace"), ObservationSpace.GetScriptStruct() == FBoxSpace::StaticStruct());
+
+	const FBoxSpace& Space = ObservationSpace.Get<FBoxSpace>();
+	TestEqual(TEXT("Empty space has no dimensions"), Space.Dimensions.Num(), 0);
+	TestEqual(TEXT("Empty space has no shape"), Space.Shape.Num(), 0);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
 

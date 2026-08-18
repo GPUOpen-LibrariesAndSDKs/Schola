@@ -8,22 +8,14 @@ from dataclasses import asdict
 import os
 import logging
 import signal
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Optional,
-    Tuple,
-    Type,
-    cast,
-)
+from typing import Any, Callable, cast
 
 from schola.scripts.common.settings import (
     ExternalSimulatorConfig,
     GymSimulatorConfig,
     get_activation_function,
 )
-from schola.scripts.common.command_template import AlgorithmSpec, ScholaCommandTemplate
+from schola.scripts.common.command_template import ScholaCommandTemplate
 from schola.scripts.sb3.train.settings import (
     PPOTrainSettings,
     SACTrainSettings,
@@ -81,7 +73,7 @@ def warn_if_small_image_observation(observation_space, threshold: int = 64):
             break
 
 
-def main(args: Sb3TrainScriptSettings) -> Optional[Tuple[float, float]]:
+def main(args: Sb3TrainScriptSettings) -> (tuple[float, float]) | None:
     """
     Main function for training a Stable Baselines3 model using Schola.
 
@@ -92,7 +84,7 @@ def main(args: Sb3TrainScriptSettings) -> Optional[Tuple[float, float]]:
 
     Returns
     -------
-    Optional[Tuple[float,float]]
+    tuple[float, float] | None
         The mean and standard deviation of the rewards if evaluation is enabled, otherwise None.
     """
 
@@ -112,7 +104,7 @@ def main(args: Sb3TrainScriptSettings) -> Optional[Tuple[float, float]]:
 
     if args.logging_settings.enable_tensorboard:
         try:
-            import tensorboard  # pyright: ignore[reportMissingImports]
+            import tensorboard
         except Exception:
             logger.warning("tensorboard not installed. Disabling tensorboard logging")
             args.logging_settings.enable_tensorboard = False
@@ -132,10 +124,11 @@ def main(args: Sb3TrainScriptSettings) -> Optional[Tuple[float, float]]:
     from stable_baselines3.common.base_class import BaseAlgorithm
     from schola.sb3.export import save_model_as_onnx
     from stable_baselines3.common import utils
+    from stable_baselines3.common.off_policy_algorithm import OffPolicyAlgorithm
 
     # initialize so we can force closure at the end
     env = None
-    model: Optional[BaseAlgorithm] = None
+    model: BaseAlgorithm | None = None
     try:
         # This context manager redirects GRPC errors into custom error types to help debug
         with ScholaErrorContextManager() as err_ctxt:
@@ -193,7 +186,7 @@ def main(args: Sb3TrainScriptSettings) -> Optional[Tuple[float, float]]:
                     )
 
             if not model_loaded:
-                policy_kwargs: Optional[dict[str, Any]] = None
+                policy_kwargs: dict[str, Any] | None = None
                 if (
                     args.network_architecture_settings.activation
                     or args.network_architecture_settings.critic_parameters
@@ -259,16 +252,16 @@ def main(args: Sb3TrainScriptSettings) -> Optional[Tuple[float, float]]:
                     )
 
             if args.resume_settings.load_replay_buffer:
-                if hasattr(model, "load_replay_buffer"):
+                if isinstance(model, OffPolicyAlgorithm):
                     try:
-                        cast(Any, model).load_replay_buffer(
+                        model.load_replay_buffer(
                             args.resume_settings.load_replay_buffer
                         )
                     except Exception:
                         logger.warning("Error loading saved Replay Buffer. Skipping.")
                 else:
                     logger.warning(
-                        "resume_settings.load_replay_buffer was true but Model does not have a Replay Buffer to load to. Skipping."
+                        "resume_settings.load_replay_buffer was true but Model does not have a Replay Buffer to load. Skipping."
                     )
 
             callbacks = []
@@ -340,11 +333,10 @@ def main(args: Sb3TrainScriptSettings) -> Optional[Tuple[float, float]]:
 
                 if (
                     args.checkpoint_settings.save_vecnormalize
-                    and model.get_vec_normalize_env() is not None
+                    and (vec_normalize_env := model.get_vec_normalize_env()) is not None
                 ):
-                    vec_normalize_env = model.get_vec_normalize_env()
-                    assert vec_normalize_env is not None
-                    vec_normalize_env.save(                        os.path.join(
+                    vec_normalize_env.save(
+                        os.path.join(
                             args.checkpoint_settings.checkpoint_dir,
                             f"{args.name_prefix}_vec_normalize_final.zip",
                         )
@@ -375,7 +367,7 @@ def main(args: Sb3TrainScriptSettings) -> Optional[Tuple[float, float]]:
                     std_reward,
                 )
                 env.close()
-                return cast(tuple[float, float], (mean_reward, std_reward))
+                return mean_reward, std_reward  # type: ignore
             else:
                 logger.info("Evaluation disabled. Skipping.")
                 env.close()
@@ -401,20 +393,21 @@ class MetaTrainSB3Command(ScholaCommandTemplate[Sb3TrainScriptSettings]):
     """
 
     @property
-    def algorithm_specs(self):
+    def algorithm_table(self):
         return {
-            "sac": AlgorithmSpec(
-                SACTrainSettings,
-                "Train a model using Soft Actor-Critic (SAC) with Stable-Baselines3.",
-            ),
-            "ppo": AlgorithmSpec(
-                PPOTrainSettings,
-                "Train a model using Proximal Policy Optimization (PPO) with Stable-Baselines3.",
-            ),
+            "sac": SACTrainSettings,
+            "ppo": PPOTrainSettings,
         }
 
     @property
-    def script_args_type(self) -> Type[Sb3TrainScriptSettings]:
+    def algorithm_help(self):
+        return {
+            "sac": "Train a model using Soft Actor-Critic(SAC) with StableBaselines3.",
+            "ppo": "Train a model using Proximal Policy Optimization(PPO) with StableBaselines3.",
+        }
+
+    @property
+    def script_args_type(self) -> type[Sb3TrainScriptSettings]:
         return Sb3TrainScriptSettings
 
     @property

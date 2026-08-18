@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Tuple, Type
+from typing import Any, Callable, cast
 
 from cyclopts import App
 
@@ -33,11 +33,11 @@ logger = logging.getLogger(__name__)
 
 
 def _build_eval_config(
-    env_config: Dict[str, Any],
+    env_config: dict[str, Any],
     *,
     num_env_runners: int,
     spec: Any,
-    policies: Dict[str, Any],
+    policies: dict[str, Any],
     policy_mapping_fn: Callable[..., str],
     rllib_log_level: str,
 ) -> Any:
@@ -76,8 +76,8 @@ def _build_eval_config(
 
 
 def _shape_env_runner_metrics(
-    episode_returns: List[float], episode_lens: List[int]
-) -> Dict[str, Any]:
+    episode_returns: list[float], episode_lens: list[int]
+) -> dict[str, Any]:
     """Turn parallel lists of per-episode return and length into an ``env_runners`` dict."""
     if not episode_returns or not episode_lens:
         raise RuntimeError("Cannot shape eval metrics: no episodes were collected.")
@@ -108,7 +108,7 @@ def _sample_eval_episodes_via_env_runners(
     marl: Any,
     n_eval_episodes: int,
     num_env_runners: int,
-) -> Tuple[List[float], List[int]]:
+) -> tuple[list[float], list[int]]:
     """Sample up to ``n_eval_episodes`` through ``EnvRunnerGroup``.
 
     Starts envs from ``config``, loads ``marl`` weights into each runner, and samples
@@ -129,12 +129,12 @@ def _sample_eval_episodes_via_env_runners(
         local_env_runner=local_only,
     )
 
-    episode_returns: List[float] = []
-    episode_lens: List[int] = []
+    episode_returns: list[float] = []
+    episode_lens: list[int] = []
     try:
         rl_module_state = marl.get_state(inference_only=True)
         group.foreach_env_runner(
-            lambda r: r.set_state({COMPONENT_RL_MODULE: rl_module_state}),
+            lambda r: r.set_state({COMPONENT_RL_MODULE: rl_module_state}),  # type: ignore
             local_env_runner=local_only,
         )
 
@@ -175,7 +175,7 @@ def _sample_eval_episodes_via_env_runners(
     return episode_returns, episode_lens
 
 
-def main(args: RllibEvalScriptSettings) -> Dict[str, Any]:
+def main(args: RllibEvalScriptSettings) -> dict[str, Any]:
     """Entry point for ``schola rllib eval``: load modules, run env sampling, return metrics.
 
     Returns a dict with an ``env_runners`` namespace (``episode_reward_mean``,
@@ -213,15 +213,17 @@ def main(args: RllibEvalScriptSettings) -> Dict[str, Any]:
                 "this parameter will be ignored."
             )
 
+    if args.checkpoint is None:
+        raise ValueError("Checkpoint is required")
     ckpt = args.checkpoint.resolve()
     n_sim = args.environment_settings.simulator_settings.num_simulators
     num_env_runners = 0 if n_sim <= 1 else int(n_sim)
     cli_policy_map = args.policy_map or None
 
     try:
-        rl_dir = rl_module_dir_from_algorithm_checkpoint(Path(ckpt))
+        rl_dir = rl_module_dir_from_algorithm_checkpoint(ckpt)
         logger.info("Loading MultiRLModule from %s", rl_dir)
-        marl = MultiRLModule.from_checkpoint(rl_dir)
+        marl = cast(MultiRLModule, MultiRLModule.from_checkpoint(rl_dir))
 
         agent_ids, env_agent_to_policy, env_config = discover_env_metadata(
             args.environment_settings,
@@ -230,7 +232,7 @@ def main(args: RllibEvalScriptSettings) -> Dict[str, Any]:
         agent_to_policy = resolve_policy_mapping_for_eval(
             agent_ids=agent_ids,
             module_ids=marl.keys(),
-            checkpoint=Path(ckpt),
+            checkpoint=ckpt,
             env_agent_to_policy=env_agent_to_policy,
             cli_agent_to_policy=cli_policy_map,
         )
@@ -271,11 +273,11 @@ app = App(name="eval", help="Evaluate a trained RLlib policy from a checkpoint")
 
 class RllibEvalCommand(ScholaCommandTemplate[RllibEvalScriptSettings]):
     @property
-    def algorithm_table(self) -> Dict[str, Type[Any]]:
+    def algorithm_table(self) -> dict[str, type[Any]]:
         return {}
 
     @property
-    def script_args_type(self) -> Type[RllibEvalScriptSettings]:
+    def script_args_type(self) -> type[RllibEvalScriptSettings]:
         return RllibEvalScriptSettings
 
     @property

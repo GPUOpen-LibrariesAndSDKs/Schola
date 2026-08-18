@@ -144,7 +144,7 @@ class UnrealExecutable(BaseUnrealSimulator):
 
         Returns
         -------
-        List[str]
+        list[str]
             The arguments to be supplied to the Unreal Engine Executable
         """
 

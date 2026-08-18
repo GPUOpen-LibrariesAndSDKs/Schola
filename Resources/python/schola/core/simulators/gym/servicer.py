@@ -3,7 +3,7 @@
 """gRPC servicers exposing Gymnasium environments for Schola."""
 
 import functools
-from typing import Callable, List, Optional
+from typing import Callable
 import numpy as np
 from schola.core.protocols.protobuf.deserialize import from_proto
 from schola.core.protocols.protobuf.serialize import (
@@ -230,8 +230,8 @@ class GymToGymServiceServicer(GymServiceServicer):
 class VecGymToGymServiceServicer(GymServiceServicer):
     def __init__(
         self,
-        env_id: List[Callable[..., gym.Env]],
-        wrappers: Optional[list] = None,
+        env_id: list[Callable[..., gym.Env]],
+        wrappers: list | None = None,
     ):
 
         self._env_factory = [
@@ -242,7 +242,7 @@ class VecGymToGymServiceServicer(GymServiceServicer):
         self._agent_id = "single_agent"
         self._last_reset_obs = None
         self._last_reset_info = None
-        self._envs: Optional[List[gym.Env]] = None
+        self._envs: list[gym.Env] | None = None
         self._wrapper_classes = wrappers if wrappers else []
         self._completed_envs = np.array(
             [False for _ in range(self._n_envs)], dtype=np.bool_
@@ -250,7 +250,7 @@ class VecGymToGymServiceServicer(GymServiceServicer):
         self._autoreset_type: AutoResetType | None = None
 
     @property
-    def envs(self) -> List[gym.Env]:
+    def envs(self) -> list[gym.Env]:
         assert self._envs is not None, "Environments not initialized"
         return self._envs
 

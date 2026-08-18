@@ -6,10 +6,10 @@ Evaluate a trained Stable-Baselines3 policy against a Schola-backed environment.
 
 import logging
 import signal
-from typing import Callable, List, Tuple, Type, cast, Any
+from typing import Callable, cast, Any
 
 from cyclopts import App
-from schola.scripts.common.command_template import AlgorithmSpec, ScholaCommandTemplate
+from schola.scripts.common.command_template import ScholaCommandTemplate
 from schola.scripts.sb3.settings import BasePPOSettings, BaseSACSettings
 from schola.scripts.sb3.eval.settings import Sb3EvalScriptSettings
 
@@ -22,7 +22,7 @@ if not logging.getLogger().handlers:
 logger = logging.getLogger(__name__)
 
 
-def main(args: Sb3EvalScriptSettings) -> Tuple[float, float]:
+def main(args: Sb3EvalScriptSettings) -> tuple[float, float]:
     """
     Load a saved SB3 policy and run ``stable_baselines3.common.evaluation.evaluate_policy``.
 
@@ -94,16 +94,14 @@ def main(args: Sb3EvalScriptSettings) -> Tuple[float, float]:
                 env.set_options(options=args.environment_settings.env_options)
 
             monitored = VecMonitor(env)
-            ev = cast(
-                tuple[list[float], list[float]],
-                evaluate_policy(
-                    model,
-                    monitored,
-                    n_eval_episodes=args.n_eval_episodes,
-                    deterministic=args.deterministic,
-                    return_episode_rewards=True,
-                ),
-            )
+            ev: tuple[list[float], list[float]] = evaluate_policy(
+                model,
+                monitored,
+                n_eval_episodes=args.n_eval_episodes,
+                deterministic=args.deterministic,
+                return_episode_rewards=True,
+            )  # type: ignore
+
             episode_rewards, episode_lengths = ev[0], ev[1]
             mean_reward = float(np.mean(episode_rewards))
             std_reward = float(np.std(episode_rewards))
@@ -144,20 +142,21 @@ class MetaEvalSB3Command(ScholaCommandTemplate[Sb3EvalScriptSettings]):
     """
 
     @property
-    def algorithm_specs(self):
+    def algorithm_table(self):
         return {
-            "sac": AlgorithmSpec(
-                BaseSACSettings,
-                "Evaluate a model trained using Soft Actor-Critic (SAC) with Stable-Baselines3.",
-            ),
-            "ppo": AlgorithmSpec(
-                BasePPOSettings,
-                "Evaluate a model trained using Proximal Policy Optimization (PPO) with Stable-Baselines3.",
-            ),
+            "sac": BaseSACSettings,
+            "ppo": BasePPOSettings,
         }
 
     @property
-    def script_args_type(self) -> Type[Sb3EvalScriptSettings]:
+    def algorithm_help(self):
+        return {
+            "sac": "Evaluate a model trained using Soft Actor-Critic(SAC) with StableBaselines3.",
+            "ppo": "Evaluate a model trained using Proximal Policy Optimization(PPO) with StableBaselines3.",
+        }
+
+    @property
+    def script_args_type(self) -> type[Sb3EvalScriptSettings]:
         return Sb3EvalScriptSettings
 
     @property

@@ -9,7 +9,7 @@ exceptions are handled explicitly.
 
 from __future__ import annotations
 
-from typing import Iterable, Union
+from typing import Iterable
 import sys
 from rich.console import Console
 from cyclopts import CycloptsPanel
@@ -29,14 +29,14 @@ STYLE_INFO = "cyan"
 
 
 def print_panel(
-    message: Union[str, Iterable[str]], *, title: str = "", style: str = STYLE_INFO
+    message: str | Iterable[str], *, title: str = "", style: str = STYLE_INFO
 ) -> None:
     """
     Print a panel with the given message and style.
 
     Parameters
     ----------
-    message : Union[str, Iterable[str]]
+    message : str | Iterable[str]
         The message to print.
     title : str, optional
         The title of the panel, by default ""
@@ -50,13 +50,13 @@ def print_panel(
     )
 
 
-def print_error(message: Union[str, Iterable[str]]) -> None:  # noqa: D401
+def print_error(message: str | Iterable[str]) -> None:  # noqa: D401
     """
     Print an error panel and terminate with exit code 1.
 
     Parameters
     ----------
-    message : Union[str, Iterable[str]]
+    message : str | Iterable[str]
         The message to print.
     """
     print_panel(message, title="Error", style=STYLE_ERROR)
@@ -66,7 +66,7 @@ def print_error(message: Union[str, Iterable[str]]) -> None:  # noqa: D401
         raise
 
 
-def print_warning(message: Union[str, Iterable[str]]) -> None:  # noqa: D401
+def print_warning(message: str | Iterable[str]) -> None:  # noqa: D401
     """
     Print a non-fatal warning using a Rich panel (yellow styling).
 
@@ -78,7 +78,7 @@ def print_warning(message: Union[str, Iterable[str]]) -> None:  # noqa: D401
     print_panel(message, title="Warning", style=STYLE_WARNING)
 
 
-def print_info(message: Union[str, Iterable[str]]) -> None:  # noqa: D401
+def print_info(message: str | Iterable[str]) -> None:  # noqa: D401
     """
     Print an informational message using a Rich panel (cyan styling).
 

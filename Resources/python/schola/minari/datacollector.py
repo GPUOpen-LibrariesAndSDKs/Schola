@@ -1,7 +1,7 @@
 # Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
 """Bridge Schola imitation protocols to Minari's :class:`minari.DataCollector` API."""
 
-from typing import Optional
+from typing import Any, SupportsFloat
 
 import gymnasium as gym
 from minari import DataCollector
@@ -13,29 +13,33 @@ from schola.core.utils.id_manager import IdManager
 
 class _FakeGymEnv(gym.Env):
 
-    def __init__(self, observation_space: gym.Space, action_space: gym.Space):
-        self.observation_space = observation_space
-        self.action_space = action_space
+    def __init__(self, observation_space: gym.Space[Any], action_space: gym.Space[Any]):
+        self.observation_space: gym.Space[Any] = observation_space
+        self.action_space: gym.Space[Any] = action_space
         # These should all be set from the DataCollector
-        self.observations = None
-        self.rewards = None
-        self.terminations = None
-        self.truncations = None
-        self.infos = None
-        self.initial_obs = None
-        self.initial_infos = None
+        self.observations: Any | None = None
+        self.rewards: float | None = None
+        self.terminations: bool | None = None
+        self.truncations: bool | None = None
+        self.infos: dict[str, Any] = {}
+        self.initial_obs: Any | None = None
+        self.initial_infos: dict[str, Any] = {}
 
-    def reset(self, *args, **kwargs):
+    def reset(
+        self, *, seed: int | None = None, options: dict[str, Any] | None = None
+    ) -> tuple[Any, dict[str, Any]]:
         return self.initial_obs, self.initial_infos
 
-    def step(self, action):
+    def step(self, action: Any) -> tuple[Any, float, bool, bool, dict[str, Any]]:
+        # ignore the typing here for simplicity, this class is only used for the Datacollector and is mocking
+        # a gym env for the parent class
         return (
             self.observations,
             self.rewards,
             self.terminations,
             self.truncations,
             self.infos,
-        )
+        )  # type: ignore
 
 
 class ScholaDataCollector(DataCollector):
@@ -47,12 +51,14 @@ class ScholaDataCollector(DataCollector):
     Requires exactly one environment and one agent in the Schola definition.
     """
 
+    env: _FakeGymEnv
+
     def __init__(
         self,
         protocol: BaseImitationProtocol,
         simulator: BaseSimulator,
-        seed: Optional[int] = None,
-        options: Optional[dict] = None,
+        seed: int | None = None,
+        options: dict[str, Any] | None = None,
         record_infos: bool = False,
     ):
         self.protocol = protocol
@@ -87,7 +93,9 @@ class ScholaDataCollector(DataCollector):
             "Reset is not implemented for Minari DataCollection with Schola. The Environment will reset itself."
         )
 
-    def step(self, *args, **kwargs):
+    def step(
+        self, *args, **kwargs
+    ) -> tuple[Any, SupportsFloat, bool, bool, dict[str, Any]]:
         (
             observations,
             rewards,
@@ -125,6 +133,7 @@ class ScholaDataCollector(DataCollector):
             self.env.initial_obs = initial_obs[self._env_id][self._agent_id]
             self.env.initial_infos = initial_infos[self._env_id][self._agent_id]
             super().reset()
+        return step_output
 
     def close(self):
         self.protocol.close()

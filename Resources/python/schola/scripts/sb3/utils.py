@@ -5,7 +5,6 @@ Collection of custom callback classes for training NPCRL through Schola with sta
 
 import sys
 import time
-from typing import List
 from stable_baselines3.common.callbacks import BaseCallback, CallbackList
 import numpy as np
 
@@ -30,11 +29,11 @@ class SingleEnvRewardCallback(BaseCallback):
     ----------
     episode_reward : float
         The reward for the current episode.
-    episode_rewards : List[float]
+    episode_rewards : list[float]
         The rewards for each episode.
     episode_steps : int
         The number of steps taken in the current episode.
-    step_count : List[int]
+    step_count : list[int]
         The number of steps taken in each episode.
     last_logging_interval : int
         The last interval that was logged.
@@ -69,7 +68,7 @@ class SingleEnvRewardCallback(BaseCallback):
             self.last_logging_interval + self.logging_interval_size
         )
 
-    def _on_step(self):
+    def _on_step(self) -> bool:
         self.episode_steps += 1
         self.episode_reward += self.locals["rewards"][self.id]
         if self.locals["dones"][self.id]:
@@ -77,14 +76,15 @@ class SingleEnvRewardCallback(BaseCallback):
             self.step_count.append(self.episode_steps)
             self.episode_steps = 0
             self.episode_reward = 0
+        return True
 
-    def get_reward_interval(self) -> List[int]:
+    def get_reward_interval(self) -> list[int]:
         """
         Returns the rewards for the last logging interval.
 
         Returns
         -------
-        List[float]
+        list[float]
             The rewards for the last logging interval.
         """
         return self.episode_rewards[
@@ -92,13 +92,13 @@ class SingleEnvRewardCallback(BaseCallback):
             + self.logging_interval_size
         ]
 
-    def get_step_interval(self) -> List[int]:
+    def get_step_interval(self) -> list[int]:
         """
         Returns the steps taken for each episode in the last logging interval.
 
         Returns
         -------
-        List[int]
+        list[int]
             The steps taken for each episode in the last logging interval.
         """
         return self.step_count[
@@ -130,7 +130,7 @@ class RewardCallback(CallbackList):
     ----------
     num_envs : int
         The number of environments to log rewards and steps for.
-    callbacks : List[SingleEnvRewardCallback]
+    callbacks : list[SingleEnvRewardCallback]
         The list of RewardLoggingCallbacks for each environment.
     summarize_every : int
         The frequency at which to log the rewards and steps taken.
@@ -262,7 +262,7 @@ class CustomProgressBarCallback(BaseCallback):
     stable_baselines3.common.callbacks.ProgressBarCallback : The original progress bar callback from stable baselines3.
     """
 
-    pbar: tqdm
+    pbar: tqdm  # type: ignore
 
     def __init__(self) -> None:
         super().__init__()
@@ -278,7 +278,7 @@ class CustomProgressBarCallback(BaseCallback):
         # Remove timesteps that were done in previous training sessions
         self.pbar = tqdm(
             initial=self.model.num_timesteps, total=self.locals["total_timesteps"]
-        )
+        )  # pyright: ignore[reportOptionalCall]
 
     def _on_step(self) -> bool:
         # Update progress bar, we do num_envs steps per call to `env.step()`

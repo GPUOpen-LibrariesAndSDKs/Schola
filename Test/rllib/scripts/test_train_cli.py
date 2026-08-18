@@ -9,6 +9,8 @@ from cyclopts import App
 import pytest
 from ray.rllib.algorithms.ppo import PPOConfig
 from ray.rllib.env.env_context import EnvContext
+from ray.rllib.env.multi_agent_episode import MultiAgentEpisode
+from ray.rllib.utils.typing import EpisodeType
 
 from schola.scripts.common.settings import UnrealExecutableSimulatorConfig
 from schola.scripts.rllib.train.train import (
@@ -100,18 +102,18 @@ def test_agent_type_policy_mapping_fn():
     )
     agent_to_policy = env.make_agent_to_policy()
     policy_mapping_fn = make_policy_mapping_fn_from_dict(agent_to_policy)
-
+    dummy_episode = MultiAgentEpisode()
     assert agent_to_policy == {
         "Tagger_0": "Tagger",
         "Tagger_1": "Tagger",
         "Runner_0": "Runner",
         "Solo_0": "Solo_0",
     }
-    assert policy_mapping_fn("Tagger_0") == "Tagger"
-    assert policy_mapping_fn("Tagger_1") == "Tagger"
-    assert policy_mapping_fn("Runner_0") == "Runner"
-    assert policy_mapping_fn("Solo_0") == "Solo_0"
-    assert policy_mapping_fn("Unknown_0") == "Unknown_0"
+    assert policy_mapping_fn("Tagger_0", dummy_episode) == "Tagger"
+    assert policy_mapping_fn("Tagger_1", dummy_episode) == "Tagger"
+    assert policy_mapping_fn("Runner_0", dummy_episode) == "Runner"
+    assert policy_mapping_fn("Solo_0", dummy_episode) == "Solo_0"
+    assert policy_mapping_fn("Unknown_0", dummy_episode) == "Unknown_0"
 
 
 def test_get_restored_env_steps_reads_checkpoint_state(tmp_path):

@@ -224,7 +224,7 @@ def get_sln_file_from_project(project_folder: Path) -> Path | None:
 
     Returns
     -------
-    Optional[Path]
+    Path | None
         Path to the .sln file if found, None otherwise.
     """
     for file in os.listdir(project_folder):
@@ -246,7 +246,7 @@ def get_ubt_path(sln_or_project_folder: Path, ue_version: str = "5.5") -> Path |
 
     Returns
     -------
-    Optional[Path]
+    Path | None
         Path to the RunUAT batch/shell script if found, None otherwise.
     """
     sln_file = None
@@ -347,11 +347,11 @@ def quick_build_unreal_project(
 
     Parameters
     ----------
-    project_folder : str
+    project_folder : Path | str
         Path to the project folder containing the .uproject file.
-    build_dir : str
+    build_dir : Path | str
         Directory where the built executable will be staged.
-    ubt_path : Optional[str], optional
+    ubt_path : Path | str, optional
         Path to the Unreal Build Tool. If None, it will be auto-detected.
 
     Returns

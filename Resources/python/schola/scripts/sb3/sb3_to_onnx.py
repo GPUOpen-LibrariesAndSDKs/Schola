@@ -6,7 +6,7 @@ Script to convert a Stable Baselines3 model to an ONNX model for use in Unreal E
 
 import enum
 from cyclopts import App, Parameter, types
-from typing import Annotated, Literal, Type
+from typing import Annotated, Literal
 
 export_onnx_app = App(
     name="sb3-to-onnx",

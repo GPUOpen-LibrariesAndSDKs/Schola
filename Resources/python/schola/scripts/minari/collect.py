@@ -5,7 +5,7 @@ Script to collect imitation learning datasets using Minari and Schola.
 """
 
 import logging
-from typing import Any, Callable, Literal, Type
+from typing import Any, Callable, Literal
 from typing_extensions import Annotated
 
 from schola.scripts.common.command_template import ScholaCommandTemplate
@@ -134,7 +134,7 @@ class CollectMinariCommand(ScholaCommandTemplate[MinariScriptSettings]):
         return {}
 
     @property
-    def script_args_type(self) -> Type[MinariScriptSettings]:
+    def script_args_type(self) -> type[MinariScriptSettings]:
         return MinariScriptSettings
 
     @property

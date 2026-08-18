@@ -10,7 +10,7 @@ class UTextureRenderTarget2D;
 /**
  * @brief Utilities for converting camera render targets into Schola box points.
  */
-struct SCHOLAINTERACTORS_API FCameraSensorUtils
+namespace FCameraSensorUtils
 {
 	/**
 	 * @brief Converts a row-major FColor bitmap into a normalized FBoxPoint.
@@ -26,7 +26,7 @@ struct SCHOLAINTERACTORS_API FCameraSensorUtils
 	 * @param[out] OutBoxPoint Populated box point; left unchanged when Bitmap size does not match Width * Height.
 	 * @return True if the bitmap was converted successfully.
 	 */
-	static bool ConvertBitmapToBoxPoint(
+	SCHOLAINTERACTORS_API bool ConvertBitmapToBoxPoint(
 		const TArray<FColor>& Bitmap,
 		int32 Width,
 		int32 Height,
@@ -41,8 +41,8 @@ struct SCHOLAINTERACTORS_API FCameraSensorUtils
 	 * @param[out] OutBoxPoint Populated box point.
 	 * @return True if pixels were read and converted successfully.
 	 */
-	static bool ReadRenderTargetToBoxPoint(
+	SCHOLAINTERACTORS_API bool ReadRenderTargetToBoxPoint(
 		UTextureRenderTarget2D* TextureTarget,
 		uint8 EnabledValidChannels,
 		FBoxPoint& OutBoxPoint);
-};
+}

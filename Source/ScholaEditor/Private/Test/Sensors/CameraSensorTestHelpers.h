@@ -120,6 +120,38 @@ namespace ScholaCameraSensorTest
 		float MaxMean,
 		const TCHAR* Context);
 
+	/**
+	 * @brief Mean of a single channel over the half-open pixel rect [Min, Max).
+	 *
+	 * Region is expressed in image pixel coordinates (X = column, Y = row).
+	 */
+	float ComputeBoxPointRegionMean(
+		const FBoxPoint& BoxPoint,
+		int32 ChannelIndex,
+		const FIntRect& Region,
+		int32 Width,
+		int32 Height);
+
+	/**
+	 * @brief Assert that a channel is brighter in one image region than another.
+	 *
+	 * Useful for spatial-localization checks (e.g. a cube rendered in the centre of the frame
+	 * should be brighter than the background corners). Compares mean(BrightRegion) against
+	 * mean(DimRegion) and requires the difference to be at least MinDelta.
+	 *
+	 * @return True if mean(BrightRegion) - mean(DimRegion) >= MinDelta.
+	 */
+	bool AssertBoxPointRegionBrighter(
+		FAutomationTestBase& Test,
+		const FBoxPoint& BoxPoint,
+		int32 ChannelIndex,
+		const FIntRect& BrightRegion,
+		const FIntRect& DimRegion,
+		int32 Width,
+		int32 Height,
+		float MinDelta,
+		const TCHAR* Context);
+
 	UCameraSensor* SpawnCameraSensor(
 		UWorld* World,
 		const FVector& Location,

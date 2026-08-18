@@ -224,16 +224,18 @@ namespace ScholaCameraSensorTest
 			FMath::IsNearlyEqual(Actual, ExpectedValue, Tolerance));
 	}
 
-	static float ComputeRegionMean(
+	float ComputeBoxPointRegionMean(
 		const FBoxPoint& BoxPoint,
 		int32 ChannelIndex,
-		int32 StartY,
-		int32 EndY,
-		int32 StartX,
-		int32 EndX,
+		const FIntRect& Region,
 		int32 Width,
 		int32 Height)
 	{
+		const int32 StartX = FMath::Clamp(Region.Min.X, 0, Width);
+		const int32 EndX = FMath::Clamp(Region.Max.X, 0, Width);
+		const int32 StartY = FMath::Clamp(Region.Min.Y, 0, Height);
+		const int32 EndY = FMath::Clamp(Region.Max.Y, 0, Height);
+
 		float Sum = 0.0f;
 		int32 Count = 0;
 		for (int32 Y = StartY; Y < EndY; ++Y)
@@ -245,6 +247,24 @@ namespace ScholaCameraSensorTest
 			}
 		}
 		return Count > 0 ? Sum / static_cast<float>(Count) : 0.0f;
+	}
+
+	static float ComputeRegionMean(
+		const FBoxPoint& BoxPoint,
+		int32 ChannelIndex,
+		int32 StartY,
+		int32 EndY,
+		int32 StartX,
+		int32 EndX,
+		int32 Width,
+		int32 Height)
+	{
+		return ComputeBoxPointRegionMean(
+			BoxPoint,
+			ChannelIndex,
+			FIntRect(StartX, StartY, EndX, EndY),
+			Width,
+			Height);
 	}
 
 	bool AssertBoxPointRegionMeanAbove(
@@ -283,6 +303,30 @@ namespace ScholaCameraSensorTest
 		return Test.TestTrue(
 			FString::Printf(TEXT("%s: region mean %.3f should be below %.3f"), Context, Mean, MaxMean),
 			Mean < MaxMean);
+	}
+
+	bool AssertBoxPointRegionBrighter(
+		FAutomationTestBase& Test,
+		const FBoxPoint& BoxPoint,
+		int32 ChannelIndex,
+		const FIntRect& BrightRegion,
+		const FIntRect& DimRegion,
+		int32 Width,
+		int32 Height,
+		float MinDelta,
+		const TCHAR* Context)
+	{
+		const float BrightMean = ComputeBoxPointRegionMean(BoxPoint, ChannelIndex, BrightRegion, Width, Height);
+		const float DimMean = ComputeBoxPointRegionMean(BoxPoint, ChannelIndex, DimRegion, Width, Height);
+		return Test.TestTrue(
+			FString::Printf(
+				TEXT("%s: channel %d bright-region mean %.3f should exceed dim-region mean %.3f by >= %.3f"),
+				Context,
+				ChannelIndex,
+				BrightMean,
+				DimMean,
+				MinDelta),
+			(BrightMean - DimMean) >= MinDelta);
 	}
 
 	UCameraSensor* SpawnCameraSensor(

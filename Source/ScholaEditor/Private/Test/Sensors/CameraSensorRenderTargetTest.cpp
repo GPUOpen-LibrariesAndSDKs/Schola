@@ -45,7 +45,7 @@ bool FCameraSensorReadback_SolidRedBase_Test::RunTest(const FString& Parameters)
 	FBoxPoint BoxPoint;
 	TestTrue(
 		TEXT("ReadRenderTargetToBoxPoint succeeds"),
-		FCameraSensorUtils::ReadRenderTargetToBoxPoint(RenderTarget, EnabledChannels, BoxPoint));
+		CameraSensorUtils::ReadRenderTargetToBoxPoint(RenderTarget, EnabledChannels, BoxPoint));
 
 	AssertBoxPointShape(*this, BoxPoint, 3, Height, Width, TEXT("SolidRed.Base"));
 	AssertBoxPointChannelNear(*this, BoxPoint, 0, Height / 2, Width / 2, Width, Height, 1.0f, GColorTolerance, TEXT("SolidRed.Base R"));
@@ -82,7 +82,7 @@ bool FCameraSensorReadback_SolidRedWithAlpha_Test::RunTest(const FString& Parame
 	FBoxPoint BoxPoint;
 	TestTrue(
 		TEXT("ReadRenderTargetToBoxPoint succeeds"),
-		FCameraSensorUtils::ReadRenderTargetToBoxPoint(RenderTarget, EnabledChannels, BoxPoint));
+		CameraSensorUtils::ReadRenderTargetToBoxPoint(RenderTarget, EnabledChannels, BoxPoint));
 
 	AssertBoxPointShape(*this, BoxPoint, 4, Height, Width, TEXT("SolidRed.WithAlpha"));
 	AssertBoxPointChannelNear(*this, BoxPoint, 3, Height / 2, Width / 2, Width, Height, 1.0f, GColorTolerance, TEXT("SolidRed.WithAlpha A"));
@@ -121,7 +121,7 @@ bool FCameraSensorReadback_ViaCollectObservations_Test::RunTest(const FString& P
 	FBoxPoint DirectBoxPoint;
 	TestTrue(
 		TEXT("Direct readback succeeds"),
-		FCameraSensorUtils::ReadRenderTargetToBoxPoint(Sensor->TextureTarget, EnabledValidChannels, DirectBoxPoint));
+		CameraSensorUtils::ReadRenderTargetToBoxPoint(Sensor->TextureTarget, EnabledValidChannels, DirectBoxPoint));
 
 	FInstancedStruct Observations;
 	Sensor->CollectObservations_Implementation(Observations);
@@ -164,7 +164,7 @@ bool FCameraSensorReadback_ChannelMaskROnly_Test::RunTest(const FString& Paramet
 	FBoxPoint BoxPoint;
 	TestTrue(
 		TEXT("ReadRenderTargetToBoxPoint succeeds"),
-		FCameraSensorUtils::ReadRenderTargetToBoxPoint(RenderTarget, EnabledChannels, BoxPoint));
+		CameraSensorUtils::ReadRenderTargetToBoxPoint(RenderTarget, EnabledChannels, BoxPoint));
 
 	AssertBoxPointShape(*this, BoxPoint, 1, Height, Width, TEXT("ChannelMask.R_Only"));
 
@@ -219,7 +219,7 @@ bool FCameraSensorReadback_ChannelMaskRGOnly_Test::RunTest(const FString& Parame
 	FBoxPoint BoxPoint;
 	TestTrue(
 		TEXT("ReadRenderTargetToBoxPoint succeeds"),
-		FCameraSensorUtils::ReadRenderTargetToBoxPoint(RenderTarget, EnabledChannels, BoxPoint));
+		CameraSensorUtils::ReadRenderTargetToBoxPoint(RenderTarget, EnabledChannels, BoxPoint));
 
 	AssertBoxPointShape(*this, BoxPoint, 2, Height, Width, TEXT("ChannelMask.RG_Only"));
 
@@ -272,7 +272,7 @@ bool FCameraSensorReadback_NonSquare_Test::RunTest(const FString& Parameters)
 	FBoxPoint BoxPoint;
 	TestTrue(
 		TEXT("ReadRenderTargetToBoxPoint succeeds"),
-		FCameraSensorUtils::ReadRenderTargetToBoxPoint(RenderTarget, EnabledChannels, BoxPoint));
+		CameraSensorUtils::ReadRenderTargetToBoxPoint(RenderTarget, EnabledChannels, BoxPoint));
 
 	AssertBoxPointShape(*this, BoxPoint, 3, Height, Width, TEXT("NonSquare"));
 
@@ -297,7 +297,7 @@ bool FCameraSensorReadback_NullTarget_Test::RunTest(const FString& Parameters)
 	FBoxPoint BoxPoint;
 	TestFalse(
 		TEXT("ReadRenderTargetToBoxPoint fails for null target"),
-		FCameraSensorUtils::ReadRenderTargetToBoxPoint(nullptr, 15, BoxPoint));
+		CameraSensorUtils::ReadRenderTargetToBoxPoint(nullptr, 15, BoxPoint));
 
 	return true;
 }
@@ -318,7 +318,7 @@ bool FCameraSensorReadback_UninitializedResource_Test::RunTest(const FString& Pa
 	FBoxPoint BoxPoint;
 	TestFalse(
 		TEXT("ReadRenderTargetToBoxPoint fails without initialized resource"),
-		FCameraSensorUtils::ReadRenderTargetToBoxPoint(RenderTarget, 15, BoxPoint));
+		CameraSensorUtils::ReadRenderTargetToBoxPoint(RenderTarget, 15, BoxPoint));
 
 	return true;
 }

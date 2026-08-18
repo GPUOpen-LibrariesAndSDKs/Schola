@@ -10,7 +10,7 @@ class UTextureRenderTarget2D;
 /**
  * @brief Utilities for converting camera render targets into Schola box points.
  */
-namespace FCameraSensorUtils
+namespace CameraSensorUtils
 {
 	/**
 	 * @brief Converts a row-major FColor bitmap into a normalized FBoxPoint.

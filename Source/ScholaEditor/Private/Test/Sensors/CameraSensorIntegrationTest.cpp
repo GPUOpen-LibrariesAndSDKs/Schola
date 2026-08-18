@@ -136,7 +136,7 @@ bool FCameraSensorIntegration_InvalidChannelsStripped_Test::RunTest(const FStrin
 	FBoxPoint BoxPoint;
 	TestTrue(
 		TEXT("ConvertBitmapToBoxPoint succeeds"),
-		FCameraSensorUtils::ConvertBitmapToBoxPoint(
+		CameraSensorUtils::ConvertBitmapToBoxPoint(
 			Bitmap,
 			8,
 			8,

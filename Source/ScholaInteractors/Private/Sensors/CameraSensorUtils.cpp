@@ -30,7 +30,7 @@ namespace
 	}
 }
 
-namespace FCameraSensorUtils
+namespace CameraSensorUtils
 {
 	bool ConvertBitmapToBoxPoint(
 		const TArray<FColor>& Bitmap,
@@ -46,7 +46,7 @@ namespace FCameraSensorUtils
 			UE_LOGFMT(
 				LogScholaInteractors,
 				Error,
-				"FCameraSensorUtils::ConvertBitmapToBoxPoint(): Bitmap size ({0}) does not match Width * Height ({1}).",
+				"CameraSensorUtils::ConvertBitmapToBoxPoint(): Bitmap size ({0}) does not match Width * Height ({1}).",
 				Bitmap.Num(),
 				ChannelStride);
 			return false;
@@ -99,14 +99,14 @@ namespace FCameraSensorUtils
 	{
 		if (!TextureTarget)
 		{
-			UE_LOGFMT(LogScholaInteractors, Error, "FCameraSensorUtils::ReadRenderTargetToBoxPoint(): TextureTarget is null.");
+			UE_LOGFMT(LogScholaInteractors, Error, "CameraSensorUtils::ReadRenderTargetToBoxPoint(): TextureTarget is null.");
 			return false;
 		}
 
 		FTextureRenderTargetResource* Resource = TextureTarget->GameThread_GetRenderTargetResource();
 		if (!Resource)
 		{
-			UE_LOGFMT(LogScholaInteractors, Error, "FCameraSensorUtils::ReadRenderTargetToBoxPoint(): Render target resource is null.");
+			UE_LOGFMT(LogScholaInteractors, Error, "CameraSensorUtils::ReadRenderTargetToBoxPoint(): Render target resource is null.");
 			return false;
 		}
 
@@ -116,7 +116,7 @@ namespace FCameraSensorUtils
 
 		if (!Resource->ReadPixels(Bitmap))
 		{
-			UE_LOGFMT(LogScholaInteractors, Error, "FCameraSensorUtils::ReadRenderTargetToBoxPoint(): ReadPixels failed.");
+			UE_LOGFMT(LogScholaInteractors, Error, "CameraSensorUtils::ReadRenderTargetToBoxPoint(): ReadPixels failed.");
 			return false;
 		}
 

@@ -67,7 +67,7 @@ void UCameraSensor::CollectObservations_Implementation(FInstancedStruct& OutObse
 	FBoxPoint& OutBoxPoint = OutObservations.GetMutable<FBoxPoint>();
 
 	const uint8 EnabledValidChannels = EnabledChannels & ~GetInvalidChannels();
-	if (!FCameraSensorUtils::ReadRenderTargetToBoxPoint(TextureTarget, EnabledValidChannels, OutBoxPoint))
+	if (!CameraSensorUtils::ReadRenderTargetToBoxPoint(TextureTarget, EnabledValidChannels, OutBoxPoint))
 	{
 		UE_LOGFMT(LogScholaInteractors, Error, "UCameraSensor::CollectObservations_Implementation(): Failed to read render target into observations.");
 	}

@@ -536,7 +536,7 @@ bool FCameraSensorUtils_ConvertBitmap_NoTranspose_Test::RunTest(const FString& P
 	FBoxPoint BoxPoint;
 	TestTrue(
 		TEXT("ConvertBitmapToBoxPoint succeeds"),
-		FCameraSensorUtils::ConvertBitmapToBoxPoint(
+		CameraSensorUtils::ConvertBitmapToBoxPoint(
 			Bitmap,
 			Width,
 			Height,
@@ -598,7 +598,7 @@ bool FCameraSensorUtils_ConvertBitmap_AllChannelMasks_Test::RunTest(const FStrin
 		FBoxPoint BoxPoint;
 		TestTrue(
 			FString::Printf(TEXT("ConvertBitmapToBoxPoint succeeds for mask %d"), Mask),
-			FCameraSensorUtils::ConvertBitmapToBoxPoint(Bitmap, Width, Height, Mask, BoxPoint));
+			CameraSensorUtils::ConvertBitmapToBoxPoint(Bitmap, Width, Height, Mask, BoxPoint));
 
 		int32 ExpectedChannels = 0;
 		if (Mask & static_cast<uint8>(EChannels::R)) { ++ExpectedChannels; }
@@ -645,7 +645,7 @@ bool FCameraSensorUtils_ConvertBitmap_Normalization_Test::RunTest(const FString&
 	FBoxPoint BoxPoint;
 	TestTrue(
 		TEXT("ConvertBitmapToBoxPoint succeeds"),
-		FCameraSensorUtils::ConvertBitmapToBoxPoint(
+		CameraSensorUtils::ConvertBitmapToBoxPoint(
 			Bitmap,
 			1,
 			1,
@@ -674,7 +674,7 @@ bool FCameraSensorUtils_ConvertBitmap_SizeMismatch_Test::RunTest(const FString& 
 	FBoxPoint BoxPoint;
 	TestFalse(
 		TEXT("ConvertBitmapToBoxPoint fails on size mismatch"),
-		FCameraSensorUtils::ConvertBitmapToBoxPoint(
+		CameraSensorUtils::ConvertBitmapToBoxPoint(
 			Bitmap,
 			1,
 			1,

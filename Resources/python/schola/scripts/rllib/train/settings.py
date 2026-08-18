@@ -16,8 +16,10 @@ from schola.scripts.common.settings import (
 
 from schola.scripts.rllib.settings import (
     APPOSettings,
+    BCSettings,
     IMPALASettings,
     LoggingSettings,
+    MARWILSettings,
     PPOSettings,
     ResourceSettings,
     RllibEnvironmentSettings,
@@ -150,7 +152,14 @@ class RllibScriptSettings:
     "Settings for configuring the training process."
 
     algorithm_settings: Annotated[
-        Union[PPOSettings, SACSettings, APPOSettings, IMPALASettings],
+        Union[
+            PPOSettings,
+            SACSettings,
+            APPOSettings,
+            IMPALASettings,
+            BCSettings,
+            MARWILSettings,
+        ],
         Parameter(show=False, parse=False),
     ] = field(default_factory=PPOSettings)
     "Settings for configuring the training algorithm to use."
@@ -186,7 +195,6 @@ class RllibScriptSettings:
         Parameter(group="Environment Arguments", name="*"),
     ] = field(default_factory=RllibEnvironmentSettings)
     "Settings for the environment to use during training"
-
 
 # Deprecated spellings; prefer RllibScriptSettings.
 RLlibScriptArgs = RllibScriptSettings

@@ -15,6 +15,7 @@ from cyclopts import App, Parameter, validators
 
 from schola.scripts.common.settings import (
     AllSimulatorConfigs,
+    BaseSimulatorConfig,
     EnvironmentSettings,
     ExternalSimulatorConfig,
     GrpcProtocolConfig,
@@ -22,7 +23,7 @@ from schola.scripts.common.settings import (
     UnrealExecutableSimulatorConfig,
     UnrealProjectSimulatorConfig,
 )
-from schola.scripts.common.command_template import ScholaCommandTemplate
+from schola.scripts.common.command_template import AlgorithmSpec, ScholaCommandTemplate
 
 # --- Fake script / algorithm types (minimal stand-ins for SB3/RLlib settings) ---
 
@@ -710,3 +711,39 @@ def test_invalid_yaml_no_alg_config_file_logs_error_with_details(
     assert "Error loading config file" in combined
     assert str(cfg) in combined
     assert " at " in combined
+
+
+def test_algorithm_specs_support_mixed_simulator_topologies(
+    mock_main: MagicMock,
+):
+    """An explicit empty simulator table creates a leaf beside online commands."""
+    class MixedTopologyCommand(ScholaCommandTemplate[FakeScriptSettings]):
+        @property
+        def algorithm_specs(self):
+            return {
+                "online": AlgorithmSpec(FakeAlgoAlpha, "online"),
+                "offline": AlgorithmSpec(FakeAlgoBeta, "offline", simulator_table={}),
+            }
+
+        @property
+        def simulator_table(self) -> Dict[str, Type[BaseSimulatorConfig[Any]]]:
+            return {"external": ExternalSimulatorConfig}
+
+        @property
+        def script_args_type(self):
+            return FakeScriptSettings
+
+        @property
+        def main_func(self):
+            return mock_main
+
+    app = App(name="mixed")
+    command = MixedTopologyCommand(app, logging.getLogger(__name__)).make()
+    command.meta(["offline"], result_action="return_value", exit_on_error=False)
+
+    args = mock_main.call_args[0][0]
+    assert isinstance(args.algorithm_settings, FakeAlgoBeta)
+    with pytest.raises(Exception):
+        command.meta(
+            ["offline", "external"], result_action="return_value", exit_on_error=False
+        )

@@ -90,9 +90,18 @@ minari = [
     "pillow",
 ]
 
-# All dependencies (sb3, rllib, minari). 
+# Dependencies for training RLlib's offline algorithms (BC, MARWIL) on Minari
+# datasets. RLlib reads offline episodes as msgpack-serialized Parquet, so both
+# the rllib and minari extras are needed alongside the msgpack codecs.
+offline = [
+    "schola[rllib,minari]",
+    "msgpack",
+    "msgpack-numpy",
+]
+
+# All dependencies (sb3, rllib, minari, offline).
 all = [
-    "schola[sb3,rllib,minari]",
+    "schola[sb3,rllib,minari,offline]",
 ]
 
 [project.scripts]

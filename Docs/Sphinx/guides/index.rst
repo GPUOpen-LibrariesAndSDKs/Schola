@@ -10,6 +10,7 @@ Guides
    setting_up_inference
    running_from_cli
    cli_dataclass_conventions
+   imitation_learning
    tips_and_tricks
    distributed_training
    migrating_to_v2

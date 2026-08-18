@@ -1,41 +1,36 @@
 # Copyright (c) 2024-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 """Code for Exporting RLlib Polices to the Schola Inference Interface"""
 
-from collections import defaultdict
-from itertools import chain
+import logging
 import pathlib
+from collections.abc import Callable
+from functools import cached_property, singledispatch
+from typing import TYPE_CHECKING, Any, cast
+
+import gymnasium as gym
+import torch as th
+from gymnasium.spaces import flatdim
 from ray.rllib.algorithms.algorithm import Algorithm
 from ray.rllib.algorithms.sac import SACTorchPolicy
 from ray.rllib.core.rl_module import MultiRLModule
 from ray.rllib.core.rl_module.rl_module import RLModule
 from ray.rllib.core.rl_module.torch.torch_rl_module import TorchRLModule
-from ray.rllib.models import ModelV2
 from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
+from ray.rllib.policy import Policy
 from ray.rllib.policy.torch_policy_v2 import TorchPolicyV2
 from ray.rllib.utils.torch_utils import flatten_inputs_to_1d_tensor
-import torch.nn as nn
-from gymnasium.spaces import Box, flatdim
-from functools import singledispatch
-from ray.rllib.policy import Policy
 
-import torch as th
-from ray.rllib.policy.sample_batch import SampleBatch
-import os
-import numpy as np
 from schola.core.model import *
-import gymnasium as gym
-from gymnasium import spaces
-import copy
-from schola.rllib.env import RayVecEnv
-from torch.export.dynamic_shapes import Dim
-from typing import Any, List, Optional, Set, Tuple, Dict, Union
-import logging
+from schola.core.utils.dict_helpers import DIterator
+
+if TYPE_CHECKING:
+    from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 
 logger = logging.getLogger(__name__)
 
 
 @singledispatch
-def export_onnx_from_policy(arg, path: pathlib.Path):
+def export_onnx_from_policy(arg: object, _path: pathlib.Path) -> None:
     """
     Export an RLlib policy to ONNX format.
 
@@ -71,30 +66,32 @@ def export_onnx_from_policy(arg, path: pathlib.Path):
     )
 
 
-@export_onnx_from_policy.register
+@export_onnx_from_policy.register(Policy)
 def _(
     arg: Policy,
     path: pathlib.Path,
-    observation_space: Optional[gym.Space] = None,
-    action_space: Optional[gym.Space] = None,
-):
+    observation_space: gym.Space[Any] | None = None,
+    action_space: gym.Space[Any] | None = None,
+) -> None:
     if path.is_dir():
         path = path / "default_policy.onnx"
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
     schola_model = RllibScholaModel(
-        arg, observation_space=observation_space, action_space=action_space
+        cast(TorchPolicyV2, arg),
+        observation_space=observation_space,
+        action_space=action_space,
     )
     schola_model.save_as_onnx(path)
 
 
-@export_onnx_from_policy.register
+@export_onnx_from_policy.register(dict)
 def _(
-    arg: dict,
+    arg: dict[str, Policy],
     path: pathlib.Path,
-    observation_spaces: Dict[str, gym.Space] = None,
-    action_spaces: Dict[str, gym.Space] = None,
-):
+    observation_spaces: dict[str, gym.Space[Any]] | None = None,
+    action_spaces: dict[str, gym.Space[Any]] | None = None,
+) -> None:
     observation_spaces = observation_spaces if observation_spaces is not None else {}
     action_spaces = action_spaces if action_spaces is not None else {}
     if path.is_file():
@@ -113,27 +110,27 @@ def _(
         )
 
 
-@export_onnx_from_policy.register
-def _(arg: str, path: pathlib.Path):
+@export_onnx_from_policy.register(str)
+def _(arg: str, path: pathlib.Path) -> None:
     # dir and other stuff is handled later
     policy = Policy.from_checkpoint(arg)
     export_onnx_from_policy(policy, path)
 
 
-@export_onnx_from_policy.register
-def _(arg: pathlib.Path, path: pathlib.Path):
+@export_onnx_from_policy.register(pathlib.Path)
+def _(arg: pathlib.Path, path: pathlib.Path) -> None:
     # dir and other stuff is handled later
     policy = Policy.from_checkpoint(str(arg))
     export_onnx_from_policy(policy, path)
 
 
-@export_onnx_from_policy.register
+@export_onnx_from_policy.register(TorchRLModule)
 def _(
     arg: TorchRLModule,
     path: pathlib.Path,
-    observation_space: gym.Space = None,
-    action_space: gym.Space = None,
-):
+    observation_space: gym.Space[Any] | None = None,
+    action_space: gym.Space[Any] | None = None,
+) -> None:
     if path.is_dir():
         path = path / "default_policy.onnx"
     if not path.exists():
@@ -144,13 +141,13 @@ def _(
     schola_model.save_as_onnx(path)
 
 
-@export_onnx_from_policy.register
+@export_onnx_from_policy.register(MultiRLModule)
 def _(
     arg: MultiRLModule,
     path: pathlib.Path,
-    observation_spaces: Dict[str, gym.Space] = None,
-    action_spaces: Dict[str, gym.Space] = None,
-):
+    observation_spaces: dict[str, gym.Space[Any]] | None = None,
+    action_spaces: dict[str, gym.Space[Any]] | None = None,
+) -> None:
     """
     Export a multiagent module to ONNX format.
     Parameters
@@ -175,13 +172,18 @@ def _(
 
     for k, module in arg.items():
         # remap the observation space which has agents as keys to the policy name
+        if observation_spaces is None or action_spaces is None:
+            raise ValueError(
+                "observation_spaces and action_spaces are required when exporting "
+                + "a MultiRLModule."
+            )
         export_onnx_from_policy(
             module, path / f"{k}.onnx", observation_spaces[k], action_spaces[k]
         )
 
 
-@export_onnx_from_policy.register
-def _(arg: Algorithm, path: pathlib.Path):
+@export_onnx_from_policy.register(Algorithm)
+def _(arg: Algorithm, path: pathlib.Path) -> None:
     # arg.spaces["__env_single__"] is a tuple (observation_space, action_space)
     if arg.spaces is None:
         raise RuntimeError("No spaces found on Algorithm while exporting to ONNX")
@@ -193,10 +195,10 @@ def _(arg: Algorithm, path: pathlib.Path):
     obs_space, act_space = arg.spaces["__env_single__"]
 
     if arg.env_runner is not None:
-        module = arg.env_runner.module
+        module = cast(Any, arg.env_runner).module
     elif arg.env_runner_group is not None:
         module = arg.env_runner_group.foreach_env_runner(
-            lambda er: er.module,
+            lambda er: cast(Any, er).module,
             remote_worker_ids=[1],
             local_env_runner=False,
         )[0]
@@ -208,13 +210,57 @@ def _(arg: Algorithm, path: pathlib.Path):
     # All agent's mapping to the same policy will have the same observation space so we can just overwrite the values.
     # We can't use the policy observation space as it is already flattened.
     if isinstance(module, MultiRLModule) and arg.get_config() is not None:
+        config = cast("AlgorithmConfig", arg.get_config())
+        mapping_fn = config.policy_mapping_fn
+        if mapping_fn is None:
+            raise RuntimeError(
+                "Algorithm config must define policy_mapping_fn for multi-agent "
+                + "ONNX export."
+            )
+        map_agent_to_policy = cast(Callable[[Any], str], mapping_fn)
         obs_space = {
-            arg.get_config().policy_mapping_fn(k): v for k, v in obs_space.items()
+            map_agent_to_policy(k): v for k, v in obs_space.items()
         }
         act_space = {
-            arg.get_config().policy_mapping_fn(k): v for k, v in act_space.items()
+            map_agent_to_policy(k): v for k, v in act_space.items()
         }
     export_onnx_from_policy(module, path, obs_space, act_space)
+
+
+def export_onnx_from_training(
+    results: Any,
+    observation_space: gym.Space[Any] | None = None,
+    action_space: gym.Space[Any] | None = None,
+) -> None:
+    """Export the final model from a completed Tune run.
+
+    When original spaces are supplied, the run came from an offline dataset.
+    Load its learner module directly because an offline Algorithm has no
+    EnvRunner from which the regular Algorithm exporter can retrieve a module.
+    """
+    if not results.trials or not results.trials[-1].path:
+        logger.warning("No completed Tune trial was available for ONNX export.")
+        return
+    last_checkpoint = results.get_last_checkpoint()
+    if last_checkpoint is None:
+        logger.warning(
+            "No checkpoint was written, so there is no trained model to export to ONNX."
+        )
+        return
+
+    trial_path = pathlib.Path(results.trials[-1].path)
+    if observation_space is None or action_space is None:
+        export_onnx_from_policy(Algorithm.from_checkpoint(last_checkpoint), trial_path)
+    else:
+        from schola.rllib.checkpoint import load_rl_module_from_algorithm_checkpoint
+
+        export_onnx_from_policy(
+            load_rl_module_from_algorithm_checkpoint(pathlib.Path(last_checkpoint.path)),
+            trial_path,
+            observation_space,
+            action_space,
+        )
+    logger.info("Models exported to ONNX at %s", trial_path)
 
 
 class ScholaRLModule(ScholaModel):
@@ -241,21 +287,28 @@ class ScholaRLModule(ScholaModel):
     def __init__(
         self,
         rl_module: RLModule,
-        observation_space: Optional[gym.Space] = None,
-        action_space: Optional[gym.Space] = None,
-        ignored_state_keys: Tuple[str] = ("critic",),
-    ):
-        super().__init__(
-            observation_space=(
-                observation_space
-                if observation_space is not None
-                else rl_module.observation_space
-            ),
-            action_space=(
-                action_space if action_space is not None else rl_module.action_space
-            ),
+        observation_space: gym.Space[Any] | None = None,
+        action_space: gym.Space[Any] | None = None,
+        ignored_state_keys: tuple[str, ...] = ("critic",),
+    ) -> None:
+        resolved_observation_space = (
+            observation_space
+            if observation_space is not None
+            else rl_module.observation_space
         )
-        self.rl_module = rl_module.to("cpu")
+        resolved_action_space = (
+            action_space if action_space is not None else rl_module.action_space
+        )
+        if resolved_observation_space is None or resolved_action_space is None:
+            raise ValueError(
+                "Observation and action spaces must be provided or defined on the "
+                + "RLModule for ONNX export."
+            )
+        super().__init__(
+            observation_space=resolved_observation_space,
+            action_space=resolved_action_space,
+        )
+        self.rl_module: TorchRLModule = cast(TorchRLModule, rl_module).to("cpu")
         self.rl_module.eval()
         if observation_space is None and isinstance(
             self.rl_module.observation_space, gym.spaces.Box
@@ -265,7 +318,7 @@ class ScholaRLModule(ScholaModel):
             )
         self.ignored_state_keys = ignored_state_keys
 
-    @property
+    @cached_property
     def initial_state_dict(self) -> NestedDict[str, th.Tensor]:
         # drop any critic state as we don't need it for onnx export
         return kfilter_dict(
@@ -276,10 +329,10 @@ class ScholaRLModule(ScholaModel):
 
     @property
     def num_state_inputs(self) -> int:
-        return len(self.state_input_dict.keys())
+        return len(self.input_state_keys)
 
     # override the default here because ray outputs extra variance dimensions that we don't need for box spaces
-    def get_logit_dimensions(self) -> Dict[str, int]:
+    def get_logit_dimensions(self) -> dict[str, int]:
         custom_flat_dim_func = lambda space: (
             2 * flatdim(space) if isinstance(space, gym.spaces.Box) else flatdim(space)
         )
@@ -291,8 +344,7 @@ class ScholaRLModule(ScholaModel):
         # must always be even so we can just divide here
         return logits[: len(logits) // 2]
 
-    def forward(self, *args: th.Tensor) -> Tuple[th.Tensor]:
-
+    def forward(self, *args: th.Tensor) -> tuple[th.Tensor, ...]:
         # split the state and observation inputs into two separate dictionaries
         # Note: zip stops on the shortest iterator, so this will eventually read all the inputs
         args_iter = iter(args)
@@ -303,15 +355,17 @@ class ScholaRLModule(ScholaModel):
         # TODO this likely breaks shaped Image inputs being batched with other inputs.
         # ~acann, 2026-02-03
         # we need to be very specific here because it is possible that we are using LSTM but have no state inputs, if everything is filtered
+        module_inputs: dict[str, Any]
         if self.rl_module.is_stateful():
             # using LSTM, so we need to add an extra dim before flattening
 
             module_inputs = {
-                "obs": flatten_inputs_to_1d_tensor(
-                    tensor_dict, self.observation_space.spaces
-                ).unsqueeze(
-                    1
-                )  # type: ignore
+                "obs": cast(
+                    th.Tensor,
+                    flatten_inputs_to_1d_tensor(
+                        tensor_dict, self.observation_space.spaces
+                    ),
+                ).unsqueeze(1)
             }
             batch_size = module_inputs["obs"].shape[0]
 
@@ -397,42 +451,50 @@ class RllibScholaModel(ScholaModel):
     def __init__(
         self,
         policy: TorchPolicyV2,
-        observation_space: Optional[gym.Space] = None,
-        action_space: Optional[gym.Space] = None,
-    ):
+        observation_space: gym.Space[Any] | None = None,
+        action_space: gym.Space[Any] | None = None,
+    ) -> None:
+        resolved_observation_space = (
+            observation_space
+            if observation_space is not None
+            else policy.observation_space
+        )
+        resolved_action_space = (
+            action_space if action_space is not None else policy.action_space
+        )
         super().__init__(
-            observation_space=(
-                observation_space
-                if observation_space is not None
-                else policy.observation_space
-            ),
-            action_space=(
-                action_space if action_space is not None else policy.action_space
-            ),
+            observation_space=resolved_observation_space,
+            action_space=resolved_action_space,
         )
         self._policy = policy
+        policy_model = cast(TorchModelV2, policy.model)
         # for SAC the model.forward is a no-op, so we need to use the action model instead
         if isinstance(policy, SACTorchPolicy):
-            self._model: TorchModelV2 = policy.model.action_model.to("cpu")
+            sac_action_model = cast(TorchModelV2, cast(Any, policy_model).action_model)
+            self._model = cast(
+                TorchModelV2, cast(th.nn.Module, sac_action_model).to("cpu")
+            )
         else:
-            self._model: TorchModelV2 = policy.model.to("cpu")
+            self._model = cast(
+                TorchModelV2, cast(th.nn.Module, policy_model).to("cpu")
+            )
         # update the dummy batch here
         self._policy._dummy_batch = (
             self._policy._get_dummy_batch_from_view_requirements(1)
         )
         self._policy._lazy_tensor_dict(self._policy._dummy_batch)
 
-    @property
+    @cached_property
     def initial_state_dict(self) -> NestedDict[str, th.Tensor]:
         # State is a 2D tensor with shape [seq_len, state_dim]
         return dict(
             map(
-                lambda x: (str(x[0]), x[1].unsqueeze(0)),
+                lambda x: (str(x[0]), cast(th.Tensor, x[1]).unsqueeze(0)),
                 enumerate(self._model.get_initial_state()),
             )
         )
 
-    @property
+    @cached_property
     def state_metadata(self) -> NestedDict[str, StateMetadata]:
         return (
             DIterator(self.initial_state_dict)
@@ -444,7 +506,7 @@ class RllibScholaModel(ScholaModel):
             .to_dict()
         )
 
-    def forward(self, *args: th.Tensor) -> Tuple[th.Tensor, ...]:
+    def forward(self, *args: th.Tensor) -> tuple[th.Tensor, ...]:
         """
         Forward pass through the model. Removes variance outputs, to make compatible with Unreal.
         """
@@ -470,7 +532,7 @@ class RllibScholaModel(ScholaModel):
         )
 
         logits, state_outputs = self._model.forward(
-            inputs, list(state_dict.values()), seq_lens
+            inputs, list(state_dict.values()), cast(Any, seq_lens)
         )
         # model_out[0] is the logits, model_out[1] is the state
         # check if state is 3D meaning a rnn model, if not, view it as 1x1x1
@@ -478,7 +540,7 @@ class RllibScholaModel(ScholaModel):
         return self.make_outputs(logits) + state_outputs
 
     # override the default here because ray outputs extra variance dimensions that we don't need for box spaces
-    def get_logit_dimensions(self) -> Dict[str, int]:
+    def get_logit_dimensions(self) -> dict[str, int]:
         custom_flat_dim_func = lambda space: (
             2 * flatdim(space) if isinstance(space, gym.spaces.Box) else flatdim(space)
         )

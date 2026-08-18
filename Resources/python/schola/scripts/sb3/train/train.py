@@ -23,7 +23,7 @@ from schola.scripts.common.settings import (
     GymSimulatorConfig,
     get_activation_function,
 )
-from schola.scripts.common.command_template import ScholaCommandTemplate
+from schola.scripts.common.command_template import AlgorithmSpec, ScholaCommandTemplate
 from schola.scripts.sb3.train.settings import (
     PPOTrainSettings,
     SACTrainSettings,
@@ -112,7 +112,7 @@ def main(args: Sb3TrainScriptSettings) -> Optional[Tuple[float, float]]:
 
     if args.logging_settings.enable_tensorboard:
         try:
-            import tensorboard
+            import tensorboard  # pyright: ignore[reportMissingImports]
         except Exception:
             logger.warning("tensorboard not installed. Disabling tensorboard logging")
             args.logging_settings.enable_tensorboard = False
@@ -261,9 +261,9 @@ def main(args: Sb3TrainScriptSettings) -> Optional[Tuple[float, float]]:
             if args.resume_settings.load_replay_buffer:
                 if hasattr(model, "load_replay_buffer"):
                     try:
-                        model.load_replay_buffer(
+                        cast(Any, model).load_replay_buffer(
                             args.resume_settings.load_replay_buffer
-                        )  # type: ignore
+                        )
                     except Exception:
                         logger.warning("Error loading saved Replay Buffer. Skipping.")
                 else:
@@ -342,8 +342,9 @@ def main(args: Sb3TrainScriptSettings) -> Optional[Tuple[float, float]]:
                     args.checkpoint_settings.save_vecnormalize
                     and model.get_vec_normalize_env() is not None
                 ):
-                    model.get_vec_normalize_env().save(
-                        os.path.join(
+                    vec_normalize_env = model.get_vec_normalize_env()
+                    assert vec_normalize_env is not None
+                    vec_normalize_env.save(                        os.path.join(
                             args.checkpoint_settings.checkpoint_dir,
                             f"{args.name_prefix}_vec_normalize_final.zip",
                         )
@@ -374,7 +375,7 @@ def main(args: Sb3TrainScriptSettings) -> Optional[Tuple[float, float]]:
                     std_reward,
                 )
                 env.close()
-                return mean_reward, std_reward  # type: ignore
+                return cast(tuple[float, float], (mean_reward, std_reward))
             else:
                 logger.info("Evaluation disabled. Skipping.")
                 env.close()
@@ -400,17 +401,16 @@ class MetaTrainSB3Command(ScholaCommandTemplate[Sb3TrainScriptSettings]):
     """
 
     @property
-    def algorithm_table(self):
+    def algorithm_specs(self):
         return {
-            "sac": SACTrainSettings,
-            "ppo": PPOTrainSettings,
-        }
-
-    @property
-    def algorithm_help(self):
-        return {
-            "sac": "Train a model using Soft Actor-Critic(SAC) with StableBaselines3.",
-            "ppo": "Train a model using Proximal Policy Optimization(PPO) with StableBaselines3.",
+            "sac": AlgorithmSpec(
+                SACTrainSettings,
+                "Train a model using Soft Actor-Critic (SAC) with Stable-Baselines3.",
+            ),
+            "ppo": AlgorithmSpec(
+                PPOTrainSettings,
+                "Train a model using Proximal Policy Optimization (PPO) with Stable-Baselines3.",
+            ),
         }
 
     @property

@@ -1,12 +1,18 @@
 # Copyright (c) 2024 Advanced Micro Devices, Inc. All Rights Reserved.
+from __future__ import annotations
+
 """
 Shared settings dataclasses for RLlib scripts (algorithms, resources, logging).
 """
 
-from typing import Annotated, Any, Dict, Type
+from pathlib import Path
+from typing import TYPE_CHECKING, Annotated, Any, Dict, Optional
 from dataclasses import dataclass, field
 
 from cyclopts import Parameter, validators
+
+if TYPE_CHECKING:
+    from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 
 from schola.scripts.common.settings import (
     AllSimulatorConfigs,
@@ -34,6 +40,11 @@ class RllibAlgorithmSpecificSettings:
         """
         ...
 
+    @property
+    def rllib_config(self) -> type[AlgorithmConfig]:
+        """Return the RLlib ``AlgorithmConfig`` subclass for this algorithm."""
+        ...
+
 
 @dataclass
 class PPOSettings(RllibAlgorithmSpecificSettings):
@@ -53,7 +64,7 @@ class PPOSettings(RllibAlgorithmSpecificSettings):
     "Whether to use Generalized Advantage Estimation (GAE) for advantage calculation. GAE is a method to reduce the variance of the advantage estimates while keeping bias low. If set to False, the standard advantage calculation will be used instead."
 
     @property
-    def rllib_config(self) -> Type["PPOConfig"]:  # type: ignore
+    def rllib_config(self) -> type[AlgorithmConfig]:
         from ray.rllib.algorithms.ppo.ppo import PPOConfig
 
         return PPOConfig
@@ -96,7 +107,7 @@ class SACSettings(RllibAlgorithmSpecificSettings):
     "Whether to use twin Q networks (double Q-learning). This helps reduce overestimation bias in Q-value estimates."
 
     @property
-    def rllib_config(self) -> Type["SACConfig"]:  # type: ignore
+    def rllib_config(self) -> type[AlgorithmConfig]:
         from ray.rllib.algorithms.sac.sac import SACConfig
 
         return SACConfig
@@ -135,7 +146,7 @@ class IMPALASettings(RllibAlgorithmSpecificSettings):
     "The clip threshold for V-trace rho values in the policy gradient."
 
     @property
-    def rllib_config(self) -> Type["IMPALAConfig"]:  # type: ignore
+    def rllib_config(self) -> type[AlgorithmConfig]:
         from ray.rllib.algorithms.impala.impala import IMPALAConfig
 
         return IMPALAConfig
@@ -159,7 +170,7 @@ class APPOSettings(IMPALASettings, PPOSettings):
     """
 
     @property
-    def rllib_config(self) -> Type["APPOConfig"]:  # type: ignore
+    def rllib_config(self) -> type[AlgorithmConfig]:
         from ray.rllib.algorithms.appo.appo import APPOConfig
 
         return APPOConfig
@@ -172,6 +183,97 @@ class APPOSettings(IMPALASettings, PPOSettings):
         return {
             **IMPALASettings.get_settings_dict(self),
             **PPOSettings.get_settings_dict(self),
+        }
+
+
+@dataclass
+class OfflineRllibAlgorithmSettings(RllibAlgorithmSpecificSettings):
+    """Shared input and resource settings for data-only RLlib algorithms."""
+
+    dataset_id: Annotated[str, Parameter(alias="-d")]
+    "The id of the local Minari dataset to train on, for example ``my-demo-v0``. Collect one with ``schola minari collect``."
+
+    converted_data_dir: Optional[Path] = None
+    "Cache root for converted RLlib data. Each dataset conversion is stored in a Schola-owned fingerprinted child directory and reused when it matches the source dataset."
+
+    input_read_batch_size: Annotated[
+        int, Parameter(validator=validators.Number(gte=1))
+    ] = 128
+    "Number of episodes read from the dataset before they are unpacked into training batches."
+
+    dataset_num_iters_per_learner: Annotated[
+        int, Parameter(validator=validators.Number(gte=1))
+    ] = 1
+    "Number of data batches each learner draws per training iteration."
+
+    conversion_episodes_per_shard: Annotated[
+        int, Parameter(validator=validators.Number(gte=1))
+    ] = 64
+    "Maximum number of recorded episodes stored in each converted Parquet shard."
+
+    offline_data_workers: Annotated[
+        int, Parameter(validator=validators.Number(gte=1))
+    ] = 2
+    "Number of RLlib OfflinePreLearner workers used to transform recorded episodes."
+
+    offline_read_cpus: Annotated[
+        int, Parameter(validator=validators.Number(gte=1))
+    ] = 1
+    "CPUs reserved for Ray Data reads that feed the offline learner workers."
+
+
+@dataclass
+class BCSettings(OfflineRllibAlgorithmSettings):
+    """
+    Dataclass for Behaviour Cloning (BC) settings. BC learns to reproduce the actions in a recorded demonstration dataset by supervised learning, ignoring rewards entirely. Use it to bootstrap a policy from human gameplay collected with ``schola minari collect``.
+    """
+
+    @property
+    def rllib_config(self) -> type[AlgorithmConfig]:
+        from ray.rllib.algorithms.bc import BCConfig
+
+        return BCConfig
+
+    @property
+    def name(self) -> str:
+        return "BC"
+
+    def get_settings_dict(self):
+        return {}
+
+
+@dataclass
+class MARWILSettings(OfflineRllibAlgorithmSettings):
+    """
+    Dataclass for MARWIL (Monotonic Advantage Re-Weighted Imitation Learning) settings. MARWIL weights each demonstrated action by its estimated advantage, so it can exceed the demonstrator by preferring the better demonstrated behaviour. Setting beta to zero reduces MARWIL to plain behaviour cloning.
+    """
+
+    beta: Annotated[float, Parameter(validator=validators.Number(gte=0.0, lte=1.0))] = (
+        1.0
+    )
+    "The advantage weighting coefficient. At 0.0 all demonstrated actions are weighted equally and MARWIL reduces to behaviour cloning. Higher values put more weight on demonstrated actions with a high estimated advantage, letting the policy improve on an inconsistent demonstrator."
+
+    bc_logstd_coeff: float = 0.0
+    "Coefficient on the log standard deviation term in the loss, for continuous action spaces. Leave at 0.0 to keep the demonstrated action spread; raise it to encourage a tighter (more deterministic) policy."
+
+    vf_coeff: Annotated[float, Parameter(validator=validators.Number(gte=0.0))] = 1.0
+    "Weight of the value function loss relative to the policy loss. MARWIL needs a value estimate to compute advantages, so this only has an effect when beta is greater than 0."
+
+    @property
+    def rllib_config(self) -> type[AlgorithmConfig]:
+        from ray.rllib.algorithms.marwil import MARWILConfig
+
+        return MARWILConfig
+
+    @property
+    def name(self) -> str:
+        return "MARWIL"
+
+    def get_settings_dict(self):
+        return {
+            "beta": self.beta,
+            "bc_logstd_coeff": self.bc_logstd_coeff,
+            "vf_coeff": self.vf_coeff,
         }
 
 

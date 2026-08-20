@@ -4,39 +4,31 @@ from __future__ import annotations
 """End-to-end checks that a demonstration recorded through Schola's imitation API
 carries everything the offline RLlib algorithms need.
 
-The unit tests in ``test_offline.py`` feed the converter hand-built stand-ins for
-``minari.EpisodeData``, so they only prove the converter matches our reading of
-the Minari layout. These tests record a dataset the way a user does -- over the
-imitation gRPC connector, through ``ScholaDataCollector`` -- and then convert it,
-so the spaces, the observation/action alignment and the column layout are the
-real ones.
+These tests record over the imitation gRPC connector through
+``RllibImitationCollector`` and write RLlib Parquet, so the spaces and
+observation/action alignment are the real ones.
 """
 
 import os
 import subprocess
 import sys
-from typing import Any, cast
+from typing import Any
+
 import numpy as np
 import pytest
 import gymnasium as gym
 from gymnasium import spaces
 
+from schola.core.error_manager import UnrealCrashedError
 from schola.core.protocols.protobuf.offline_grpc_protocol import GrpcImitationProtocol
 from schola.core.simulators.unreal.editor_simulator import UnrealEditor
-from schola.minari.datacollector import ScholaDataCollector
+from schola.rllib.collector import RllibImitationCollector
 from schola.rllib.offline import (
     get_training_observation_space,
-    minari_episode_to_rllib,
+    load_offline_dataset,
+    write_offline_dataset,
 )
 
-
-_DATASET_KWARGS = {
-    "algorithm_name": "schola_test_expert",
-    "author": "Schola CI",
-    "author_email": "schola-ci@example.com",
-    "code_permalink": "https://github.com/GPUOpen-LibrariesAndSDKs/Schola",
-    "description": "Imitation dataset for offline training tests",
-}
 
 EPISODE_LENGTH = 6
 KEY_PICKUP_STEP = 3
@@ -89,31 +81,25 @@ class _KeyAndDoorExpert:
 
 
 @pytest.fixture
-def minari_dataset_dir(tmp_path, monkeypatch):
-    dataset_path = tmp_path / "minari_datasets"
-    dataset_path.mkdir()
-    monkeypatch.setenv("MINARI_DATASETS_PATH", str(dataset_path))
-    return dataset_path
-
-
-@pytest.fixture
-def recorded_dataset(make_imitation_server, minari_dataset_dir):
+def recorded_dataset(make_imitation_server, tmp_path):
     """Record demonstrations over the imitation connector, as a user would."""
     port = make_imitation_server(_KeyAndDoorEnv, _KeyAndDoorExpert)
-    collector = ScholaDataCollector(
+    collector = RllibImitationCollector(
         GrpcImitationProtocol(url="localhost", port=port),
         UnrealEditor(),
         seed=123,
     )
-    # Two full episodes; the environment resets itself on termination.
-    for _ in range(2 * EPISODE_LENGTH):
-        collector.step()
-
-    dataset = collector.create_dataset(
-        "schola-imitation-v0", **cast(Any, _DATASET_KWARGS)
-    )
-    yield dataset
-    collector.close()
+    try:
+        episodes = collector.collect_until_closed(max_steps=2 * EPISODE_LENGTH)
+        output = write_offline_dataset(
+            episodes,
+            tmp_path / "demos",
+            collector.observation_space,
+            collector.action_space,
+        )
+    finally:
+        collector.close()
+    yield load_offline_dataset(output), episodes
 
 
 def test_recorded_spaces_survive_the_round_trip(recorded_dataset):
@@ -122,8 +108,9 @@ def test_recorded_spaces_survive_the_round_trip(recorded_dataset):
     Nothing else supplies them offline: there is no environment to ask, and the
     ONNX export needs the per-sensor names to build one model input per sensor.
     """
-    observation_space = recorded_dataset.observation_space
-    action_space = recorded_dataset.action_space
+    (_path, training_space, observation_space, action_space), _episodes = (
+        recorded_dataset
+    )
 
     assert isinstance(observation_space, spaces.Dict)
     assert set(observation_space.spaces) == {"RelativeDirections", "KeyCaptured"}
@@ -131,20 +118,12 @@ def test_recorded_spaces_survive_the_round_trip(recorded_dataset):
     assert observation_space["KeyCaptured"].shape == (1,)
     assert isinstance(action_space, spaces.MultiDiscrete)
     np.testing.assert_array_equal(action_space.nvec, [2, 3])
-
+    assert training_space.shape == (7,)
     assert get_training_observation_space(observation_space).shape == (7,)
 
 
-def test_recorded_episodes_convert_to_rllib_episodes(recorded_dataset):
-    """Conversion must handle the column layout Minari actually writes."""
-    episodes = [
-        minari_episode_to_rllib(
-            episode,
-            recorded_dataset.observation_space,
-            recorded_dataset.action_space,
-        )
-        for episode in recorded_dataset.iterate_episodes()
-    ]
+def test_recorded_episodes_are_rllib_episodes(recorded_dataset):
+    _loaded, episodes = recorded_dataset
 
     assert episodes, "The imitation session recorded no complete episodes"
     for episode in episodes:
@@ -155,18 +134,11 @@ def test_recorded_episodes_convert_to_rllib_episodes(recorded_dataset):
 def test_recorded_actions_stay_aligned_with_their_observations(recorded_dataset):
     """Each action must still sit against the state it was taken in.
 
-    An off-by-one anywhere between the connector, Minari's collector and the
-    converter would train the policy on the next state's label, and it would
-    still look like a healthy training run.
+    An off-by-one anywhere between the connector and the collector would train
+    the policy on the next state's label, and it would still look like a
+    healthy training run.
     """
-    episodes = [
-        minari_episode_to_rllib(
-            episode,
-            recorded_dataset.observation_space,
-            recorded_dataset.action_space,
-        )
-        for episode in recorded_dataset.iterate_episodes()
-    ]
+    _loaded, episodes = recorded_dataset
 
     for episode in episodes:
         observations = episode.get_observations()
@@ -183,11 +155,36 @@ def test_recorded_actions_stay_aligned_with_their_observations(recorded_dataset)
 
 def test_expert_behaviour_is_visible_in_the_recording(recorded_dataset):
     """The recording must contain both phases, or alignment proves nothing."""
+    _loaded, episodes = recorded_dataset
     turns = set()
-    for episode in recorded_dataset.iterate_episodes():
-        turns.update(int(action[1]) for action in np.asarray(episode.actions))
+    for episode in episodes:
+        turns.update(int(np.asarray(action)[1]) for action in episode.get_actions())
 
     assert turns == {1, 2}
+
+
+def test_collection_stops_when_the_session_ends(make_imitation_server):
+    """A dropped imitation stream is a clean end, not a failed collection."""
+    port = make_imitation_server(_KeyAndDoorEnv, _KeyAndDoorExpert)
+    protocol = GrpcImitationProtocol(url="localhost", port=port)
+    collector = RllibImitationCollector(protocol, UnrealEditor(), seed=1)
+    original_get_data = protocol.get_data
+    calls = {"count": 0}
+
+    def get_data_then_drop():
+        calls["count"] += 1
+        if calls["count"] > 3:
+            raise UnrealCrashedError(Exception("session ended"))
+        return original_get_data()
+
+    protocol.get_data = get_data_then_drop  # type: ignore[method-assign]
+    try:
+        episodes = collector.collect_until_closed()
+    finally:
+        collector.close()
+
+    assert episodes
+    assert all(len(episode) >= 1 for episode in episodes)
 
 
 def test_recorded_dataset_trains_and_exports_onnx(recorded_dataset, tmp_path):
@@ -198,6 +195,7 @@ def test_recorded_dataset_trains_and_exports_onnx(recorded_dataset, tmp_path):
     to hang rather than fail when Ray was short of CPUs, so a regression there
     must time out instead of stalling the run.
     """
+    (data_path, _training, _obs, _act), _episodes = recorded_dataset
     checkpoint_dir = tmp_path / "run"
     checkpoint_dir.mkdir()
 
@@ -207,10 +205,9 @@ def test_recorded_dataset_trains_and_exports_onnx(recorded_dataset, tmp_path):
             "-m",
             "schola.scripts.launch",
             "rllib",
-            "train",
             "bc",
-            "--dataset-id",
-            "schola-imitation-v0",
+            "--input",
+            str(data_path),
             "--timesteps",
             "512",
             "--export-onnx",
@@ -219,7 +216,6 @@ def test_recorded_dataset_trains_and_exports_onnx(recorded_dataset, tmp_path):
         ],
         env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         capture_output=True,
-        # Ray logs non-ASCII characters that the console encoding cannot decode.
         encoding="utf-8",
         errors="replace",
         timeout=600,
@@ -232,8 +228,6 @@ def test_recorded_dataset_trains_and_exports_onnx(recorded_dataset, tmp_path):
 
     onnx = pytest.importorskip("onnx")
     model = onnx.load(str(exported[0]))
-    # Unreal feeds inference one input per sensor, so the recorded sensor names
-    # have to reach the exported model.
     assert {graph_input.name for graph_input in model.graph.input} == {
         "RelativeDirections",
         "KeyCaptured",

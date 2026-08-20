@@ -31,10 +31,13 @@ from gymnasium import spaces
 import copy
 from schola.rllib.env import RayVecEnv
 from torch.export.dynamic_shapes import Dim
-from typing import Any, TypedDict, cast
+from typing import TYPE_CHECKING, Any, TypedDict, cast
 import logging
 
 from schola.rllib.policy_mapping import PolicyMappingFn
+
+if TYPE_CHECKING:
+    from ray.tune import ExperimentAnalysis
 
 logger = logging.getLogger(__name__)
 
@@ -254,9 +257,9 @@ def _(arg: Algorithm, path: pathlib.Path) -> None:
 
 
 def export_onnx_from_training(
-    results: Any,
-    observation_space: gym.Space | None = None,
-    action_space: gym.Space | None = None,
+    results: "ExperimentAnalysis",
+    observation_space: gym.Space[Any] | None = None,
+    action_space: gym.Space[Any] | None = None,
 ) -> None:
     """Export the final model from a completed Tune run.
 

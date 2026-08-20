@@ -16,10 +16,8 @@ from schola.scripts.common.settings import (
 
 from schola.scripts.rllib.settings import (
     APPOSettings,
-    BCSettings,
     IMPALASettings,
     LoggingSettings,
-    MARWILSettings,
     PPOSettings,
     ResourceSettings,
     RllibEnvironmentSettings,
@@ -152,12 +150,7 @@ class RllibScriptSettings:
     "Settings for configuring the training process."
 
     algorithm_settings: Annotated[
-        PPOSettings
-        | SACSettings
-        | APPOSettings
-        | IMPALASettings
-        | BCSettings
-        | MARWILSettings,
+        PPOSettings | SACSettings | APPOSettings | IMPALASettings,
         Parameter(show=False, parse=False),
     ] = field(default_factory=PPOSettings)
     "Settings for configuring the training algorithm to use."

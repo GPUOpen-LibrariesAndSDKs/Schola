@@ -90,11 +90,10 @@ minari = [
     "pillow",
 ]
 
-# Dependencies for training RLlib's offline algorithms (BC, MARWIL) on Minari
-# datasets. RLlib reads offline episodes as msgpack-serialized Parquet, so both
-# the rllib and minari extras are needed alongside the msgpack codecs.
+# Dependencies for RLlib offline algorithms (BC, MARWIL) and ``rllib collect``.
+# RLlib reads offline episodes as msgpack-serialized Parquet.
 offline = [
-    "schola[rllib,minari]",
+    "schola[rllib]",
     "msgpack",
     "msgpack-numpy",
 ]

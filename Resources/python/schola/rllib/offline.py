@@ -1,27 +1,23 @@
 # Copyright (c) 2026 Advanced Micro Devices, Inc. All Rights Reserved.
 """
-Bridge Minari demonstration datasets to RLlib's new-API-stack offline RL.
+RLlib new-API-stack offline data: Parquet episodes plus a space sidecar.
 
 RLlib's offline algorithms (BC, MARWIL) read Ray Data sources containing
 msgpack-serialized :class:`~ray.rllib.env.single_agent_episode.SingleAgentEpisode`
-states. Minari stores demonstrations column-wise in HDF5. This module converts
-between the two so demonstrations recorded with
-:class:`~schola.minari.datacollector.ScholaDataCollector` can train an RLlib
-policy.
+states. This module writes that layout and stores the original and training
+observation spaces so training does not need a live environment.
 """
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import os
-import re
 import shutil
 import uuid
-from collections.abc import Callable, Iterable, Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, SupportsFloat, cast
+from typing import TYPE_CHECKING, Any, SupportsFloat
 
 import numpy as np
 import gymnasium as gym
@@ -31,50 +27,12 @@ from gymnasium.spaces.utils import flatten, flatten_space
 if TYPE_CHECKING:
     from ray.rllib.env.single_agent_episode import SingleAgentEpisode
 
+
 logger = logging.getLogger(__name__)
 
-CONVERSION_FORMAT_VERSION = 1
+MANIFEST_FORMAT_VERSION = 1
 MANIFEST_FILE_NAME = "schola-offline-manifest.json"
 DEFAULT_EPISODES_PER_SHARD = 64
-
-
-def structure_of_arrays_to_list(
-    space: gym.Space[Any], data: Any, length: int
-) -> list[Any]:
-    """
-    Convert Minari's column-wise storage into one sample per timestep.
-
-    Minari stores composite spaces as a mapping of arrays; RLlib episodes want a
-    list of individual samples.
-
-    Parameters
-    ----------
-    space : gymnasium.Space
-        Space describing *data*.
-    data : Any
-        Column-wise data as loaded from Minari.
-    length : int
-        Number of timesteps to extract.
-
-    Returns
-    -------
-    list
-        ``length`` samples, each matching *space*.
-    """
-    if isinstance(space, spaces.Dict):
-        columns = {
-            key: structure_of_arrays_to_list(subspace, data[key], length)
-            for key, subspace in space.spaces.items()
-        }
-        return [{key: columns[key][i] for key in columns} for i in range(length)]
-    if isinstance(space, spaces.Tuple):
-        columns = [
-            structure_of_arrays_to_list(subspace, data[i], length)
-            for i, subspace in enumerate(space.spaces)
-        ]
-        return [tuple(column[i] for column in columns) for i in range(length)]
-    array = np.asarray(data)
-    return [array[i] for i in range(length)]
 
 
 def get_training_observation_space(
@@ -83,7 +41,7 @@ def get_training_observation_space(
     """
     Return the observation space an offline algorithm must be configured with.
 
-    Composite spaces are flattened, because :func:`minari_episode_to_rllib`
+    Composite spaces are flattened, because :func:`build_rllib_episode`
     flattens the observations themselves. Keep the original space for ONNX export
     so Unreal still sees one input per sensor.
     """
@@ -92,13 +50,28 @@ def get_training_observation_space(
     return flatten_space(observation_space)
 
 
-def minari_episode_to_rllib(
-    episode: Any,
+def _maybe_flatten_observation(
+    observation_space: gym.Space[Any], observation: Any
+) -> Any:
+    """Flatten a composite observation; leave a Box sample unchanged."""
+    training_space = get_training_observation_space(observation_space)
+    if training_space is observation_space:
+        return observation
+    return flatten(observation_space, observation)
+
+
+def build_rllib_episode(
+    observations: Sequence[Any],
+    actions: Sequence[Any],
+    rewards: Sequence[SupportsFloat],
     observation_space: gym.Space[Any],
     action_space: gym.Space[Any],
+    *,
+    terminated: bool,
+    truncated: bool,
 ) -> "SingleAgentEpisode":
     """
-    Convert a single Minari episode into an RLlib ``SingleAgentEpisode``.
+    Build an RLlib ``SingleAgentEpisode`` from per-timestep samples.
 
     Composite observations are flattened here rather than by a ConnectorV2 piece.
     RLlib prepends custom learner connectors ahead of
@@ -110,12 +83,20 @@ def minari_episode_to_rllib(
 
     Parameters
     ----------
-    episode : minari.EpisodeData
-        Episode as yielded by ``MinariDataset.iterate_episodes()``.
+    observations : sequence
+        Reset observation plus one observation per action.
+    actions : sequence
+        One action per environment step.
+    rewards : sequence
+        One reward per environment step.
     observation_space : gymnasium.Space
-        Per-agent observation space recorded in the dataset.
+        Per-agent observation space as recorded (possibly composite).
     action_space : gymnasium.Space
-        Per-agent action space recorded in the dataset.
+        Per-agent action space as recorded.
+    terminated : bool
+        Whether the episode ended on a terminal state.
+    truncated : bool
+        Whether the episode was cut short (time limit or session end).
 
     Returns
     -------
@@ -124,36 +105,136 @@ def minari_episode_to_rllib(
     """
     from ray.rllib.env.single_agent_episode import SingleAgentEpisode
 
-    num_actions = len(np.asarray(episode.rewards))
-    # Episodes store the reset observation plus one observation per action.
-    num_observations = num_actions + 1
-
-    observations = structure_of_arrays_to_list(
-        observation_space, episode.observations, num_observations
-    )
-    actions = structure_of_arrays_to_list(action_space, episode.actions, num_actions)
-    # ``SingleAgentEpisode`` wants ``List[SupportsFloat]``; ``List`` is invariant,
-    # so a ``list[float]`` needs this wider element-type annotation to satisfy it.
-    rewards: list[SupportsFloat] = [
-        float(reward) for reward in np.asarray(episode.rewards)
-    ]
+    if len(observations) != len(actions) + 1:
+        raise ValueError(
+            "Episodes store the reset observation plus one observation per action; "
+            f"got {len(observations)} observations and {len(actions)} actions."
+        )
+    if len(actions) != len(rewards):
+        raise ValueError(
+            "Each action must have a reward; "
+            f"got {len(actions)} actions and {len(rewards)} rewards."
+        )
 
     episode_observation_space = get_training_observation_space(observation_space)
-    if episode_observation_space is not observation_space:
-        observations = [
-            flatten(observation_space, observation) for observation in observations
-        ]
+    flat_observations = [
+        _maybe_flatten_observation(observation_space, observation)
+        for observation in observations
+    ]
+    reward_list: list[SupportsFloat] = [float(reward) for reward in rewards]
 
     return SingleAgentEpisode(
-        observations=observations,
-        actions=actions,
-        rewards=rewards,
+        observations=flat_observations,
+        actions=list(actions),
+        rewards=reward_list,
         observation_space=episode_observation_space,
         action_space=action_space,
-        terminated=bool(np.asarray(episode.terminations)[-1]),
-        truncated=bool(np.asarray(episode.truncations)[-1]),
+        terminated=terminated,
+        truncated=truncated,
         len_lookback_buffer=0,
     )
+
+
+def _encode_space(space: gym.Space[Any]) -> dict[str, Any]:
+    """Encode a Gymnasium space as JSON-friendly nested dicts."""
+    if isinstance(space, spaces.Box):
+        return {
+            "type": "Box",
+            "low": np.asarray(space.low).tolist(),
+            "high": np.asarray(space.high).tolist(),
+            "shape": list(space.shape),
+            "dtype": np.dtype(space.dtype).str,
+        }
+    if isinstance(space, spaces.Discrete):
+        return {
+            "type": "Discrete",
+            "n": int(space.n),
+            "start": int(space.start),
+        }
+    if isinstance(space, spaces.MultiDiscrete):
+        return {
+            "type": "MultiDiscrete",
+            "nvec": np.asarray(space.nvec).tolist(),
+            "dtype": np.dtype(space.dtype).str,
+        }
+    if isinstance(space, spaces.MultiBinary):
+        n_value: Any = space.n
+        if isinstance(n_value, (int, np.integer)):
+            encoded_n: int | list[int] = int(n_value)
+        else:
+            encoded_n = np.asarray(n_value).tolist()
+        return {"type": "MultiBinary", "n": encoded_n}
+    if isinstance(space, spaces.Dict):
+        return {
+            "type": "Dict",
+            "spaces": {
+                key: _encode_space(subspace) for key, subspace in space.spaces.items()
+            },
+        }
+    if isinstance(space, spaces.Tuple):
+        return {
+            "type": "Tuple",
+            "spaces": [_encode_space(subspace) for subspace in space.spaces],
+        }
+    raise TypeError(f"Cannot serialize Gymnasium space of type {type(space)!r}.")
+
+
+def _decode_space(payload: Mapping[str, Any]) -> gym.Space[Any]:
+    """Decode a space produced by :func:`_encode_space`."""
+    space_type = payload["type"]
+    if space_type == "Box":
+        return spaces.Box(
+            low=np.asarray(payload["low"], dtype=np.dtype(payload["dtype"])),
+            high=np.asarray(payload["high"], dtype=np.dtype(payload["dtype"])),
+            shape=tuple(payload["shape"]),
+            dtype=np.dtype(payload["dtype"]),
+        )
+    if space_type == "Discrete":
+        return spaces.Discrete(n=int(payload["n"]), start=int(payload["start"]))
+    if space_type == "MultiDiscrete":
+        return spaces.MultiDiscrete(
+            nvec=np.asarray(payload["nvec"]),
+            dtype=np.dtype(payload["dtype"]),
+        )
+    if space_type == "MultiBinary":
+        return spaces.MultiBinary(n=payload["n"])
+    if space_type == "Dict":
+        nested = payload["spaces"]
+        if not isinstance(nested, Mapping):
+            raise TypeError("Dict space payload must map names to subspaces.")
+        return spaces.Dict(
+            {key: _decode_space(subspace) for key, subspace in nested.items()}
+        )
+    if space_type == "Tuple":
+        nested_list = payload["spaces"]
+        if not isinstance(nested_list, Sequence) or isinstance(
+            nested_list, (str, bytes)
+        ):
+            raise TypeError("Tuple space payload must be a sequence of subspaces.")
+        return spaces.Tuple(tuple(_decode_space(subspace) for subspace in nested_list))
+    raise TypeError(f"Unknown serialized Gymnasium space type {space_type!r}.")
+
+
+def space_to_json(space: gym.Space[Any]) -> dict[str, Any]:
+    """Serialize a Gymnasium space for the offline manifest sidecar."""
+    to_json = getattr(space, "to_json", None)
+    if callable(to_json):
+        return {"format": "gymnasium", "space": to_json()}
+    return {"format": "schola", "space": _encode_space(space)}
+
+
+def space_from_json(payload: Mapping[str, Any]) -> gym.Space[Any]:
+    """Deserialize a space written by :func:`space_to_json`."""
+    fmt = payload.get("format", "schola")
+    space_payload = payload.get("space", payload)
+    if fmt == "gymnasium":
+        from_json = getattr(spaces, "from_json", None)
+        if from_json is None:
+            from gymnasium.spaces.utils import from_json as from_json
+        return from_json(space_payload)
+    if not isinstance(space_payload, Mapping):
+        raise TypeError("Schola space payload must be a mapping.")
+    return _decode_space(space_payload)
 
 
 def _serialize_episodes(
@@ -161,6 +242,7 @@ def _serialize_episodes(
 ) -> Iterator[Mapping[str, bytes]]:
     """Yield RLlib's Parquet rows without retaining the complete dataset."""
     import msgpack
+    # Optional extra (schola[offline]); the package ships no type stubs.
     import msgpack_numpy  # pyright: ignore[reportMissingImports]
 
     for episode in episodes:
@@ -201,23 +283,25 @@ def _write_episode_shards(
 
     output_dir.mkdir(parents=True, exist_ok=False)
     shard_count = 0
+    episode_count = 0
     for shard_count, batch in enumerate(
         _batched(_serialize_episodes(episodes), episodes_per_shard)
     ):
+        episode_count += len(batch)
         pq.write_table(
             pa.Table.from_pylist(batch),
             output_dir / f"part-{shard_count:05d}.parquet",
         )
-    if shard_count == 0 and not any(output_dir.iterdir()):
+    if episode_count == 0:
         raise ValueError(
-            "No episodes to convert. The Minari dataset is empty, so there is "
-            + "nothing to learn from."
+            "No episodes to write. The collection session recorded nothing "
+            + "to learn from."
         )
-    return shard_count + 1
+    return episode_count
 
 
 def _discard_staging_directory(staging_dir: Path) -> None:
-    """Remove a directory created exclusively for an unfinished conversion."""
+    """Remove a directory created exclusively for an unfinished write."""
     shutil.rmtree(staging_dir, ignore_errors=True)
 
 
@@ -247,7 +331,7 @@ def write_episodes_as_parquet(
     output_dir = Path(output_dir)
     if output_dir.exists():
         raise FileExistsError(
-            f"Refusing to replace existing conversion directory {output_dir}."
+            f"Refusing to replace existing dataset directory {output_dir}."
         )
     output_dir.parent.mkdir(parents=True, exist_ok=True)
     staging_dir = output_dir.parent / f".{output_dir.name}.{uuid.uuid4().hex}.staging"
@@ -262,162 +346,126 @@ def write_episodes_as_parquet(
     return output_dir
 
 
-def _space_fingerprint(space: gym.Space[Any]) -> str:
-    """Return a stable identifier for a Gymnasium space's public representation."""
-    return hashlib.sha256(repr(space).encode("utf-8")).hexdigest()
-
-
-def _conversion_manifest(
-    dataset_id: str,
-    dataset: Any,
+def write_offline_dataset(
+    episodes: Sequence["SingleAgentEpisode"],
+    output_dir: Path,
     observation_space: gym.Space[Any],
     action_space: gym.Space[Any],
-    episodes_per_shard: int,
-) -> dict[str, Any]:
-    """Describe the source data and conversion settings used by a cache entry."""
-    return {
-        "format_version": CONVERSION_FORMAT_VERSION,
-        "dataset_id": dataset_id,
-        "total_episodes": dataset.total_episodes,
-        "total_steps": dataset.total_steps,
-        "observation_space_fingerprint": _space_fingerprint(observation_space),
-        "action_space_fingerprint": _space_fingerprint(action_space),
-        "episodes_per_shard": episodes_per_shard,
-    }
-
-
-def _cache_key(manifest: Mapping[str, Any]) -> str:
-    """Return a deterministic, filesystem-safe conversion directory name."""
-    source_name = re.sub(
-        r"[^A-Za-z0-9_.-]+", "-", str(manifest["dataset_id"])
-    ).strip("-")
-    digest = hashlib.sha256(
-        json.dumps(manifest, sort_keys=True).encode("utf-8")
-    ).hexdigest()[:12]
-    return f"{source_name}-{digest}"
-
-
-def _read_matching_manifest(
-    output_dir: Path, expected: Mapping[str, Any]
-) -> bool:
-    """Return whether *output_dir* is a complete conversion for *expected*."""
-    manifest_path = output_dir / MANIFEST_FILE_NAME
-    if not manifest_path.is_file() or not any(output_dir.glob("*.parquet")):
-        return False
-    try:
-        with manifest_path.open(encoding="utf-8") as manifest_file:
-            return json.load(manifest_file) == expected
-    except (OSError, json.JSONDecodeError):
-        return False
-
-
-def _publish_conversion(
-    episode_factory: Callable[[], Iterable["SingleAgentEpisode"]],
-    cache_root: Path,
-    cache_key: str,
-    manifest: Mapping[str, Any],
-    *,
-    episodes_per_shard: int,
-) -> Path:
-    """Write a conversion privately, then publish it atomically."""
-    cache_root.mkdir(parents=True, exist_ok=True)
-    output_dir = cache_root / cache_key
-    if _read_matching_manifest(output_dir, manifest):
-        logger.info("Reusing converted offline dataset at %s", output_dir)
-        return output_dir
-    if output_dir.exists():
-        raise FileExistsError(
-            f"Refusing to replace existing conversion directory {output_dir}."
-        )
-
-    staging_dir = cache_root / f".{cache_key}.{uuid.uuid4().hex}.staging"
-    try:
-        _write_episode_shards(
-            episode_factory(), staging_dir, episodes_per_shard=episodes_per_shard
-        )
-        with (staging_dir / MANIFEST_FILE_NAME).open("w", encoding="utf-8") as file:
-            json.dump(manifest, file, indent=2, sort_keys=True)
-            file.write("\n")
-        try:
-            os.replace(staging_dir, output_dir)
-        except FileExistsError:
-            # Another process won the race. Only reuse a conversion that proves it
-            # was created from this exact immutable Minari dataset.
-            if _read_matching_manifest(output_dir, manifest):
-                return output_dir
-            raise FileExistsError(
-                f"Refusing to replace existing conversion directory {output_dir}."
-            )
-    except Exception:
-        _discard_staging_directory(staging_dir)
-        raise
-    return output_dir
-
-
-def convert_minari_dataset(
-    dataset_id: str,
-    cache_root: Path,
     *,
     episodes_per_shard: int = DEFAULT_EPISODES_PER_SHARD,
-) -> tuple[Path, gym.Space[Any], gym.Space[Any], gym.Space[Any]]:
+) -> Path:
     """
-    Convert a local Minari dataset into RLlib offline Parquet data.
+    Write RLlib Parquet shards and a space sidecar for later offline training.
 
     Parameters
     ----------
-    dataset_id : str
-        Identifier of a locally available Minari dataset, e.g. ``my-demo-v0``.
-    cache_root : pathlib.Path
-        Parent directory for owned, fingerprinted conversion-cache entries. Existing
-        contents are never removed or replaced.
+    episodes : sequence of SingleAgentEpisode
+        Completed episodes to persist.
+    output_dir : pathlib.Path
+        Destination directory. It must not already exist.
+    observation_space : gymnasium.Space
+        Original (possibly composite) observation space, kept for ONNX export.
+    action_space : gymnasium.Space
+        Action space recorded with the episodes.
     episodes_per_shard : int, optional
-        Maximum number of episode states in each Parquet file.
+        Maximum number of episodes in each Parquet file.
+
+    Returns
+    -------
+    pathlib.Path
+        *output_dir*, for convenience.
+    """
+    output_dir = Path(output_dir)
+    if output_dir.exists():
+        raise FileExistsError(
+            f"Refusing to replace existing dataset directory {output_dir}."
+        )
+    output_dir.parent.mkdir(parents=True, exist_ok=True)
+    staging_dir = output_dir.parent / f".{output_dir.name}.{uuid.uuid4().hex}.staging"
+    training_observation_space = get_training_observation_space(observation_space)
+    try:
+        episode_count = _write_episode_shards(
+            episodes, staging_dir, episodes_per_shard=episodes_per_shard
+        )
+        manifest = {
+            "format_version": MANIFEST_FORMAT_VERSION,
+            "observation_space": space_to_json(observation_space),
+            "training_observation_space": space_to_json(training_observation_space),
+            "action_space": space_to_json(action_space),
+            "total_episodes": episode_count,
+            "total_steps": sum(len(episode) for episode in episodes),
+        }
+        with (staging_dir / MANIFEST_FILE_NAME).open("w", encoding="utf-8") as file:
+            json.dump(manifest, file, indent=2, sort_keys=True)
+            file.write("\n")
+        os.replace(staging_dir, output_dir)
+    except Exception:
+        _discard_staging_directory(staging_dir)
+        raise
+    logger.info(
+        "Wrote %s RLlib episodes (%s steps) to %s",
+        episode_count,
+        manifest["total_steps"],
+        output_dir,
+    )
+    return output_dir
+
+
+def load_offline_dataset(
+    input_dir: Path,
+) -> tuple[Path, gym.Space[Any], gym.Space[Any], gym.Space[Any]]:
+    """
+    Load spaces from an offline dataset written by :func:`write_offline_dataset`.
+
+    Parameters
+    ----------
+    input_dir : pathlib.Path
+        Directory containing Parquet shards and ``schola-offline-manifest.json``.
 
     Returns
     -------
     tuple
         ``(parquet_dir, training_observation_space, observation_space, action_space)``.
-        ``training_observation_space`` configures the algorithm; ``observation_space``
-        is the original (possibly composite) space, kept for ONNX export.
 
     Raises
     ------
+    FileNotFoundError
+        If the directory, manifest, or Parquet shards are missing.
     ValueError
-        If the dataset contains no episodes.
+        If the manifest is not a valid Schola offline dataset.
     """
-    import minari
-
-    dataset = minari.load_dataset(dataset_id)
-    observation_space = cast(gym.Space[Any], dataset.observation_space)
-    action_space = cast(gym.Space[Any], dataset.action_space)
-    manifest = _conversion_manifest(
-        dataset_id,
-        dataset,
-        observation_space,
-        action_space,
-        episodes_per_shard,
-    )
-    parquet_dir = _publish_conversion(
-        lambda: (
-            minari_episode_to_rllib(episode, observation_space, action_space)
-            for episode in dataset.iterate_episodes()
-        ),
-        Path(cache_root),
-        _cache_key(manifest),
-        manifest,
-        episodes_per_shard=episodes_per_shard,
-    )
-
-    logger.info(
-        "Converted Minari dataset '%s' (%s episodes, %s steps) to %s",
-        dataset_id,
-        dataset.total_episodes,
-        dataset.total_steps,
-        parquet_dir,
-    )
+    input_dir = Path(input_dir)
+    manifest_path = input_dir / MANIFEST_FILE_NAME
+    if not input_dir.is_dir():
+        raise FileNotFoundError(f"Offline dataset directory does not exist: {input_dir}")
+    if not manifest_path.is_file():
+        raise FileNotFoundError(
+            f"Offline dataset is missing {MANIFEST_FILE_NAME}: {input_dir}"
+        )
+    if not any(input_dir.glob("*.parquet")):
+        raise FileNotFoundError(
+            f"Offline dataset contains no Parquet shards: {input_dir}"
+        )
+    with manifest_path.open(encoding="utf-8") as manifest_file:
+        manifest = json.load(manifest_file)
+    if not isinstance(manifest, Mapping):
+        raise ValueError(f"Offline dataset manifest is not a mapping: {manifest_path}")
+    if manifest.get("format_version") != MANIFEST_FORMAT_VERSION:
+        raise ValueError(
+            f"Unsupported offline dataset format in {manifest_path}: "
+            f"{manifest.get('format_version')!r}"
+        )
+    observation_space = space_from_json(manifest["observation_space"])
+    action_space = space_from_json(manifest["action_space"])
+    if "training_observation_space" in manifest:
+        training_observation_space = space_from_json(
+            manifest["training_observation_space"]
+        )
+    else:
+        training_observation_space = get_training_observation_space(observation_space)
     return (
-        parquet_dir,
-        get_training_observation_space(observation_space),
+        input_dir,
+        training_observation_space,
         observation_space,
         action_space,
     )

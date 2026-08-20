@@ -7,16 +7,20 @@ agent learns to copy those actions. Use this when the behavior you want is easie
 to show than to score. It gives reinforcement learning a competent start policy
 instead of a random one.
 
-Schola covers the full path. You record a `Minari <https://minari.farama.org/>`_
-dataset from your Unreal environment. You train on it with RLlib offline
-algorithms. You export the result to ONNX for
+Schola covers the full path. You record demonstrations from your Unreal
+environment in RLlib's offline episode format. You train on that data with RLlib
+BC or MARWIL. You export the result to ONNX for
 :doc:`inference in Unreal <setting_up_inference>`.
+
+Minari collection (``schola minari collect``) remains available for Farama
+ecosystem tools. It is a separate path. RLlib BC and MARWIL read RLlib Parquet,
+not Minari HDF5.
 
 Installing
 ----------
 
-The offline algorithms need RLlib and Minari. They also need the msgpack codecs
-that RLlib uses to store episodes:
+The offline algorithms need RLlib and the msgpack codecs that RLlib uses to
+store episodes:
 
 .. code-block:: bash
 
@@ -28,16 +32,17 @@ Collecting a Dataset
 --------------------
 
 Set up an imitation environment in Unreal. See the Imitation Learning section
-of :doc:`migrating_to_v2`. Then record yourself playing:
+of :doc:`migrating_to_v2`. Then record yourself playing. Collection launches the
+same simulators as other Schola commands and reads until the Unreal process or
+gRPC session ends:
 
 .. code-block:: bash
 
-    schola minari collect executable --executable-path <PATH_TO_EXECUTABLE> \
-        --dataset-id my-demo-v0 --num-steps 10000
+    schola rllib collect executable --executable-path <PATH_TO_EXECUTABLE> \
+        --output ./demos
 
-Minari requires the version suffix on the dataset id. ``my-demo-v0`` is valid.
-``my-demo`` is not. The dataset is written to the local Minari directory.
-``minari.list_local_datasets()`` finds it there.
+Use ``--max-steps`` only as a safety cap. The default is to stop when you quit
+the game.
 
 Choosing an Algorithm
 ---------------------
@@ -65,34 +70,25 @@ simulator subcommand**. You do not need Unreal or a Gym environment running:
 
 .. code-block:: bash
 
-    schola rllib train bc --dataset-id my-demo-v0 --timesteps 100000
+    schola rllib bc --input ./demos --timesteps 100000
 
-    schola rllib train marwil --dataset-id my-demo-v0 --timesteps 100000 --beta 1.0
+    schola rllib marwil --input ./demos --timesteps 100000 --beta 1.0
 
-The observation and action spaces come from the dataset. The simulator flags
-(``--map``, ``--headless``, ``--executable-path`` and the rest) are not
-available. The connection flags (``--port``, ``--url``) have nothing to connect
-to. The network, checkpoint, logging and resource flags work as they do for the
-online algorithms.
+The observation and action spaces come from the dataset sidecar written during
+collection. The simulator flags (``--map``, ``--headless``, ``--executable-path``
+and the rest) are not available. The network, checkpoint, logging and resource
+flags work as they do for the online algorithms.
 
 Useful options:
 
-* ``--dataset-id`` / ``-d`` — The Minari dataset to train on. Required.
+* ``--input`` / ``-i`` — Directory of RLlib Parquet shards from
+  ``schola rllib collect``. Required.
 * ``--timesteps`` — When to stop. Offline algorithms never sample an
   environment. This counts *trained* steps, not sampled ones.
-* ``--converted-data-dir`` — Where to write the RLlib copy of the dataset.
-  Schola treats this path as a cache root. It writes each successful conversion
-  to an owned fingerprinted child directory. It never removes existing files in
-  the root. It reuses a matching completed conversion. It discards partial
-  conversions before they become visible. By default the cache is temporary.
-  It is deleted after training.
 * ``--offline-data-workers`` and ``--offline-read-cpus`` — Size the Ray Data
   episode transformation pool and the CPU reservation for Parquet reads.
 * ``--beta``, ``--vf-coeff``, ``--bc-logstd-coeff`` — MARWIL only. See
   :py:class:`schola.scripts.rllib.settings.MARWILSettings`.
-
-Start training from the command line. The Unreal training settings launch a run
-against the game that is running. The offline algorithms do not need that.
 
 Full option lists are in
 :py:class:`schola.scripts.rllib.settings.BCSettings`,
@@ -107,7 +103,7 @@ input per sensor. It drops into the inference setup in
 
 .. code-block:: bash
 
-    schola rllib train bc --dataset-id my-demo-v0 --export-onnx
+    schola rllib bc --input ./demos --export-onnx
 
 Improving Results
 -----------------
@@ -117,19 +113,7 @@ before you blame the algorithm:
 
 **Idle steps.** Human recordings contain steps where you had not yet reacted.
 The action is a no-op. These teach the agent to do nothing in states that call
-for action. Count them. Prune them if there are many:
-
-.. code-block:: python
-
-    import minari
-    import numpy as np
-
-    dataset = minari.load_dataset("my-demo-v0")
-    total = idle = 0
-    for episode in dataset.iterate_episodes():
-        idle += np.sum(np.all(episode.actions == 0, axis=-1))
-        total += len(episode.actions)
-    print(f"Idle steps: {idle}/{total}")
+for action. Count them. Prune them if there are many.
 
 **Action balance.** If one action dominates the recording, the agent learns to
 always take it. Rare but important actions such as turning need enough
@@ -147,8 +131,7 @@ Where to Go Next
 
 Expect a cloned policy to know the shape of the task. Do not expect it to play
 well. Where it fails, the usual next step is more data. Record demonstrations
-of the situations it gets wrong. Merge them into the dataset with
-``minari.combine_datasets()``.
+of the situations it gets wrong.
 
 You can continue with reinforcement learning. That is a manual step today.
 ``--resume-from`` expects a checkpoint from the same algorithm. An online
@@ -156,3 +139,4 @@ algorithm cannot pick up a BC or MARWIL checkpoint from the CLI. You must load
 the trained ``RLModule`` yourself (see
 :py:func:`schola.rllib.checkpoint.load_rl_module_from_algorithm_checkpoint`) into
 the online algorithm config.
+

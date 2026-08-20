@@ -36,7 +36,8 @@ See `Resources/python/pyproject.toml` for a comprehensive list of dependencies. 
 | `sb3` | Dependencies for running training with Stable Baselines 3 |
 | `rllib` | Dependencies for running training with RLlib |
 | `minari` | Dependencies for collecting Minari datasets with Schola |
-| `all` | Equivalent to installing `sb3`, `rllib`, and `minari` together |
+| `offline` | Dependencies for ``schola rllib collect`` and RLlib BC/MARWIL |
+| `all` | Equivalent to installing `sb3`, `rllib`, `minari`, and `offline` together |
 
 Test and docs dependencies are declared under `[dependency-groups]` in `pyproject.toml`, not as a pip extra. Install them with **`pip install --group test ...`** or ``pip install --group docs`` (for example `pip install --group test -e ./Resources/python[all]` from your project).
 

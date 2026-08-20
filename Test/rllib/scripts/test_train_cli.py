@@ -16,7 +16,6 @@ from schola.scripts.common.settings import UnrealExecutableSimulatorConfig
 from schola.scripts.rllib.train.train import (
     app as train_app,
     RllibTrainCommand,
-    ResourcePlan,
     _get_restored_env_steps,
     _make_stop_criterion,
 )
@@ -25,9 +24,7 @@ from schola.rllib.env import BaseRayEnv
 from schola.rllib.policy_mapping import make_policy_mapping_fn_from_dict
 from schola.scripts.rllib.settings import (
     APPOSettings,
-    BCSettings,
     IMPALASettings,
-    MARWILSettings,
     PPOSettings,
     SACSettings,
 )
@@ -741,95 +738,6 @@ def test_complex_configuration(mock_app, mock_main, tmp_path):
     assert args.logging_settings.rllib_verbosity == 2
     assert args.checkpoint_settings.save_freq == 5000
     assert args.environment_settings.protocol_settings.port == 50051
-
-
-def test_bc_requires_dataset_id(mock_app, mock_main):
-    """Offline algorithm settings make their source dataset mandatory."""
-    with pytest.raises(Exception):
-        mock_app.meta(["bc"], result_action="return_value", exit_on_error=False)
-    mock_main.assert_not_called()
-
-
-def test_bc_dataset_id_argument(mock_app, mock_main):
-    """The offline algorithms take their demonstrations from --dataset-id."""
-    mock_app.meta(
-        ["bc", "--dataset-id", "my-demo-v0"],
-        result_action="return_value",
-        exit_on_error=False,
-    )
-
-    args: RllibScriptSettings = mock_main.call_args[0][0]
-    assert isinstance(args.algorithm_settings, BCSettings)
-    assert args.algorithm_settings.dataset_id == "my-demo-v0"
-
-
-def test_bc_config_file_reads_algorithm_scoped_dataset(
-    mock_app, mock_main, tmp_path
-):
-    config_file = tmp_path / "offline.yaml"
-    config_file.write_text(
-        """
-algorithm:
-  bc:
-    dataset_id: my-demo-v0
-    offline_data_workers: 3
-training_settings:
-  timesteps: 64
-""".strip(),
-        encoding="utf-8",
-    )
-
-    mock_app.meta(
-        ["--config-file", str(config_file), "bc"],
-        result_action="return_value",
-        exit_on_error=False,
-    )
-
-    args: RllibScriptSettings = mock_main.call_args[0][0]
-    assert isinstance(args.algorithm_settings, BCSettings)
-    assert args.algorithm_settings.dataset_id == "my-demo-v0"
-    assert args.algorithm_settings.offline_data_workers == 3
-    assert args.training_settings.timesteps == 64
-
-
-def test_marwil_beta_argument(mock_app, mock_main):
-    """MARWIL exposes beta, where 0 reduces it to behaviour cloning."""
-    mock_app.meta(
-        ["marwil", "--dataset-id", "my-demo-v0", "--beta", "0.0"],
-        result_action="return_value",
-        exit_on_error=False,
-    )
-
-    args: RllibScriptSettings = mock_main.call_args[0][0]
-    assert isinstance(args.algorithm_settings, MARWILSettings)
-    assert args.algorithm_settings.beta == 0.0
-    assert args.algorithm_settings.get_settings_dict()["beta"] == 0.0
-
-
-def test_offline_resource_plan_accounts_for_reader_and_workers():
-    """The resource requirement is derived from the offline algorithm settings."""
-    args = RllibScriptSettings()
-    args.algorithm_settings = BCSettings(dataset_id="my-demo-v0")
-
-    plan = ResourcePlan.offline(args, args.algorithm_settings)
-
-    assert plan.minimum_cpus == 4
-    assert plan.ray_cpus == 4
-    assert "2 pre-learner CPUs" in plan.description
-
-
-def test_offline_algorithms_take_no_simulator_subcommand(mock_app, mock_main):
-    """Offline algorithms read a dataset, so a simulator subcommand is not valid.
-
-    The online algorithms must keep theirs, so this also guards against the
-    per-algorithm simulator table collapsing back to all-or-nothing.
-    """
-    with pytest.raises(Exception):
-        mock_app.meta(
-            ["bc", "executable", "--executable-path", "game.exe"],
-            result_action="return_value",
-            exit_on_error=False,
-        )
 
 
 def test_online_algorithms_still_accept_simulator_subcommand(

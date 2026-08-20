@@ -6,7 +6,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Annotated, Any, Dict, Type, Union
+from typing import Annotated, Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -60,16 +60,16 @@ class FakeScriptSettings:
     )
 
     algorithm_settings: Annotated[
-        Union[FakeAlgoAlpha, FakeAlgoBeta], Parameter(show=False, parse=False)
+        FakeAlgoAlpha | FakeAlgoBeta, Parameter(show=False, parse=False)
     ] = field(default_factory=FakeAlgoAlpha)
 
     base_level_parameter: int = 1
 
-FULL_ALGORITHM_TABLE: Dict[str, Type[Any]] = {
+FULL_ALGORITHM_TABLE: dict[str, type[Any]] = {
     "alpha": FakeAlgoAlpha,
     "beta": FakeAlgoBeta,
 }
-FULL_SIMULATOR_TABLE: Dict[str, Type[Any]] = {
+FULL_SIMULATOR_TABLE: dict[str, type[Any]] = {
     "executable": UnrealExecutableSimulatorConfig,
     "project": UnrealProjectSimulatorConfig,
     "external": ExternalSimulatorConfig,
@@ -81,7 +81,7 @@ def _make_meta_alg_command_class(
     algorithm_keys: tuple[str, ...],
     simulator_keys: tuple[str, ...],
     mock_main: MagicMock,
-) -> Type[ScholaCommandTemplate[FakeScriptSettings]]:
+) -> type[ScholaCommandTemplate[FakeScriptSettings]]:
     """Build a ``ScholaCommandTemplate`` subclass with a chosen number of algorithms / simulators."""
 
     alg_table = {k: FULL_ALGORITHM_TABLE[k] for k in algorithm_keys}
@@ -89,19 +89,19 @@ def _make_meta_alg_command_class(
 
     class _DynamicScholaCommandTemplate(ScholaCommandTemplate[FakeScriptSettings]):
         @property
-        def algorithm_table(self) -> Dict[str, Type[Any]]:
+        def algorithm_table(self) -> dict[str, type[Any]]:
             return alg_table
 
         @property
-        def algorithm_help(self) -> Dict[str, str]:
+        def algorithm_help(self) -> dict[str, str]:
             return {k: f"Test help for {k}." for k in algorithm_keys}
 
         @property
-        def simulator_table(self) -> Dict[str, Type[Any]]:
+        def simulator_table(self) -> dict[str, type[Any]]:
             return sim_table
 
         @property
-        def script_args_type(self) -> Type[FakeScriptSettings]:
+        def script_args_type(self) -> type[FakeScriptSettings]:
             return FakeScriptSettings
 
         @property
@@ -399,7 +399,7 @@ class MetaAlgConfigTestParameters:
     case_id: str
     algorithm_keys: tuple[str, ...]
     simulator_keys: tuple[str, ...]
-    config_doc: Dict[str, Any]
+    config_doc: dict[str, Any]
     cli_tokens: list[str]
     expected_sim_settings: FakeScriptSettings
 
@@ -726,7 +726,7 @@ def test_algorithm_specs_support_mixed_simulator_topologies(
             }
 
         @property
-        def simulator_table(self) -> Dict[str, Type[BaseSimulatorConfig[Any]]]:
+        def simulator_table(self) -> dict[str, type[BaseSimulatorConfig[Any]]]:
             return {"external": ExternalSimulatorConfig}
 
         @property

@@ -6,13 +6,14 @@ Shared settings dataclasses for RLlib scripts (algorithms, resources, logging).
 """
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Any, Optional
+from typing import TYPE_CHECKING, Annotated, Any
 from dataclasses import dataclass, field
 
 from cyclopts import Parameter, validators
 
 if TYPE_CHECKING:
-    from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
+    from ray.rllib.algorithms.bc import BCConfig
+    from ray.rllib.algorithms.marwil import MARWILConfig
 
 from schola.scripts.common.settings import (
     AllSimulatorConfigs,
@@ -185,11 +186,16 @@ class APPOSettings(IMPALASettings, PPOSettings):
 class OfflineRllibAlgorithmSettings(RllibAlgorithmSpecificSettings):
     """Shared input and resource settings for data-only RLlib algorithms."""
 
-    dataset_id: Annotated[str, Parameter(alias="-d")]
-    "The id of the local Minari dataset to train on, for example ``my-demo-v0``. Collect one with ``schola minari collect``."
-
-    converted_data_dir: Optional[Path] = None
-    "Cache root for converted RLlib data. Each dataset conversion is stored in a Schola-owned fingerprinted child directory and reused when it matches the source dataset."
+    input_path: Annotated[
+        Path | None,
+        Parameter(
+            name="--input",
+            alias="-i",
+            required=True,
+            validator=validators.Path(exists=True, file_okay=False, dir_okay=True),
+        ),
+    ] = None
+    "Directory of RLlib episode Parquet shards written by ``schola rllib collect``."
 
     input_read_batch_size: Annotated[
         int, Parameter(validator=validators.Number(gte=1))
@@ -200,11 +206,6 @@ class OfflineRllibAlgorithmSettings(RllibAlgorithmSpecificSettings):
         int, Parameter(validator=validators.Number(gte=1))
     ] = 1
     "Number of data batches each learner draws per training iteration."
-
-    conversion_episodes_per_shard: Annotated[
-        int, Parameter(validator=validators.Number(gte=1))
-    ] = 64
-    "Maximum number of recorded episodes stored in each converted Parquet shard."
 
     offline_data_workers: Annotated[
         int, Parameter(validator=validators.Number(gte=1))
@@ -220,11 +221,11 @@ class OfflineRllibAlgorithmSettings(RllibAlgorithmSpecificSettings):
 @dataclass
 class BCSettings(OfflineRllibAlgorithmSettings):
     """
-    Dataclass for Behaviour Cloning (BC) settings. BC learns to reproduce the actions in a recorded demonstration dataset by supervised learning, ignoring rewards entirely. Use it to bootstrap a policy from human gameplay collected with ``schola minari collect``.
+    Dataclass for Behaviour Cloning (BC) settings. BC learns to reproduce the actions in a recorded demonstration dataset by supervised learning, ignoring rewards entirely. Use it to bootstrap a policy from human gameplay collected with ``schola rllib collect``.
     """
 
     @property
-    def rllib_config(self) -> type[AlgorithmConfig]:
+    def rllib_config(self) -> type[BCConfig]:
         from ray.rllib.algorithms.bc import BCConfig
 
         return BCConfig
@@ -233,7 +234,7 @@ class BCSettings(OfflineRllibAlgorithmSettings):
     def name(self) -> str:
         return "BC"
 
-    def get_settings_dict(self):
+    def get_settings_dict(self) -> dict[str, Any]:
         return {}
 
 
@@ -255,7 +256,7 @@ class MARWILSettings(OfflineRllibAlgorithmSettings):
     "Weight of the value function loss relative to the policy loss. MARWIL needs a value estimate to compute advantages, so this only has an effect when beta is greater than 0."
 
     @property
-    def rllib_config(self) -> type[AlgorithmConfig]:
+    def rllib_config(self) -> type[MARWILConfig]:
         from ray.rllib.algorithms.marwil import MARWILConfig
 
         return MARWILConfig
@@ -264,7 +265,7 @@ class MARWILSettings(OfflineRllibAlgorithmSettings):
     def name(self) -> str:
         return "MARWIL"
 
-    def get_settings_dict(self):
+    def get_settings_dict(self) -> dict[str, Any]:
         return {
             "beta": self.beta,
             "bc_logstd_coeff": self.bc_logstd_coeff,

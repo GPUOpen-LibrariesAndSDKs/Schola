@@ -285,8 +285,6 @@ class CustomProgressBarCallback(BaseCallback):
                 # terminal emulators must reflow when their window is resized.
                 "refresh_per_second": 2,
             },
-            # Clear the Live region on close instead of retaining a dynamic
-            # frame in terminal scrollback.
             leave=True,
         )  # pyright: ignore[reportOptionalCall]
 

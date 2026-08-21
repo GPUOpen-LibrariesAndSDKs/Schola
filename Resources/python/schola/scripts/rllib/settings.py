@@ -191,6 +191,7 @@ class OfflineRllibAlgorithmSettings(RllibAlgorithmSpecificSettings):
         Parameter(
             name="--input",
             alias="-i",
+            required=True,
             validator=validators.Path(exists=True, file_okay=False, dir_okay=True),
         ),
     ] = None
@@ -218,7 +219,7 @@ class OfflineRllibAlgorithmSettings(RllibAlgorithmSpecificSettings):
 @dataclass
 class BCSettings(OfflineRllibAlgorithmSettings):
     """
-    Dataclass for Behaviour Cloning (BC) settings. BC learns to reproduce the actions in a recorded demonstration dataset by supervised learning, ignoring rewards entirely. Use it to bootstrap a policy from human gameplay recorded with ``schola rllib bc`` and a simulator subcommand.
+    Dataclass for Behaviour Cloning (BC) settings. BC learns to reproduce the actions in a recorded demonstration dataset by supervised learning, ignoring rewards entirely. Record gameplay with ``schola rllib collect`` and train it with ``schola rllib offline-train bc``.
     """
 
     @property
@@ -348,14 +349,3 @@ class RllibEnvironmentSettings(EnvironmentSettings[AllSimulatorConfigs]):
         AllSimulatorConfigs,
         IgnoreParameter,
     ] = field(default_factory=ExternalSimulatorConfig)
-
-
-@dataclass
-class OfflineRllibEnvironmentSettings(EnvironmentSettings[AllSimulatorConfigs | None]):
-    """Environment settings for BC/MARWIL. A simulator is optional."""
-
-    simulator_settings: Annotated[
-        AllSimulatorConfigs | None,
-        IgnoreParameter,
-    ] = None
-    "Filled when the user selects a simulator subcommand. None means train-only."

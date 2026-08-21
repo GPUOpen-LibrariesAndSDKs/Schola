@@ -28,6 +28,8 @@ from schola.rllib.offline import (
     load_offline_dataset,
     write_offline_dataset,
 )
+from schola.scripts.rllib.collect.collect import main as collect_main
+from schola.scripts.rllib.collect.settings import RllibCollectScriptSettings
 
 EPISODE_LENGTH = 6
 KEY_PICKUP_STEP = 3
@@ -89,7 +91,7 @@ def recorded_dataset(make_imitation_server, tmp_path):
         seed=123,
     )
     try:
-        episodes = collector.collect_until_closed(max_steps=2 * EPISODE_LENGTH)
+        episodes = collector.collect(2 * EPISODE_LENGTH)
         output = write_offline_dataset(
             episodes,
             tmp_path / "demos",
@@ -162,6 +164,24 @@ def test_expert_behaviour_is_visible_in_the_recording(recorded_dataset):
     assert turns == {1, 2}
 
 
+def test_collect_command_writes_loadable_dataset(make_imitation_server, tmp_path):
+    """The standalone command writes the same dataset consumed by offline train."""
+    port = make_imitation_server(_KeyAndDoorEnv, _KeyAndDoorExpert)
+    output = tmp_path / "command-demos"
+    args = RllibCollectScriptSettings()
+    args.collection_settings.output = output
+    args.collection_settings.num_steps = EPISODE_LENGTH
+    args.environment_settings.protocol_settings.port = port
+
+    assert collect_main(args) == output
+    data_path, _training, observation_space, action_space = load_offline_dataset(
+        output
+    )
+    assert data_path == output
+    assert observation_space == _KeyAndDoorEnv().observation_space
+    assert action_space == _KeyAndDoorEnv().action_space
+
+
 def test_collection_stops_when_the_session_ends(make_imitation_server):
     """A dropped imitation stream is a clean end, not a failed collection."""
     port = make_imitation_server(_KeyAndDoorEnv, _KeyAndDoorExpert)
@@ -186,6 +206,28 @@ def test_collection_stops_when_the_session_ends(make_imitation_server):
     assert all(len(episode) >= 1 for episode in episodes)
 
 
+def test_fixed_collection_fails_when_session_ends_early(make_imitation_server):
+    """The collect command must not silently write a short dataset."""
+    port = make_imitation_server(_KeyAndDoorEnv, _KeyAndDoorExpert)
+    protocol = GrpcImitationProtocol(url="localhost", port=port)
+    collector = RllibImitationCollector(protocol, UnrealEditor(), seed=1)
+    original_get_data = protocol.get_data
+    calls = {"count": 0}
+
+    def get_data_then_drop():
+        calls["count"] += 1
+        if calls["count"] > 3:
+            raise UnrealCrashedError(Exception("session ended"))
+        return original_get_data()
+
+    protocol.get_data = get_data_then_drop  # type: ignore[method-assign]
+    try:
+        with pytest.raises(RuntimeError, match="collected 3 of 10"):
+            collector.collect(10)
+    finally:
+        collector.close()
+
+
 def test_recorded_dataset_trains_and_exports_onnx(recorded_dataset, tmp_path):
     """Train straight from the recording, with nothing else supplied.
 
@@ -204,6 +246,7 @@ def test_recorded_dataset_trains_and_exports_onnx(recorded_dataset, tmp_path):
             "-m",
             "schola.scripts.launch",
             "rllib",
+            "offline-train",
             "bc",
             "--input",
             str(data_path),

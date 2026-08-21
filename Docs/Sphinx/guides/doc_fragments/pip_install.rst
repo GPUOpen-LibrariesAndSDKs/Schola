@@ -19,8 +19,8 @@ Make sure pip is updated before installing the schola python package from `Plugi
       - Ray RLlib, for ``schola rllib train`` and ``schola rllib eval``.
     * - ``minari``
       - Minari, for recording demonstrations with ``schola minari collect``.
-    * - ``offline``
-      - RLlib, Minari, and the msgpack codecs. Use this to train ``bc`` and ``marwil`` on a recorded dataset (see :doc:`/guides/imitation_learning`).
+    * - ``rllib-offline``
+      - RLlib and the msgpack codecs, for ``schola rllib collect`` and ``schola rllib offline-train`` (see :doc:`/guides/imitation_learning`).
 
 .. note:: 
         

@@ -140,6 +140,17 @@ class RllibImitationCollector:
         )
         return self.episodes
 
+    def collect(self, num_steps: int) -> list[SingleAgentEpisode]:
+        """Collect exactly *num_steps*, failing if the session ends early."""
+        episodes = self.collect_until_closed(max_steps=num_steps)
+        collected_steps = sum(len(episode) for episode in episodes)
+        if collected_steps != num_steps:
+            raise RuntimeError(
+                "RLlib collection ended before the requested number of steps: "
+                f"collected {collected_steps} of {num_steps}."
+            )
+        return episodes
+
     def _lookup(self, table: Any) -> Any:
         return table[self._env_id][self._agent_id]
 

@@ -7,13 +7,9 @@ Script to train an rllib model using Schola.
 
 import logging
 
-from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Literal, Protocol, cast
+from typing import TYPE_CHECKING, Any, Callable, cast
 
-from schola.scripts.common.settings import (
-    get_activation_function,
-)
 from schola.scripts.common.command_template import AlgorithmSpec, ScholaCommandTemplate
 
 from schola.scripts.rllib.settings import (
@@ -21,23 +17,19 @@ from schola.scripts.rllib.settings import (
     PPOSettings,
     SACSettings,
     IMPALASettings,
-    ResourceSettings,
+)
+from schola.scripts.rllib.training import (
+    ResourcePlan,
+    TrainingPlan,
+    configure_training,
+    run_training,
 )
 from schola.scripts.rllib.train.settings import RllibScriptSettings
 
 from cyclopts import App
 
 if TYPE_CHECKING:
-    import gymnasium as gym
-    from ray.rllib.algorithms.algorithm import Algorithm
-    from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
     from ray.tune import ExperimentAnalysis
-    from schola.scripts.common.settings import CheckpointSettings
-    from schola.scripts.rllib.settings import (
-        LoggingSettings,
-        OfflineRllibAlgorithmSettings,
-    )
-    from schola.scripts.rllib.train.settings import ResumeSettings
 # Logging setup
 if not logging.getLogger().handlers:
     logging.basicConfig(
@@ -49,79 +41,6 @@ logger = logging.getLogger(__name__)
 
 app = App(name="train", help="Train a Model using ray")
 STOP_METRIC = "num_env_steps_sampled_lifetime"
-# Offline algorithms never sample from an environment, so the online stop metric
-# stays at zero and Tune would never stop. Count timesteps trained on instead.
-OFFLINE_STOP_METRIC = "learners/__all_modules__/num_env_steps_trained_lifetime"
-
-
-class TuneRunSettings(Protocol):
-    """Fields ``_run_training`` reads from online or offline script settings."""
-
-    resource_settings: ResourceSettings
-    checkpoint_settings: CheckpointSettings
-    resume_settings: ResumeSettings
-    logging_settings: LoggingSettings
-
-
-@dataclass(frozen=True)
-class ResourcePlan:
-    """Explicit Ray resource requirements for one training mode."""
-
-    ray_cpus: int
-    requested_cpus: int
-    minimum_cpus: int
-    description: str
-
-    @classmethod
-    def online(cls, args: TuneRunSettings) -> "ResourcePlan":
-        return cls(
-            ray_cpus=args.resource_settings.num_cpus,
-            requested_cpus=args.resource_settings.num_cpus,
-            minimum_cpus=args.resource_settings.num_cpus,
-            description="online environment training",
-        )
-
-    @classmethod
-    def offline(
-        cls, args: TuneRunSettings, settings: OfflineRllibAlgorithmSettings
-    ) -> "ResourcePlan":
-        remote_learner_cpus = (
-            args.resource_settings.num_learners
-            * args.resource_settings.num_cpus_per_learner
-        )
-        minimum_cpus = (
-            1
-            + settings.offline_data_workers
-            + settings.offline_read_cpus
-            + remote_learner_cpus
-        )
-        return cls(
-            ray_cpus=max(args.resource_settings.num_cpus, minimum_cpus),
-            requested_cpus=args.resource_settings.num_cpus,
-            minimum_cpus=minimum_cpus,
-            description=(
-                "offline training "
-                f"(one Tune trial CPU, {settings.offline_data_workers} "
-                f"pre-learner CPUs, {settings.offline_read_cpus} read CPUs, and "
-                f"{remote_learner_cpus} remote learner CPUs)"
-            ),
-        )
-
-
-@dataclass
-class TrainingPlan:
-    """The mode-specific values consumed by the common Tune lifecycle."""
-
-    config: AlgorithmConfig
-    trainable: type[Algorithm]
-    stop: dict[str, int]
-    resource_plan: ResourcePlan
-    label: str
-    onnx_export_source: Literal["algorithm_checkpoint", "rl_module"] = (
-        "algorithm_checkpoint"
-    )
-    export_observation_space: gym.Space[Any] | None = None
-    export_action_space: gym.Space[Any] | None = None
 
 
 def _get_restored_env_steps(checkpoint_path: Path | None) -> int:
@@ -239,96 +158,6 @@ def _make_stop_criterion(
     }
 
 
-def _make_tune_callbacks(should_persist: bool) -> list[Any]:
-    """Create the shared callback set for an RLlib Tune run."""
-    if not should_persist:
-        return []
-    try:
-        from ray.tune.logger import TBXLoggerCallback
-
-        return [TBXLoggerCallback()]
-    except ImportError:
-        logger.warning(
-            "tensorboardX is not installed; TensorBoard logging will be skipped. "
-            "Install tensorboardX to enable TensorBoard logging with RLlib."
-        )
-        return []
-
-
-def _run_training(args: TuneRunSettings, plan: TrainingPlan) -> ExperimentAnalysis:
-    """Run mode-specific preparation through the one common Tune lifecycle."""
-    import ray
-    from ray import air, tune
-
-    resources = args.resource_settings
-    if not resources.using_cluster:
-        if plan.resource_plan.ray_cpus != plan.resource_plan.requested_cpus:
-            logger.warning(
-                "%s needs at least %s CPUs, but --num-cpus is %s. "
-                "Starting local Ray with %s CPUs.",
-                plan.resource_plan.description,
-                plan.resource_plan.minimum_cpus,
-                plan.resource_plan.requested_cpus,
-                plan.resource_plan.ray_cpus,
-            )
-        ray.init(
-            num_cpus=plan.resource_plan.ray_cpus,
-            num_gpus=resources.num_gpus,
-        )
-    else:
-        logger.info(
-            "Using an existing Ray cluster for %s; it must provide at least %s CPUs.",
-            plan.resource_plan.description,
-            plan.resource_plan.minimum_cpus,
-        )
-        if resources.num_cpus > 1 or resources.num_gpus > 0:
-            logger.warning(
-                "Resource flags are ignored while connecting to an existing Ray "
-                "cluster; make sure it has capacity for %s.",
-                plan.resource_plan.description,
-            )
-
-    checkpoint = args.checkpoint_settings
-    logger.info("Starting %s", plan.label)
-    try:
-        results = tune.run(
-            plan.trainable,
-            config=plan.config,  # type: ignore
-            stop=plan.stop,
-            checkpoint_config=air.CheckpointConfig(  # pyright: ignore[reportArgumentType]
-                checkpoint_frequency=(
-                    checkpoint.save_freq if checkpoint.enable_checkpoints else 0
-                ),
-                checkpoint_at_end=(
-                    checkpoint.save_final_policy or checkpoint.export_onnx
-                ),
-            ),
-            restore=(
-                str(args.resume_settings.resume_from)
-                if args.resume_settings.resume_from
-                else None
-            ),
-            verbose=args.logging_settings.rllib_verbosity,
-            storage_path=checkpoint.storage_path,
-            callbacks=_make_tune_callbacks(checkpoint.should_persist),
-        )
-        logger.info("Training complete")
-    finally:
-        if not resources.using_cluster:
-            ray.shutdown()
-
-    if checkpoint.export_onnx:
-        from schola.rllib.export import export_onnx_from_training
-
-        export_onnx_from_training(
-            results,
-            source=plan.onnx_export_source,
-            observation_space=plan.export_observation_space,
-            action_space=plan.export_action_space,
-        )
-    return results
-
-
 def main_online(args: RllibScriptSettings) -> ExperimentAnalysis:
     """
     Train an online RLlib algorithm against a Schola environment.
@@ -396,17 +225,12 @@ def main_online(args: RllibScriptSettings) -> ExperimentAnalysis:
             ),
         )
 
-    # Get activation function for model config
-    activation_fn = get_activation_function(
-        args.network_architecture_settings.activation
-    )
-
     # make a new variable to get typing information
     algorithm_config: AlgorithmConfig = args.algorithm_settings.rllib_config()
 
     # Use NEW API stack with RayEnv/RayVecEnv (new stack interface)
     # Auto-assignment: RayEnv for local runner (num_env_runners=0), RayVecEnv for remote runners
-    config = (
+    config = configure_training(
         algorithm_config.api_stack(
             enable_rl_module_and_learner=True,  # Enable new stack
             enable_env_runner_and_connector_v2=True,  # Enable EnvRunner
@@ -438,29 +262,10 @@ def main_online(args: RllibScriptSettings) -> ExperimentAnalysis:
             ),
             num_gpus_per_learner=args.resource_settings.num_gpus_per_learner,
             num_cpus_per_learner=args.resource_settings.num_cpus_per_learner,
-        )
-        .rl_module(
-            model_config={
-                "fcnet_hiddens": args.network_architecture_settings.fcnet_hiddens,
-                "fcnet_activation": activation_fn,
-                "use_lstm": args.network_architecture_settings.use_lstm,
-                "lstm_cell_size": args.network_architecture_settings.lstm_cell_size,
-                "max_seq_len": args.network_architecture_settings.max_seq_len,
-            },
-        )
-        .training(
-            lr=args.training_settings.learning_rate,
-            gamma=args.training_settings.gamma,
-            num_epochs=args.training_settings.num_epochs,
-            train_batch_size_per_learner=args.training_settings.train_batch_size_per_learner,
-            minibatch_size=args.training_settings.minibatch_size,
-            **cast(Any, args.algorithm_settings.get_settings_dict()),
-        )
-        .debugging(
-            log_level=args.logging_settings.rllib_log_level,
-            seed=args.environment_settings.seed,
-        )
-    )  # type: ignore
+        ),
+        args,
+        seed=args.environment_settings.seed,
+    )
 
     # Use the new API stack metric name for stopping criterion.
     # Old stack used "timesteps_total", new stack uses "num_env_steps_sampled_lifetime".
@@ -483,7 +288,7 @@ def main_online(args: RllibScriptSettings) -> ExperimentAnalysis:
     if algo_class is None:
         raise RuntimeError("RLlib config did not define an algorithm class.")
     schola_algorithm_cls = schola_algorithm_subclass(cast(type[Algorithm], algo_class))
-    return _run_training(
+    return run_training(
         args,
         TrainingPlan(
             config=config,

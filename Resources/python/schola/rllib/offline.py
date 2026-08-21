@@ -244,7 +244,7 @@ def _serialize_episodes(
     """Yield RLlib's Parquet rows without retaining the complete dataset."""
     import msgpack
 
-    # Optional extra (schola[offline]); the package ships no type stubs.
+    # Optional extra (schola[rllib-offline]); the package ships no type stubs.
     import msgpack_numpy  # pyright: ignore[reportMissingImports]
 
     for episode in episodes:

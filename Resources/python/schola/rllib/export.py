@@ -29,6 +29,7 @@ from schola.core.model import *
 import gymnasium as gym
 from gymnasium import spaces
 import copy
+from schola.rllib.checkpoint import load_rl_module_from_algorithm_checkpoint
 from schola.rllib.env import RayVecEnv
 from torch.export.dynamic_shapes import Dim
 from typing import TYPE_CHECKING, Any, Literal, TypedDict, cast
@@ -288,8 +289,6 @@ def export_onnx_from_training(
             raise ValueError(
                 "ONNX export from an RLModule requires observation_space and action_space."
             )
-        from schola.rllib.checkpoint import load_rl_module_from_algorithm_checkpoint
-
         export_onnx_from_policy(
             load_rl_module_from_algorithm_checkpoint(
                 pathlib.Path(last_checkpoint.path)

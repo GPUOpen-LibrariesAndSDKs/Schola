@@ -29,7 +29,6 @@ from schola.rllib.offline import (
     write_offline_dataset,
 )
 
-
 EPISODE_LENGTH = 6
 KEY_PICKUP_STEP = 3
 

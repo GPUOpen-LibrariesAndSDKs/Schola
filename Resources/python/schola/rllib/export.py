@@ -291,7 +291,9 @@ def export_onnx_from_training(
         from schola.rllib.checkpoint import load_rl_module_from_algorithm_checkpoint
 
         export_onnx_from_policy(
-            load_rl_module_from_algorithm_checkpoint(pathlib.Path(last_checkpoint.path)),
+            load_rl_module_from_algorithm_checkpoint(
+                pathlib.Path(last_checkpoint.path)
+            ),
             trial_path,
             observation_space,
             action_space,

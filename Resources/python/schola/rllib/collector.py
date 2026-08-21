@@ -94,7 +94,9 @@ class RllibImitationCollector:
         ]
         self.action_space: gym.Space[Any] = action_spaces[self._env_id][self._agent_id]
 
-    def collect_until_closed(self, max_steps: int | None = None) -> list[SingleAgentEpisode]:
+    def collect_until_closed(
+        self, max_steps: int | None = None
+    ) -> list[SingleAgentEpisode]:
         """
         Read imitation steps until the simulator or gRPC session ends.
 
@@ -155,10 +157,11 @@ class RllibImitationCollector:
         self._saw_step = True
 
         if self._open_episode is None:
-            if self._env_id in initial_obs and self._agent_id in initial_obs[self._env_id]:
-                self._open_episode = _OpenEpisode(
-                    self._lookup(initial_obs)
-                )
+            if (
+                self._env_id in initial_obs
+                and self._agent_id in initial_obs[self._env_id]
+            ):
+                self._open_episode = _OpenEpisode(self._lookup(initial_obs))
             else:
                 raise RuntimeError(
                     "Imitation session sent a step before an initial observation."
@@ -175,7 +178,10 @@ class RllibImitationCollector:
         )
         if terminated or truncated:
             self._commit_open_episode()
-            if self._env_id in initial_obs and self._agent_id in initial_obs[self._env_id]:
+            if (
+                self._env_id in initial_obs
+                and self._agent_id in initial_obs[self._env_id]
+            ):
                 self._open_episode = _OpenEpisode(self._lookup(initial_obs))
 
     def _commit_open_episode(self) -> None:

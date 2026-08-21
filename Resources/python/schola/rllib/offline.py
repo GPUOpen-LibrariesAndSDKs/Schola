@@ -243,13 +243,12 @@ def _serialize_episodes(
 ) -> Iterator[Mapping[str, bytes]]:
     """Yield RLlib's Parquet rows without retaining the complete dataset."""
     import msgpack
+
     # Optional extra (schola[offline]); the package ships no type stubs.
     import msgpack_numpy  # pyright: ignore[reportMissingImports]
 
     for episode in episodes:
-        packed = msgpack.packb(
-            episode.get_state(), default=msgpack_numpy.encode
-        )
+        packed = msgpack.packb(episode.get_state(), default=msgpack_numpy.encode)
         if packed is None:
             raise RuntimeError("Failed to serialize RLlib episode state.")
         yield {"item": packed}
@@ -445,7 +444,9 @@ def load_offline_dataset(
     input_dir = Path(input_dir).resolve()
     manifest_path = input_dir / MANIFEST_FILE_NAME
     if not input_dir.is_dir():
-        raise FileNotFoundError(f"Offline dataset directory does not exist: {input_dir}")
+        raise FileNotFoundError(
+            f"Offline dataset directory does not exist: {input_dir}"
+        )
     if not manifest_path.is_file():
         raise FileNotFoundError(
             f"Offline dataset is missing {MANIFEST_FILE_NAME}: {input_dir}"

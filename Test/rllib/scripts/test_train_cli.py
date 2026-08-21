@@ -1,4 +1,4 @@
-# Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
+# Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 """Tests for the rllib cli"""
 
 from copy import deepcopy
@@ -264,7 +264,9 @@ def test_ppo_custom_training_parameters(mock_app, mock_main):
 
 def test_ppo_seed_argument(mock_app, mock_main):
     """Test PPO command accepts --seed for reproducible training."""
-    mock_app.meta(["ppo", "--seed", "42"], result_action="return_value", exit_on_error=False)
+    mock_app.meta(
+        ["ppo", "--seed", "42"], result_action="return_value", exit_on_error=False
+    )
 
     mock_main.assert_called_once()
     args: RllibScriptSettings = mock_main.call_args[0][0]
@@ -561,7 +563,9 @@ def test_project_num_simulators_parsed(mock_app, mock_main, tmp_path):
 
 def test_protocol_settings(mock_app, mock_main):
     """Test protocol configuration parameters."""
-    mock_app.meta(["ppo", "--port", "12345"], result_action="return_value", exit_on_error=False)
+    mock_app.meta(
+        ["ppo", "--port", "12345"], result_action="return_value", exit_on_error=False
+    )
 
     mock_main.assert_called_once()
     args: RllibScriptSettings = mock_main.call_args[0][0]

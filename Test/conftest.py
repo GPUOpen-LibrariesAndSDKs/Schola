@@ -1,4 +1,4 @@
-# Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
+# Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 from __future__ import annotations
 
 """Root pytest fixtures and helpers for the Schola plugin Python tests."""
@@ -249,9 +249,7 @@ def make_imitation_server():
         port: int = 0,
         options: dict[str, Any] | None = None,
     ):
-        servicer = GymToImitationServiceServicer(
-            env_name, policy_class, wrappers or []
-        )
+        servicer = GymToImitationServiceServicer(env_name, policy_class, wrappers or [])
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
         imitation_connector_grpc.add_ImitationConnectorServiceServicer_to_server(
             servicer, server
@@ -281,9 +279,7 @@ def make_pettingzoo_env_server():
         wrappers: list[Any] | None = None,
         port: int = 0,
     ):
-        servicer = PettingZooToGymServiceServicer(
-            cast(Any, env_name), wrappers or []
-        )
+        servicer = PettingZooToGymServiceServicer(cast(Any, env_name), wrappers or [])
         # Set max message sizes to 100MB to handle large environment definitions
         options = [
             ("grpc.max_send_message_length", 100 * 1024 * 1024),
@@ -380,7 +376,9 @@ def _check_inputs_have_valid_shape(
     graph_inputs = {inp.name: inp for inp in model.graph.input}
     for input_name, inp in graph_inputs.items():
         dims = inp.type.tensor_type.shape.dim
-        assert dims, f"Expected input '{input_name}' to have non-empty dimensions. Must have at least one dimension."
+        assert (
+            dims
+        ), f"Expected input '{input_name}' to have non-empty dimensions. Must have at least one dimension."
 
         batch_dim = dims[0]
         assert (
@@ -491,4 +489,5 @@ def onnx_model_checker():
                 batch_size,
                 *state_shapes[state_name[len("state_out_") :]],
             ), f"Expected output state '{state_name}' to have shape {state_shapes[state_name[len('state_out_'):]]}. Got {state_array.shape}"
+
     return _check_onnx_model

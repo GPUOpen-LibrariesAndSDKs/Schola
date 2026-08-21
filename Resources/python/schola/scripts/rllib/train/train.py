@@ -33,7 +33,10 @@ if TYPE_CHECKING:
     from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
     from ray.tune import ExperimentAnalysis
     from schola.scripts.common.settings import CheckpointSettings
-    from schola.scripts.rllib.settings import LoggingSettings, OfflineRllibAlgorithmSettings
+    from schola.scripts.rllib.settings import (
+        LoggingSettings,
+        OfflineRllibAlgorithmSettings,
+    )
     from schola.scripts.rllib.train.settings import ResumeSettings
 # Logging setup
 if not logging.getLogger().handlers:

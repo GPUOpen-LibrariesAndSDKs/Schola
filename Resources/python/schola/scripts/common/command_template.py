@@ -208,6 +208,7 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
         Without this, ``parse_args(())`` has nothing to resolve to and the algorithm
         command cannot run on its own.
         """
+
         def no_simulator_command(
             *,
             hidden_script_args: Annotated[ScriptArgsType, Parameter(parse=False)],
@@ -224,7 +225,9 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
     ):
         # Cyclopts needs a distinct annotation per generated command. NewType is
         # applied to a runtime class object, which is not a valid static NewType argument.
-        SimulatorType = NewType("SimulatorType", simulator_type)  # pyright: ignore[reportGeneralTypeIssues]
+        SimulatorType = NewType(
+            "SimulatorType", simulator_type
+        )  # pyright: ignore[reportGeneralTypeIssues]
 
         try:
             _sim_default = simulator_type()
@@ -273,7 +276,9 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
         algorithm_type = algorithm_spec.settings_type
         # Cyclopts needs a distinct annotation per generated command. NewType is
         # applied to a runtime class object, which is not a valid static NewType argument.
-        AlgorithmType = NewType("AlgorithmType", algorithm_type)  # pyright: ignore[reportGeneralTypeIssues]
+        AlgorithmType = NewType(
+            "AlgorithmType", algorithm_type
+        )  # pyright: ignore[reportGeneralTypeIssues]
 
         def meta_algorithm_command(
             *tokens: Annotated[str, Parameter(show=False, allow_leading_hyphen=True)],
@@ -324,7 +329,9 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
     def make_train_meta_command(self):
         # Cyclopts needs a distinct annotation per generated command. NewType is
         # applied to a runtime class object, which is not a valid static NewType argument.
-        ResolvedScriptArgsType = NewType("ResolvedScriptArgsType", self.script_args_type)  # pyright: ignore[reportGeneralTypeIssues]
+        ResolvedScriptArgsType = NewType(
+            "ResolvedScriptArgsType", self.script_args_type
+        )  # pyright: ignore[reportGeneralTypeIssues]
         _main_func = self.main_func
         _logger = self._logger
 
@@ -353,9 +360,7 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
                         command, bound, ignored = self.app.parse_args(tokens)
                         if command == self.app.help_print:
                             return command(*bound.args, **bound.kwargs, **{})
-                        return command(
-                            *bound.args, **bound.kwargs, **additional_kwargs
-                        )
+                        return command(*bound.args, **bound.kwargs, **additional_kwargs)
                     _logger.debug("Arguments: %s", script_args)
                     return _main_func(script_args)
                 else:

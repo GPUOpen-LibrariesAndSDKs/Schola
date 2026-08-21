@@ -17,7 +17,6 @@ from schola.rllib.offline import (
     write_offline_dataset,
 )
 
-
 DICT_OBSERVATION_SPACE = spaces.Dict(
     {
         "RelativeDirections": spaces.Box(-1.0, 1.0, (6,), np.float32),
@@ -80,7 +79,10 @@ def test_flattening_matches_rllib_inference_flattening():
 
     training_time = flatten(DICT_OBSERVATION_SPACE, observation)
     inference_time = flatten_inputs_to_1d_tensor(
-        {key: torch.as_tensor(np.asarray([value])) for key, value in observation.items()},
+        {
+            key: torch.as_tensor(np.asarray([value]))
+            for key, value in observation.items()
+        },
         DICT_OBSERVATION_SPACE.spaces,
     )
 

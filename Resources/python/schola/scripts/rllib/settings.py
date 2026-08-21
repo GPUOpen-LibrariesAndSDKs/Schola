@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Advanced Micro Devices, Inc. All Rights Reserved.
+# Copyright (c) 2024-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 from __future__ import annotations
 
 """
@@ -211,9 +211,7 @@ class OfflineRllibAlgorithmSettings(RllibAlgorithmSpecificSettings):
     ] = 2
     "Number of RLlib OfflinePreLearner workers used to transform recorded episodes."
 
-    offline_read_cpus: Annotated[
-        int, Parameter(validator=validators.Number(gte=1))
-    ] = 1
+    offline_read_cpus: Annotated[int, Parameter(validator=validators.Number(gte=1))] = 1
     "CPUs reserved for Ray Data reads that feed the offline learner workers."
 
 
@@ -361,4 +359,3 @@ class OfflineRllibEnvironmentSettings(EnvironmentSettings[AllSimulatorConfigs | 
         IgnoreParameter,
     ] = None
     "Filled when the user selects a simulator subcommand. None means train-only."
-

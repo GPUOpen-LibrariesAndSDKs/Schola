@@ -13,8 +13,6 @@ from schola.scripts.common.console import configure_logging
 from schola.scripts.minari.settings import MinariScriptSettings
 from cyclopts import App, Parameter
 
-configure_logging()
-
 logger = logging.getLogger(__name__)
 
 
@@ -32,6 +30,8 @@ def main(args: MinariScriptSettings):
     str
         The dataset ID of the created dataset.
     """
+    configure_logging()
+
     import os
 
     import gymnasium as gym

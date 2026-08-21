@@ -14,8 +14,6 @@ from schola.scripts.common.console import configure_logging
 from schola.scripts.sb3.settings import BasePPOSettings, BaseSACSettings
 from schola.scripts.sb3.eval.settings import Sb3EvalScriptSettings
 
-configure_logging()
-
 logger = logging.getLogger(__name__)
 
 
@@ -33,6 +31,7 @@ def main(args: Sb3EvalScriptSettings) -> tuple[float, float]:
     tuple[float, float]
         Mean and standard deviation of episodic return over ``n_eval_episodes``.
     """
+    configure_logging()
 
     import gymnasium as gym
     import numpy as np

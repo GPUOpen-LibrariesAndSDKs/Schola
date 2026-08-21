@@ -25,8 +25,6 @@ from schola.scripts.common.command_template import ScholaCommandTemplate
 from schola.scripts.common.console import configure_logging
 from schola.scripts.rllib.eval.settings import RllibEvalScriptSettings
 
-configure_logging()
-
 logger = logging.getLogger(__name__)
 
 
@@ -180,6 +178,8 @@ def main(args: RllibEvalScriptSettings) -> dict[str, Any]:
     ``hist_stats``, etc.). Raises ``RuntimeError`` if sampling does not complete
     the requested number of episodes.
     """
+    configure_logging()
+
     import ray
     from ray.rllib.core.rl_module.multi_rl_module import (
         MultiRLModule,

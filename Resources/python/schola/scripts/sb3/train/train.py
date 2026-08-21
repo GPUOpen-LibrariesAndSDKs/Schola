@@ -10,6 +10,7 @@ import logging
 import signal
 from typing import Any, Callable, cast
 
+from schola.scripts.common.console import configure_logging
 from schola.scripts.common.settings import (
     ExternalSimulatorConfig,
     GymSimulatorConfig,
@@ -24,8 +25,6 @@ from schola.scripts.sb3.train.settings import (
 )
 from cyclopts import App
 from schola.scripts.common.panel import print_error
-
-configure_logging()
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +67,7 @@ def warn_if_small_image_observation(observation_space, threshold: int = 64):
             )
             break
 
+
 def main(args: Sb3TrainScriptSettings) -> (tuple[float, float]) | None:
     """
     Main function for training a Stable Baselines3 model using Schola.
@@ -82,6 +82,7 @@ def main(args: Sb3TrainScriptSettings) -> (tuple[float, float]) | None:
     tuple[float, float] | None
         The mean and standard deviation of the rewards if evaluation is enabled, otherwise None.
     """
+    configure_logging()
 
     if args.training_settings.pbar:
         try:

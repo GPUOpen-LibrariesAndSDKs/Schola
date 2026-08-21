@@ -78,7 +78,9 @@ def maybe_tqdm(
 def supplemental_file_logging(
     log_path: Path,
     level: int = logging.INFO,
-    formatter: str | logging.Formatter = "%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    formatter: (
+        str | logging.Formatter
+    ) = "%(asctime)s %(levelname)s [%(name)s] %(message)s",
 ) -> Generator[None, None, None]:
     """Attach a file handler to the root logger for the duration of the context."""
     log_path.parent.mkdir(parents=True, exist_ok=True)

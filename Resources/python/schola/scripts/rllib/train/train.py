@@ -25,7 +25,6 @@ from schola.scripts.rllib.train.settings import RllibScriptSettings
 
 from cyclopts import App
 
-configure_logging()
 logger = logging.getLogger(__name__)
 
 app = App(name="train", help="Train a Model using ray")
@@ -167,6 +166,8 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
     tune.ExperimentAnalysis
         The results of the training
     """
+    configure_logging()
+
     # Import ray and rllib dependencies lazily when the command is actually executed
     import ray
     from ray import air, tune

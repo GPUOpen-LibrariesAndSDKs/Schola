@@ -26,7 +26,6 @@ from cyclopts import App
 
 from schola.scripts.common.console import configure_logging
 
-configure_logging()
 logger = logging.getLogger(__name__)
 
 app = App(
@@ -94,8 +93,7 @@ def main(
     verbose : bool
         Increase logging verbosity.
     """
-    if verbose:
-        logger.setLevel(logging.DEBUG)
+    configure_logging(logging.DEBUG if verbose else logging.INFO)
 
     plugin_folder = Path(plugin_folder).resolve()
     logger.debug("Plugin folder: %s", plugin_folder)

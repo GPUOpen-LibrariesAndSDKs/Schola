@@ -1,21 +1,27 @@
 # Copyright (c) 2026 Advanced Micro Devices, Inc. All Rights Reserved.
 from __future__ import annotations
 
-"""Train RLlib's data-only algorithms (BC, MARWIL) on collected Parquet episodes."""
+"""Train RLlib's data-only algorithms (BC, MARWIL), optionally collecting first."""
 
 import logging
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Annotated, Any, Callable, cast
 
-from cyclopts import App, Parameter
+from cyclopts import App, Parameter, validators
 
 from schola.scripts.common.command_template import ScholaCommandTemplate
-from schola.scripts.common.settings import CheckpointSettings, get_activation_function
+from schola.scripts.common.settings import (
+    AllSimulatorConfigs,
+    CheckpointSettings,
+    get_activation_function,
+)
 from schola.scripts.rllib.settings import (
     BCSettings,
     LoggingSettings,
     MARWILSettings,
     OfflineRllibAlgorithmSettings,
+    OfflineRllibEnvironmentSettings,
     ResourceSettings,
 )
 from schola.scripts.rllib.train.settings import (
@@ -40,6 +46,30 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class OfflineCollectionSettings:
+    """Parameters for recording demonstrations before offline training."""
+
+    output: Annotated[
+        Path | None,
+        Parameter(
+            alias="-o",
+            validator=validators.Path(file_okay=False, dir_okay=True),
+        ),
+    ] = None
+    "Directory to write RLlib episode Parquet shards. Required with a simulator subcommand. Must not already exist."
+
+    max_steps: Annotated[int | None, Parameter(validator=validators.Number(gte=1))] = (
+        None
+    )
+    "Optional safety cap on recorded environment steps. When omitted, collection continues until the simulator process or gRPC session ends."
+
+    episodes_per_shard: Annotated[
+        int, Parameter(validator=validators.Number(gte=1))
+    ] = 64
+    "Maximum number of recorded episodes stored in each Parquet shard."
+
+
+@dataclass
 class OfflineRllibScriptSettings:
     """Shared script settings for ``schola rllib bc`` and ``schola rllib marwil``."""
 
@@ -53,6 +83,11 @@ class OfflineRllibScriptSettings:
         Parameter(group="Algorithm Arguments", name="*"),
     ] = field(default_factory=BCSettings)
     "Settings for the offline algorithm (BC or MARWIL)."
+
+    collection_settings: Annotated[
+        OfflineCollectionSettings, Parameter(group="Collection Arguments", name="*")
+    ] = field(default_factory=OfflineCollectionSettings)
+    "Settings for recording demonstrations when a simulator subcommand is given."
 
     logging_settings: Annotated[
         LoggingSettings, Parameter(group="Logging Arguments", name="*")
@@ -80,8 +115,11 @@ class OfflineRllibScriptSettings:
     ] = field(default_factory=CheckpointSettings)
     "Settings for checkpoints."
 
-    seed: int | None = None
-    "Random seed passed to RLlib. Offline training does not launch a simulator."
+    environment_settings: Annotated[
+        OfflineRllibEnvironmentSettings,
+        Parameter(group="Environment Arguments", name="*"),
+    ] = field(default_factory=OfflineRllibEnvironmentSettings)
+    "Settings for the environment. A simulator is bound only when a subcommand is selected."
 
 
 @dataclass
@@ -102,25 +140,97 @@ class MARWILScriptSettings(OfflineRllibScriptSettings):
     ] = field(default_factory=MARWILSettings)
 
 
+def _resolve_dataset_path(args: OfflineRllibScriptSettings) -> Path:
+    """Return the Parquet directory, collecting first when a simulator is bound."""
+    simulator = args.environment_settings.simulator_settings
+    output_dir = args.collection_settings.output
+    input_dir = args.algorithm_settings.input_path
+
+    if simulator is not None:
+        if output_dir is None:
+            raise ValueError(
+                "--output is required when a simulator subcommand is provided."
+            )
+        if input_dir is not None:
+            raise ValueError(
+                "--input cannot be combined with a simulator subcommand; "
+                "use --output as the dataset directory."
+            )
+        return _collect_offline_dataset(args, output_dir, simulator)
+
+    if output_dir is not None:
+        raise ValueError("--output requires a simulator subcommand.")
+    if input_dir is None:
+        raise ValueError(
+            "--input is required when no simulator subcommand is provided."
+        )
+    return input_dir
+
+
+def _collect_offline_dataset(
+    args: OfflineRllibScriptSettings,
+    output_dir: Path,
+    simulator: AllSimulatorConfigs,
+) -> Path:
+    """Launch a simulator and write an RLlib Parquet dataset to *output_dir*."""
+    from schola.core.error_manager import ScholaErrorContextManager
+    from schola.core.protocols.protobuf.offline_grpc_protocol import (
+        GrpcImitationProtocol,
+    )
+    from schola.rllib.collector import RllibImitationCollector
+    from schola.rllib.offline import write_offline_dataset
+
+    collector: RllibImitationCollector | None = None
+    try:
+        with ScholaErrorContextManager():
+            protocol = GrpcImitationProtocol(
+                url=args.environment_settings.protocol_settings.url,
+                port=args.environment_settings.protocol_settings.port,
+            )
+            collector = RllibImitationCollector(
+                protocol=protocol,
+                simulator=simulator.make(),
+                seed=args.environment_settings.seed,
+                options=args.environment_settings.env_options or None,
+            )
+            logger.info(
+                "Collecting RLlib demonstrations to %s until the simulator session ends.",
+                output_dir,
+            )
+            episodes = collector.collect_until_closed(
+                max_steps=args.collection_settings.max_steps
+            )
+            write_offline_dataset(
+                episodes,
+                output_dir,
+                collector.observation_space,
+                collector.action_space,
+                episodes_per_shard=args.collection_settings.episodes_per_shard,
+            )
+            logger.info("Wrote RLlib offline dataset to %s", output_dir)
+            return output_dir
+    finally:
+        if collector is not None:
+            collector.close()
+
+
 def main_offline(args: OfflineRllibScriptSettings) -> Any:
     """
     Train BC or MARWIL on an RLlib Parquet dataset.
 
-    No environment is created: observation and action spaces come from the
-    dataset sidecar written by ``schola rllib collect``.
+    When a simulator subcommand is given, demonstrations are recorded to
+    ``--output`` first. Otherwise ``--input`` must point at an existing dataset.
     """
     from schola.rllib.offline import load_offline_dataset
 
     offline = args.algorithm_settings
-    if offline.input_path is None:
-        raise ValueError("--input is required and must point to a collected dataset.")
-
+    data_path = _resolve_dataset_path(args)
     (
         data_path,
         training_observation_space,
         observation_space,
         action_space,
-    ) = load_offline_dataset(offline.input_path)
+    ) = load_offline_dataset(data_path)
 
     activation_fn = get_activation_function(
         args.network_architecture_settings.activation
@@ -174,7 +284,7 @@ def main_offline(args: OfflineRllibScriptSettings) -> Any:
         )
         .debugging(
             log_level=args.logging_settings.rllib_log_level,
-            seed=args.seed,
+            seed=args.environment_settings.seed,
         )
     )
 
@@ -189,7 +299,8 @@ def main_offline(args: OfflineRllibScriptSettings) -> Any:
             trainable=algo_class,
             stop={OFFLINE_STOP_METRIC: args.training_settings.timesteps},
             resource_plan=ResourcePlan.offline(args, offline),
-            label=f"{offline.name} training on RLlib dataset '{offline.input_path}'",
+            label=f"{offline.name} training on RLlib dataset '{data_path}'",
+            onnx_export_source="rl_module",
             export_observation_space=observation_space,
             export_action_space=action_space,
         ),
@@ -209,8 +320,8 @@ def _make_offline_command(
             return {}
 
         @property
-        def simulator_table(self) -> dict[str, type[Any]]:
-            return {}
+        def bind_default_simulator(self) -> bool:
+            return False
 
         @property
         def script_args_type(self) -> type[OfflineRllibScriptSettings]:
@@ -225,11 +336,11 @@ def _make_offline_command(
 
 bc_app = _make_offline_command(
     "bc",
-    "Train a model using Behaviour Cloning (BC) on an RLlib Parquet dataset.",
+    "Train a model using Behaviour Cloning (BC). Pass a simulator subcommand to record demonstrations first, or --input to train on an existing RLlib Parquet dataset.",
     BCScriptSettings,
 )
 marwil_app = _make_offline_command(
     "marwil",
-    "Train a model using MARWIL on an RLlib Parquet dataset. Set --beta 0 for plain behaviour cloning.",
+    "Train a model using MARWIL. Pass a simulator subcommand to record demonstrations first, or --input to train on an existing dataset. Set --beta 0 for plain behaviour cloning.",
     MARWILScriptSettings,
 )

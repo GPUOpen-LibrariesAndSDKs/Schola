@@ -28,22 +28,6 @@ store episodes:
 
 The ``[all]`` extra in :doc:`setup_schola` already includes this.
 
-Collecting a Dataset
---------------------
-
-Set up an imitation environment in Unreal. See the Imitation Learning section
-of :doc:`migrating_to_v2`. Then record yourself playing. Collection launches the
-same simulators as other Schola commands and reads until the Unreal process or
-gRPC session ends:
-
-.. code-block:: bash
-
-    schola rllib collect executable --executable-path <PATH_TO_EXECUTABLE> \
-        --output ./demos
-
-Use ``--max-steps`` only as a safety cap. The default is to stop when you quit
-the game.
-
 Choosing an Algorithm
 ---------------------
 
@@ -62,11 +46,37 @@ Schola exposes two offline algorithms from RLlib:
     Use it when your recordings mix good and mediocre play. Setting
     ``--beta 0.0`` reduces MARWIL to behavior cloning.
 
-Training
---------
+Collect then train
+------------------
 
-Both algorithms read a dataset. They do not step an environment. They take **no
-simulator subcommand**. You do not need Unreal or a Gym environment running:
+Set up an imitation environment in Unreal. See the Imitation Learning section
+of :doc:`migrating_to_v2`. Then record and train in one command. A simulator
+subcommand launches the same simulators as other Schola commands, records until
+the Unreal process or gRPC session ends, writes the dataset to ``--output``,
+then trains:
+
+.. code-block:: bash
+
+    schola rllib bc executable --executable-path <PATH_TO_EXECUTABLE> \
+        --output ./demos --timesteps 100000
+
+    schola rllib marwil executable --executable-path <PATH_TO_EXECUTABLE> \
+        --output ./demos --timesteps 100000 --beta 1.0
+
+Use ``--max-steps`` only as a safety cap. The default is to stop recording when
+you quit the game, then start training. ``--output`` must not already exist.
+Do not pass ``--input`` in this mode.
+
+``external`` / ``editor``, ``project`` and ``gym`` work as they do for
+``schola rllib train``. There is no implicit simulator. If you omit the
+subcommand, Schola trains from an existing dataset instead of connecting to
+Unreal.
+
+Train from an existing dataset
+------------------------------
+
+When the Parquet directory already exists, omit the simulator and pass
+``--input``. Training does not step an environment:
 
 .. code-block:: bash
 
@@ -75,15 +85,16 @@ simulator subcommand**. You do not need Unreal or a Gym environment running:
     schola rllib marwil --input ./demos --timesteps 100000 --beta 1.0
 
 The observation and action spaces come from the dataset sidecar written during
-collection. The simulator flags (``--map``, ``--headless``, ``--executable-path``
-and the rest) are not available. The network, checkpoint, logging and resource
-flags work as they do for the online algorithms.
+collection. The network, checkpoint, logging and resource flags work as they
+do for the online algorithms.
 
 Useful options:
 
-* ``--input`` / ``-i`` — Directory of RLlib Parquet shards from
-  ``schola rllib collect``. Required.
-* ``--timesteps`` — When to stop. Offline algorithms never sample an
+* ``--output`` / ``-o`` — Directory to write when a simulator subcommand is
+  given. Required in that mode. Must not already exist.
+* ``--input`` / ``-i`` — Existing directory of RLlib Parquet shards. Required
+  when no simulator subcommand is given. Cannot be combined with ``--output``.
+* ``--timesteps`` — When to stop training. Offline algorithms never sample an
   environment. This counts *trained* steps, not sampled ones.
 * ``--offline-data-workers`` and ``--offline-read-cpus`` — Size the Ray Data
   episode transformation pool and the CPU reservation for Parquet reads.
@@ -139,4 +150,3 @@ algorithm cannot pick up a BC or MARWIL checkpoint from the CLI. You must load
 the trained ``RLModule`` yourself (see
 :py:func:`schola.rllib.checkpoint.load_rl_module_from_algorithm_checkpoint`) into
 the online algorithm config.
-

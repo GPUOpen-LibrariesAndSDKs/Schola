@@ -191,11 +191,10 @@ class OfflineRllibAlgorithmSettings(RllibAlgorithmSpecificSettings):
         Parameter(
             name="--input",
             alias="-i",
-            required=True,
             validator=validators.Path(exists=True, file_okay=False, dir_okay=True),
         ),
     ] = None
-    "Directory of RLlib episode Parquet shards written by ``schola rllib collect``."
+    "Existing directory of RLlib episode Parquet shards. Required when no simulator subcommand is given. Cannot be combined with --output."
 
     input_read_batch_size: Annotated[
         int, Parameter(validator=validators.Number(gte=1))
@@ -221,7 +220,7 @@ class OfflineRllibAlgorithmSettings(RllibAlgorithmSpecificSettings):
 @dataclass
 class BCSettings(OfflineRllibAlgorithmSettings):
     """
-    Dataclass for Behaviour Cloning (BC) settings. BC learns to reproduce the actions in a recorded demonstration dataset by supervised learning, ignoring rewards entirely. Use it to bootstrap a policy from human gameplay collected with ``schola rllib collect``.
+    Dataclass for Behaviour Cloning (BC) settings. BC learns to reproduce the actions in a recorded demonstration dataset by supervised learning, ignoring rewards entirely. Use it to bootstrap a policy from human gameplay recorded with ``schola rllib bc`` and a simulator subcommand.
     """
 
     @property
@@ -351,3 +350,15 @@ class RllibEnvironmentSettings(EnvironmentSettings[AllSimulatorConfigs]):
         AllSimulatorConfigs,
         IgnoreParameter,
     ] = field(default_factory=ExternalSimulatorConfig)
+
+
+@dataclass
+class OfflineRllibEnvironmentSettings(EnvironmentSettings[AllSimulatorConfigs | None]):
+    """Environment settings for BC/MARWIL. A simulator is optional."""
+
+    simulator_settings: Annotated[
+        AllSimulatorConfigs | None,
+        IgnoreParameter,
+    ] = None
+    "Filled when the user selects a simulator subcommand. None means train-only."
+

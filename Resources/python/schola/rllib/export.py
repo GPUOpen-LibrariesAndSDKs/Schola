@@ -31,7 +31,7 @@ from gymnasium import spaces
 import copy
 from schola.rllib.env import RayVecEnv
 from torch.export.dynamic_shapes import Dim
-from typing import TYPE_CHECKING, Any, TypedDict, cast
+from typing import TYPE_CHECKING, Any, Literal, TypedDict, cast
 import logging
 
 from schola.rllib.policy_mapping import PolicyMappingFn
@@ -258,14 +258,17 @@ def _(arg: Algorithm, path: pathlib.Path) -> None:
 
 def export_onnx_from_training(
     results: "ExperimentAnalysis",
+    *,
+    source: Literal["algorithm_checkpoint", "rl_module"],
     observation_space: gym.Space[Any] | None = None,
     action_space: gym.Space[Any] | None = None,
 ) -> None:
     """Export the final model from a completed Tune run.
 
-    When original spaces are supplied, the run came from an offline dataset.
-    Load its learner module directly because an offline Algorithm has no
-    EnvRunner from which the regular Algorithm exporter can retrieve a module.
+    ``algorithm_checkpoint`` restores the Algorithm (online runs have an
+    EnvRunner). ``rl_module`` loads the learner module from the checkpoint
+    layout; pass the original observation and action spaces so Unreal still
+    sees one input per sensor.
     """
     if not results.trials or not results.trials[-1].path:
         logger.warning("No completed Tune trial was available for ONNX export.")
@@ -278,9 +281,13 @@ def export_onnx_from_training(
         return
 
     trial_path = pathlib.Path(results.trials[-1].path)
-    if observation_space is None or action_space is None:
+    if source == "algorithm_checkpoint":
         export_onnx_from_policy(Algorithm.from_checkpoint(last_checkpoint), trial_path)
-    else:
+    elif source == "rl_module":
+        if observation_space is None or action_space is None:
+            raise ValueError(
+                "ONNX export from an RLModule requires observation_space and action_space."
+            )
         from schola.rllib.checkpoint import load_rl_module_from_algorithm_checkpoint
 
         export_onnx_from_policy(
@@ -289,6 +296,8 @@ def export_onnx_from_training(
             observation_space,
             action_space,
         )
+    else:
+        raise ValueError(f"Unknown ONNX export source {source!r}.")
     logger.info("Models exported to ONNX at %s", trial_path)
 
 

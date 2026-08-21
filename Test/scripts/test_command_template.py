@@ -23,7 +23,7 @@ from schola.scripts.common.settings import (
     UnrealExecutableSimulatorConfig,
     UnrealProjectSimulatorConfig,
 )
-from schola.scripts.common.command_template import AlgorithmSpec, ScholaCommandTemplate
+from schola.scripts.common.command_template import ScholaCommandTemplate
 
 # --- Fake script / algorithm types (minimal stand-ins for SB3/RLlib settings) ---
 
@@ -713,37 +713,68 @@ def test_invalid_yaml_no_alg_config_file_logs_error_with_details(
     assert " at " in combined
 
 
-def test_algorithm_specs_support_mixed_simulator_topologies(
-    mock_main: MagicMock,
+@dataclass
+class FakeOptionalEnvironmentSettings:
+    simulator_settings: Any = None
+
+
+@dataclass
+class FakeOptionalScriptSettings:
+    environment_settings: FakeOptionalEnvironmentSettings = field(
+        default_factory=FakeOptionalEnvironmentSettings
+    )
+    algorithm_settings: FakeAlgoAlpha = field(default_factory=FakeAlgoAlpha)
+    base_level_parameter: int = 1
+
+
+def test_bind_default_simulator_false_leaves_simulator_unbound(
+    mock_main: MagicMock, tmp_path: Path
 ):
-    """An explicit empty simulator table creates a leaf beside online commands."""
-    class MixedTopologyCommand(ScholaCommandTemplate[FakeScriptSettings]):
+    """Omitting a simulator runs the leaf command; an explicit subcommand still binds one."""
+
+    class OptionalSimulatorCommand(ScholaCommandTemplate[FakeOptionalScriptSettings]):
         @property
-        def algorithm_specs(self):
-            return {
-                "online": AlgorithmSpec(FakeAlgoAlpha, "online"),
-                "offline": AlgorithmSpec(FakeAlgoBeta, "offline", simulator_table={}),
-            }
+        def algorithm_table(self) -> dict[str, type[Any]]:
+            return {}
 
         @property
-        def simulator_table(self) -> dict[str, type[BaseSimulatorConfig[Any]]]:
-            return {"external": ExternalSimulatorConfig}
+        def bind_default_simulator(self) -> bool:
+            return False
 
         @property
-        def script_args_type(self):
-            return FakeScriptSettings
+        def script_args_type(self) -> type[FakeOptionalScriptSettings]:
+            return FakeOptionalScriptSettings
 
         @property
         def main_func(self):
             return mock_main
 
-    app = App(name="mixed")
-    command = MixedTopologyCommand(app, logging.getLogger(__name__)).make()
-    command.meta(["offline"], result_action="return_value", exit_on_error=False)
+    app = App(name="optional-sim")
+    command = OptionalSimulatorCommand(app, logging.getLogger(__name__)).make()
+    command.meta([], result_action="return_value", exit_on_error=False)
 
     args = mock_main.call_args[0][0]
-    assert isinstance(args.algorithm_settings, FakeAlgoBeta)
-    with pytest.raises(Exception):
-        command.meta(
-            ["offline", "external"], result_action="return_value", exit_on_error=False
-        )
+    assert args.environment_settings.simulator_settings is None
+
+    executable_path = tmp_path / "UnrealGame.exe"
+    executable_path.touch()
+    mock_main.reset_mock()
+    command.meta(
+        ["executable", "--executable-path", str(executable_path)],
+        result_action="return_value",
+        exit_on_error=False,
+    )
+    args = mock_main.call_args[0][0]
+    assert isinstance(
+        args.environment_settings.simulator_settings, UnrealExecutableSimulatorConfig
+    )
+    assert args.environment_settings.simulator_settings.executable_path == executable_path
+
+    mock_main.reset_mock()
+    command.meta(
+        ["external"], result_action="return_value", exit_on_error=False
+    )
+    args = mock_main.call_args[0][0]
+    assert isinstance(
+        args.environment_settings.simulator_settings, ExternalSimulatorConfig
+    )

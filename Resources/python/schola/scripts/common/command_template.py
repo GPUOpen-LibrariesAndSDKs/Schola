@@ -42,23 +42,11 @@ class _ScriptArgsProtocol(Protocol):
 
 @dataclass(frozen=True)
 class AlgorithmSpec:
-    """Declarative registration for one algorithm command.
-
-    ``simulator_table=None`` inherits the command's default table. An explicit
-    empty mapping creates an algorithm leaf command, which is appropriate for
-    data-only commands.
-    """
+    """Declarative registration for one algorithm command."""
 
     settings_type: type[Any]
     help: str = ""
-    simulator_table: dict[str, type[BaseSimulatorConfig[Any]]] | None = None
     runner: Callable[[Any], Any] | None = None
-
-    def simulator_table_for(
-        self, default: dict[str, type[BaseSimulatorConfig[Any]]]
-    ) -> dict[str, type[BaseSimulatorConfig[Any]]]:
-        """Resolve the simulators applicable to this algorithm."""
-        return default if self.simulator_table is None else self.simulator_table
 
 
 def load_yaml_file(file_path: Path, logger: logging.Logger) -> dict[str, Any]:
@@ -172,25 +160,6 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
             for name, settings_type in self.algorithm_table.items()
         }
 
-    def simulator_table_for(
-        self, algorithm: str | None
-    ) -> dict[str, type[BaseSimulatorConfig[Any]]]:
-        """Return the simulator table that applies to *algorithm*."""
-        if algorithm is None:
-            return self.simulator_table
-        return self.algorithm_specs[algorithm].simulator_table_for(
-            self.simulator_table
-        )
-
-    def no_simulator_for(self, algorithm: str | None = None) -> bool:
-        return len(self.simulator_table_for(algorithm)) == 0
-
-    def single_simulator_for(self, algorithm: str | None = None) -> bool:
-        return len(self.simulator_table_for(algorithm)) == 1
-
-    def multiple_simulators_for(self, algorithm: str | None = None) -> bool:
-        return len(self.simulator_table_for(algorithm)) > 1
-
     @property
     def simulator_help(self) -> dict[str, str]:
         return {
@@ -212,6 +181,16 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
     @property
     def default_simulator_name(self) -> str:
         return "external"
+
+    @property
+    def bind_default_simulator(self) -> bool:
+        """Whether a simulator subcommand is selected when the user omits one.
+
+        When True (the default), ``external`` is the implicit simulator. When
+        False, omitting a simulator runs the command with no simulator bound,
+        which is required for data-only training that must not connect to Unreal.
+        """
+        return True
 
     @property
     def script_args_type(self) -> type[ScriptArgsType]:
@@ -321,7 +300,7 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
                     ) from exc
             hidden_script_args.algorithm_settings = algorithm_args
 
-            if self.no_simulator_for(algorithm_name):
+            if self.no_simulator:
                 # Nothing below this command reads a config block: the algorithm
                 # settings were bound when this command was parsed, and there are no
                 # simulator settings. Clear the config inherited from the root app so
@@ -331,9 +310,7 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
                 algorithm_app.config = [
                     _ScholaConfig(
                         hidden_sim_config_dict,
-                        use_commands_as_keys=self.multiple_simulators_for(
-                            algorithm_name
-                        ),
+                        use_commands_as_keys=self.multiple_simulators,
                         allow_unknown=False,
                         source=f"config:environment:simulator",
                     ),
@@ -509,13 +486,13 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
         runner: Callable[[ScriptArgsType], Any] | None = None,
     ):
         runner = runner or self.main_func
-        if self.no_simulator_for(algorithm):
+        if self.no_simulator:
             # An algorithm that opts out of simulators still needs a default command,
             # otherwise its sub-app has nothing to resolve to. The no-algorithm case
             # is handled directly in ``make_train_meta_command`` and needs no default.
             if algorithm is not None:
                 root_app.default(self.make_no_simulator_command(runner))
-        elif self.single_simulator_for(algorithm):
+        elif self.single_simulator and self.bind_default_simulator:
             self.collapse_simulator_command(root_app, algorithm, runner)
         else:
             self.make_simulator_commands(root_app, algorithm, runner)
@@ -527,9 +504,7 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
         runner: Callable[[ScriptArgsType], Any] | None = None,
     ):
         runner = runner or self.main_func
-        simulator_name, simulator_type = list(
-            self.simulator_table_for(algorithm).items()
-        )[0]
+        simulator_name, simulator_type = list(self.simulator_table.items())[0]
         sim_command = self.make_simulator_command(simulator_type, runner)
         algorithm_app.default(sim_command)
         algorithm_app.command(
@@ -544,11 +519,14 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
         runner: Callable[[ScriptArgsType], Any] | None = None,
     ):
         runner = runner or self.main_func
-        for simulator_name, simulator_type in self.simulator_table_for(
-            algorithm
-        ).items():
+        if not self.bind_default_simulator:
+            algorithm_app.default(self.make_no_simulator_command(runner))
+        for simulator_name, simulator_type in self.simulator_table.items():
             sim_command = self.make_simulator_command(simulator_type, runner)
-            if simulator_name == self.default_simulator_name:
+            if (
+                self.bind_default_simulator
+                and simulator_name == self.default_simulator_name
+            ):
                 algorithm_app.default(sim_command)
             algorithm_app.command(
                 sim_command,

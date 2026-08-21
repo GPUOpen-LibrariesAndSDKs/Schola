@@ -509,7 +509,7 @@ class CheckpointSettings:
 
 from typing import Any
 
-SimulatorSettingsT = TypeVar("SimulatorSettingsT", bound=BaseSimulatorConfig[Any])
+SimulatorSettingsT = TypeVar("SimulatorSettingsT")
 
 
 @dataclass

@@ -9,7 +9,7 @@ import logging
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Protocol, cast
+from typing import TYPE_CHECKING, Any, Callable, Literal, Protocol, cast
 
 from schola.scripts.common.settings import (
     get_activation_function,
@@ -114,6 +114,9 @@ class TrainingPlan:
     stop: dict[str, int]
     resource_plan: ResourcePlan
     label: str
+    onnx_export_source: Literal["algorithm_checkpoint", "rl_module"] = (
+        "algorithm_checkpoint"
+    )
     export_observation_space: gym.Space[Any] | None = None
     export_action_space: gym.Space[Any] | None = None
 
@@ -316,8 +319,9 @@ def _run_training(args: TuneRunSettings, plan: TrainingPlan) -> ExperimentAnalys
 
         export_onnx_from_training(
             results,
-            plan.export_observation_space,
-            plan.export_action_space,
+            source=plan.onnx_export_source,
+            observation_space=plan.export_observation_space,
+            action_space=plan.export_action_space,
         )
     return results
 

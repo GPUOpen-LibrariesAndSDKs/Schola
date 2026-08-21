@@ -17,7 +17,7 @@ import shutil
 import uuid
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, SupportsFloat
+from typing import TYPE_CHECKING, Any, Callable, SupportsFloat, TypeVar
 
 import numpy as np
 import gymnasium as gym
@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 MANIFEST_FORMAT_VERSION = 1
 MANIFEST_FILE_NAME = "schola-offline-manifest.json"
 DEFAULT_EPISODES_PER_SHARD = 64
+T = TypeVar("T")
 
 
 def get_training_observation_space(
@@ -305,6 +306,24 @@ def _discard_staging_directory(staging_dir: Path) -> None:
     shutil.rmtree(staging_dir, ignore_errors=True)
 
 
+def _commit_new_directory(output_dir: Path, populate: Callable[[Path], T]) -> T:
+    """Populate a staging directory, then rename it to *output_dir*."""
+    output_dir = Path(output_dir)
+    if output_dir.exists():
+        raise FileExistsError(
+            f"Refusing to replace existing dataset directory {output_dir}."
+        )
+    output_dir.parent.mkdir(parents=True, exist_ok=True)
+    staging_dir = output_dir.parent / f".{output_dir.name}.{uuid.uuid4().hex}.staging"
+    try:
+        result = populate(staging_dir)
+        os.replace(staging_dir, output_dir)
+        return result
+    except Exception:
+        _discard_staging_directory(staging_dir)
+        raise
+
+
 def write_episodes_as_parquet(
     episodes: Iterable["SingleAgentEpisode"],
     output_dir: Path,
@@ -329,20 +348,13 @@ def write_episodes_as_parquet(
         *output_dir*, for convenience.
     """
     output_dir = Path(output_dir)
-    if output_dir.exists():
-        raise FileExistsError(
-            f"Refusing to replace existing dataset directory {output_dir}."
-        )
-    output_dir.parent.mkdir(parents=True, exist_ok=True)
-    staging_dir = output_dir.parent / f".{output_dir.name}.{uuid.uuid4().hex}.staging"
-    try:
+
+    def populate(staging_dir: Path) -> None:
         _write_episode_shards(
             episodes, staging_dir, episodes_per_shard=episodes_per_shard
         )
-        os.replace(staging_dir, output_dir)
-    except Exception:
-        _discard_staging_directory(staging_dir)
-        raise
+
+    _commit_new_directory(output_dir, populate)
     return output_dir
 
 
@@ -376,36 +388,31 @@ def write_offline_dataset(
         *output_dir*, for convenience.
     """
     output_dir = Path(output_dir)
-    if output_dir.exists():
-        raise FileExistsError(
-            f"Refusing to replace existing dataset directory {output_dir}."
-        )
-    output_dir.parent.mkdir(parents=True, exist_ok=True)
-    staging_dir = output_dir.parent / f".{output_dir.name}.{uuid.uuid4().hex}.staging"
     training_observation_space = get_training_observation_space(observation_space)
-    try:
+
+    def populate(staging_dir: Path) -> tuple[int, int]:
         episode_count = _write_episode_shards(
             episodes, staging_dir, episodes_per_shard=episodes_per_shard
         )
+        total_steps = sum(len(episode) for episode in episodes)
         manifest = {
             "format_version": MANIFEST_FORMAT_VERSION,
             "observation_space": space_to_json(observation_space),
             "training_observation_space": space_to_json(training_observation_space),
             "action_space": space_to_json(action_space),
             "total_episodes": episode_count,
-            "total_steps": sum(len(episode) for episode in episodes),
+            "total_steps": total_steps,
         }
         with (staging_dir / MANIFEST_FILE_NAME).open("w", encoding="utf-8") as file:
             json.dump(manifest, file, indent=2, sort_keys=True)
             file.write("\n")
-        os.replace(staging_dir, output_dir)
-    except Exception:
-        _discard_staging_directory(staging_dir)
-        raise
+        return episode_count, total_steps
+
+    episode_count, total_steps = _commit_new_directory(output_dir, populate)
     logger.info(
         "Wrote %s RLlib episodes (%s steps) to %s",
         episode_count,
-        manifest["total_steps"],
+        total_steps,
         output_dir,
     )
     return output_dir

@@ -4,7 +4,7 @@ Imitation Learning from Recorded Demonstrations
 Imitation learning trains an agent from recorded gameplay. You do not use a reward
 function. You play the game. Schola records what you see and what you do. The
 agent learns to copy those actions. Use this when the behavior you want is easier
-to show than to score. It gives reinforcement learning a competent start policy
+to show than to score. It gives reinforcement learning a good start policy
 instead of a random one.
 
 Schola covers the full path. You record demonstrations from your Unreal
@@ -43,7 +43,7 @@ Schola exposes two offline algorithms from RLlib:
     Monotonic Advantage Re-Weighted Imitation Learning. It weights each
     demonstrated action by its estimated advantage. It can prefer the better
     parts of an inconsistent demonstration set. It can exceed the demonstrator.
-    Use it when your recordings mix good and mediocre play. Setting
+    Use it when your demonstrations mix good and mediocre play. Setting
     ``--beta 0.0`` reduces MARWIL to behavior cloning.
 
 Collect then train
@@ -51,9 +51,9 @@ Collect then train
 
 Set up an imitation environment in Unreal. See the Imitation Learning section
 of :doc:`migrating_to_v2`. Then record and train in one command. A simulator
-subcommand launches the same simulators as other Schola commands, records until
-the Unreal process or gRPC session ends, writes the dataset to ``--output``,
-then trains:
+subcommand launches the same simulators as other Schola commands. It records
+until the Unreal process or the gRPC session ends. It writes the dataset to
+``--output``. Then it starts training:
 
 .. code-block:: bash
 
@@ -84,49 +84,49 @@ When the Parquet directory already exists, omit the simulator and pass
 
     schola rllib marwil --input ./demos --timesteps 100000 --beta 1.0
 
-The observation and action spaces come from the dataset sidecar written during
-collection. The network, checkpoint, logging and resource flags work as they
-do for the online algorithms.
+Schola stores the observation and action spaces in a dataset sidecar during
+collection. Training reads them from that sidecar. The network, checkpoint,
+logging and resource flags work as they do for the online algorithms.
 
 Useful options:
 
-* ``--output`` / ``-o`` — Directory to write when a simulator subcommand is
+* ``--output`` / ``-o``: Directory to write when a simulator subcommand is
   given. Required in that mode. Must not already exist.
-* ``--input`` / ``-i`` — Existing directory of RLlib Parquet shards. Required
+* ``--input`` / ``-i``: Existing directory of RLlib Parquet shards. Required
   when no simulator subcommand is given. Cannot be combined with ``--output``.
-* ``--timesteps`` — When to stop training. Offline algorithms never sample an
+* ``--timesteps``: When to stop training. Offline algorithms never sample an
   environment. This counts *trained* steps, not sampled ones.
-* ``--offline-data-workers`` and ``--offline-read-cpus`` — Size the Ray Data
-  episode transformation pool and the CPU reservation for Parquet reads.
-* ``--beta``, ``--vf-coeff``, ``--bc-logstd-coeff`` — MARWIL only. See
+* ``--offline-data-workers`` and ``--offline-read-cpus``: Set the Ray Data
+  episode transform worker count and the CPU count for Parquet reads.
+* ``--beta``, ``--vf-coeff``, ``--bc-logstd-coeff``: MARWIL only. See
   :py:class:`schola.scripts.rllib.settings.MARWILSettings`.
 
-Full option lists are in
+See full option lists in
 :py:class:`schola.scripts.rllib.settings.BCSettings`,
 :py:class:`schola.scripts.rllib.settings.MARWILSettings`.
 
-Deploying the Trained Model
----------------------------
+Deploy the Trained Model
+------------------------
 
 Training exports ONNX the same way the online algorithms do. The model has one
-input per sensor. It drops into the inference setup in
+input per sensor. Use the inference setup in
 :doc:`setting_up_inference`:
 
 .. code-block:: bash
 
     schola rllib bc --input ./demos --export-onnx
 
-Improving Results
------------------
+Improve Results
+---------------
 
-The learned policy can only be as good as what you recorded. Do two checks
-before you blame the algorithm:
+The learned policy can only be as good as what you recorded. Run two checks
+before you change the algorithm:
 
-**Idle steps.** Human recordings contain steps where you had not yet reacted.
+**Idle steps.** Human demonstrations contain steps where you had not yet reacted.
 The action is a no-op. These teach the agent to do nothing in states that call
-for action. Count them. Prune them if there are many.
+for action. Count them. Remove them if there are many.
 
-**Action balance.** If one action dominates the recording, the agent learns to
+**Action balance.** If one action dominates the demonstration, the agent learns to
 always take it. Rare but important actions such as turning need enough
 examples. Record extra demonstrations of the situations that need them.
 
@@ -137,16 +137,15 @@ examples. Record extra demonstrations of the situations that need them.
     reads (four CPUs with the defaults). Schola reports the computed local Ray
     allocation before it starts training.
 
-Where to Go Next
-----------------
+Next Steps
+----------
 
-Expect a cloned policy to know the shape of the task. Do not expect it to play
-well. Where it fails, the usual next step is more data. Record demonstrations
-of the situations it gets wrong.
+Expect a cloned policy to know the basics of the task. Do not expect it to play
+well. Where it fails, record more demonstrations of those situations.
 
 You can continue with reinforcement learning. That is a manual step today.
 ``--resume-from`` expects a checkpoint from the same algorithm. An online
-algorithm cannot pick up a BC or MARWIL checkpoint from the CLI. You must load
+algorithm cannot load a BC or MARWIL checkpoint from the CLI. You must load
 the trained ``RLModule`` yourself (see
 :py:func:`schola.rllib.checkpoint.load_rl_module_from_algorithm_checkpoint`) into
 the online algorithm config.

@@ -13,6 +13,7 @@ from schola.scripts.common.settings import (
     get_activation_function,
 )
 from schola.scripts.common.command_template import ScholaCommandTemplate
+from schola.scripts.common.console import configure_logging
 
 from schola.scripts.rllib.settings import (
     APPOSettings,
@@ -24,12 +25,7 @@ from schola.scripts.rllib.train.settings import RllibScriptSettings
 
 from cyclopts import App
 
-# Logging setup
-if not logging.getLogger().handlers:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(levelname)s %(name)s: %(message)s",
-    )
+configure_logging()
 logger = logging.getLogger(__name__)
 
 app = App(name="train", help="Train a Model using ray")

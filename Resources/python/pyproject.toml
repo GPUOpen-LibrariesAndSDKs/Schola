@@ -58,6 +58,7 @@ dependencies = [
     "gymnasium>=1.1.0",
     "backports.strenum; python_version<'3.11'",
     "cyclopts>=4.0",
+    "rich",
     "torch>=2.10", # 2.10 is the earliest version for which exporting models to ONNX with Dynamo works well
 ]
 
@@ -68,11 +69,10 @@ Repository = "https://github.com/GPUOpen-LibrariesAndSDKs/Schola"
 [project.optional-dependencies]
 # Dependencies for running training with Stable Baselines 3.
 # * stable-baselines3 is required to run training with Stable Baselines 3.
-# * tqdm and rich are required to display the training progress bar from Stable Baselines 3.
+# * tqdm is required to display the training progress bar from Stable Baselines 3.
 sb3 = [
     "stable-baselines3>=2.6",
     "tqdm",
-    "rich",
 ]
 
 # Dependencies for running training with RLlib.

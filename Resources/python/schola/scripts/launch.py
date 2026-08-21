@@ -6,11 +6,9 @@ Entry point for the ``schola`` CLI.
 
 import sys
 from cyclopts import App, Parameter, validators, group_extractors, Group
+from schola.scripts.common.console import configure_logging, console
 from schola.scripts.common.panel import print_error
 
-from rich.console import Console
-
-console = Console()
 app = App(
     console=console,
     name="schola",
@@ -82,6 +80,7 @@ def main():
     -----
     On unexpected exceptions, prints a Rich traceback and exits with status code ``1``.
     """
+    configure_logging()
     try:
         app()
     except Exception as e:  # keep lightweight panel reporting

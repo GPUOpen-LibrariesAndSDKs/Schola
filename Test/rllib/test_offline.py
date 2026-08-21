@@ -193,11 +193,27 @@ def test_write_offline_dataset_sidecar_reloads_spaces(tmp_path):
         output
     )
 
-    assert data_path == output
+    assert data_path == output.resolve()
     assert (output / MANIFEST_FILE_NAME).is_file()
     assert observation_space == DICT_OBSERVATION_SPACE
     assert action_space == MULTI_DISCRETE_ACTION_SPACE
     assert training_space.shape == (7,)
+
+
+def test_load_offline_dataset_resolves_relative_path(tmp_path, monkeypatch):
+    pytest.importorskip("pyarrow")
+    write_offline_dataset(
+        [make_episode()],
+        tmp_path / "demos",
+        DICT_OBSERVATION_SPACE,
+        MULTI_DISCRETE_ACTION_SPACE,
+    )
+    monkeypatch.chdir(tmp_path)
+
+    data_path, _, _, _ = load_offline_dataset("demos")
+
+    assert data_path.is_absolute()
+    assert data_path == (tmp_path / "demos").resolve()
 
 
 def test_load_offline_dataset_requires_manifest(tmp_path):

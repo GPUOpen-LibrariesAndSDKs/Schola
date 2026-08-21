@@ -433,6 +433,7 @@ def load_offline_dataset(
     -------
     tuple
         ``(parquet_dir, training_observation_space, observation_space, action_space)``.
+        ``parquet_dir`` is absolute so Ray workers can read it from any working directory.
 
     Raises
     ------
@@ -441,7 +442,7 @@ def load_offline_dataset(
     ValueError
         If the manifest is not a valid Schola offline dataset.
     """
-    input_dir = Path(input_dir)
+    input_dir = Path(input_dir).resolve()
     manifest_path = input_dir / MANIFEST_FILE_NAME
     if not input_dir.is_dir():
         raise FileNotFoundError(f"Offline dataset directory does not exist: {input_dir}")

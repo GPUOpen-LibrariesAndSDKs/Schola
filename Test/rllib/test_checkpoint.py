@@ -104,9 +104,7 @@ def test_assert_warm_start_rejects_bc_into_sac():
 def test_assert_warm_start_rejects_unknown_module_ids():
     loaded = {"default_policy": object.__new__(DefaultBCTorchRLModule)}
     with pytest.raises(ValueError, match="not among the live policies"):
-        assert_warm_start_compatible(
-            loaded, PPOConfig().framework("torch"), ["Tagger"]
-        )
+        assert_warm_start_compatible(loaded, PPOConfig().framework("torch"), ["Tagger"])
 
 
 def test_run_training_uses_plan_restore_and_warm_start_callback(mocker, tmp_path):
@@ -123,9 +121,7 @@ def test_run_training_uses_plan_restore_and_warm_start_callback(mocker, tmp_path
     mocker.patch("ray.air.CheckpointConfig", return_value=object())
 
     args = SimpleNamespace(
-        resource_settings=SimpleNamespace(
-            using_cluster=True, num_cpus=1, num_gpus=0
-        ),
+        resource_settings=SimpleNamespace(using_cluster=True, num_cpus=1, num_gpus=0),
         checkpoint_settings=SimpleNamespace(
             enable_checkpoints=False,
             save_freq=0,
@@ -172,9 +168,7 @@ def test_run_training_passes_plan_restore_to_tune(mocker, tmp_path):
     restore_dir = tmp_path / "checkpoint_000000"
     restore_dir.mkdir()
     args = SimpleNamespace(
-        resource_settings=SimpleNamespace(
-            using_cluster=True, num_cpus=1, num_gpus=0
-        ),
+        resource_settings=SimpleNamespace(using_cluster=True, num_cpus=1, num_gpus=0),
         checkpoint_settings=SimpleNamespace(
             enable_checkpoints=False,
             save_freq=0,

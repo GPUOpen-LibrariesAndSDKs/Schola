@@ -193,9 +193,7 @@ def _is_bc_to_ppo_style(source_cls: type[Any], target_cls: type[Any]) -> bool:
     )
 
 
-def _copy_bc_weights_into_ppo_module(
-    source: "RLModule", target: "RLModule"
-) -> None:
+def _copy_bc_weights_into_ppo_module(source: "RLModule", target: "RLModule") -> None:
     """Copy BC encoder/policy heads into a PPO-style module; leave the critic random."""
     encoder = getattr(source, "_encoder", None)
     pi_head = getattr(source, "_pi_head", None)

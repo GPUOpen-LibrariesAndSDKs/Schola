@@ -198,53 +198,57 @@ def test_load_module_from_checkpoint_reports_missing_module(tmp_path):
         load_rl_module_from_algorithm_checkpoint(checkpoint)
 
 
-def test_writing_restores_ray_data_log_level(tmp_path):
-    """Quieting Ray Data during a write must not leak into the rest of the run."""
-    import logging
+def test_writing_a_dataset_does_not_start_ray(tmp_path, monkeypatch):
+    """Recording must not claim a Ray runtime.
 
-    pytest.importorskip("ray")
-    ray_data_logger = logging.getLogger("ray.data")
-    before = ray_data_logger.level
+    Offline training starts its own Ray instance in a separate process. If
+    writing a dataset stood one up too, the two would race for the same machine
+    and training would fail to reach its GCS.
+    """
+    import ray
+
+    pytest.importorskip("pyarrow")
+
+    def fail_on_init(*_args, **_kwargs):
+        raise AssertionError("Writing a dataset must not initialize Ray.")
+
+    monkeypatch.setattr(ray, "init", fail_on_init)
 
     write_episodes_as_parquet([make_episode()], tmp_path / "episodes")
 
-    assert ray_data_logger.level == before
-
 
 def test_write_episodes_as_parquet_streams_multiple_shards(tmp_path):
-    pytest.importorskip("ray")
+    pytest.importorskip("pyarrow")
     output = write_episodes_as_parquet(
         [make_episode() for _ in range(5)],
         tmp_path / "episodes",
         episodes_per_shard=2,
     )
 
-    assert len(list(output.glob("part-*"))) == 3
-    assert len(list(output.rglob("*.parquet"))) >= 3
+    assert len(list(output.glob("*.parquet"))) == 3
 
 
 def test_parquet_shard_round_trips_msgpack_episode_state(tmp_path):
-    import msgpack
-    import msgpack_numpy
-    import ray
+    """Guards the one thing RLlib's reader actually requires of the layout."""
+    pyarrow_parquet = pytest.importorskip("pyarrow.parquet")
+    msgpack = pytest.importorskip("msgpack")
+    msgpack_numpy = pytest.importorskip("msgpack_numpy")
     from ray.rllib.env.single_agent_episode import SingleAgentEpisode
 
-    pytest.importorskip("ray")
     episode = make_episode()
 
     output = write_episodes_as_parquet([episode], tmp_path / "episodes")
-    if not ray.is_initialized():
-        ray.init(num_cpus=1, include_dashboard=False, ignore_reinit_error=True)
-    row = ray.data.read_parquet(str(output)).take(1)[0]
+    table = pyarrow_parquet.read_table(next(output.glob("*.parquet")))
+    assert table.column_names == ["item"]
     restored = SingleAgentEpisode.from_state(
-        msgpack.unpackb(row["item"], object_hook=msgpack_numpy.decode)
+        msgpack.unpackb(table["item"][0].as_py(), object_hook=msgpack_numpy.decode)
     )
 
     assert restored.get_state().keys() == episode.get_state().keys()
 
 
 def test_write_offline_dataset_sidecar_reloads_spaces(tmp_path):
-    pytest.importorskip("ray")
+    pytest.importorskip("pyarrow")
     output = write_offline_dataset(
         [make_episode()],
         tmp_path / "demos",
@@ -264,7 +268,7 @@ def test_write_offline_dataset_sidecar_reloads_spaces(tmp_path):
 
 
 def test_load_offline_dataset_resolves_relative_path(tmp_path, monkeypatch):
-    pytest.importorskip("ray")
+    pytest.importorskip("pyarrow")
     write_offline_dataset(
         [make_episode()],
         tmp_path / "demos",

@@ -4,16 +4,16 @@ RLlib new-API-stack offline data: Parquet episodes plus a space sidecar.
 
 RLlib's offline algorithms (BC, MARWIL) read Ray Data sources containing
 msgpack-serialized :class:`~ray.rllib.env.single_agent_episode.SingleAgentEpisode`
-states. This module writes that layout with the same msgpack packing and
-``ray.data.Dataset.write_parquet`` calls that RLlib's
-:class:`~ray.rllib.offline.offline_env_runner.OfflineSingleAgentEnvRunner`
-uses, and stores the original and training observation spaces so training does
-not need a live environment.
+states. This module writes that layout using the same msgpack packing as RLlib's
+:class:`~ray.rllib.offline.offline_env_runner.OfflineSingleAgentEnvRunner`, and
+stores the original and training observation spaces so training does not need a
+live environment. Parquet files are written with PyArrow: collection is not an
+RLlib env runner, and ``Dataset.write_parquet`` would own a Ray lifecycle that
+training later needs for itself.
 """
 
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
 import os
@@ -222,16 +222,6 @@ def space_from_json(payload: Mapping[str, Any]) -> gym.Space[Any]:
     return _decode_legacy_schola_space(space_payload)
 
 
-def _ensure_ray_for_data_io() -> None:
-    """Start a local Ray runtime when offline Parquet I/O runs outside Tune."""
-    import ray
-
-    if ray.is_initialized():
-        return
-    os.environ.setdefault("RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO", "0")
-    ray.init(num_cpus=1, include_dashboard=False, ignore_reinit_error=True)
-
-
 def _pack_episode_states(episodes: Sequence["SingleAgentEpisode"]) -> list[bytes]:
     """Pack episodes the same way RLlib's ``OfflineSingleAgentEnvRunner`` does."""
     import msgpack
@@ -267,37 +257,24 @@ def _batched_episodes(
         yield batch
 
 
-@contextlib.contextmanager
-def _quiet_ray_data_logging() -> Iterator[None]:
+def _write_parquet_shard(packed_episodes: Sequence[bytes], shard_path: Path) -> None:
     """
-    Silence Ray Data's per-write pipeline commentary.
+    Write one shard of msgpack episode states.
 
-    Ray Data decorates its progress lines with emoji, and its log handlers open
-    the session log file using the locale code page. On any non-UTF-8 locale
-    (cp1252 is the Windows default) emitting those records raises
-    ``UnicodeEncodeError``, so every status line prints a traceback and buries
-    the real output. Raising the level on ``ray.data`` drops the records before
-    a handler sees them; child loggers inherit it, and errors still surface.
+    Produces the single ``item`` column of packed bytes that RLlib's
+    ``input_read_episodes`` reader expects, which is the whole format contract.
+    PyArrow writes it directly rather than going through
+    ``ray.data.Dataset.write_parquet``: recording is a foreground user action,
+    and standing up a Ray runtime just to write a file would collide with the
+    runtime that training later needs.
     """
-    ray_data_logger = logging.getLogger("ray.data")
-    previous_level = ray_data_logger.level
-    ray_data_logger.setLevel(logging.ERROR)
-    try:
-        yield
-    finally:
-        ray_data_logger.setLevel(previous_level)
+    import pyarrow as pa
+    import pyarrow.parquet as pq
 
-
-def _write_parquet_shard(packed_episodes: Sequence[bytes], shard_dir: Path) -> None:
-    """Write one msgpack episode shard with Ray Data, matching RLlib's env runner."""
-    import ray.data
-
-    _ensure_ray_for_data_io()
-    with _quiet_ray_data_logging():
-        ray.data.from_items(list(packed_episodes)).write_parquet(
-            str(shard_dir),
-            try_create_dir=True,
-        )
+    pq.write_table(
+        pa.Table.from_pydict({"item": pa.array(packed_episodes, type=pa.binary())}),
+        shard_path,
+    )
 
 
 def _write_episode_shards(
@@ -306,7 +283,7 @@ def _write_episode_shards(
     *,
     episodes_per_shard: int,
 ) -> int:
-    """Write episode states to independently readable Parquet shard directories."""
+    """Write episode states to independently readable Parquet shard files."""
     if episodes_per_shard < 1:
         raise ValueError("episodes_per_shard must be at least one.")
 
@@ -318,7 +295,7 @@ def _write_episode_shards(
         episode_count += len(episode_batch)
         _write_parquet_shard(
             _pack_episode_states(episode_batch),
-            output_dir / f"part-{shard_count:05d}",
+            output_dir / f"part-{shard_count:05d}.parquet",
         )
     if episode_count == 0:
         raise ValueError(
@@ -367,7 +344,7 @@ def write_episodes_as_parquet(
     output_dir : pathlib.Path
         Destination directory. It must not already exist.
     episodes_per_shard : int, optional
-        Maximum number of episodes in each Parquet shard directory.
+        Maximum number of episodes in each Parquet file.
 
     Returns
     -------
@@ -407,7 +384,7 @@ def write_offline_dataset(
     action_space : gymnasium.Space
         Action space recorded with the episodes.
     episodes_per_shard : int, optional
-        Maximum number of episodes in each Parquet shard directory.
+        Maximum number of episodes in each Parquet file.
 
     Returns
     -------

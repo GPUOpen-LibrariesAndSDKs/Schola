@@ -219,9 +219,7 @@ def test_main_online_warm_starts_bc_checkpoint(mocker, tmp_path):
         captured["plan"] = plan
         return mocker.Mock()
 
-    mocker.patch(
-        "schola.scripts.rllib.train.train.run_training", fake_run_training
-    )
+    mocker.patch("schola.scripts.rllib.train.train.run_training", fake_run_training)
     main_online(
         RllibScriptSettings(
             resume_settings=ResumeSettings(resume_from=checkpoint_dir),
@@ -253,9 +251,7 @@ def test_main_online_restores_matching_checkpoint(mocker, tmp_path):
         captured["plan"] = plan
         return mocker.Mock()
 
-    mocker.patch(
-        "schola.scripts.rllib.train.train.run_training", fake_run_training
-    )
+    mocker.patch("schola.scripts.rllib.train.train.run_training", fake_run_training)
     main_online(
         RllibScriptSettings(
             resume_settings=ResumeSettings(resume_from=checkpoint_dir),

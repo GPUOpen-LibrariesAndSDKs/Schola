@@ -1,7 +1,6 @@
 # Copyright (c) 2026 Advanced Micro Devices, Inc. All Rights Reserved.
 """Tests for the dedicated RLlib offline training command."""
 
-from dataclasses import replace
 import logging
 
 import pytest
@@ -24,13 +23,6 @@ def mock_app(mock_offline_main):
         @property
         def main_func(self):
             return mock_offline_main
-
-        @property
-        def algorithm_specs(self):
-            return {
-                name: replace(spec, runner=mock_offline_main)
-                for name, spec in super().algorithm_specs.items()
-            }
 
     app = App(name="offline-train", help="Train from an RLlib dataset")
     return MockOfflineTrainCommand(app, logging.getLogger(__name__)).make()

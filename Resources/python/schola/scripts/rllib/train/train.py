@@ -10,7 +10,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, cast
 
-from schola.scripts.common.command_template import AlgorithmSpec, ScholaCommandTemplate
+from schola.scripts.common.command_template import ScholaCommandTemplate
 
 from schola.scripts.rllib.settings import (
     APPOSettings,
@@ -267,11 +267,38 @@ def main_online(args: RllibScriptSettings) -> ExperimentAnalysis:
         seed=args.environment_settings.seed,
     )
 
+    # Train through a Schola Algorithm subclass so the frozen policy mapping is
+    # saved/restored as a native RLlib Checkpointable subcomponent,
+    # mirroring RLlib's own checkpoint behavior.
+    algo_class = config.algo_class
+    if algo_class is None:
+        raise RuntimeError("RLlib config did not define an algorithm class.")
+    schola_algorithm_cls = schola_algorithm_subclass(cast(type[Algorithm], algo_class))
+
+    restore: Path | None = None
+    warm_start_rl_module_dir: Path | None = None
+    resume_from = args.resume_settings.resume_from
+    if resume_from is not None:
+        from schola.rllib.checkpoint import plan_resume_from_checkpoint
+
+        restore, warm_start_rl_module_dir = plan_resume_from_checkpoint(
+            resume_from,
+            schola_algorithm_cls,
+            config,
+            tuple(policies),
+        )
+        if warm_start_rl_module_dir is not None:
+            logger.info(
+                "Checkpoint algorithm family does not match this train command. "
+                "Loading RLModule weights only from %s (warm start).",
+                warm_start_rl_module_dir,
+            )
+
     # Use the new API stack metric name for stopping criterion.
     # Old stack used "timesteps_total", new stack uses "num_env_steps_sampled_lifetime".
     stop = _make_stop_criterion(
         args.training_settings.timesteps,
-        args.resume_settings.resume_from,
+        restore,
         args.resume_settings.reset_timestep,
     )
 
@@ -281,13 +308,6 @@ def main_online(args: RllibScriptSettings) -> ExperimentAnalysis:
             "export_onnx without save_final_policy: saving an end-of-run snapshot so "
             + "the exported model matches the final training weights (writes an end-of-run checkpoint)."
         )
-    # Train through a Schola Algorithm subclass so the frozen policy mapping is
-    # saved/restored as a native RLlib Checkpointable subcomponent,
-    # mirroring RLlib's own checkpoint behavior.
-    algo_class = config.algo_class
-    if algo_class is None:
-        raise RuntimeError("RLlib config did not define an algorithm class.")
-    schola_algorithm_cls = schola_algorithm_subclass(cast(type[Algorithm], algo_class))
     return run_training(
         args,
         TrainingPlan(
@@ -296,34 +316,16 @@ def main_online(args: RllibScriptSettings) -> ExperimentAnalysis:
             stop=stop,
             resource_plan=ResourcePlan.online(args),
             label="online RLlib training",
+            restore=restore,
+            warm_start_rl_module_dir=warm_start_rl_module_dir,
+            warm_start_policy_ids=tuple(policies),
         ),
     )
 
 
 def main(args: RllibScriptSettings) -> ExperimentAnalysis:
-    """Run an RLlib training settings object from the Python API.
-
-    CLI commands select their handler declaratively through ``AlgorithmSpec``.
-    The narrow type dispatch here preserves the public ``main(settings)`` entry
-    point for callers that construct settings objects themselves.
-    """
+    """Run an RLlib training settings object from the Python API."""
     return main_online(args)
-
-
-RLIB_TRAIN_ALGORITHMS: dict[str, AlgorithmSpec] = {
-    "sac": AlgorithmSpec(
-        SACSettings, "Train a model using Soft Actor-Critic (SAC) with RLlib."
-    ),
-    "ppo": AlgorithmSpec(
-        PPOSettings,
-        "Train a model using Proximal Policy Optimization (PPO) with RLlib.",
-    ),
-    "impala": AlgorithmSpec(IMPALASettings, "Train a model using IMPALA with RLlib."),
-    "appo": AlgorithmSpec(
-        APPOSettings,
-        "Train a model using Asynchronous Proximal Policy Optimization (APPO) with RLlib.",
-    ),
-}
 
 
 class RllibTrainCommand(ScholaCommandTemplate[RllibScriptSettings]):
@@ -336,8 +338,22 @@ class RllibTrainCommand(ScholaCommandTemplate[RllibScriptSettings]):
     """
 
     @property
-    def algorithm_specs(self) -> dict[str, AlgorithmSpec]:
-        return RLIB_TRAIN_ALGORITHMS
+    def algorithm_table(self) -> dict[str, type[Any]]:
+        return {
+            "sac": SACSettings,
+            "ppo": PPOSettings,
+            "impala": IMPALASettings,
+            "appo": APPOSettings,
+        }
+
+    @property
+    def algorithm_help(self) -> dict[str, str]:
+        return {
+            "sac": "Train a model using Soft Actor-Critic(SAC) with rllib.",
+            "ppo": "Train a model using Proximal Policy Optimization(PPO) with rllib.",
+            "impala": "Train a model using IMPALA with rllib.",
+            "appo": "Train a model using Asynchronous Proximal Policy Optimization(APPO) with rllib.",
+        }
 
     @property
     def script_args_type(self) -> type[RllibScriptSettings]:

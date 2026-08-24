@@ -2,7 +2,6 @@
 """Tests for the rllib cli"""
 
 from copy import deepcopy
-from dataclasses import replace
 import logging
 import pickle
 from cyclopts import App
@@ -18,6 +17,7 @@ from schola.scripts.rllib.train.train import (
     RllibTrainCommand,
     _get_restored_env_steps,
     _make_stop_criterion,
+    main_online,
 )
 from schola.core.utils.id_manager import IdManager
 from schola.rllib.env import BaseRayEnv
@@ -28,7 +28,11 @@ from schola.scripts.rllib.settings import (
     PPOSettings,
     SACSettings,
 )
-from schola.scripts.rllib.train.settings import RllibScriptSettings, TrainingSettings
+from schola.scripts.rllib.train.settings import (
+    ResumeSettings,
+    RllibScriptSettings,
+    TrainingSettings,
+)
 from schola.scripts.common.settings import (
     UnrealProjectSimulatorConfig,
     ActivationFunctionEnum,
@@ -67,13 +71,6 @@ def mock_app(mock_main):
         @property
         def main_func(self):
             return mock_main
-
-        @property
-        def algorithm_specs(self):
-            return {
-                name: replace(spec, runner=mock_main)
-                for name, spec in super().algorithm_specs.items()
-            }
 
     return MockRllibTrainCommand(app, logger).make()
 
@@ -191,6 +188,82 @@ def test_make_stop_criterion_reset_no_checkpoint_uses_timesteps():
     assert _make_stop_criterion(500, None, reset_timestep=True) == {
         "num_env_steps_sampled_lifetime": 500,
     }
+
+
+def test_resume_from_cli(mock_app, mock_main, tmp_path):
+    checkpoint_dir = tmp_path / "checkpoint_000000"
+    checkpoint_dir.mkdir()
+    mock_app.meta(
+        ["ppo", "--resume-from", str(checkpoint_dir)],
+        result_action="return_value",
+        exit_on_error=False,
+    )
+    args: RllibScriptSettings = mock_main.call_args[0][0]
+    assert args.resume_settings.resume_from == checkpoint_dir
+
+
+def test_main_online_warm_starts_bc_checkpoint(mocker, tmp_path):
+    checkpoint_dir = tmp_path / "checkpoint_000000"
+    checkpoint_dir.mkdir()
+    mocker.patch(
+        "schola.rllib.checkpoint.plan_resume_from_checkpoint",
+        return_value=(None, checkpoint_dir),
+    )
+    mocker.patch(
+        "schola.scripts.rllib.utils.discover_env_metadata",
+        return_value=(["0"], {"0": "default_policy"}, {}),
+    )
+    captured: dict = {}
+
+    def fake_run_training(args, plan):
+        captured["plan"] = plan
+        return mocker.Mock()
+
+    mocker.patch(
+        "schola.scripts.rllib.train.train.run_training", fake_run_training
+    )
+    main_online(
+        RllibScriptSettings(
+            resume_settings=ResumeSettings(resume_from=checkpoint_dir),
+        )
+    )
+    plan = captured["plan"]
+    assert plan.restore is None
+    assert plan.warm_start_rl_module_dir == checkpoint_dir
+    assert plan.stop == {"num_env_steps_sampled_lifetime": 3000}
+
+
+def test_main_online_restores_matching_checkpoint(mocker, tmp_path):
+    checkpoint_dir = tmp_path / "checkpoint_000000"
+    env_runner_dir = checkpoint_dir / "env_runner"
+    env_runner_dir.mkdir(parents=True)
+    with (env_runner_dir / "state.pkl").open("wb") as state_file:
+        pickle.dump({"num_env_steps_sampled_lifetime": 400}, state_file)
+    mocker.patch(
+        "schola.rllib.checkpoint.plan_resume_from_checkpoint",
+        return_value=(checkpoint_dir, None),
+    )
+    mocker.patch(
+        "schola.scripts.rllib.utils.discover_env_metadata",
+        return_value=(["0"], {"0": "default_policy"}, {}),
+    )
+    captured: dict = {}
+
+    def fake_run_training(args, plan):
+        captured["plan"] = plan
+        return mocker.Mock()
+
+    mocker.patch(
+        "schola.scripts.rllib.train.train.run_training", fake_run_training
+    )
+    main_online(
+        RllibScriptSettings(
+            resume_settings=ResumeSettings(resume_from=checkpoint_dir),
+        )
+    )
+    plan = captured["plan"]
+    assert plan.restore == checkpoint_dir
+    assert plan.warm_start_rl_module_dir is None
 
 
 def test_ppo_default_arguments(mock_app, mock_main):

@@ -15,7 +15,6 @@ from cyclopts import App, Parameter, validators
 
 from schola.scripts.common.settings import (
     AllSimulatorConfigs,
-    BaseSimulatorConfig,
     EnvironmentSettings,
     ExternalSimulatorConfig,
     GrpcProtocolConfig,
@@ -716,70 +715,3 @@ def test_invalid_yaml_no_alg_config_file_logs_error_with_details(
     assert "Error loading config file" in combined
     assert str(cfg) in combined
     assert " at " in combined
-
-
-@dataclass
-class FakeOptionalEnvironmentSettings:
-    simulator_settings: Any = None
-
-
-@dataclass
-class FakeOptionalScriptSettings:
-    environment_settings: FakeOptionalEnvironmentSettings = field(
-        default_factory=FakeOptionalEnvironmentSettings
-    )
-    algorithm_settings: FakeAlgoAlpha = field(default_factory=FakeAlgoAlpha)
-    base_level_parameter: int = 1
-
-
-def test_bind_default_simulator_false_leaves_simulator_unbound(
-    mock_main: MagicMock, tmp_path: Path
-):
-    """Omitting a simulator runs the leaf command; an explicit subcommand still binds one."""
-
-    class OptionalSimulatorCommand(ScholaCommandTemplate[FakeOptionalScriptSettings]):
-        @property
-        def algorithm_table(self) -> dict[str, type[Any]]:
-            return {}
-
-        @property
-        def bind_default_simulator(self) -> bool:
-            return False
-
-        @property
-        def script_args_type(self) -> type[FakeOptionalScriptSettings]:
-            return FakeOptionalScriptSettings
-
-        @property
-        def main_func(self):
-            return mock_main
-
-    app = App(name="optional-sim")
-    command = OptionalSimulatorCommand(app, logging.getLogger(__name__)).make()
-    command.meta([], result_action="return_value", exit_on_error=False)
-
-    args = mock_main.call_args[0][0]
-    assert args.environment_settings.simulator_settings is None
-
-    executable_path = tmp_path / "UnrealGame.exe"
-    executable_path.touch()
-    mock_main.reset_mock()
-    command.meta(
-        ["executable", "--executable-path", str(executable_path)],
-        result_action="return_value",
-        exit_on_error=False,
-    )
-    args = mock_main.call_args[0][0]
-    assert isinstance(
-        args.environment_settings.simulator_settings, UnrealExecutableSimulatorConfig
-    )
-    assert (
-        args.environment_settings.simulator_settings.executable_path == executable_path
-    )
-
-    mock_main.reset_mock()
-    command.meta(["external"], result_action="return_value", exit_on_error=False)
-    args = mock_main.call_args[0][0]
-    assert isinstance(
-        args.environment_settings.simulator_settings, ExternalSimulatorConfig
-    )

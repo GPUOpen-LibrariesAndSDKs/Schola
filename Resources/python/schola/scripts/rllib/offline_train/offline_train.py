@@ -8,7 +8,7 @@ from typing import Any, Callable
 
 from cyclopts import App
 
-from schola.scripts.common.command_template import AlgorithmSpec, ScholaCommandTemplate
+from schola.scripts.common.command_template import ScholaCommandTemplate
 from schola.scripts.rllib.offline_train.settings import OfflineRllibScriptSettings
 from schola.scripts.rllib.settings import BCSettings, MARWILSettings
 from schola.scripts.rllib.training import (
@@ -93,20 +93,9 @@ def main(args: OfflineRllibScriptSettings) -> Any:
             onnx_export_source="rl_module",
             export_observation_space=observation_space,
             export_action_space=action_space,
+            restore=args.resume_settings.resume_from,
         ),
     )
-
-
-OFFLINE_TRAIN_ALGORITHMS: dict[str, AlgorithmSpec] = {
-    "bc": AlgorithmSpec(
-        BCSettings,
-        "Train a model using Behaviour Cloning on an existing RLlib dataset.",
-    ),
-    "marwil": AlgorithmSpec(
-        MARWILSettings,
-        "Train a model using MARWIL on an existing RLlib dataset.",
-    ),
-}
 
 
 _offline_train_app = App(
@@ -117,8 +106,18 @@ _offline_train_app = App(
 
 class OfflineTrainCommand(ScholaCommandTemplate[OfflineRllibScriptSettings]):
     @property
-    def algorithm_specs(self) -> dict[str, AlgorithmSpec]:
-        return OFFLINE_TRAIN_ALGORITHMS
+    def algorithm_table(self) -> dict[str, type[Any]]:
+        return {
+            "bc": BCSettings,
+            "marwil": MARWILSettings,
+        }
+
+    @property
+    def algorithm_help(self) -> dict[str, str]:
+        return {
+            "bc": "Train a model using Behaviour Cloning on an existing RLlib dataset.",
+            "marwil": "Train a model using MARWIL on an existing RLlib dataset.",
+        }
 
     @property
     def simulator_table(self) -> dict[str, type[Any]]:

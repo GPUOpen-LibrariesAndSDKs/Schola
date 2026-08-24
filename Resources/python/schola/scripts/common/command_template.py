@@ -5,19 +5,19 @@ Cyclopts template for generating Schola subcommands (multi-simulator and algorit
 """
 
 from collections import defaultdict
-from collections.abc import Callable, Iterable
-from dataclasses import dataclass
+from itertools import chain
 import logging
 from pathlib import Path
 from typing import (
     Annotated,
     Any,
+    Callable,
     Generic,
+    Iterable,
     NewType,
-    Protocol,
     TypeVar,
-    cast,
 )
+
 
 from cyclopts import App, ArgumentCollection, Group, Parameter
 import cyclopts
@@ -32,21 +32,7 @@ from schola.scripts.common.settings import (
     GymSimulatorConfig,
 )
 
-ScriptArgsType = TypeVar("ScriptArgsType", bound="_ScriptArgsProtocol")
-
-
-class _ScriptArgsProtocol(Protocol):
-    environment_settings: Any
-    algorithm_settings: Any
-
-
-@dataclass(frozen=True)
-class AlgorithmSpec:
-    """Declarative registration for one algorithm command."""
-
-    settings_type: type[Any]
-    help: str = ""
-    runner: Callable[[Any], Any] | None = None
+ScriptArgsType = TypeVar("ScriptArgsType")
 
 
 def load_yaml_file(file_path: Path, logger: logging.Logger) -> dict[str, Any]:
@@ -148,19 +134,6 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
         }
 
     @property
-    def algorithm_specs(self) -> dict[str, AlgorithmSpec]:
-        """Return the algorithm commands supported by this template.
-
-        Subclasses should override this property. The legacy table/help hooks are
-        retained as a compatibility adapter for existing commands and third-party
-        templates.
-        """
-        return {
-            name: AlgorithmSpec(settings_type, self.algorithm_help.get(name, ""))
-            for name, settings_type in self.algorithm_table.items()
-        }
-
-    @property
     def simulator_help(self) -> dict[str, str]:
         return {
             "gym": "Run a standard Gymnasium environment in-process via the Schola gym connector.",
@@ -183,16 +156,6 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
         return "external"
 
     @property
-    def bind_default_simulator(self) -> bool:
-        """Whether a simulator subcommand is selected when the user omits one.
-
-        When True (the default), ``external`` is the implicit simulator. When
-        False, omitting a simulator runs the command with no simulator bound,
-        which is required for data-only training that must not connect to Unreal.
-        """
-        return True
-
-    @property
     def script_args_type(self) -> type[ScriptArgsType]:
         raise NotImplementedError(
             "script_args_type must be implemented in the subclass"
@@ -202,54 +165,24 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
     def main_func(self) -> Callable[[ScriptArgsType], Any]:
         raise NotImplementedError("main_func must be implemented in the subclass")
 
-    def make_no_simulator_command(self, runner: Callable[[ScriptArgsType], Any]):
-        """Default command for algorithms with no simulator sub-apps.
-
-        Without this, ``parse_args(())`` has nothing to resolve to and the algorithm
-        command cannot run on its own.
-        """
-
-        def no_simulator_command(
-            *,
-            hidden_script_args: Annotated[ScriptArgsType, Parameter(parse=False)],
-        ):
-            self._logger.debug("Arguments: %s", hidden_script_args)
-            return runner(hidden_script_args)
-
-        return no_simulator_command
-
-    def make_simulator_command(
-        self,
-        simulator_type: type[BaseSimulatorConfig[Any]],
-        runner: Callable[[ScriptArgsType], Any],
-    ):
-        # Cyclopts needs a distinct annotation per generated command. NewType is
-        # applied to a runtime class object, which is not a valid static NewType argument.
-        SimulatorType = NewType(
-            "SimulatorType", simulator_type
-        )  # pyright: ignore[reportGeneralTypeIssues]
-
+    def make_simulator_command(self, simulator_type: type[BaseSimulatorConfig[Any]]):
+        SimulatorType = NewType("SimulatorType", simulator_type)  # type: ignore
+        _main_func = self.main_func
         try:
             _sim_default = simulator_type()
         except TypeError:
             _sim_default = None
 
         if _sim_default is not None:
-            # The constructed dataclass is a simulator_type instance, not SimulatorType.
-            simulator_default = cast(SimulatorType, _sim_default)
 
             def default_simulator_command(
-                simulator_args: Annotated[
-                    SimulatorType, Parameter(name="*")
-                ] = simulator_default,
+                simulator_args: Annotated[SimulatorType, Parameter(name="*")] = _sim_default,  # type: ignore
                 *,
                 hidden_script_args: Annotated[ScriptArgsType, Parameter(parse=False)],
             ):
-                hidden_script_args.environment_settings.simulator_settings = (
-                    simulator_args
-                )
+                hidden_script_args.environment_settings.simulator_settings = simulator_args  # type: ignore
                 self._logger.debug("Arguments: %s", hidden_script_args)
-                return runner(hidden_script_args)
+                return _main_func(hidden_script_args)
 
             return default_simulator_command
         else:
@@ -259,59 +192,38 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
                 *,
                 hidden_script_args: Annotated[ScriptArgsType, Parameter(parse=False)],
             ):
-                hidden_script_args.environment_settings.simulator_settings = (
-                    simulator_args
-                )
+                hidden_script_args.environment_settings.simulator_settings = simulator_args  # type: ignore
                 self._logger.debug("Arguments: %s", hidden_script_args)
-                return runner(hidden_script_args)
+                return _main_func(hidden_script_args)
 
             return non_default_simulator_command
 
-    def make_algorithm_command(
-        self,
-        algorithm_app: App,
-        algorithm_spec: AlgorithmSpec,
-        algorithm_name: str | None = None,
-    ):
-        algorithm_type = algorithm_spec.settings_type
-        # Cyclopts needs a distinct annotation per generated command. NewType is
-        # applied to a runtime class object, which is not a valid static NewType argument.
-        AlgorithmType = NewType(
-            "AlgorithmType", algorithm_type
-        )  # pyright: ignore[reportGeneralTypeIssues]
+    def make_algorithm_command(self, algorithm_app: App, algorithm_type: type[Any]):
+        AlgorithmType = NewType("AlgorithmType", algorithm_type)  # type: ignore
+        _main_func = self.main_func
+        _logger = self._logger
 
         def meta_algorithm_command(
             *tokens: Annotated[str, Parameter(show=False, allow_leading_hyphen=True)],
-            algorithm_args: Annotated[
-                AlgorithmType | None,  # pyright: ignore[reportInvalidTypeForm]
-                Parameter(name="*"),
-            ] = None,
+            algorithm_args: Annotated[AlgorithmType, Parameter(name="*")] = algorithm_type(),  # type: ignore
             hidden_script_args: Annotated[ScriptArgsType, Parameter(parse=False)],
             hidden_sim_config_dict: Annotated[
                 dict[str, Any] | None, Parameter(parse=False)
+            ] = None,
+            config_file: Annotated[
+                cyclopts.types.ExistingYamlPath | None,
+                Parameter(
+                    parse=False, show=True, help="Path to a YAML configuration file."
+                ),
             ] = None,
         ):  # type: ignore
 
             additional_kwargs = {
                 "hidden_script_args": hidden_script_args,
             }
-            if algorithm_args is None:
-                try:
-                    algorithm_args = algorithm_type()
-                except TypeError as exc:
-                    raise ValueError(
-                        f"{algorithm_name} requires its mandatory algorithm "
-                        "arguments. See `--help` for details."
-                    ) from exc
-            hidden_script_args.algorithm_settings = algorithm_args
+            hidden_script_args.algorithm_settings = algorithm_args  # type: ignore
 
-            if self.no_simulator:
-                # Nothing below this command reads a config block: the algorithm
-                # settings were bound when this command was parsed, and there are no
-                # simulator settings. Clear the config inherited from the root app so
-                # that the algorithm block is not offered a second time and rejected.
-                algorithm_app.config = []
-            elif hidden_sim_config_dict is not None:
+            if hidden_sim_config_dict is not None:
                 algorithm_app.config = [
                     _ScholaConfig(
                         hidden_sim_config_dict,
@@ -321,17 +233,18 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
                     ),
                 ]
 
+            # No simulator sub-apps: ``parse_args(())`` does not resolve to ``main``; call through.
+            if self.no_simulator:
+                _logger.debug("Arguments: %s", hidden_script_args)
+                return _main_func(hidden_script_args)
+
             command, bound, ignored = algorithm_app.parse_args(tokens)
             return command(*bound.args, **bound.kwargs, **additional_kwargs)
 
         return meta_algorithm_command
 
     def make_train_meta_command(self):
-        # Cyclopts needs a distinct annotation per generated command. NewType is
-        # applied to a runtime class object, which is not a valid static NewType argument.
-        ResolvedScriptArgsType = NewType(
-            "ResolvedScriptArgsType", self.script_args_type
-        )  # pyright: ignore[reportGeneralTypeIssues]
+        ResolvedScriptArgsType = NewType("ResolvedScriptArgsType", self.script_args_type)  # type: ignore
         _main_func = self.main_func
         _logger = self._logger
 
@@ -356,11 +269,7 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
 
             if self.no_algorithm:
                 if self.no_simulator:
-                    if tokens:
-                        command, bound, ignored = self.app.parse_args(tokens)
-                        if command == self.app.help_print:
-                            return command(*bound.args, **bound.kwargs, **{})
-                        return command(*bound.args, **bound.kwargs, **additional_kwargs)
+                    # there is no extra processing to do here, we can just call the main function
                     _logger.debug("Arguments: %s", script_args)
                     return _main_func(script_args)
                 else:
@@ -466,72 +375,42 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
 
     def make_algorithm_commands(self, root_app: App):
         alg_group = Group("Algorithm (Choose One)", sort_key=0)
-        for algorithm, algorithm_spec in self.algorithm_specs.items():
+        for algorithm in self.algorithm_table:
             algorithm_app = App(
                 name=algorithm,
                 group_commands=Group("Simulator (Choose One)", sort_key=0),
-                help=algorithm_spec.help,
+                help=self.algorithm_help[algorithm],
             )
+            algorithm_type = self.algorithm_table[algorithm]
             algorithm_app.meta.default(
-                self.make_algorithm_command(algorithm_app, algorithm_spec, algorithm)
+                self.make_algorithm_command(algorithm_app, algorithm_type)
             )
-            self.maybe_make_simulator_commands(
-                algorithm_app,
-                algorithm,
-                algorithm_spec.runner or self.main_func,
-            )
+            self.maybe_make_simulator_commands(algorithm_app)
 
             root_app.command(algorithm_app.meta, name=algorithm)
             root_app[algorithm].group = alg_group
 
-    def maybe_make_simulator_commands(
-        self,
-        root_app: App,
-        algorithm: str | None = None,
-        runner: Callable[[ScriptArgsType], Any] | None = None,
-    ):
-        runner = runner or self.main_func
+    def maybe_make_simulator_commands(self, root_app: App):
         if self.no_simulator:
-            # An algorithm that opts out of simulators still needs a default command,
-            # otherwise its sub-app has nothing to resolve to. The no-algorithm case
-            # is handled directly in ``make_train_meta_command`` and needs no default.
-            if algorithm is not None:
-                root_app.default(self.make_no_simulator_command(runner))
-        elif self.single_simulator and self.bind_default_simulator:
-            self.collapse_simulator_command(root_app, algorithm, runner)
+            return
+        elif self.single_simulator:
+            self.collapse_simulator_command(root_app)
         else:
-            self.make_simulator_commands(root_app, algorithm, runner)
+            self.make_simulator_commands(root_app)
 
-    def collapse_simulator_command(
-        self,
-        algorithm_app: App,
-        algorithm: str | None = None,
-        runner: Callable[[ScriptArgsType], Any] | None = None,
-    ):
-        runner = runner or self.main_func
+    def collapse_simulator_command(self, algorithm_app: App):
         simulator_name, simulator_type = list(self.simulator_table.items())[0]
-        sim_command = self.make_simulator_command(simulator_type, runner)
+        sim_command = self.make_simulator_command(simulator_type)
         algorithm_app.default(sim_command)
         algorithm_app.command(
             sim_command,
             name=simulator_name,
         )
 
-    def make_simulator_commands(
-        self,
-        algorithm_app: App,
-        algorithm: str | None = None,
-        runner: Callable[[ScriptArgsType], Any] | None = None,
-    ):
-        runner = runner or self.main_func
-        if not self.bind_default_simulator:
-            algorithm_app.default(self.make_no_simulator_command(runner))
+    def make_simulator_commands(self, algorithm_app: App):
         for simulator_name, simulator_type in self.simulator_table.items():
-            sim_command = self.make_simulator_command(simulator_type, runner)
-            if (
-                self.bind_default_simulator
-                and simulator_name == self.default_simulator_name
-            ):
+            sim_command = self.make_simulator_command(simulator_type)
+            if simulator_name == self.default_simulator_name:
                 algorithm_app.default(sim_command)
             algorithm_app.command(
                 sim_command,
@@ -550,7 +429,7 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
 
     @property
     def no_algorithm(self) -> bool:
-        return len(self.algorithm_specs) == 0
+        return len(self.algorithm_table) == 0
 
     @property
     def no_simulator(self) -> bool:
@@ -593,4 +472,4 @@ class ScholaCommandTemplate(Generic[ScriptArgsType]):
 
     @property
     def has_algorithm(self) -> bool:
-        return len(self.algorithm_specs) > 0
+        return len(self.algorithm_table) > 0

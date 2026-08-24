@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Callable, cast
+from typing import Any, Callable
 
 from cyclopts import App
 
@@ -183,13 +183,10 @@ def main(args: RllibEvalScriptSettings) -> dict[str, Any]:
     the requested number of episodes.
     """
     import ray
-    from ray.rllib.core.rl_module.multi_rl_module import (
-        MultiRLModule,
-        MultiRLModuleSpec,
-    )
+    from ray.rllib.core.rl_module.multi_rl_module import MultiRLModuleSpec
     from ray.rllib.policy.policy import PolicySpec
 
-    from schola.rllib.checkpoint import rl_module_dir_from_algorithm_checkpoint
+    from schola.rllib.checkpoint import load_multi_rl_module_from_algorithm_checkpoint
     from schola.rllib.policy_mapping import (
         make_policy_mapping_fn_from_dict,
         resolve_policy_mapping_for_eval,
@@ -221,9 +218,8 @@ def main(args: RllibEvalScriptSettings) -> dict[str, Any]:
     cli_policy_map = args.policy_map or None
 
     try:
-        rl_dir = rl_module_dir_from_algorithm_checkpoint(ckpt)
-        logger.info("Loading MultiRLModule from %s", rl_dir)
-        marl = cast(MultiRLModule, MultiRLModule.from_checkpoint(rl_dir))
+        logger.info("Loading MultiRLModule from %s", ckpt)
+        marl = load_multi_rl_module_from_algorithm_checkpoint(ckpt)
 
         agent_ids, env_agent_to_policy, env_config = discover_env_metadata(
             args.environment_settings,

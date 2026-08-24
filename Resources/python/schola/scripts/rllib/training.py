@@ -3,9 +3,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import logging
-from typing import TYPE_CHECKING, Any, Literal, Protocol, cast
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Collection, Literal, Protocol, cast
 
 from schola.scripts.common.settings import get_activation_function
 from schola.scripts.rllib.settings import (
@@ -107,6 +108,9 @@ class TrainingPlan:
     )
     export_observation_space: gym.Space[Any] | None = None
     export_action_space: gym.Space[Any] | None = None
+    restore: Path | None = None
+    warm_start_rl_module_dir: Path | None = None
+    warm_start_policy_ids: Collection[str] = field(default_factory=tuple)
 
 
 def configure_training(
@@ -195,11 +199,27 @@ def run_training(args: TuneRunSettings, plan: TrainingPlan) -> ExperimentAnalysi
             )
 
     checkpoint = args.checkpoint_settings
+    config = plan.config
+    if plan.warm_start_rl_module_dir is not None:
+        from schola.rllib.checkpoint import make_warm_start_callback
+
+        config = config.callbacks(
+            on_algorithm_init=make_warm_start_callback(
+                plan.warm_start_rl_module_dir,
+                plan.warm_start_policy_ids,
+            )
+        )
+        logger.info(
+            "Warm-starting RLModule weights from %s after Algorithm construction. "
+            "Optimizer state and lifetime env steps start fresh.",
+            plan.warm_start_rl_module_dir,
+        )
+
     logger.info("Starting %s", plan.label)
     try:
         results = tune.run(
             plan.trainable,
-            config=plan.config,  # type: ignore
+            config=config,  # type: ignore
             stop=plan.stop,
             checkpoint_config=air.CheckpointConfig(  # pyright: ignore[reportArgumentType]
                 checkpoint_frequency=(
@@ -209,11 +229,7 @@ def run_training(args: TuneRunSettings, plan: TrainingPlan) -> ExperimentAnalysi
                     checkpoint.save_final_policy or checkpoint.export_onnx
                 ),
             ),
-            restore=(
-                str(args.resume_settings.resume_from)
-                if args.resume_settings.resume_from
-                else None
-            ),
+            restore=str(plan.restore) if plan.restore else None,
             verbose=args.logging_settings.rllib_verbosity,
             storage_path=checkpoint.storage_path,
             callbacks=_make_tune_callbacks(checkpoint.should_persist),

@@ -1,6 +1,8 @@
 # Copyright (c) 2026 Advanced Micro Devices, Inc. All Rights Reserved.
 """Tests for RLlib offline Parquet datasets and space sidecars."""
 
+import json
+
 import numpy as np
 import pytest
 from gymnasium import spaces
@@ -141,6 +143,46 @@ def test_space_json_round_trips_dict_and_multidiscrete():
     assert restored_act == MULTI_DISCRETE_ACTION_SPACE
 
 
+@pytest.mark.parametrize(
+    "space",
+    [
+        spaces.Box(-1.0, 1.0, (6,), np.float32),
+        spaces.Box(-1.0, 1.0, (2, 3), np.float64),
+        spaces.Discrete(5),
+        spaces.MultiBinary(4),
+        spaces.MultiDiscrete([2, 3]),
+        spaces.Text(max_length=10),
+        get_training_observation_space(DICT_OBSERVATION_SPACE),
+    ],
+)
+def test_space_json_round_trips_every_space_unreal_can_send(space):
+    """The manifest must express whatever Schola's protocol can deliver.
+
+    ``Text`` is the interesting case: it is reachable through Schola's protobuf
+    layer, so a manifest encoder that cannot represent it would fail only once
+    somebody recorded a text observation.
+    """
+    encoded = space_to_json(space)
+    assert json.loads(json.dumps(encoded)) == encoded
+    assert space_from_json(encoded) == space
+
+
+def test_space_json_reads_legacy_manifest_payload():
+    """Demonstrations recorded before the protobuf manifest must still load."""
+    legacy = {
+        "format": "schola",
+        "space": {
+            "type": "Box",
+            "low": [-1.0, -1.0],
+            "high": [1.0, 1.0],
+            "shape": [2],
+            "dtype": "<f4",
+        },
+    }
+
+    assert space_from_json(legacy) == spaces.Box(-1.0, 1.0, (2,), np.float32)
+
+
 def test_write_episodes_as_parquet_rejects_empty_dataset(tmp_path):
     """An empty dataset must fail loudly rather than train on nothing."""
     with pytest.raises(ValueError, match="No episodes to write"):
@@ -156,34 +198,53 @@ def test_load_module_from_checkpoint_reports_missing_module(tmp_path):
         load_rl_module_from_algorithm_checkpoint(checkpoint)
 
 
+def test_writing_restores_ray_data_log_level(tmp_path):
+    """Quieting Ray Data during a write must not leak into the rest of the run."""
+    import logging
+
+    pytest.importorskip("ray")
+    ray_data_logger = logging.getLogger("ray.data")
+    before = ray_data_logger.level
+
+    write_episodes_as_parquet([make_episode()], tmp_path / "episodes")
+
+    assert ray_data_logger.level == before
+
+
 def test_write_episodes_as_parquet_streams_multiple_shards(tmp_path):
-    pytest.importorskip("pyarrow")
+    pytest.importorskip("ray")
     output = write_episodes_as_parquet(
         [make_episode() for _ in range(5)],
         tmp_path / "episodes",
         episodes_per_shard=2,
     )
 
-    assert len(list(output.glob("*.parquet"))) == 3
+    assert len(list(output.glob("part-*"))) == 3
+    assert len(list(output.rglob("*.parquet"))) >= 3
 
 
 def test_parquet_shard_round_trips_msgpack_episode_state(tmp_path):
-    pyarrow_parquet = pytest.importorskip("pyarrow.parquet")
-    msgpack = pytest.importorskip("msgpack")
-    msgpack_numpy = pytest.importorskip("msgpack_numpy")
+    import msgpack
+    import msgpack_numpy
+    import ray
+    from ray.rllib.env.single_agent_episode import SingleAgentEpisode
+
+    pytest.importorskip("ray")
     episode = make_episode()
 
     output = write_episodes_as_parquet([episode], tmp_path / "episodes")
-    encoded = pyarrow_parquet.read_table(next(output.glob("*.parquet")))["item"][
-        0
-    ].as_py()
-    state = msgpack.unpackb(encoded, object_hook=msgpack_numpy.decode)
+    if not ray.is_initialized():
+        ray.init(num_cpus=1, include_dashboard=False, ignore_reinit_error=True)
+    row = ray.data.read_parquet(str(output)).take(1)[0]
+    restored = SingleAgentEpisode.from_state(
+        msgpack.unpackb(row["item"], object_hook=msgpack_numpy.decode)
+    )
 
-    assert state.keys() == episode.get_state().keys()
+    assert restored.get_state().keys() == episode.get_state().keys()
 
 
 def test_write_offline_dataset_sidecar_reloads_spaces(tmp_path):
-    pytest.importorskip("pyarrow")
+    pytest.importorskip("ray")
     output = write_offline_dataset(
         [make_episode()],
         tmp_path / "demos",
@@ -203,7 +264,7 @@ def test_write_offline_dataset_sidecar_reloads_spaces(tmp_path):
 
 
 def test_load_offline_dataset_resolves_relative_path(tmp_path, monkeypatch):
-    pytest.importorskip("pyarrow")
+    pytest.importorskip("ray")
     write_offline_dataset(
         [make_episode()],
         tmp_path / "demos",

@@ -4,12 +4,16 @@ RLlib new-API-stack offline data: Parquet episodes plus a space sidecar.
 
 RLlib's offline algorithms (BC, MARWIL) read Ray Data sources containing
 msgpack-serialized :class:`~ray.rllib.env.single_agent_episode.SingleAgentEpisode`
-states. This module writes that layout and stores the original and training
-observation spaces so training does not need a live environment.
+states. This module writes that layout with the same msgpack packing and
+``ray.data.Dataset.write_parquet`` calls that RLlib's
+:class:`~ray.rllib.offline.offline_env_runner.OfflineSingleAgentEnvRunner`
+uses, and stores the original and training observation spaces so training does
+not need a live environment.
 """
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -136,52 +140,14 @@ def build_rllib_episode(
     )
 
 
-def _encode_space(space: gym.Space[Any]) -> dict[str, Any]:
-    """Encode a Gymnasium space as JSON-friendly nested dicts."""
-    if isinstance(space, spaces.Box):
-        return {
-            "type": "Box",
-            "low": np.asarray(space.low).tolist(),
-            "high": np.asarray(space.high).tolist(),
-            "shape": list(space.shape),
-            "dtype": np.dtype(space.dtype).str,
-        }
-    if isinstance(space, spaces.Discrete):
-        return {
-            "type": "Discrete",
-            "n": int(space.n),
-            "start": int(space.start),
-        }
-    if isinstance(space, spaces.MultiDiscrete):
-        return {
-            "type": "MultiDiscrete",
-            "nvec": np.asarray(space.nvec).tolist(),
-            "dtype": np.dtype(space.dtype).str,
-        }
-    if isinstance(space, spaces.MultiBinary):
-        n_value: Any = space.n
-        if isinstance(n_value, (int, np.integer)):
-            encoded_n: int | list[int] = int(n_value)
-        else:
-            encoded_n = np.asarray(n_value).tolist()
-        return {"type": "MultiBinary", "n": encoded_n}
-    if isinstance(space, spaces.Dict):
-        return {
-            "type": "Dict",
-            "spaces": {
-                key: _encode_space(subspace) for key, subspace in space.spaces.items()
-            },
-        }
-    if isinstance(space, spaces.Tuple):
-        return {
-            "type": "Tuple",
-            "spaces": [_encode_space(subspace) for subspace in space.spaces],
-        }
-    raise TypeError(f"Cannot serialize Gymnasium space of type {type(space)!r}.")
+def _decode_legacy_schola_space(payload: Mapping[str, Any]) -> gym.Space[Any]:
+    """
+    Decode a space from the hand-rolled manifest format.
 
-
-def _decode_space(payload: Mapping[str, Any]) -> gym.Space[Any]:
-    """Decode a space produced by :func:`_encode_space`."""
+    Read-only compatibility for demonstrations recorded before the manifest
+    moved to Schola's protobuf space encoding. Hand-recorded demonstrations are
+    expensive to replace, so old datasets keep loading.
+    """
     space_type = payload["type"]
     if space_type == "Box":
         return spaces.Box(
@@ -204,7 +170,10 @@ def _decode_space(payload: Mapping[str, Any]) -> gym.Space[Any]:
         if not isinstance(nested, Mapping):
             raise TypeError("Dict space payload must map names to subspaces.")
         return spaces.Dict(
-            {key: _decode_space(subspace) for key, subspace in nested.items()}
+            {
+                key: _decode_legacy_schola_space(subspace)
+                for key, subspace in nested.items()
+            }
         )
     if space_type == "Tuple":
         nested_list = payload["spaces"]
@@ -212,60 +181,123 @@ def _decode_space(payload: Mapping[str, Any]) -> gym.Space[Any]:
             nested_list, (str, bytes)
         ):
             raise TypeError("Tuple space payload must be a sequence of subspaces.")
-        return spaces.Tuple(tuple(_decode_space(subspace) for subspace in nested_list))
+        return spaces.Tuple(
+            tuple(_decode_legacy_schola_space(subspace) for subspace in nested_list)
+        )
     raise TypeError(f"Unknown serialized Gymnasium space type {space_type!r}.")
 
 
 def space_to_json(space: gym.Space[Any]) -> dict[str, Any]:
-    """Serialize a Gymnasium space for the offline manifest sidecar."""
-    to_json = getattr(space, "to_json", None)
-    if callable(to_json):
-        return {"format": "gymnasium", "space": to_json()}
-    return {"format": "schola", "space": _encode_space(space)}
+    """
+    Serialize a Gymnasium space for the offline manifest sidecar.
+
+    Reuses Schola's protobuf space encoding, so the manifest can express
+    exactly the spaces Unreal can send and nothing else. Anything outside that
+    set raises from :func:`~schola.core.protocols.protobuf.serialize.space_to_proto`
+    rather than being silently approximated here.
+    """
+    from google.protobuf import json_format
+
+    from schola.core.protocols.protobuf.serialize import make_generic, space_to_proto
+
+    return {
+        "format": "schola-proto",
+        "space": json_format.MessageToDict(make_generic(space_to_proto(space))),
+    }
 
 
 def space_from_json(payload: Mapping[str, Any]) -> gym.Space[Any]:
     """Deserialize a space written by :func:`space_to_json`."""
+    from google.protobuf import json_format
+
+    import schola.generated.Spaces_pb2 as proto_spaces
+    from schola.core.protocols.protobuf.deserialize import from_proto
+
     fmt = payload.get("format", "schola")
     space_payload = payload.get("space", payload)
-    if fmt == "gymnasium":
-        from_json = getattr(spaces, "from_json", None)
-        if from_json is None:
-            from gymnasium.spaces.utils import from_json as from_json
-        return from_json(space_payload)
     if not isinstance(space_payload, Mapping):
-        raise TypeError("Schola space payload must be a mapping.")
-    return _decode_space(space_payload)
+        raise TypeError("Serialized space payload must be a mapping.")
+    if fmt == "schola-proto":
+        return from_proto(json_format.ParseDict(space_payload, proto_spaces.Space()))
+    return _decode_legacy_schola_space(space_payload)
 
 
-def _serialize_episodes(
-    episodes: Iterable["SingleAgentEpisode"],
-) -> Iterator[Mapping[str, bytes]]:
-    """Yield RLlib's Parquet rows without retaining the complete dataset."""
+def _ensure_ray_for_data_io() -> None:
+    """Start a local Ray runtime when offline Parquet I/O runs outside Tune."""
+    import ray
+
+    if ray.is_initialized():
+        return
+    os.environ.setdefault("RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO", "0")
+    ray.init(num_cpus=1, include_dashboard=False, ignore_reinit_error=True)
+
+
+def _pack_episode_states(episodes: Sequence["SingleAgentEpisode"]) -> list[bytes]:
+    """Pack episodes the same way RLlib's ``OfflineSingleAgentEnvRunner`` does."""
     import msgpack
 
     # Optional extra (schola[rllib-offline]); the package ships no type stubs.
     import msgpack_numpy  # pyright: ignore[reportMissingImports]
 
+    packed: list[bytes] = []
     for episode in episodes:
-        packed = msgpack.packb(episode.get_state(), default=msgpack_numpy.encode)
-        if packed is None:
+        if episode.is_numpy:
+            raise TypeError(
+                "RLlib offline episode recording requires list-based episodes; "
+                f"got numpy-backed episode {episode!r}."
+            )
+        blob = msgpack.packb(episode.get_state(), default=msgpack_numpy.encode)
+        if blob is None:
             raise RuntimeError("Failed to serialize RLlib episode state.")
-        yield {"item": packed}
+        packed.append(blob)
+    return packed
 
 
-def _batched(
-    items: Iterable[Mapping[str, bytes]], size: int
-) -> Iterator[list[Mapping[str, bytes]]]:
-    """Yield bounded batches from *items*."""
-    batch: list[Mapping[str, bytes]] = []
-    for item in items:
-        batch.append(item)
+def _batched_episodes(
+    episodes: Iterable["SingleAgentEpisode"], size: int
+) -> Iterator[list["SingleAgentEpisode"]]:
+    """Yield bounded episode batches without materializing the full dataset."""
+    batch: list["SingleAgentEpisode"] = []
+    for episode in episodes:
+        batch.append(episode)
         if len(batch) == size:
             yield batch
             batch = []
     if batch:
         yield batch
+
+
+@contextlib.contextmanager
+def _quiet_ray_data_logging() -> Iterator[None]:
+    """
+    Silence Ray Data's per-write pipeline commentary.
+
+    Ray Data decorates its progress lines with emoji, and its log handlers open
+    the session log file using the locale code page. On any non-UTF-8 locale
+    (cp1252 is the Windows default) emitting those records raises
+    ``UnicodeEncodeError``, so every status line prints a traceback and buries
+    the real output. Raising the level on ``ray.data`` drops the records before
+    a handler sees them; child loggers inherit it, and errors still surface.
+    """
+    ray_data_logger = logging.getLogger("ray.data")
+    previous_level = ray_data_logger.level
+    ray_data_logger.setLevel(logging.ERROR)
+    try:
+        yield
+    finally:
+        ray_data_logger.setLevel(previous_level)
+
+
+def _write_parquet_shard(packed_episodes: Sequence[bytes], shard_dir: Path) -> None:
+    """Write one msgpack episode shard with Ray Data, matching RLlib's env runner."""
+    import ray.data
+
+    _ensure_ray_for_data_io()
+    with _quiet_ray_data_logging():
+        ray.data.from_items(list(packed_episodes)).write_parquet(
+            str(shard_dir),
+            try_create_dir=True,
+        )
 
 
 def _write_episode_shards(
@@ -274,23 +306,19 @@ def _write_episode_shards(
     *,
     episodes_per_shard: int,
 ) -> int:
-    """Write episode states to independently readable Parquet shard files."""
-    import pyarrow as pa
-    import pyarrow.parquet as pq
-
+    """Write episode states to independently readable Parquet shard directories."""
     if episodes_per_shard < 1:
         raise ValueError("episodes_per_shard must be at least one.")
 
     output_dir.mkdir(parents=True, exist_ok=False)
-    shard_count = 0
     episode_count = 0
-    for shard_count, batch in enumerate(
-        _batched(_serialize_episodes(episodes), episodes_per_shard)
+    for shard_count, episode_batch in enumerate(
+        _batched_episodes(episodes, episodes_per_shard)
     ):
-        episode_count += len(batch)
-        pq.write_table(
-            pa.Table.from_pylist(batch),
-            output_dir / f"part-{shard_count:05d}.parquet",
+        episode_count += len(episode_batch)
+        _write_parquet_shard(
+            _pack_episode_states(episode_batch),
+            output_dir / f"part-{shard_count:05d}",
         )
     if episode_count == 0:
         raise ValueError(
@@ -339,7 +367,7 @@ def write_episodes_as_parquet(
     output_dir : pathlib.Path
         Destination directory. It must not already exist.
     episodes_per_shard : int, optional
-        Maximum number of episodes in each Parquet file.
+        Maximum number of episodes in each Parquet shard directory.
 
     Returns
     -------
@@ -379,7 +407,7 @@ def write_offline_dataset(
     action_space : gymnasium.Space
         Action space recorded with the episodes.
     episodes_per_shard : int, optional
-        Maximum number of episodes in each Parquet file.
+        Maximum number of episodes in each Parquet shard directory.
 
     Returns
     -------
@@ -451,7 +479,7 @@ def load_offline_dataset(
         raise FileNotFoundError(
             f"Offline dataset is missing {MANIFEST_FILE_NAME}: {input_dir}"
         )
-    if not any(input_dir.glob("*.parquet")):
+    if not any(input_dir.rglob("*.parquet")):
         raise FileNotFoundError(
             f"Offline dataset contains no Parquet shards: {input_dir}"
         )

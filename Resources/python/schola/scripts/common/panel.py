@@ -2,15 +2,10 @@
 """Lightweight panel printing utilities for CLI scripts.
 
 Provides simple helpers to present messages (info / warning / error) using
-Cyclopts' rich panel integration. Error panels are rendered through a dedicated
-``error_console`` so that they match the width and styling of the panels
-Cyclopts emits for its own runtime errors (Cyclopts' default ``error_formatter``
-is :func:`~cyclopts.CycloptsPanel`, which we reuse here).
-
-The consoles live in ``schola.scripts.common.console`` and are shared with the
-top-level Cyclopts ``App`` (see ``schola.scripts.launch``) so that every panel
-— whether emitted by Cyclopts or by these helpers — is printed to the same
-console object, guaranteeing consistent widths.
+Cyclopts' rich panel integration. Panels are printed on the shared
+``console`` from ``schola.scripts.common.console``, which is also passed to
+the top-level Cyclopts ``App`` as both ``console`` and ``error_console`` so
+Cyclopts does not allocate a separate stderr console.
 """
 
 from __future__ import annotations
@@ -18,9 +13,8 @@ from __future__ import annotations
 from typing import Iterable
 import sys
 from cyclopts import CycloptsPanel
-from rich.console import Console
 
-from schola.scripts.common.console import console, error_console
+from schola.scripts.common.console import console
 
 __all__ = [
     "print_panel",
@@ -35,11 +29,7 @@ STYLE_INFO = "cyan"
 
 
 def print_panel(
-    message: str | Iterable[str],
-    *,
-    title: str = "",
-    style: str = STYLE_INFO,
-    console_: Console | None = None,
+    message: str | Iterable[str], *, title: str = "", style: str = STYLE_INFO
 ) -> None:
     """
     Print a panel with the given message and style.
@@ -52,30 +42,22 @@ def print_panel(
         The title of the panel, by default ""
     style : str, optional
         The style of the panel, by default STYLE_INFO
-    console_ : Console, optional
-        The console to print to. Defaults to the shared ``console``.
     """
     if not isinstance(message, str):
         message = "\n".join(str(m) for m in message)
-    (console_ or console).print(
-        CycloptsPanel(message=message, title=title or "Message", style=style)
-    )
+    console.print(CycloptsPanel(message=message, title=title or "Message", style=style))
 
 
 def print_error(message: str | Iterable[str]) -> None:  # noqa: D401
     """
     Print an error panel and terminate with exit code 1.
 
-    The panel is rendered with :func:`~cyclopts.CycloptsPanel` on the shared
-    ``error_console`` (stderr), matching the panels Cyclopts prints for its own
-    runtime errors.
-
     Parameters
     ----------
     message : str | Iterable[str]
         The message to print.
     """
-    print_panel(message, title="Error", style=STYLE_ERROR, console_=error_console)
+    print_panel(message, title="Error", style=STYLE_ERROR)
     sys.exit(1)
 
 

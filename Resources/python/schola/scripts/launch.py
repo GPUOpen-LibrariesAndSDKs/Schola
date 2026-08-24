@@ -6,12 +6,12 @@ Entry point for the ``schola`` CLI.
 
 import sys
 from cyclopts import App, Parameter, validators, group_extractors, Group
-from schola.scripts.common.console import configure_logging, console, error_console
+from schola.scripts.common.console import configure_logging, console
 from schola.scripts.common.panel import print_error
 
 app = App(
     console=console,
-    error_console=error_console,
+    error_console=console,
     name="schola",
     help="CLI for Schola. Useful for training a model or invoking utilities",
 )
@@ -23,7 +23,7 @@ try:
 
     app.command(sb3_app, name="sb3")
 except ImportError:
-    error_console.print_exception()
+    console.print_exception()
     print_error(
         "Stable Baselines3 (SB3) is not installed. Install via:\n"
         "pip install 'stable_baselines3'\n"
@@ -35,7 +35,7 @@ try:
 
     app.command(rllib_app, name="rllib")
 except ImportError:
-    error_console.print_exception()
+    console.print_exception()
     print_error(
         "Ray RLlib is not installed. Install via:\n"
         "pip install 'ray[rllib]'\n"
@@ -47,7 +47,7 @@ try:
 
     app.command(minari_app, name="minari")
 except ImportError:
-    error_console.print_exception()
+    console.print_exception()
     print_error(
         "Minari is not installed. Install via:\n"
         "pip install 'minari'\n"
@@ -85,7 +85,7 @@ def main():
     try:
         app()
     except Exception:
-        error_console.print_exception()
+        console.print_exception()
         sys.exit(1)
 
 

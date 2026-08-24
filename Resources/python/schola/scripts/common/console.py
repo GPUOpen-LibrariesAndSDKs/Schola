@@ -16,6 +16,10 @@ from rich.logging import RichHandler
 # stderr keeps stdout pipeable for subprocess / piping workflows
 console = Console(stderr=True)
 
+#: Console for Cyclopts / panel error output. Same instance as ``console`` so
+#: error panels share width and styling with the rest of the CLI.
+error_console = console
+
 _CONFIGURED = False
 
 

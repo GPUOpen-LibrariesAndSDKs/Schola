@@ -5,9 +5,11 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from draccus import decode
 from gymnasium.spaces import Box, Dict
 from lerobot.configs import FeatureType, PolicyFeature
 from lerobot.envs.configs import EnvConfig
@@ -16,8 +18,8 @@ from lerobot.utils.constants import (
     OBS_ENV_STATE,
     OBS_IMAGE,
     OBS_IMAGES,
+    OBS_PREFIX,
     OBS_STATE,
-    OBS_STR,
 )
 from schola.scripts.common.settings import ExternalSimulatorConfig, GrpcProtocolConfig
 
@@ -30,72 +32,34 @@ SINGLE_IMAGE_NDIMS = 3
 HWC_CHANNEL_DIM = -1
 SUPPORTED_IMAGE_CHANNELS = (1, 3, 4)
 
+_GYM_VALUE_POLICY_FEATURES = {
+    "agent_pos": OBS_STATE,
+    "environment_state": OBS_ENV_STATE,
+}
 
-@dataclass
-class ScholaObservationConfig:
-    """Describe how Schola observations form LeRobot policy inputs.
 
-    Mapping values are Schola observation keys. Vector source order is
-    preserved when values are flattened and concatenated.
+ScholaObservationSource = str | list[str]
+
+
+class ScholaObservationConfig(dict[str, ScholaObservationSource]):
+    """Policy feature name to Schola source path or ordered source paths.
+
+    Policy feature names are copied verbatim from a checkpoint's
+    ``input_features``. Dots in Schola source paths traverse nested ``Dict``
+    spaces. ``__root__`` selects an unnamed, non-``Dict`` top-level
+    observation.
     """
 
-    cameras: dict[str, str] = field(default_factory=dict)
-    """LeRobot camera name to Schola image observation key."""
 
-    vectors: dict[str, list[str]] = field(default_factory=dict)
-    """LeRobot vector name to ordered Schola observation keys."""
-
-    passthrough: dict[str, str] = field(default_factory=dict)
-    """LeRobot output name to an unchanged Schola observation key."""
-
-    def __post_init__(self) -> None:
-        duplicate_outputs = set(self.vectors) & self.passthrough.keys()
-        if duplicate_outputs:
-            raise ValueError(
-                "Vector and passthrough outputs overlap: "
-                f"{sorted(duplicate_outputs)}"
-            )
-
-        reserved_outputs = {
-            key
-            for key in (*self.vectors, *self.passthrough)
-            if key == "pixels" or key.startswith("pixels/")
-        }
-        if reserved_outputs:
-            raise ValueError(
-                "'pixels' outputs must be declared under cameras, not vectors "
-                f"or passthrough: {sorted(reserved_outputs)}"
-            )
-
-        owners: dict[str, str] = {}
-
-        def claim_source(source_key: str, owner: str) -> None:
-            if source_key in owners:
-                raise ValueError(
-                    f"Schola observation {source_key!r} is used by both "
-                    f"{owners[source_key]} and {owner}"
-                )
-            owners[source_key] = owner
-
-        for camera_name, source_key in self.cameras.items():
-            if not camera_name:
-                raise ValueError("Camera names cannot be empty")
-            claim_source(source_key, f"camera {camera_name!r}")
-
-        for target_key, source_keys in self.vectors.items():
-            if not source_keys:
-                raise ValueError(
-                    f"Vector output {target_key!r} requires at least one source"
-                )
-            for source_key in source_keys:
-                claim_source(source_key, f"vector {target_key!r}")
-
-        for target_key, source_key in self.passthrough.items():
-            claim_source(source_key, f"passthrough {target_key!r}")
-
-    def is_empty(self) -> bool:
-        """Return whether no observation behavior has been configured."""
-        return not (self.cameras or self.vectors or self.passthrough)
+@decode.register(ScholaObservationConfig)
+def _decode_observation_config(
+    raw_value: Any, path: Sequence[str]
+) -> ScholaObservationConfig:
+    """Preserve YAML scalar-or-list mapping values when Draccus decodes them."""
+    del path
+    if not isinstance(raw_value, Mapping):
+        raise TypeError("observations must be a mapping")
+    return ScholaObservationConfig(raw_value)
 
 
 def infer_features_from_spaces(
@@ -147,12 +111,7 @@ def infer_features_from_spaces(
             FeatureType.ENV if key == "environment_state" else FeatureType.STATE
         )
         features[key] = PolicyFeature(type=feature_type, shape=space.shape)
-        if key == "agent_pos":
-            features_map[key] = OBS_STATE
-        elif key == "environment_state":
-            features_map[key] = OBS_ENV_STATE
-        else:
-            features_map[key] = f"{OBS_STR}.{key}"
+        features_map[key] = _GYM_VALUE_POLICY_FEATURES.get(key, f"{OBS_PREFIX}{key}")
 
     if not action_space.shape:
         raise ValueError(
@@ -179,9 +138,8 @@ def infer_features_from_spaces(
 class ScholaEnvConfig(EnvConfig):
     """Configure a LeRobot evaluation environment backed by Schola.
 
-    The first integration slice supports a single externally managed Unreal
-    process. That process may expose multiple homogeneous agent slots through
-    Schola's native ``GymVectorEnv``.
+    Supports one externally managed Unreal process, which may expose multiple
+    homogeneous agent slots through Schola's native ``GymVectorEnv``.
     """
 
     task: str | None = "schola"
@@ -195,7 +153,7 @@ class ScholaEnvConfig(EnvConfig):
     observations: ScholaObservationConfig = field(
         default_factory=ScholaObservationConfig
     )
-    """Target-oriented camera, vector, and passthrough configuration."""
+    """Policy feature names mapped to Schola source paths."""
     render_camera: str | None = None
     render_fps: int = 30
 
@@ -222,10 +180,10 @@ class ScholaEnvConfig(EnvConfig):
                 "Schola manages vectorization through GymVectorEnv; "
                 "LeRobot async environment wrapping is not supported."
             )
-        if self.observations.is_empty():
+        if not self.observations:
             raise ValueError(
-                "ScholaEnvConfig requires observations to declare how Schola "
-                "observations map to LeRobot."
+                "ScholaEnvConfig requires observations to declare how policy "
+                "features map to Schola sources."
             )
         if self.simulator.num_simulators != 1:
             raise ValueError(

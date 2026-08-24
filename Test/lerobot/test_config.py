@@ -17,10 +17,9 @@ from lerobot.envs.configs import EnvConfig
 from lerobot.utils.constants import ACTION, OBS_IMAGES, OBS_STATE
 from lerobot_env_schola.config import (
     ScholaEnvConfig,
-    ScholaObservationConfig,
     infer_features_from_spaces,
 )
-from lerobot_env_schola.vector_env import LeRobotScholaVectorEnv
+from lerobot_env_schola.vector_env import LeRobotScholaVectorEnv, _policy_output
 from schola.gym.env import GymVectorEnv
 from schola.scripts.common.settings import ExternalSimulatorConfig, GrpcProtocolConfig
 from Test.gym.testing_env import GenericTestEnv
@@ -35,53 +34,18 @@ def test_schola_config_does_not_use_gym_make():
     assert cfg.gym_kwargs == {}
 
 
-def test_observation_config_rejects_overlapping_vector_and_passthrough_outputs():
-    with pytest.raises(ValueError, match="overlap"):
-        ScholaObservationConfig(
-            vectors={"agent_pos": ["joints"]},
-            passthrough={"agent_pos": "joints"},
-        )
-
-
-@pytest.mark.parametrize("target_key", ["pixels", "pixels/front"])
-def test_observation_config_reserves_pixel_outputs_for_cameras(target_key):
-    with pytest.raises(ValueError, match="declared under cameras"):
-        ScholaObservationConfig(vectors={target_key: ["joints"]})
-
-
-def test_observation_config_rejects_empty_camera_name():
-    with pytest.raises(ValueError, match="Camera names cannot be empty"):
-        ScholaObservationConfig(cameras={"": "camera"})
-
-
-def test_observation_config_rejects_empty_vector_sources():
-    with pytest.raises(ValueError, match="requires at least one source"):
-        ScholaObservationConfig(vectors={"agent_pos": []})
-
-
-def test_observation_config_rejects_duplicate_source_ownership():
-    with pytest.raises(ValueError, match="used by both"):
-        ScholaObservationConfig(
-            vectors={"agent_pos": ["joints"]},
-            passthrough={"raw_joints": "joints"},
-        )
-
-
-def test_target_oriented_observations_parse_from_yaml(tmp_path):
+def test_policy_feature_observations_parse_from_yaml(tmp_path):
     config_path = tmp_path / "schola_eval.yaml"
     config_path.write_text(
         dedent("""
             env:
               type: schola
               observations:
-                cameras:
-                  front: front_camera
-                vectors:
-                  agent_pos:
-                    - joint_positions
-                    - joint_velocities
-                passthrough:
-                  environment_state: target
+                observation.images.front: sensors.front_camera
+                observation.state:
+                  - robot.joint_positions
+                  - robot.joint_velocities
+                observation.environment_state: target
             eval:
               n_episodes: 1
               batch_size: 1
@@ -93,11 +57,14 @@ def test_target_oriented_observations_parse_from_yaml(tmp_path):
     cfg = draccus.parse(EvalPipelineConfig, config_path=config_path, args=[])
 
     assert isinstance(cfg.env, ScholaEnvConfig)
-    assert cfg.env.observations == ScholaObservationConfig(
-        cameras={"front": "front_camera"},
-        vectors={"agent_pos": ["joint_positions", "joint_velocities"]},
-        passthrough={"environment_state": "target"},
-    )
+    assert cfg.env.observations == {
+        "observation.images.front": "sensors.front_camera",
+        "observation.state": [
+            "robot.joint_positions",
+            "robot.joint_velocities",
+        ],
+        "observation.environment_state": "target",
+    }
 
 
 def test_features_are_inferred_from_normalized_spaces(caplog):
@@ -138,6 +105,20 @@ def test_features_are_inferred_from_normalized_spaces(caplog):
     assert "action -> action" in caplog.text
 
 
+@pytest.mark.parametrize(
+    ("policy_key", "expected"),
+    [
+        ("observation.images.front", ("camera", "front")),
+        ("observation.image", ("single_image", "pixels")),
+        ("observation.state", ("value", "agent_pos")),
+        ("observation.environment_state", ("value", "environment_state")),
+        ("observation.velocity", ("value", "velocity")),
+    ],
+)
+def test_policy_output_rules(policy_key, expected):
+    assert _policy_output(policy_key) == expected
+
+
 def test_create_envs_builds_schola_vector_env(make_vec_env_server):
     observation_space = gym.spaces.Dict(
         {"joints": gym.spaces.Box(-1, 1, shape=(3,), dtype=float)}
@@ -158,7 +139,7 @@ def test_create_envs_builds_schola_vector_env(make_vec_env_server):
         task_description="Swing the pendulum upright.",
         episode_length=200,
         render_fps=24,
-        observations=ScholaObservationConfig(vectors={"agent_pos": ["joints"]}),
+        observations={"observation.state": "joints"},
         simulator=ExternalSimulatorConfig(),
         protocol=GrpcProtocolConfig(url="localhost", port=port),
     )
@@ -196,9 +177,7 @@ def test_create_envs_builds_schola_vector_env(make_vec_env_server):
         env.close()
 
 
-def test_create_envs_uses_schola_vector_size_on_mismatch(
-    make_vec_env_server, caplog
-):
+def test_create_envs_uses_schola_vector_size_on_mismatch(make_vec_env_server, caplog):
     observation_space = gym.spaces.Dict(
         {"observation": gym.spaces.Box(-1, 1, shape=(4,), dtype=np.float32)}
     )
@@ -214,7 +193,7 @@ def test_create_envs_uses_schola_vector_size_on_mismatch(
         ]
     )
     cfg = ScholaEnvConfig(
-        observations=ScholaObservationConfig(vectors={"agent_pos": ["observation"]}),
+        observations={"observation.state": "observation"},
         simulator=ExternalSimulatorConfig(),
         protocol=GrpcProtocolConfig(url="localhost", port=port),
     )

@@ -9,8 +9,8 @@ environment exposed through Schola. It adapts Schola's vector environment,
 observations, continuous actions, episode metadata, rendering, and success
 information to LeRobot's evaluation contract.
 
-The current integration supports evaluation against one externally managed
-Unreal process. The process may expose multiple homogeneous agent slots.
+Evaluation uses one externally managed Unreal process. That process may expose
+multiple homogeneous agent slots.
 
 Installation
 ------------
@@ -59,9 +59,8 @@ The YAML file must provide the following values:
    ``localhost``; ``port`` must match the port configured in Unreal.
 
 ``env.observations``
-   A complete mapping of every Schola observation key. The camera names, vector
-   names, and resulting shapes must match the pretrained policy's input
-   features.
+   A complete mapping from the pretrained policy's input feature names to
+   Schola observation source paths.
 
 ``eval.n_episodes``
    The number of episodes to evaluate.
@@ -92,30 +91,34 @@ Optional LeRobot arguments include ``--output_dir`` for results and videos,
 Configure Observations
 ----------------------
 
-LeRobot policies use named state and image features, while an Unreal
-environment may expose observations under arbitrary Schola keys. The
-``observations`` section accounts for every source observation using one of
-three mappings:
+LeRobot policies use canonical feature names such as
+``observation.images.front`` and ``observation.state``, while an Unreal
+environment may expose observations under arbitrary Schola keys. Each entry in
+``observations`` maps an exact policy feature name to a Schola source path, or
+to an ordered list of sources that are flattened and concatenated.
 
-``cameras``
-   Maps a LeRobot camera name to one Schola image key. Images may be
-   channel-first or channel-last ``uint8`` data, or floating-point data bounded
-   by ``[0, 1]``. The adapter emits channel-last ``uint8`` images under
-   ``observation.images.<camera-name>``.
+Dots in a source path traverse nested Schola ``Dict`` spaces. For example,
+``robot.joint_positions`` selects ``joint_positions`` inside ``robot``.
+``__root__`` selects an unnamed top-level observation when Schola exposes a
+non-``Dict`` space. Because dots and ``__root__`` are reserved syntax, Schola
+dictionary keys may not contain a dot or equal ``__root__``.
 
-``vectors``
-   Maps an output name to an ordered list of Schola ``Box`` observations. Each
-   source is flattened and the values are concatenated in the listed order.
-   Name the policy's main proprioceptive vector ``agent_pos`` to map it to
-   ``observation.state``.
+Feature behavior is inferred from the policy key; no separate type declaration
+is needed:
 
-``passthrough``
-   Renames one Schola ``Box`` observation without changing its shape. The
-   special output name ``environment_state`` maps to
-   ``observation.environment_state``.
+* ``observation.images.<camera>`` and singular ``observation.image`` each map to
+  exactly one image source. Sources may be channel-first or channel-last
+  ``uint8`` data, or floating-point data bounded by ``[0, 1]``. The adapter
+  emits channel-last ``uint8`` images. ``observation.image`` cannot be combined
+  with ``observation.images.*``.
+* A single non-image source is passed through with its original ``Box`` shape
+  and dtype.
+* A YAML list of non-image sources is flattened and concatenated in the order
+  written.
 
-A source key must appear exactly once. Unaccounted keys, duplicate use of a
-source, and unknown keys are rejected when the environment is created.
+Every leaf source must appear exactly once. Unaccounted sources, duplicate use,
+unknown paths, and non-``Box`` leaves are rejected when the environment is
+created.
 
 For example, this mapping combines joint positions, velocities, and gripper
 state into one policy state while exposing two cameras:
@@ -123,16 +126,13 @@ state into one policy state while exposing two cameras:
 .. code-block:: yaml
 
    observations:
-     cameras:
-       front: front_camera
-       wrist: wrist_camera
-     vectors:
-       agent_pos:
-         - joint_positions
-         - joint_velocities
-         - gripper
-     passthrough:
-       environment_state: target_state
+     observation.images.front: sensors.front_camera
+     observation.images.wrist: sensors.wrist_camera
+     observation.state:
+       - robot.joint_positions
+       - robot.joint_velocities
+       - robot.gripper
+     observation.environment_state: target_state
 
 Run an Evaluation
 -----------------
@@ -156,12 +156,10 @@ evaluation configuration such as ``schola_eval.yaml``:
        url: localhost
        port: 8000
      observations:
-       cameras:
-         front: front_camera
-       vectors:
-         agent_pos:
-           - joint_positions
-           - joint_velocities
+       observation.images.front: sensors.front_camera
+       observation.state:
+         - robot.joint_positions
+         - robot.joint_velocities
 
    eval:
      n_episodes: 10
@@ -186,8 +184,9 @@ For example:
 
 LeRobot writes aggregate metrics to ``eval_info.json`` in its evaluation output
 directory. When image observations are configured, it can also render
-evaluation videos using ``render_camera``. If no render camera is specified,
-the first configured camera is used.
+evaluation videos using ``render_camera``. For ``observation.images.*``, omit
+``render_camera`` to use the first configured camera. For singular
+``observation.image``, omit it or set it to ``image``.
 
 Success Metrics
 ~~~~~~~~~~~~~~~
@@ -213,19 +212,20 @@ asynchronous vector layer:
 ``batch_size`` is only a construction request from LeRobot. If it differs from
 the connected Unreal process, the plugin logs a warning and uses Unreal's
 actual slot count. Keep ``simulator.num_simulators`` set to ``1``; multiple
-externally managed processes are not supported by this integration.
+externally managed processes are not supported.
 
 Feature and Action Inference
 ----------------------------
 
 When ``features`` and ``features_map`` are omitted, the plugin infers them from
-the adapted observation space and flattened action space. It maps:
+the adapted Gym observation space and flattened action space:
 
-* ``agent_pos`` to ``observation.state``;
-* ``environment_state`` to ``observation.environment_state``;
-* cameras to ``observation.images.<camera-name>``;
-* other vector outputs to ``observation.<output-name>``; and
-* the flattened continuous action to ``action``.
+* ``agent_pos`` maps to ``observation.state``;
+* ``environment_state`` maps to ``observation.environment_state``;
+* ``pixels/<camera-name>`` maps to ``observation.images.<camera-name>``;
+* a singular ``pixels`` image maps to ``observation.image``;
+* other vector outputs map to ``observation.<output-name>``; and
+* the flattened continuous action maps to ``action``.
 
 Explicit ``features`` and ``features_map`` may be supplied when a policy needs
 custom declarations, but both mappings must contain the same keys.
@@ -237,6 +237,6 @@ before each Schola step. Discrete actions are not supported.
 Troubleshooting
 ---------------
 
-Common configuration failures are caused by an observation key missing from all
-three mapping sections, ``use_async_envs`` being enabled, or an image whose
+Common configuration failures are caused by an unclaimed Schola leaf, an
+unknown dotted source path, ``use_async_envs`` being enabled, or an image whose
 type, bounds, or channel count is unsupported.

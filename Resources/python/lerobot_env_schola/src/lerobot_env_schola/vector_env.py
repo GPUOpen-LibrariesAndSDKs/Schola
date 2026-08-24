@@ -13,6 +13,13 @@ from gymnasium.spaces import Box, Dict, Tuple
 from gymnasium.spaces.utils import flatten_space, unflatten
 from gymnasium.vector.utils import batch_space, concatenate, create_empty_array
 from lerobot.envs.utils import NEW_ROLLOUT_OPTION
+from lerobot.utils.constants import (
+    OBS_ENV_STATE,
+    OBS_IMAGE,
+    OBS_IMAGES,
+    OBS_PREFIX,
+    OBS_STATE,
+)
 from lerobot_env_schola.config import (
     HWC_CHANNEL_DIM,
     SINGLE_IMAGE_NDIMS,
@@ -24,6 +31,13 @@ BATCHED_IMAGE_NDIMS = 4
 CHW_CHANNEL_DIM = -3
 UINT8_MAX = np.iinfo(np.uint8).max
 BATCH_DIM = 0
+ROOT_SOURCE = "__root__"
+
+_EXACT_POLICY_OUTPUTS = {
+    OBS_IMAGE: ("single_image", "pixels"),
+    OBS_STATE: ("value", "agent_pos"),
+    OBS_ENV_STATE: ("value", "environment_state"),
+}
 
 
 def _contains_only_boxes(space: gym.Space) -> bool:
@@ -32,6 +46,73 @@ def _contains_only_boxes(space: gym.Space) -> bool:
     if isinstance(space, Dict):
         return all(_contains_only_boxes(child) for child in space.spaces.values())
     return False
+
+
+def _flatten_observation_spaces(
+    space: gym.Space, prefix: tuple[str, ...] = ()
+) -> dict[str, gym.Space]:
+    """Flatten nested Schola Dict leaves into dot-separated source paths."""
+    if not isinstance(space, Dict):
+        return {ROOT_SOURCE if not prefix else ".".join(prefix): space}
+
+    flattened: dict[str, gym.Space] = {}
+    for key, child in space.spaces.items():
+        if not key:
+            raise ValueError("Schola observation keys cannot be empty")
+        if "." in key:
+            raise ValueError(
+                f"Schola observation key {key!r} contains '.', which is reserved "
+                "for nested source paths"
+            )
+        if key == ROOT_SOURCE:
+            raise ValueError(
+                f"Schola observation key {ROOT_SOURCE!r} is reserved for an "
+                "unnamed top-level observation"
+            )
+        flattened.update(_flatten_observation_spaces(child, (*prefix, key)))
+    return flattened
+
+
+def _get_observation_value(observation: Any, source: str) -> Any:
+    """Resolve a dot-separated source path in one batched Schola observation."""
+    if source == ROOT_SOURCE:
+        return observation
+
+    value = observation
+    for segment in source.split("."):
+        if not isinstance(value, Mapping):
+            raise TypeError(
+                f"Cannot traverse Schola source {source!r}: {segment!r} is below "
+                f"a non-mapping {type(value).__name__}"
+            )
+        if segment not in value:
+            raise KeyError(f"Schola observation is missing source {source!r}")
+        value = value[segment]
+    return value
+
+
+def _policy_output(policy_key: str) -> tuple[str, str]:
+    """Return adapter behavior and Gym key for a canonical policy feature."""
+    exact_output = _EXACT_POLICY_OUTPUTS.get(policy_key)
+    if exact_output is not None:
+        return exact_output
+
+    image_prefix = f"{OBS_IMAGES}."
+    if policy_key.startswith(image_prefix):
+        camera_name = policy_key.removeprefix(image_prefix)
+        if not camera_name:
+            raise ValueError(f"Policy image feature {policy_key!r} has no camera name")
+        return "camera", camera_name
+
+    if policy_key.startswith(OBS_PREFIX):
+        gym_key = policy_key.removeprefix(OBS_PREFIX)
+        if gym_key:
+            return "value", gym_key
+
+    raise ValueError(
+        f"Observation mapping key {policy_key!r} is not a canonical LeRobot "
+        "observation feature"
+    )
 
 
 def _coerce_success(value: Any) -> Any:
@@ -156,12 +237,15 @@ class LeRobotScholaVectorEnv(gym.vector.VectorEnv):
         self.action_space = batch_space(flat_action_space, n=env.num_envs)
 
         self._observation_config = observation_config
+        self._source_spaces: dict[str, gym.Space] = {}
+        self._camera_sources: dict[str, str] = {}
+        self._single_image_source: str | None = None
+        self._value_sources: dict[str, tuple[str, ...]] = {}
+        self._concatenated_outputs: set[str] = set()
         self._image_modes: dict[str, str] = {}
         self._vector_dtypes: dict[str, np.dtype] = {}
         self._validate_observation_config(env.single_observation_space)
-        self.single_observation_space = self._build_observation_space(
-            env.single_observation_space
-        )
+        self.single_observation_space = self._build_observation_space()
         self.observation_space = batch_space(
             self.single_observation_space, n=env.num_envs
         )
@@ -184,10 +268,12 @@ class LeRobotScholaVectorEnv(gym.vector.VectorEnv):
                     f"render_camera {self.render_camera!r} is not available; "
                     f"choose one of {camera_names}"
                 )
-        elif isinstance(pixels_space, Box) and self.render_camera is not None:
-            raise ValueError(
-                "render_camera can only be set when observations are mapped as pixels/<camera>"
-            )
+        elif isinstance(pixels_space, Box):
+            if self.render_camera not in (None, "image"):
+                raise ValueError(
+                    "A singular observation.image can only use render_camera 'image'"
+                )
+            self.render_camera = "image"
         elif pixels_space is None and self.render_camera is not None:
             raise ValueError(
                 "render_camera was set, but no observations are mapped under pixels"
@@ -196,113 +282,150 @@ class LeRobotScholaVectorEnv(gym.vector.VectorEnv):
     def _validate_observation_config(self, space: gym.Space) -> None:
         """Check the config against Schola's actual observation space.
 
-        ``ScholaObservationConfig`` validates its own internal consistency
-        (overlaps, reserved names, duplicate sources) when constructed; this
-        only checks what can't be known until the real space is available.
+        Policy feature names determine output behavior. Source strings address
+        flattened Schola leaves; lists flatten and concatenate in order.
         """
-        if not isinstance(space, Dict):
-            raise TypeError(
-                "Schola must expose a Dict observation space so observations "
-                "can be grouped for LeRobot."
-            )
-
         config = self._observation_config
-        claimed_keys: set[str] = set()
+        self._source_spaces = _flatten_observation_spaces(space)
+        claimed_sources: dict[str, str] = {}
+        claimed_gym_keys: dict[str, str] = {}
 
-        def claim_source(source_key: str, owner: str) -> None:
-            if source_key not in space.spaces:
+        def claim_source(source: str, owner: str) -> None:
+            if not source:
+                raise ValueError(f"{owner} contains an empty Schola source path")
+            if source not in self._source_spaces:
                 raise ValueError(
-                    f"{owner} references unknown Schola observation " f"{source_key!r}"
+                    f"{owner} references unknown Schola observation {source!r}; "
+                    f"available sources are {sorted(self._source_spaces)}"
                 )
-            claimed_keys.add(source_key)
+            if source in claimed_sources:
+                raise ValueError(
+                    f"Schola observation {source!r} is used by both "
+                    f"{claimed_sources[source]} and {owner}"
+                )
+            if not isinstance(self._source_spaces[source], Box):
+                raise TypeError(f"{owner} source {source!r} must use a Box space")
+            claimed_sources[source] = owner
 
-        for camera_name, source_key in config.cameras.items():
-            claim_source(source_key, f"camera {camera_name!r}")
+        for policy_key, configured_sources in config.items():
+            behavior, gym_key = _policy_output(policy_key)
+            owner = f"policy feature {policy_key!r}"
+            if gym_key in claimed_gym_keys:
+                raise ValueError(
+                    f"Policy features {claimed_gym_keys[gym_key]} and {policy_key!r} "
+                    f"both produce Gym observation {gym_key!r}"
+                )
+            claimed_gym_keys[gym_key] = policy_key
 
-        for target_key, source_keys in config.vectors.items():
-            for source_key in source_keys:
-                claim_source(source_key, f"vector {target_key!r}")
-                if not isinstance(space.spaces[source_key], Box):
-                    raise TypeError(
-                        f"Vector source {source_key!r} must use a Box space"
-                    )
-
-        for target_key, source_key in config.passthrough.items():
-            claim_source(source_key, f"passthrough {target_key!r}")
-            if not isinstance(space.spaces[source_key], Box):
+            if isinstance(configured_sources, str):
+                sources = (configured_sources,)
+            elif isinstance(configured_sources, list):
+                if not configured_sources:
+                    raise ValueError(f"{owner} requires at least one source")
+                if not all(isinstance(source, str) for source in configured_sources):
+                    raise TypeError(f"{owner} sources must all be strings")
+                sources = tuple(configured_sources)
+            else:
                 raise TypeError(
-                    f"Passthrough source {source_key!r} must use a Box space"
+                    f"{owner} must map to a source string or list of strings"
                 )
 
-        missing_keys = space.spaces.keys() - claimed_keys
-        if missing_keys:
+            if behavior in {"camera", "single_image"} and len(sources) != 1:
+                raise ValueError(f"{owner} must map to exactly one image source")
+            for source in sources:
+                claim_source(source, owner)
+
+            if behavior == "camera":
+                self._camera_sources[gym_key] = sources[0]
+            elif behavior == "single_image":
+                if self._camera_sources:
+                    raise ValueError(
+                        "observation.image cannot be combined with observation.images.*"
+                    )
+                self._single_image_source = sources[0]
+            else:
+                self._value_sources[gym_key] = sources
+                if isinstance(configured_sources, list):
+                    self._concatenated_outputs.add(gym_key)
+
+        if self._single_image_source is not None and self._camera_sources:
             raise ValueError(
-                "Observation configuration does not account for Schola keys: "
-                f"{sorted(missing_keys)}"
+                "observation.image cannot be combined with observation.images.*"
             )
 
-    def _build_observation_space(self, space: gym.Space) -> Dict:
-        if not isinstance(space, Dict):
-            raise TypeError(
-                "Expected the validated Schola observation space to be a Dict"
+        missing_sources = self._source_spaces.keys() - claimed_sources.keys()
+        if missing_sources:
+            raise ValueError(
+                "Observation configuration does not account for Schola sources: "
+                f"{sorted(missing_sources)}"
             )
 
-        config = self._observation_config
+    def _build_observation_space(self) -> Dict:
         output_spaces: dict[str, gym.Space] = {}
-        if config.cameras:
+        if self._camera_sources:
             camera_spaces: dict[str, gym.Space] = {}
-            for camera_name, source_key in config.cameras.items():
-                camera_spaces[camera_name], self._image_modes[source_key] = (
-                    _convert_image_space(space.spaces[source_key], source_key)
+            for camera_name, source in self._camera_sources.items():
+                camera_spaces[camera_name], self._image_modes[camera_name] = (
+                    _convert_image_space(self._source_spaces[source], source)
                 )
             output_spaces["pixels"] = Dict(camera_spaces)
+        elif self._single_image_source is not None:
+            output_spaces["pixels"], self._image_modes["pixels"] = _convert_image_space(
+                self._source_spaces[self._single_image_source],
+                self._single_image_source,
+            )
 
-        for target_key, source_keys in config.vectors.items():
-            source_spaces = [space.spaces[source_key] for source_key in source_keys]
+        for gym_key, sources in self._value_sources.items():
+            if gym_key not in self._concatenated_outputs:
+                output_spaces[gym_key] = self._source_spaces[sources[0]]
+                continue
+
+            source_spaces = [self._source_spaces[source] for source in sources]
             flattened_space = flatten_space(Tuple(tuple(source_spaces)))
             if not isinstance(flattened_space, Box):
-                raise TypeError(
-                    f"Vector output {target_key!r} did not flatten to a Box"
-                )
+                raise TypeError(f"Gym output {gym_key!r} did not flatten to a Box")
             dtype = np.result_type(np.float32, flattened_space.dtype)
-            output_spaces[target_key] = Box(
+            output_spaces[gym_key] = Box(
                 low=flattened_space.low.astype(dtype, copy=False),
                 high=flattened_space.high.astype(dtype, copy=False),
                 dtype=dtype,
             )
-            self._vector_dtypes[target_key] = np.dtype(dtype)
-
-        for target_key, source_key in config.passthrough.items():
-            output_spaces[target_key] = space.spaces[source_key]
+            self._vector_dtypes[gym_key] = np.dtype(dtype)
 
         return Dict(output_spaces)
 
-    def _convert_observation(self, observation: Mapping[str, Any]) -> dict[str, Any]:
+    def _convert_observation(self, observation: Any) -> dict[str, Any]:
         """Convert one batched Schola observation to LeRobot's layout."""
-        config = self._observation_config
         converted: dict[str, Any] = {}
 
-        if config.cameras:
+        if self._camera_sources:
             converted["pixels"] = {
                 camera_name: _convert_image_value(
-                    observation[source_key],
-                    self._image_modes[source_key],
+                    _get_observation_value(observation, source),
+                    self._image_modes[camera_name],
                 )
-                for camera_name, source_key in config.cameras.items()
+                for camera_name, source in self._camera_sources.items()
             }
-
-        for target_key, source_keys in config.vectors.items():
-            values = [
-                np.asarray(observation[source_key]).reshape(self.num_envs, -1)
-                for source_key in source_keys
-            ]
-            converted[target_key] = np.concatenate(values, axis=-1).astype(
-                self._vector_dtypes[target_key],
-                copy=False,
+        elif self._single_image_source is not None:
+            converted["pixels"] = _convert_image_value(
+                _get_observation_value(observation, self._single_image_source),
+                self._image_modes["pixels"],
             )
 
-        for target_key, source_key in config.passthrough.items():
-            converted[target_key] = observation[source_key]
+        for gym_key, sources in self._value_sources.items():
+            if gym_key not in self._concatenated_outputs:
+                converted[gym_key] = _get_observation_value(observation, sources[0])
+                continue
+            values = [
+                np.asarray(_get_observation_value(observation, source)).reshape(
+                    self.num_envs, -1
+                )
+                for source in sources
+            ]
+            converted[gym_key] = np.concatenate(values, axis=-1).astype(
+                self._vector_dtypes[gym_key],
+                copy=False,
+            )
 
         return converted
 

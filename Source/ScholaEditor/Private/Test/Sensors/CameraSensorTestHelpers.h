@@ -63,16 +63,11 @@ namespace ScholaCameraSensorTest
 		int32 Width,
 		int32 Height);
 
-	/** Flush pending render commands after GPU writes or scene capture. */
-	void FlushRendering();
-
 	float GetBoxPointChannelValue(
 		const FBoxPoint& BoxPoint,
 		int32 ChannelIndex,
 		int32 PixelY,
-		int32 PixelX,
-		int32 Width,
-		int32 Height);
+		int32 PixelX);
 
 	bool AssertBoxPointShape(
 		FAutomationTestBase& Test,
@@ -88,36 +83,8 @@ namespace ScholaCameraSensorTest
 		int32 ChannelIndex,
 		int32 PixelY,
 		int32 PixelX,
-		int32 Width,
-		int32 Height,
 		float ExpectedValue,
 		float Tolerance,
-		const TCHAR* Context);
-
-	bool AssertBoxPointRegionMeanAbove(
-		FAutomationTestBase& Test,
-		const FBoxPoint& BoxPoint,
-		int32 ChannelIndex,
-		int32 StartY,
-		int32 EndY,
-		int32 StartX,
-		int32 EndX,
-		int32 Width,
-		int32 Height,
-		float MinMean,
-		const TCHAR* Context);
-
-	bool AssertBoxPointRegionMeanBelow(
-		FAutomationTestBase& Test,
-		const FBoxPoint& BoxPoint,
-		int32 ChannelIndex,
-		int32 StartY,
-		int32 EndY,
-		int32 StartX,
-		int32 EndX,
-		int32 Width,
-		int32 Height,
-		float MaxMean,
 		const TCHAR* Context);
 
 	/**
@@ -128,9 +95,7 @@ namespace ScholaCameraSensorTest
 	float ComputeBoxPointRegionMean(
 		const FBoxPoint& BoxPoint,
 		int32 ChannelIndex,
-		const FIntRect& Region,
-		int32 Width,
-		int32 Height);
+		const FIntRect& Region);
 
 	/**
 	 * @brief Assert that a channel is brighter in one image region than another.
@@ -147,8 +112,6 @@ namespace ScholaCameraSensorTest
 		int32 ChannelIndex,
 		const FIntRect& BrightRegion,
 		const FIntRect& DimRegion,
-		int32 Width,
-		int32 Height,
 		float MinDelta,
 		const TCHAR* Context);
 

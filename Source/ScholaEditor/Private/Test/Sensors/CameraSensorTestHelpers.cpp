@@ -110,7 +110,7 @@ namespace ScholaCameraSensorTest
 		}
 
 		UKismetRenderingLibrary::ClearRenderTarget2D(World, RenderTarget, Color);
-		FlushRendering();
+		FlushRenderingCommands();
 		return true;
 	}
 
@@ -155,27 +155,20 @@ namespace ScholaCameraSensorTest
 				FVector2D::ZeroVector);
 		}
 		UKismetRenderingLibrary::EndDrawCanvasToRenderTarget(World, Context);
-		FlushRendering();
+		FlushRenderingCommands();
 
 		SourceTexture->RemoveFromRoot();
 		return true;
-	}
-
-	void FlushRendering()
-	{
-		FlushRenderingCommands();
 	}
 
 	float GetBoxPointChannelValue(
 		const FBoxPoint& BoxPoint,
 		int32 ChannelIndex,
 		int32 PixelY,
-		int32 PixelX,
-		int32 Width,
-		int32 Height)
+		int32 PixelX)
 	{
-		const int32 ChannelStride = Width * Height;
-		const int32 PixelIndex = PixelY * Width + PixelX;
+		const int32 ChannelStride = BoxPoint.Shape[1] * BoxPoint.Shape[2];
+		const int32 PixelIndex = PixelY * BoxPoint.Shape[2] + PixelX;
 		return BoxPoint.Values[ChannelIndex * ChannelStride + PixelIndex];
 	}
 
@@ -205,13 +198,11 @@ namespace ScholaCameraSensorTest
 		int32 ChannelIndex,
 		int32 PixelY,
 		int32 PixelX,
-		int32 Width,
-		int32 Height,
 		float ExpectedValue,
 		float Tolerance,
 		const TCHAR* Context)
 	{
-		const float Actual = GetBoxPointChannelValue(BoxPoint, ChannelIndex, PixelY, PixelX, Width, Height);
+		const float Actual = GetBoxPointChannelValue(BoxPoint, ChannelIndex, PixelY, PixelX);
 		return Test.TestTrue(
 			FString::Printf(
 				TEXT("%s: channel %d at (%d,%d) expected ~%.3f got %.3f"),
@@ -227,10 +218,10 @@ namespace ScholaCameraSensorTest
 	float ComputeBoxPointRegionMean(
 		const FBoxPoint& BoxPoint,
 		int32 ChannelIndex,
-		const FIntRect& Region,
-		int32 Width,
-		int32 Height)
+		const FIntRect& Region)
 	{
+		const int32 Width = BoxPoint.Shape[2];
+		const int32 Height = BoxPoint.Shape[1];
 		const int32 StartX = FMath::Clamp(Region.Min.X, 0, Width);
 		const int32 EndX = FMath::Clamp(Region.Max.X, 0, Width);
 		const int32 StartY = FMath::Clamp(Region.Min.Y, 0, Height);
@@ -242,67 +233,11 @@ namespace ScholaCameraSensorTest
 		{
 			for (int32 X = StartX; X < EndX; ++X)
 			{
-				Sum += GetBoxPointChannelValue(BoxPoint, ChannelIndex, Y, X, Width, Height);
+				Sum += GetBoxPointChannelValue(BoxPoint, ChannelIndex, Y, X);
 				++Count;
 			}
 		}
 		return Count > 0 ? Sum / static_cast<float>(Count) : 0.0f;
-	}
-
-	static float ComputeRegionMean(
-		const FBoxPoint& BoxPoint,
-		int32 ChannelIndex,
-		int32 StartY,
-		int32 EndY,
-		int32 StartX,
-		int32 EndX,
-		int32 Width,
-		int32 Height)
-	{
-		return ComputeBoxPointRegionMean(
-			BoxPoint,
-			ChannelIndex,
-			FIntRect(StartX, StartY, EndX, EndY),
-			Width,
-			Height);
-	}
-
-	bool AssertBoxPointRegionMeanAbove(
-		FAutomationTestBase& Test,
-		const FBoxPoint& BoxPoint,
-		int32 ChannelIndex,
-		int32 StartY,
-		int32 EndY,
-		int32 StartX,
-		int32 EndX,
-		int32 Width,
-		int32 Height,
-		float MinMean,
-		const TCHAR* Context)
-	{
-		const float Mean = ComputeRegionMean(BoxPoint, ChannelIndex, StartY, EndY, StartX, EndX, Width, Height);
-		return Test.TestTrue(
-			FString::Printf(TEXT("%s: region mean %.3f should be above %.3f"), Context, Mean, MinMean),
-			Mean > MinMean);
-	}
-
-	bool AssertBoxPointRegionMeanBelow(
-		FAutomationTestBase& Test,
-		const FBoxPoint& BoxPoint,
-		int32 ChannelIndex,
-		int32 StartY,
-		int32 EndY,
-		int32 StartX,
-		int32 EndX,
-		int32 Width,
-		int32 Height,
-		float MaxMean,
-		const TCHAR* Context)
-	{
-		const float Mean = ComputeRegionMean(BoxPoint, ChannelIndex, StartY, EndY, StartX, EndX, Width, Height);
-		return Test.TestTrue(
-			FString::Printf(TEXT("%s: region mean %.3f should be below %.3f"), Context, Mean, MaxMean),
-			Mean < MaxMean);
 	}
 
 	bool AssertBoxPointRegionBrighter(
@@ -311,13 +246,11 @@ namespace ScholaCameraSensorTest
 		int32 ChannelIndex,
 		const FIntRect& BrightRegion,
 		const FIntRect& DimRegion,
-		int32 Width,
-		int32 Height,
 		float MinDelta,
 		const TCHAR* Context)
 	{
-		const float BrightMean = ComputeBoxPointRegionMean(BoxPoint, ChannelIndex, BrightRegion, Width, Height);
-		const float DimMean = ComputeBoxPointRegionMean(BoxPoint, ChannelIndex, DimRegion, Width, Height);
+		const float BrightMean = ComputeBoxPointRegionMean(BoxPoint, ChannelIndex, BrightRegion);
+		const float DimMean = ComputeBoxPointRegionMean(BoxPoint, ChannelIndex, DimRegion);
 		return Test.TestTrue(
 			FString::Printf(
 				TEXT("%s: channel %d bright-region mean %.3f should exceed dim-region mean %.3f by >= %.3f"),
@@ -448,7 +381,7 @@ namespace ScholaCameraSensorTest
 		{
 			TestWorld.Tick(0.016f);
 		}
-		FlushRendering();
+		FlushRenderingCommands();
 		Sensor->CollectObservations_Implementation(OutObservations);
 	}
 

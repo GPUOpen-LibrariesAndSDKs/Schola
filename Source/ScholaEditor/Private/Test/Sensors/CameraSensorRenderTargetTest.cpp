@@ -48,9 +48,9 @@ bool FCameraSensorReadback_SolidRedBase_Test::RunTest(const FString& Parameters)
 		CameraSensorUtils::ReadRenderTargetToBoxPoint(RenderTarget, EnabledChannels, BoxPoint));
 
 	AssertBoxPointShape(*this, BoxPoint, 3, Height, Width, TEXT("SolidRed.Base"));
-	AssertBoxPointChannelNear(*this, BoxPoint, 0, Height / 2, Width / 2, Width, Height, 1.0f, GColorTolerance, TEXT("SolidRed.Base R"));
-	AssertBoxPointChannelNear(*this, BoxPoint, 1, Height / 2, Width / 2, Width, Height, 0.0f, GColorTolerance, TEXT("SolidRed.Base G"));
-	AssertBoxPointChannelNear(*this, BoxPoint, 2, Height / 2, Width / 2, Width, Height, 0.0f, GColorTolerance, TEXT("SolidRed.Base B"));
+	AssertBoxPointChannelNear(*this, BoxPoint, 0, Height / 2, Width / 2, 1.0f, GColorTolerance, TEXT("SolidRed.Base R"));
+	AssertBoxPointChannelNear(*this, BoxPoint, 1, Height / 2, Width / 2, 0.0f, GColorTolerance, TEXT("SolidRed.Base G"));
+	AssertBoxPointChannelNear(*this, BoxPoint, 2, Height / 2, Width / 2, 0.0f, GColorTolerance, TEXT("SolidRed.Base B"));
 
 	return true;
 }
@@ -85,7 +85,7 @@ bool FCameraSensorReadback_SolidRedWithAlpha_Test::RunTest(const FString& Parame
 		CameraSensorUtils::ReadRenderTargetToBoxPoint(RenderTarget, EnabledChannels, BoxPoint));
 
 	AssertBoxPointShape(*this, BoxPoint, 4, Height, Width, TEXT("SolidRed.WithAlpha"));
-	AssertBoxPointChannelNear(*this, BoxPoint, 3, Height / 2, Width / 2, Width, Height, 1.0f, GColorTolerance, TEXT("SolidRed.WithAlpha A"));
+	AssertBoxPointChannelNear(*this, BoxPoint, 3, Height / 2, Width / 2, 1.0f, GColorTolerance, TEXT("SolidRed.WithAlpha A"));
 
 	return true;
 }

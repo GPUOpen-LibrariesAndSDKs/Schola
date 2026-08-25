@@ -46,13 +46,7 @@ void UCameraSensor::GetObservationSpace_Implementation(FInstancedStruct& OutObse
 
 int UCameraSensor::GetNumChannels() const
 {
-	uint8 EnabledValidChannels = EnabledChannels & ~GetInvalidChannels();
-	bool  bHasR = (EnabledValidChannels & static_cast<uint8>(EChannels::R));
-	bool  bHasG = (EnabledValidChannels & static_cast<uint8>(EChannels::G));
-	bool  bHasB = (EnabledValidChannels & static_cast<uint8>(EChannels::B));
-	bool  bHasA = (EnabledValidChannels & static_cast<uint8>(EChannels::A));
-
-	return (bHasR + bHasG + bHasB + bHasA);
+	return FMath::CountBits(EnabledChannels & ~GetInvalidChannels());
 }
 
 void UCameraSensor::CollectObservations_Implementation(FInstancedStruct& OutObservations)
@@ -91,23 +85,24 @@ FString UCameraSensor::GenerateId() const
 	Output.Append("_");
 	//Add channels to Id
 	uint8 InvalidChannels = GetInvalidChannels();
+	uint8 EnabledValidChannels = EnabledChannels & ~InvalidChannels;
 
-	if (EnabledChannels & ~InvalidChannels & static_cast<uint8>(EChannels::R))
+	if (EnabledValidChannels & static_cast<uint8>(EChannels::R))
 	{
 		Output = Output.Append("R");
 	}
 	
-	if (EnabledChannels & ~InvalidChannels & static_cast<uint8>(EChannels::G))
+	if (EnabledValidChannels & static_cast<uint8>(EChannels::G))
 	{
 		Output = Output.Append("G");
 	}
 
-	if (EnabledChannels & ~InvalidChannels & static_cast<uint8>(EChannels::B))
+	if (EnabledValidChannels & static_cast<uint8>(EChannels::B))
 	{
 		Output = Output.Append("B");
 	}
 
-	if (EnabledChannels & ~InvalidChannels & static_cast<uint8>(EChannels::A))
+	if (EnabledValidChannels & static_cast<uint8>(EChannels::A))
 	{
 		Output = Output.Append("A");
 	}

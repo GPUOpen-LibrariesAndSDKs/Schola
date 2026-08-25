@@ -5,38 +5,13 @@
 #include "Engine/TextureRenderTarget2D.h"
 #include "LogScholaInteractors.h"
 
-namespace
-{
-	int32 CountEnabledChannels(uint8 EnabledValidChannels)
-	{
-		int32 NumChannels = 0;
-		if (EnabledValidChannels & static_cast<uint8>(EChannels::R))
-		{
-			++NumChannels;
-		}
-		if (EnabledValidChannels & static_cast<uint8>(EChannels::G))
-		{
-			++NumChannels;
-		}
-		if (EnabledValidChannels & static_cast<uint8>(EChannels::B))
-		{
-			++NumChannels;
-		}
-		if (EnabledValidChannels & static_cast<uint8>(EChannels::A))
-		{
-			++NumChannels;
-		}
-		return NumChannels;
-	}
-}
-
 namespace CameraSensorUtils
 {
 	bool ConvertBitmapToBoxPoint(
 		const TArray<FColor>& Bitmap,
 		int32 Width,
 		int32 Height,
-		uint8 EnabledValidChannels,
+		uint8 ChannelMask,
 		FBoxPoint& OutBoxPoint)
 	{
 		const int32 ChannelStride = Width * Height;
@@ -52,49 +27,45 @@ namespace CameraSensorUtils
 			return false;
 		}
 
-		const int32 NumChannels = CountEnabledChannels(EnabledValidChannels);
-
-		OutBoxPoint.Values.SetNum(ChannelStride * NumChannels);
-		OutBoxPoint.Shape = { NumChannels, Height, Width };
+		const int32 NumChannels = FMath::CountBits(ChannelMask);
+        OutBoxPoint.Values.SetNum(ChannelStride * NumChannels);
+        OutBoxPoint.Shape = { NumChannels, Height, Width };
 
 		for (int32 PixelIndex = 0; PixelIndex < ChannelStride; ++PixelIndex)
-		{
+        {
 			int32 ChannelIndex = 0;
+			const FLinearColor& Color = Bitmap[PixelIndex].ReinterpretAsLinear();
 
-			if (EnabledValidChannels & static_cast<uint8>(EChannels::R))
-			{
-				OutBoxPoint.Values[ChannelIndex * ChannelStride + PixelIndex] =
-					static_cast<float>(Bitmap[PixelIndex].R) / 255.0f;
+			if (ChannelMask & static_cast<uint8>(EChannels::R))
+        	{
+				OutBoxPoint.Values[ChannelIndex * ChannelStride + PixelIndex] = Color.R;
 				++ChannelIndex;
-			}
+        	}
 
-			if (EnabledValidChannels & static_cast<uint8>(EChannels::G))
-			{
-				OutBoxPoint.Values[ChannelIndex * ChannelStride + PixelIndex] =
-					static_cast<float>(Bitmap[PixelIndex].G) / 255.0f;
+			if (ChannelMask & static_cast<uint8>(EChannels::G))
+        	{
+        		OutBoxPoint.Values[ChannelIndex * ChannelStride + PixelIndex] = Color.G;
 				++ChannelIndex;
+        	}
+
+			if (ChannelMask & static_cast<uint8>(EChannels::B))
+			{
+				OutBoxPoint.Values[ChannelIndex * ChannelStride + PixelIndex] = Color.B;
+        		++ChannelIndex;
 			}
 
-			if (EnabledValidChannels & static_cast<uint8>(EChannels::B))
+			if (ChannelMask & static_cast<uint8>(EChannels::A))
 			{
-				OutBoxPoint.Values[ChannelIndex * ChannelStride + PixelIndex] =
-					static_cast<float>(Bitmap[PixelIndex].B) / 255.0f;
-				++ChannelIndex;
+				OutBoxPoint.Values[ChannelIndex * ChannelStride + PixelIndex] = Color.A;
 			}
-
-			if (EnabledValidChannels & static_cast<uint8>(EChannels::A))
-			{
-				OutBoxPoint.Values[ChannelIndex * ChannelStride + PixelIndex] =
-					static_cast<float>(Bitmap[PixelIndex].A) / 255.0f;
-			}
-		}
+        }
 
 		return true;
 	}
 
 	bool ReadRenderTargetToBoxPoint(
 		UTextureRenderTarget2D* TextureTarget,
-		uint8 EnabledValidChannels,
+		uint8 ChannelMask,
 		FBoxPoint& OutBoxPoint)
 	{
 		if (!TextureTarget)
@@ -120,6 +91,6 @@ namespace CameraSensorUtils
 			return false;
 		}
 
-		return ConvertBitmapToBoxPoint(Bitmap, Width, Height, EnabledValidChannels, OutBoxPoint);
+		return ConvertBitmapToBoxPoint(Bitmap, Width, Height, ChannelMask, OutBoxPoint);
 	}
 }

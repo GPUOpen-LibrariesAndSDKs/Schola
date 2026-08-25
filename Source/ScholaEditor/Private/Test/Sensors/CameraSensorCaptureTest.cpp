@@ -89,12 +89,12 @@ bool FCameraSensorCapture_AfterInitSensor_Test::RunTest(const FString& Parameter
 	constexpr int32 BlueChannel = 2;
 
 	// Centre (cube) should be noticeably greener than the empty background corner.
-	AssertBoxPointRegionBrighter(*this, BoxPoint, GreenChannel, CenterRegion, CornerRegion, Width, Height, 0.05f, TEXT("AfterInitSensor green centre vs corner"));
+	AssertBoxPointRegionBrighter(*this, BoxPoint, GreenChannel, CenterRegion, CornerRegion, 0.05f, TEXT("AfterInitSensor green centre vs corner"));
 
 	// Green should dominate red/blue where the green cube is rendered.
-	const float CenterR = ComputeBoxPointRegionMean(BoxPoint, RedChannel, CenterRegion, Width, Height);
-	const float CenterG = ComputeBoxPointRegionMean(BoxPoint, GreenChannel, CenterRegion, Width, Height);
-	const float CenterB = ComputeBoxPointRegionMean(BoxPoint, BlueChannel, CenterRegion, Width, Height);
+	const float CenterR = ComputeBoxPointRegionMean(BoxPoint, RedChannel, CenterRegion);
+	const float CenterG = ComputeBoxPointRegionMean(BoxPoint, GreenChannel, CenterRegion);
+	const float CenterB = ComputeBoxPointRegionMean(BoxPoint, BlueChannel, CenterRegion);
 	TestTrue(FString::Printf(TEXT("Centre green %.3f exceeds red %.3f"), CenterG, CenterR), CenterG > CenterR);
 	TestTrue(FString::Printf(TEXT("Centre green %.3f exceeds blue %.3f"), CenterG, CenterB), CenterG > CenterB);
 
@@ -141,7 +141,7 @@ bool FCameraSensorCapture_ObsSpaceMatchesCollect_Test::RunTest(const FString& Pa
 	const int32 Height = 32;
 	const FIntRect CenterRegion(Width * 3 / 8, Height * 3 / 8, Width * 5 / 8, Height * 5 / 8);
 	const FIntRect CornerRegion(0, 0, Width / 8, Height / 8);
-	AssertBoxPointRegionBrighter(*this, BoxPoint, 0, CenterRegion, CornerRegion, Width, Height, 0.05f, TEXT("ObsSpaceMatchesCollect orange centre vs corner"));
+	AssertBoxPointRegionBrighter(*this, BoxPoint, 0, CenterRegion, CornerRegion, 0.05f, TEXT("ObsSpaceMatchesCollect orange centre vs corner"));
 
 	return true;
 }
@@ -191,15 +191,15 @@ bool FCameraSensorCapture_DepthMode_Test::RunTest(const FString& Parameters)
 	const int32 Height = 64;
 	AssertBoxPointShape(*this, BoxPoint, 1, Height, Width, TEXT("DepthMode"));
 
-	const float CenterDepth = GetBoxPointChannelValue(BoxPoint, 0, Height / 2, Width / 2, Width, Height);
+	const float CenterDepth = GetBoxPointChannelValue(BoxPoint, 0, Height / 2, Width / 2);
 	TestTrue(TEXT("Center depth value should be populated"), CenterDepth > 0.0f && CenterDepth <= 1.0f);
 
 	// Spatial check: the cubes occupy the centre of the frame while the corners see empty background,
 	// so the centre depth should be measurably different from the background corners.
 	const FIntRect CenterRegion(Width * 3 / 8, Height * 3 / 8, Width * 5 / 8, Height * 5 / 8);
 	const FIntRect CornerRegion(0, 0, Width / 8, Height / 8);
-	const float CenterDepthMean = ComputeBoxPointRegionMean(BoxPoint, 0, CenterRegion, Width, Height);
-	const float CornerDepthMean = ComputeBoxPointRegionMean(BoxPoint, 0, CornerRegion, Width, Height);
+	const float CenterDepthMean = ComputeBoxPointRegionMean(BoxPoint, 0, CenterRegion);
+	const float CornerDepthMean = ComputeBoxPointRegionMean(BoxPoint, 0, CornerRegion);
 	TestTrue(
 		FString::Printf(
 			TEXT("Centre depth (%.4f) should differ from background corner depth (%.4f)"),
@@ -304,8 +304,6 @@ bool FCameraSensorCapture_SpatialLocalization_Test::RunTest(const FString& Param
 		GreenChannel,
 		RightHalf,
 		LeftHalf,
-		Width,
-		Height,
 		0.05f,
 		TEXT("SpatialLocalization +Y cube on right"));
 

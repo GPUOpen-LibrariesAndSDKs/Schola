@@ -21,7 +21,12 @@ from lerobot.utils.constants import (
     OBS_PREFIX,
     OBS_STATE,
 )
-from schola.scripts.common.settings import ExternalSimulatorConfig, GrpcProtocolConfig
+from schola.scripts.common.settings import (
+    ExternalSimulatorConfig,
+    GrpcProtocolConfig,
+    UnrealExecutableSimulatorConfig,
+    UnrealProjectSimulatorConfig,
+)
 
 if TYPE_CHECKING:
     import gymnasium as gym
@@ -41,21 +46,55 @@ _GYM_VALUE_POLICY_FEATURES = {
 ScholaObservationSource = str | list[str]
 
 
-class ScholaObservationConfig(dict[str, ScholaObservationSource]):
-    """Policy feature name to Schola source path or ordered source paths.
+class ScholaObservationConfig(
+    dict[str, ScholaObservationSource | dict[str, ScholaObservationSource]]
+):
+    """LeRobot-shaped observation fields mapped to Schola source paths.
 
-    Policy feature names are copied verbatim from a checkpoint's
-    ``input_features``. Dots in Schola source paths traverse nested ``Dict``
-    spaces. ``__root__`` selects an unnamed, non-``Dict`` top-level
-    observation.
+    Top-level fields become ``observation.<field>`` policy features. The
+    ``images`` field contains camera-name-to-source entries that become
+    ``observation.images.<camera>``. Dots in Schola source paths traverse
+    nested ``Dict`` spaces. Every source begins with ``observation``.
     """
+
+    def to_policy_mapping(self) -> dict[str, ScholaObservationSource]:
+        """Expand the mirrored configuration into canonical policy feature keys."""
+        mapping: dict[str, ScholaObservationSource] = {}
+        for field_name, configured_sources in self.items():
+            if not field_name:
+                raise ValueError("Observation field names cannot be empty")
+            if field_name.startswith(OBS_PREFIX):
+                raise ValueError(
+                    f"Observation field {field_name!r} must omit the "
+                    f"{OBS_PREFIX!r} prefix"
+                )
+
+            if field_name == "images":
+                if not isinstance(configured_sources, Mapping):
+                    raise TypeError(
+                        "observations.images must map camera names to Schola sources"
+                    )
+                for camera_name, camera_sources in configured_sources.items():
+                    if not camera_name:
+                        raise ValueError("Observation camera names cannot be empty")
+                    mapping[f"{OBS_IMAGES}.{camera_name}"] = camera_sources
+                continue
+
+            if isinstance(configured_sources, Mapping):
+                raise TypeError(
+                    f"observations.{field_name} must be a Schola source string "
+                    "or ordered list of source strings"
+                )
+            mapping[f"{OBS_PREFIX}{field_name}"] = configured_sources
+
+        return mapping
 
 
 @decode.register(ScholaObservationConfig)
 def _decode_observation_config(
     raw_value: Any, path: Sequence[str]
 ) -> ScholaObservationConfig:
-    """Preserve YAML scalar-or-list mapping values when Draccus decodes them."""
+    """Preserve the mirrored observation structure when Draccus decodes it."""
     del path
     if not isinstance(raw_value, Mapping):
         raise TypeError("observations must be a mapping")
@@ -123,8 +162,7 @@ def infer_features_from_spaces(
     for feature_key, policy_key in features_map.items():
         feature = features[feature_key]
         logger.info(
-            "Inferred Schola feature mapping: %s -> %s (type=%s, shape=%s)",
-            feature_key,
+            "Inferred LeRobot policy feature %s (type=%s, shape=%s)",
             policy_key,
             feature.type.value,
             feature.shape,
@@ -133,17 +171,15 @@ def infer_features_from_spaces(
     return features, features_map
 
 
-@EnvConfig.register_subclass("schola")
-@dataclass
-class ScholaEnvConfig(EnvConfig):
+@dataclass(kw_only=True)
+class BaseScholaEnvConfig(EnvConfig):
     """Configure a LeRobot evaluation environment backed by Schola.
 
-    Supports one externally managed Unreal process, which may expose multiple
-    homogeneous agent slots through Schola's native ``GymVectorEnv``.
+    Supports one simulator process, which may expose multiple homogeneous
+    agent slots through Schola's native ``GymVectorEnv``.
     """
 
     task: str | None = "schola"
-    simulator: ExternalSimulatorConfig = field(default_factory=ExternalSimulatorConfig)
     protocol: GrpcProtocolConfig = field(default_factory=GrpcProtocolConfig)
     verbosity: int = 0
     task_description: str | None = None
@@ -153,7 +189,7 @@ class ScholaEnvConfig(EnvConfig):
     observations: ScholaObservationConfig = field(
         default_factory=ScholaObservationConfig
     )
-    """Policy feature names mapped to Schola source paths."""
+    """LeRobot-shaped observation fields mapped to Schola source paths."""
     render_camera: str | None = None
     render_fps: int = 30
 
@@ -161,6 +197,10 @@ class ScholaEnvConfig(EnvConfig):
     def gym_kwargs(self) -> dict[str, Any]:
         """Return no ``gym.make`` arguments because Schola constructs the env."""
         return {}
+
+    def _get_simulator_config(self) -> Any:
+        """Return the concrete simulator configuration for this environment type."""
+        raise NotImplementedError
 
     def create_envs(
         self, n_envs: int, use_async_envs: bool = False
@@ -185,14 +225,15 @@ class ScholaEnvConfig(EnvConfig):
                 "ScholaEnvConfig requires observations to declare how policy "
                 "features map to Schola sources."
             )
-        if self.simulator.num_simulators != 1:
+        simulator_config = self._get_simulator_config()
+        if simulator_config.num_simulators != 1:
             raise ValueError(
                 "ScholaEnvConfig currently supports one simulator process; "
-                f"got num_simulators={self.simulator.num_simulators}."
+                f"got num_simulators={simulator_config.num_simulators}."
             )
 
         schola_env = GymVectorEnv(
-            simulator=self.simulator.make(),
+            simulator=simulator_config.make(),
             protocol=self.protocol.make(),
             verbosity=self.verbosity,
         )
@@ -206,13 +247,16 @@ class ScholaEnvConfig(EnvConfig):
             )
 
         try:
+            observation_mapping = ScholaObservationConfig(
+                self.observations
+            ).to_policy_mapping()
             env = LeRobotScholaVectorEnv(
                 schola_env,
                 task=self.task or "schola",
                 task_description=self.task_description or self.task or "schola",
                 max_episode_steps=self.episode_length,
                 success_key=self.success_key,
-                observation_config=self.observations,
+                observation_config=ScholaObservationConfig(observation_mapping),
                 render_camera=self.render_camera,
                 render_fps=self.render_fps,
             )
@@ -240,3 +284,42 @@ class ScholaEnvConfig(EnvConfig):
             raise
 
         return {self.type: {0: env}}
+
+
+@EnvConfig.register_subclass("schola")
+@dataclass(kw_only=True)
+class ScholaEnvConfig(BaseScholaEnvConfig):
+    """Connect to an externally managed simulator process."""
+
+    simulator: ExternalSimulatorConfig = field(default_factory=ExternalSimulatorConfig)
+
+    def _get_simulator_config(self) -> ExternalSimulatorConfig:
+        return self.simulator
+
+
+@EnvConfig.register_subclass("schola-external")
+@dataclass(kw_only=True)
+class ScholaExternalEnvConfig(ScholaEnvConfig):
+    """Connect to an externally managed simulator process."""
+
+
+@EnvConfig.register_subclass("schola-project")
+@dataclass(kw_only=True)
+class ScholaProjectEnvConfig(BaseScholaEnvConfig):
+    """Build and launch an Unreal project for LeRobot evaluation."""
+
+    simulator: UnrealProjectSimulatorConfig = field()
+
+    def _get_simulator_config(self) -> UnrealProjectSimulatorConfig:
+        return self.simulator
+
+
+@EnvConfig.register_subclass("schola-executable")
+@dataclass(kw_only=True)
+class ScholaExecutableEnvConfig(BaseScholaEnvConfig):
+    """Launch a packaged Unreal executable for LeRobot evaluation."""
+
+    simulator: UnrealExecutableSimulatorConfig = field()
+
+    def _get_simulator_config(self) -> UnrealExecutableSimulatorConfig:
+        return self.simulator

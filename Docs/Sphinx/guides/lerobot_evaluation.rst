@@ -9,8 +9,9 @@ environment exposed through Schola. It adapts Schola's vector environment,
 observations, continuous actions, episode metadata, rendering, and success
 information to LeRobot's evaluation contract.
 
-Evaluation uses one externally managed Unreal process. That process may expose
-multiple homogeneous agent slots.
+Evaluation uses one Schola simulator process, which may be externally managed
+or launched by the plugin. That process may expose multiple homogeneous agent
+slots.
 
 Installation
 ------------
@@ -32,7 +33,8 @@ can confirm discovery by running:
 
    lerobot-eval --help
 
-``schola`` should appear among the choices for ``--env.type``.
+``schola``, ``schola-external``, ``schola-project``, and
+``schola-executable`` should appear among the choices for ``--env.type``.
 
 What to Pass to LeRobot
 -----------------------
@@ -43,8 +45,8 @@ At minimum, ``lerobot-eval`` needs:
   and evaluation settings;
 * ``--policy.path`` pointing to a local pretrained policy directory or a
   Hugging Face Hub repository; and
-* an Unreal environment that is already running and listening on the configured
-  gRPC address.
+* either an existing Unreal environment or a project/executable that the plugin
+  can launch.
 
 The local policy directory or Hub repository must contain a LeRobot pretrained
 policy, including ``config.json`` and ``model.safetensors``.
@@ -52,15 +54,17 @@ policy, including ``config.json`` and ``model.safetensors``.
 The YAML file must provide the following values:
 
 ``env.type``
-   Must be ``schola``.
+   Selects the simulator lifecycle. ``schola`` and ``schola-external`` both
+   connect to an existing process, ``schola-project`` builds and launches an
+   Unreal project, and ``schola-executable`` launches a packaged executable.
 
 ``env.protocol.url`` and ``env.protocol.port``
-   The address of the running Unreal environment. ``url`` defaults to
-   ``localhost``; ``port`` must match the port configured in Unreal.
+   The gRPC address. For ``schola`` and ``schola-external``, ``port`` must match
+   the existing Unreal process. Managed project and executable modes may omit
+   ``port`` to select an available local port automatically.
 
 ``env.observations``
-   A complete mapping from the pretrained policy's input feature names to
-   Schola observation source paths.
+   A LeRobot-shaped observation tree whose values are Schola source paths.
 
 ``eval.n_episodes``
    The number of episodes to evaluate.
@@ -88,51 +92,166 @@ Optional LeRobot arguments include ``--output_dir`` for results and videos,
 ``--seed`` for repeatable rollouts, and policy-specific overrides such as
 ``--policy.device=cuda``.
 
+Choose a Simulator Mode
+-----------------------
+
+Use ``schola-external`` to connect to an Unreal Editor session or another
+process that was started separately:
+
+.. code-block:: yaml
+
+   env:
+     type: schola-external
+     protocol:
+       url: localhost
+       port: 8000
+
+``schola`` is an equivalent shorter name retained for compatibility with
+existing configurations. ``schola-external`` is preferred when the explicit
+lifecycle name improves clarity.
+
+Use ``schola-project`` to build and launch an Unreal project. The project path
+is required; Schola can discover the Unreal Build Tool from the project:
+
+.. code-block:: yaml
+
+   env:
+     type: schola-project
+     simulator:
+       uproject_path: ./RobotLab/RobotLab.uproject
+       map: /Game/Maps/RobotLab
+       headless: true
+
+Use ``schola-executable`` to launch an existing packaged environment:
+
+.. code-block:: yaml
+
+   env:
+     type: schola-executable
+     simulator:
+       executable_path: ./Build/RobotLab.exe
+       map: /Game/Maps/RobotLab
+       headless: true
+
+All three modes use the same ``observations``, evaluation, protocol, and policy
+configuration. The plugin currently supports one simulator process per
+evaluation, though that process may expose multiple homogeneous agent slots.
+
 Configure Observations
 ----------------------
 
-LeRobot policies use canonical feature names such as
-``observation.images.front`` and ``observation.state``, while an Unreal
-environment may expose observations under arbitrary Schola keys. Each entry in
-``observations`` maps an exact policy feature name to a Schola source path, or
-to an ordered list of sources that are flattened and concatenated.
+The ``observations`` configuration mirrors LeRobot's observation tree. A
+top-level field such as ``state`` becomes the policy feature
+``observation.state``. Camera entries nested under ``images`` become features
+such as ``observation.images.front``. Each field maps to a Schola source path,
+or to an ordered list of sources that are flattened and concatenated.
 
-Dots in a source path traverse nested Schola ``Dict`` spaces. For example,
-``robot.joint_positions`` selects ``joint_positions`` inside ``robot``.
-``__root__`` selects an unnamed top-level observation when Schola exposes a
-non-``Dict`` space. Because dots and ``__root__`` are reserved syntax, Schola
-dictionary keys may not contain a dot or equal ``__root__``.
+Every Schola source path starts at ``observation``. If the top-level Schola
+space is a ``Dict``, dots traverse its nested keys; for example,
+``observation.robot.joint_positions`` selects ``joint_positions`` inside
+``robot``. If Schola exposes a non-composite top-level space, use
+``observation`` by itself. Schola dictionary keys may not contain a dot.
 
-Feature behavior is inferred from the policy key; no separate type declaration
-is needed:
+Feature behavior is inferred from the mirrored field; no separate type
+declaration is needed:
 
-* ``observation.images.<camera>`` and singular ``observation.image`` each map to
-  exactly one image source. Sources may be channel-first or channel-last
-  ``uint8`` data, or floating-point data bounded by ``[0, 1]``. The adapter
-  emits channel-last ``uint8`` images. ``observation.image`` cannot be combined
-  with ``observation.images.*``.
-* A single non-image source is passed through with its original ``Box`` shape
-  and dtype.
-* A YAML list of non-image sources is flattened and concatenated in the order
-  written.
+* ``images.<camera>`` and singular ``image`` each map to exactly one image
+  source. Sources may be channel-first or channel-last ``uint8`` data, or
+  floating-point data bounded by ``[0, 1]``. The adapter emits channel-last
+  ``uint8`` images. ``image`` cannot be combined with ``images``.
+* A single non-image ``Box`` source is passed through with its original shape
+  and dtype. Other fixed-size Gymnasium spaces use Gymnasium's standard
+  ``flatten_space`` and ``flatten`` behavior. For example, ``Discrete(4)``
+  becomes a four-element one-hot ``Box``.
+* A YAML list of non-image sources is flattened using the same Gymnasium
+  convention and concatenated in the order written.
 
-Every leaf source must appear exactly once. Unaccounted sources, duplicate use,
-unknown paths, and non-``Box`` leaves are rejected when the environment is
-created.
+Schola sources that are not mapped are ignored and produce a warning. A source
+may be reused by multiple policy features, but doing so produces a strong
+warning because it can duplicate preprocessing and device-memory costs or feed
+semantically incorrect inputs to a policy. Unknown paths and spaces that
+Gymnasium cannot flatten to a fixed-shape ``Box`` are rejected when the
+environment is created.
 
-For example, this mapping combines joint positions, velocities, and gripper
-state into one policy state while exposing two cameras:
+Concrete example
+~~~~~~~~~~~~~~~~
+
+Consider an `SO-101 <https://huggingface.co/docs/lerobot/so101>`_ follower arm,
+which LeRobot supports directly. Its policy state contains five arm joints and
+one gripper value. Suppose an SO-101 simulated in Unreal exposes the following
+Gymnasium observation space through Schola. Camera observations are
+channel-last:
+
+.. code-block:: python
+
+   Dict({
+       "cameras": Dict({
+           "wrist": Box(0, 255, shape=(480, 640, 3), dtype=np.uint8),
+       }),
+       "so101": Dict({
+           "arm_joint_positions": Box(
+               -180.0, 180.0, shape=(5,), dtype=np.float32
+           ),
+           "gripper_position": Box(
+               0.0, 100.0, shape=(1,), dtype=np.float32
+           ),
+       }),
+   })
+
+A typical wrist-camera SO-101 checkpoint has these LeRobot features (shown as
+``PolicyFeature`` values for clarity):
+
+.. code-block:: python
+
+   {
+       "observation.images.wrist": PolicyFeature(
+           type=FeatureType.VISUAL, shape=(3, 480, 640)
+       ),
+       "observation.state": PolicyFeature(
+           type=FeatureType.STATE, shape=(6,)
+       ),
+       "action": PolicyFeature(
+           type=FeatureType.ACTION, shape=(6,)
+       ),
+   }
+
+The corresponding Schola configuration is:
 
 .. code-block:: yaml
 
    observations:
-     observation.images.front: sensors.front_camera
-     observation.images.wrist: sensors.wrist_camera
-     observation.state:
-       - robot.joint_positions
-       - robot.joint_velocities
-       - robot.gripper
-     observation.environment_state: target_state
+     images:
+       wrist: observation.cameras.wrist
+     state:
+       - observation.so101.arm_joint_positions
+       - observation.so101.gripper_position
+
+The mirrored field on the left identifies the policy input feature, and the
+value on the right identifies the Schola source from which it is built.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 38 24 38
+
+   * - Policy input feature
+     - Mapping behavior
+     - Schola source
+   * - ``observation.images.wrist`` with shape ``(3, 480, 640)``
+     - Read one image and convert its layout
+     - ``observation.cameras.wrist`` with shape ``(480, 640, 3)``
+   * - ``observation.state`` with shape ``(6,)``
+     - Flatten and concatenate the listed sources in YAML order
+     - ``observation.so101.arm_joint_positions`` ``(5,)`` followed by
+       ``observation.so101.gripper_position`` ``(1,)``
+
+The resulting state order is ``shoulder_pan``, ``shoulder_lift``,
+``elbow_flex``, ``wrist_flex``, ``wrist_roll``, then ``gripper``. The policy
+returns an ``action`` vector in that same semantic six-element order. However,
+the observation mapping does not control action ordering. Schola's action space
+must independently flatten to the order expected by the checkpoint; the plugin
+validates dimensions but cannot infer joint semantics or units. The body joint
+values commonly use degrees for SO-101, while the gripper commonly uses
+LeRobot's ``RANGE_0_100`` normalization.
 
 Run an Evaluation
 -----------------
@@ -156,10 +275,11 @@ evaluation configuration such as ``schola_eval.yaml``:
        url: localhost
        port: 8000
      observations:
-       observation.images.front: sensors.front_camera
-       observation.state:
-         - robot.joint_positions
-         - robot.joint_velocities
+       images:
+         front: observation.sensors.front_camera
+       state:
+         - observation.robot.joint_positions
+         - observation.robot.joint_velocities
 
    eval:
      n_episodes: 10
@@ -214,21 +334,12 @@ the connected Unreal process, the plugin logs a warning and uses Unreal's
 actual slot count. Keep ``simulator.num_simulators`` set to ``1``; multiple
 externally managed processes are not supported.
 
-Feature and Action Inference
-----------------------------
+Action Spaces
+-------------
 
-When ``features`` and ``features_map`` are omitted, the plugin infers them from
-the adapted Gym observation space and flattened action space:
-
-* ``agent_pos`` maps to ``observation.state``;
-* ``environment_state`` maps to ``observation.environment_state``;
-* ``pixels/<camera-name>`` maps to ``observation.images.<camera-name>``;
-* a singular ``pixels`` image maps to ``observation.image``;
-* other vector outputs map to ``observation.<output-name>``; and
-* the flattened continuous action maps to ``action``.
-
-Explicit ``features`` and ``features_map`` may be supplied when a policy needs
-custom declarations, but both mappings must contain the same keys.
+The plugin derives LeRobot policy features directly from the mirrored
+``observations`` configuration and the action space. No separate feature
+mapping is required.
 
 Schola action spaces must be a ``Box`` or a nested ``Dict`` containing only
 ``Box`` spaces. Nested actions are flattened for the policy and reconstructed
@@ -237,6 +348,6 @@ before each Schola step. Discrete actions are not supported.
 Troubleshooting
 ---------------
 
-Common configuration failures are caused by an unclaimed Schola leaf, an
-unknown dotted source path, ``use_async_envs`` being enabled, or an image whose
-type, bounds, or channel count is unsupported.
+Common configuration failures are caused by an unknown Schola source path,
+``use_async_envs`` being enabled, or an image whose type, bounds, or channel
+count is unsupported.

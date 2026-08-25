@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from functools import partial
-from textwrap import dedent
+from textwrap import dedent, indent
 
 import draccus
 import gymnasium as gym
@@ -17,16 +17,47 @@ from lerobot.envs.configs import EnvConfig
 from lerobot.utils.constants import ACTION, OBS_IMAGES, OBS_STATE
 from lerobot_env_schola.config import (
     ScholaEnvConfig,
+    ScholaExecutableEnvConfig,
+    ScholaExternalEnvConfig,
+    ScholaProjectEnvConfig,
     infer_features_from_spaces,
 )
 from lerobot_env_schola.vector_env import LeRobotScholaVectorEnv, _policy_output
 from schola.gym.env import GymVectorEnv
-from schola.scripts.common.settings import ExternalSimulatorConfig, GrpcProtocolConfig
+from schola.scripts.common.settings import (
+    ExternalSimulatorConfig,
+    GrpcProtocolConfig,
+    UnrealExecutableSimulatorConfig,
+    UnrealProjectSimulatorConfig,
+)
 from Test.gym.testing_env import GenericTestEnv
+
+
+@pytest.fixture
+def make_eval_config(tmp_path):
+    def _make(env_yaml: str) -> EvalPipelineConfig:
+        config_path = tmp_path / "schola_eval.yaml"
+        env_block = indent(dedent(env_yaml).strip(), "  ")
+        config_path.write_text(
+            f"""env:
+{env_block}
+eval:
+  n_episodes: 1
+  batch_size: 1
+  use_async_envs: false
+""",
+            encoding="utf-8",
+        )
+        return draccus.parse(EvalPipelineConfig, config_path=config_path, args=[])
+
+    return _make
 
 
 def test_schola_config_is_registered():
     assert EnvConfig.get_choice_class("schola") is ScholaEnvConfig
+    assert EnvConfig.get_choice_class("schola-external") is ScholaExternalEnvConfig
+    assert EnvConfig.get_choice_class("schola-project") is ScholaProjectEnvConfig
+    assert EnvConfig.get_choice_class("schola-executable") is ScholaExecutableEnvConfig
 
 
 def test_schola_config_does_not_use_gym_make():
@@ -34,36 +65,88 @@ def test_schola_config_does_not_use_gym_make():
     assert cfg.gym_kwargs == {}
 
 
-def test_policy_feature_observations_parse_from_yaml(tmp_path):
-    config_path = tmp_path / "schola_eval.yaml"
-    config_path.write_text(
-        dedent("""
-            env:
-              type: schola
-              observations:
-                observation.images.front: sensors.front_camera
-                observation.state:
-                  - robot.joint_positions
-                  - robot.joint_velocities
-                observation.environment_state: target
-            eval:
-              n_episodes: 1
-              batch_size: 1
-              use_async_envs: false
-            """),
-        encoding="utf-8",
-    )
+def test_schola_external_alias_parses_from_yaml(make_eval_config):
+    cfg = make_eval_config("""
+        type: schola-external
+        observations:
+          state: observation.state
+        """)
 
-    cfg = draccus.parse(EvalPipelineConfig, config_path=config_path, args=[])
+    assert isinstance(cfg.env, ScholaExternalEnvConfig)
+    assert isinstance(cfg.env.simulator, ExternalSimulatorConfig)
+
+
+@pytest.mark.parametrize(
+    ("env_type", "config_class", "simulator_class", "path_field", "file_name"),
+    [
+        (
+            "schola-project",
+            ScholaProjectEnvConfig,
+            UnrealProjectSimulatorConfig,
+            "uproject_path",
+            "RobotLab.uproject",
+        ),
+        (
+            "schola-executable",
+            ScholaExecutableEnvConfig,
+            UnrealExecutableSimulatorConfig,
+            "executable_path",
+            "RobotLab.exe",
+        ),
+    ],
+)
+def test_launched_simulator_configs_parse_from_yaml(
+    tmp_path,
+    make_eval_config,
+    env_type,
+    config_class,
+    simulator_class,
+    path_field,
+    file_name,
+):
+    simulator_path = tmp_path / file_name
+    simulator_path.touch()
+    cfg = make_eval_config(f"""
+        type: {env_type}
+        simulator:
+          {path_field}: {simulator_path.as_posix()}
+        observations:
+          state: observation.state
+        """)
+
+    assert isinstance(cfg.env, config_class)
+    assert isinstance(cfg.env.simulator, simulator_class)
+    assert getattr(cfg.env.simulator, path_field) == simulator_path
+
+
+def test_policy_feature_observations_parse_from_yaml(make_eval_config):
+    cfg = make_eval_config("""
+        type: schola
+        observations:
+          images:
+            front: observation.sensors.front_camera
+          state:
+            - observation.robot.joint_positions
+            - observation.robot.joint_velocities
+          environment_state: observation.target
+        """)
 
     assert isinstance(cfg.env, ScholaEnvConfig)
     assert cfg.env.observations == {
-        "observation.images.front": "sensors.front_camera",
-        "observation.state": [
-            "robot.joint_positions",
-            "robot.joint_velocities",
+        "images": {"front": "observation.sensors.front_camera"},
+        "state": [
+            "observation.robot.joint_positions",
+            "observation.robot.joint_velocities",
         ],
-        "observation.environment_state": "target",
+        "environment_state": "observation.target",
+    }
+    assert cfg.env.observations.to_policy_mapping() == {
+        "observation.images.front": "observation.sensors.front_camera",
+        "observation.state": [
+            "observation.robot.joint_positions",
+            "observation.robot.joint_velocities",
+        ],
+        "observation.environment_state": "observation.target",
     }
 
 
@@ -99,10 +182,10 @@ def test_features_are_inferred_from_normalized_spaces(caplog):
         "pixels/wrist": f"{OBS_IMAGES}.wrist",
         ACTION: ACTION,
     }
-    assert "agent_pos -> observation.state" in caplog.text
-    assert "pixels/front -> observation.images.front" in caplog.text
-    assert "pixels/wrist -> observation.images.wrist" in caplog.text
-    assert "action -> action" in caplog.text
+    assert "policy feature observation.state" in caplog.text
+    assert "policy feature observation.images.front" in caplog.text
+    assert "policy feature observation.images.wrist" in caplog.text
+    assert "policy feature action" in caplog.text
 
 
 @pytest.mark.parametrize(
@@ -139,7 +222,7 @@ def test_create_envs_builds_schola_vector_env(make_vec_env_server):
         task_description="Swing the pendulum upright.",
         episode_length=200,
         render_fps=24,
-        observations={"observation.state": "joints"},
+        observations={"state": "observation.joints"},
         simulator=ExternalSimulatorConfig(),
         protocol=GrpcProtocolConfig(url="localhost", port=port),
     )
@@ -193,7 +276,7 @@ def test_create_envs_uses_schola_vector_size_on_mismatch(make_vec_env_server, ca
         ]
     )
     cfg = ScholaEnvConfig(
-        observations={"observation.state": "observation"},
+        observations={"state": "observation.observation"},
         simulator=ExternalSimulatorConfig(),
         protocol=GrpcProtocolConfig(url="localhost", port=port),
     )

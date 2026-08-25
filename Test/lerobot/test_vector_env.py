@@ -40,8 +40,8 @@ def make_wrapper():
             )
         if observation_config is None:
             observation_config = {
-                "observation.images.front": "camera",
-                "observation.state": "joints",
+                "observation.images.front": "observation.camera",
+                "observation.state": "observation.joints",
             }
         env = GenericTestVectorEnv(
             num_envs=num_envs,
@@ -133,9 +133,9 @@ def test_wrapper_groups_multiple_mapped_cameras(make_wrapper):
             }
         ),
         observation_config={
-            "observation.images.front": "front",
-            "observation.images.wrist": "wrist",
-            "observation.state": "joints",
+            "observation.images.front": "observation.front",
+            "observation.images.wrist": "observation.wrist",
+            "observation.state": "observation.joints",
         },
         render_camera="wrist",
     )
@@ -165,7 +165,7 @@ def test_wrapper_rejects_discrete_actions(make_wrapper):
                 {"observation": Box(-1, 1, shape=(4,), dtype=np.float32)}
             ),
             action_space=Discrete(2),
-            observation_config={"observation.state": "observation"},
+            observation_config={"observation.state": "observation.observation"},
         )
 
 
@@ -182,13 +182,13 @@ def test_wrapper_converts_policy_feature_observations(make_wrapper):
             }
         ),
         observation_config={
-            "observation.images.front": "front_camera",
+            "observation.images.front": "observation.front_camera",
             "observation.state": [
-                "joint_positions",
-                "joint_velocities",
-                "gripper",
+                "observation.joint_positions",
+                "observation.joint_velocities",
+                "observation.gripper",
             ],
-            "observation.environment_state": "target",
+            "observation.environment_state": "observation.target",
         },
     )
 
@@ -219,6 +219,58 @@ def test_wrapper_converts_policy_feature_observations(make_wrapper):
     np.testing.assert_array_equal(agent_pos_space.high, [1, 1, 2, 2, 3])
 
 
+def test_wrapper_one_hot_encodes_discrete_observation(make_wrapper):
+    wrapper = make_wrapper(
+        num_envs=2,
+        observation_space=Dict({"mode": Discrete(4)}),
+        observation_config={"observation.state": "observation.mode"},
+    )
+
+    converted = wrapper._convert_observation({"mode": np.array([0, 2])})
+
+    assert wrapper.single_observation_space["agent_pos"] == Box(
+        0, 1, shape=(4,), dtype=np.int64
+    )
+    np.testing.assert_array_equal(
+        converted["agent_pos"],
+        np.array([[1, 0, 0, 0], [0, 0, 1, 0]], dtype=np.int64),
+    )
+
+
+def test_wrapper_flattens_discrete_observation_before_concatenating(make_wrapper):
+    wrapper = make_wrapper(
+        num_envs=2,
+        observation_space=Dict(
+            {
+                "joints": Box(-1, 1, shape=(2,), dtype=np.float32),
+                "mode": Discrete(3),
+            }
+        ),
+        observation_config={
+            "observation.state": [
+                "observation.joints",
+                "observation.mode",
+            ]
+        },
+    )
+
+    converted = wrapper._convert_observation(
+        {
+            "joints": np.array([[0.25, 0.5], [-0.5, -0.25]], dtype=np.float32),
+            "mode": np.array([0, 2]),
+        }
+    )
+
+    assert wrapper.single_observation_space["agent_pos"].shape == (5,)
+    np.testing.assert_array_equal(
+        converted["agent_pos"],
+        np.array(
+            [[0.25, 0.5, 1, 0, 0], [-0.5, -0.25, 0, 0, 1]],
+            dtype=np.float64,
+        ),
+    )
+
+
 def test_wrapper_converts_native_schola_camera_to_lerobot_format(make_wrapper):
     camera_values = np.empty((3, 4, 5), dtype=np.float32)
     camera_values[0] = 0.0
@@ -233,8 +285,8 @@ def test_wrapper_converts_native_schola_camera_to_lerobot_format(make_wrapper):
             }
         ),
         observation_config={
-            "observation.images.front": "camera",
-            "observation.state": "joints",
+            "observation.images.front": "observation.camera",
+            "observation.state": "observation.joints",
         },
     )
 
@@ -262,7 +314,7 @@ def test_wrapper_prefers_hwc_for_ambiguous_float_image_shape(make_wrapper):
         observation_space=Dict(
             {"camera": Box(0.0, 1.0, shape=(4, 5, 3), dtype=np.float32)}
         ),
-        observation_config={"observation.images.front": "camera"},
+        observation_config={"observation.images.front": "observation.camera"},
     )
 
     pixels = wrapper._convert_observation({"camera": camera_values[np.newaxis, ...]})[
@@ -281,7 +333,7 @@ def test_wrapper_maps_singular_policy_image(make_wrapper):
     wrapper = make_wrapper(
         num_envs=1,
         observation_space=Box(0, 255, shape=(8, 8, 3), dtype=np.uint8),
-        observation_config={"observation.image": "__root__"},
+        observation_config={"observation.image": "observation"},
         render_camera="image",
     )
 
@@ -290,9 +342,9 @@ def test_wrapper_maps_singular_policy_image(make_wrapper):
     np.testing.assert_array_equal(wrapper.call("render")[0], observation["pixels"][0])
 
 
-def test_wrapper_rejects_unaccounted_observations(make_wrapper):
-    with pytest.raises(ValueError, match="does not account for.*unused"):
-        make_wrapper(
+def test_wrapper_warns_about_unaccounted_observations(make_wrapper, caplog):
+    with caplog.at_level("WARNING", logger="lerobot_env_schola.vector_env"):
+        wrapper = make_wrapper(
             num_envs=2,
             observation_space=Dict(
                 {
@@ -300,8 +352,34 @@ def test_wrapper_rejects_unaccounted_observations(make_wrapper):
                     "unused": Box(-1, 1, shape=(1,), dtype=np.float32),
                 }
             ),
-            observation_config={"observation.state": "joints"},
+            observation_config={"observation.state": "observation.joints"},
         )
+
+    observation, _ = wrapper.reset()
+    assert set(observation) == {"agent_pos"}
+    assert "observation.unused" in caplog.text
+    assert "will be ignored" in caplog.text
+
+
+def test_wrapper_warns_about_reused_observation_source(make_wrapper, caplog):
+    with caplog.at_level("WARNING", logger="lerobot_env_schola.vector_env"):
+        wrapper = make_wrapper(
+            num_envs=1,
+            observation_space=Dict(
+                {"camera": Box(0, 255, shape=(8, 8, 3), dtype=np.uint8)}
+            ),
+            observation_config={
+                "observation.images.front": "observation.camera",
+                "observation.images.wrist": "observation.camera",
+            },
+        )
+
+    observation, _ = wrapper.reset()
+    np.testing.assert_array_equal(
+        observation["pixels"]["front"], observation["pixels"]["wrist"]
+    )
+    assert "observation.camera" in caplog.text
+    assert "device-memory costs" in caplog.text
 
 
 def test_wrapper_rejects_unsupported_camera_dtype(make_wrapper):
@@ -311,7 +389,7 @@ def test_wrapper_rejects_unsupported_camera_dtype(make_wrapper):
             observation_space=Dict(
                 {"camera": Box(0, 255, shape=(8, 8, 3), dtype=np.int32)}
             ),
-            observation_config={"observation.images.front": "camera"},
+            observation_config={"observation.images.front": "observation.camera"},
         )
 
 
@@ -325,8 +403,8 @@ def test_wrapper_resolves_nested_schola_sources_with_dots(make_wrapper):
             }
         ),
         observation_config={
-            "observation.images.top": "sensors.top",
-            "observation.state": "robot.joints",
+            "observation.images.top": "observation.sensors.top",
+            "observation.state": "observation.robot.joints",
         },
     )
 
@@ -335,11 +413,11 @@ def test_wrapper_resolves_nested_schola_sources_with_dots(make_wrapper):
     assert observation["agent_pos"].shape == (1, 3)
 
 
-def test_wrapper_maps_unnamed_root_observation(make_wrapper):
+def test_wrapper_maps_non_composite_observation_root(make_wrapper):
     wrapper = make_wrapper(
         num_envs=2,
         observation_space=Box(-1, 1, shape=(4,), dtype=np.float32),
-        observation_config={"observation.state": "__root__"},
+        observation_config={"observation.state": "observation"},
     )
 
     observation, _ = wrapper.reset()
@@ -355,18 +433,21 @@ def test_wrapper_rejects_literal_dots_in_schola_keys(make_wrapper):
             observation_space=Dict(
                 {"robot.joints": Box(-1, 1, shape=(3,), dtype=np.float32)}
             ),
-            observation_config={"observation.state": "robot.joints"},
+            observation_config={"observation.state": "observation.robot.joints"},
         )
 
 
-def test_wrapper_rejects_reserved_root_dict_key(make_wrapper):
-    with pytest.raises(ValueError, match="reserved"):
-        make_wrapper(
-            observation_space=Dict(
-                {"__root__": Box(-1, 1, shape=(3,), dtype=np.float32)}
-            ),
-            observation_config={"observation.state": "__root__"},
-        )
+def test_wrapper_maps_top_level_dict_key(make_wrapper):
+    wrapper = make_wrapper(
+        num_envs=1,
+        observation_space=Dict(
+            {"proprioception": Box(-1, 1, shape=(3,), dtype=np.float32)}
+        ),
+        observation_config={"observation.state": "observation.proprioception"},
+    )
+
+    observation, _ = wrapper.reset()
+    assert observation["agent_pos"].shape == (1, 3)
 
 
 @pytest.mark.parametrize(

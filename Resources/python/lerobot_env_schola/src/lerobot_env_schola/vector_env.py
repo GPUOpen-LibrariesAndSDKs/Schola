@@ -4,14 +4,20 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from typing import Any
 
 import gymnasium as gym
 import numpy as np
 from gymnasium.spaces import Box, Dict, Tuple
-from gymnasium.spaces.utils import flatten_space, unflatten
-from gymnasium.vector.utils import batch_space, concatenate, create_empty_array
+from gymnasium.spaces.utils import flatten, flatten_space, unflatten
+from gymnasium.vector.utils import (
+    batch_space,
+    concatenate,
+    create_empty_array,
+    iterate,
+)
 from lerobot.envs.utils import NEW_ROLLOUT_OPTION
 from lerobot.utils.constants import (
     OBS_ENV_STATE,
@@ -27,11 +33,13 @@ from lerobot_env_schola.config import (
     ScholaObservationConfig,
 )
 
+logger = logging.getLogger(__name__)
+
 BATCHED_IMAGE_NDIMS = 4
 CHW_CHANNEL_DIM = -3
 UINT8_MAX = np.iinfo(np.uint8).max
 BATCH_DIM = 0
-ROOT_SOURCE = "__root__"
+SCHOLA_OBSERVATION_ROOT = "observation"
 
 _EXACT_POLICY_OUTPUTS = {
     OBS_IMAGE: ("single_image", "pixels"),
@@ -49,11 +57,11 @@ def _contains_only_boxes(space: gym.Space) -> bool:
 
 
 def _flatten_observation_spaces(
-    space: gym.Space, prefix: tuple[str, ...] = ()
+    space: gym.Space, prefix: tuple[str, ...] = (SCHOLA_OBSERVATION_ROOT,)
 ) -> dict[str, gym.Space]:
-    """Flatten nested Schola Dict leaves into dot-separated source paths."""
+    """Flatten Schola leaves below a virtual ``observation`` root."""
     if not isinstance(space, Dict):
-        return {ROOT_SOURCE if not prefix else ".".join(prefix): space}
+        return {".".join(prefix): space}
 
     flattened: dict[str, gym.Space] = {}
     for key, child in space.spaces.items():
@@ -64,22 +72,22 @@ def _flatten_observation_spaces(
                 f"Schola observation key {key!r} contains '.', which is reserved "
                 "for nested source paths"
             )
-        if key == ROOT_SOURCE:
-            raise ValueError(
-                f"Schola observation key {ROOT_SOURCE!r} is reserved for an "
-                "unnamed top-level observation"
-            )
         flattened.update(_flatten_observation_spaces(child, (*prefix, key)))
     return flattened
 
 
 def _get_observation_value(observation: Any, source: str) -> Any:
     """Resolve a dot-separated source path in one batched Schola observation."""
-    if source == ROOT_SOURCE:
+    segments = source.split(".")
+    if not segments or segments[0] != SCHOLA_OBSERVATION_ROOT:
+        raise ValueError(
+            f"Schola source {source!r} must start with " f"{SCHOLA_OBSERVATION_ROOT!r}"
+        )
+    if len(segments) == 1:
         return observation
 
     value = observation
-    for segment in source.split("."):
+    for segment in segments[1:]:
         if not isinstance(value, Mapping):
             raise TypeError(
                 f"Cannot traverse Schola source {source!r}: {segment!r} is below "
@@ -89,6 +97,19 @@ def _get_observation_value(observation: Any, source: str) -> Any:
             raise KeyError(f"Schola observation is missing source {source!r}")
         value = value[segment]
     return value
+
+
+def _flatten_batched_observation(
+    space: gym.Space, value: Any, num_envs: int
+) -> np.ndarray:
+    """Apply Gymnasium's flattening convention to a batched space value."""
+    return np.stack(
+        [
+            flatten(space, item)
+            for item in iterate(batch_space(space, n=num_envs), value)
+        ],
+        axis=0,
+    ).reshape(num_envs, -1)
 
 
 def _policy_output(policy_key: str) -> tuple[str, str]:
@@ -238,6 +259,7 @@ class LeRobotScholaVectorEnv(gym.vector.VectorEnv):
 
         self._observation_config = observation_config
         self._source_spaces: dict[str, gym.Space] = {}
+        self._source_box_spaces: dict[str, Box] = {}
         self._camera_sources: dict[str, str] = {}
         self._single_image_source: str | None = None
         self._value_sources: dict[str, tuple[str, ...]] = {}
@@ -287,7 +309,7 @@ class LeRobotScholaVectorEnv(gym.vector.VectorEnv):
         """
         config = self._observation_config
         self._source_spaces = _flatten_observation_spaces(space)
-        claimed_sources: dict[str, str] = {}
+        claimed_sources: dict[str, list[str]] = {}
         claimed_gym_keys: dict[str, str] = {}
 
         def claim_source(source: str, owner: str) -> None:
@@ -298,14 +320,30 @@ class LeRobotScholaVectorEnv(gym.vector.VectorEnv):
                     f"{owner} references unknown Schola observation {source!r}; "
                     f"available sources are {sorted(self._source_spaces)}"
                 )
-            if source in claimed_sources:
-                raise ValueError(
-                    f"Schola observation {source!r} is used by both "
-                    f"{claimed_sources[source]} and {owner}"
+            previous_owners = claimed_sources.setdefault(source, [])
+            if previous_owners:
+                logger.warning(
+                    "Schola observation %r is reused by %s; previous use(s): %s. "
+                    "This duplicates policy input data, may increase preprocessing "
+                    "and device-memory costs, and can be semantically incorrect.",
+                    source,
+                    owner,
+                    ", ".join(previous_owners),
                 )
-            if not isinstance(self._source_spaces[source], Box):
-                raise TypeError(f"{owner} source {source!r} must use a Box space")
-            claimed_sources[source] = owner
+            source_space = self._source_spaces[source]
+            box_space = (
+                source_space
+                if isinstance(source_space, Box)
+                else flatten_space(source_space)
+            )
+            if not isinstance(box_space, Box):
+                raise TypeError(
+                    f"{owner} source {source!r} uses "
+                    f"{type(source_space).__name__}, which Gymnasium cannot "
+                    "flatten to a fixed-shape Box"
+                )
+            self._source_box_spaces[source] = box_space
+            previous_owners.append(owner)
 
         for policy_key, configured_sources in config.items():
             behavior, gym_key = _policy_output(policy_key)
@@ -313,7 +351,7 @@ class LeRobotScholaVectorEnv(gym.vector.VectorEnv):
             if gym_key in claimed_gym_keys:
                 raise ValueError(
                     f"Policy features {claimed_gym_keys[gym_key]} and {policy_key!r} "
-                    f"both produce Gym observation {gym_key!r}"
+                    f"both produce adapter output {gym_key!r}"
                 )
             claimed_gym_keys[gym_key] = policy_key
 
@@ -355,9 +393,10 @@ class LeRobotScholaVectorEnv(gym.vector.VectorEnv):
 
         missing_sources = self._source_spaces.keys() - claimed_sources.keys()
         if missing_sources:
-            raise ValueError(
-                "Observation configuration does not account for Schola sources: "
-                f"{sorted(missing_sources)}"
+            logger.warning(
+                "Schola observations %s are not mapped to policy inputs and will "
+                "be ignored by the LeRobot adapter.",
+                sorted(missing_sources),
             )
 
     def _build_observation_space(self) -> Dict:
@@ -377,13 +416,13 @@ class LeRobotScholaVectorEnv(gym.vector.VectorEnv):
 
         for gym_key, sources in self._value_sources.items():
             if gym_key not in self._concatenated_outputs:
-                output_spaces[gym_key] = self._source_spaces[sources[0]]
+                output_spaces[gym_key] = self._source_box_spaces[sources[0]]
                 continue
 
-            source_spaces = [self._source_spaces[source] for source in sources]
+            source_spaces = [self._source_box_spaces[source] for source in sources]
             flattened_space = flatten_space(Tuple(tuple(source_spaces)))
             if not isinstance(flattened_space, Box):
-                raise TypeError(f"Gym output {gym_key!r} did not flatten to a Box")
+                raise TypeError(f"Adapter output {gym_key!r} did not flatten to a Box")
             dtype = np.result_type(np.float32, flattened_space.dtype)
             output_spaces[gym_key] = Box(
                 low=flattened_space.low.astype(dtype, copy=False),
@@ -414,11 +453,28 @@ class LeRobotScholaVectorEnv(gym.vector.VectorEnv):
 
         for gym_key, sources in self._value_sources.items():
             if gym_key not in self._concatenated_outputs:
-                converted[gym_key] = _get_observation_value(observation, sources[0])
+                source = sources[0]
+                value = _get_observation_value(observation, source)
+                source_space = self._source_spaces[source]
+                converted[gym_key] = (
+                    value
+                    if isinstance(source_space, Box)
+                    else _flatten_batched_observation(
+                        source_space, value, self.num_envs
+                    )
+                )
                 continue
             values = [
-                np.asarray(_get_observation_value(observation, source)).reshape(
-                    self.num_envs, -1
+                (
+                    np.asarray(_get_observation_value(observation, source)).reshape(
+                        self.num_envs, -1
+                    )
+                    if isinstance(self._source_spaces[source], Box)
+                    else _flatten_batched_observation(
+                        self._source_spaces[source],
+                        _get_observation_value(observation, source),
+                        self.num_envs,
+                    )
                 )
                 for source in sources
             ]

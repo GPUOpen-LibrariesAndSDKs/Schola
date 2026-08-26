@@ -239,27 +239,59 @@ namespace ScholaCameraSensorTest
 		}
 		return Count > 0 ? Sum / static_cast<float>(Count) : 0.0f;
 	}
-
-	bool AssertBoxPointRegionBrighter(
+	
+	bool AssertBoxPointRegionChannelDeltaFromBaseline(
 		FAutomationTestBase& Test,
-		const FBoxPoint& BoxPoint,
+		const FBoxPoint& Observed,
+		const FBoxPoint& Baseline,
 		int32 ChannelIndex,
-		const FIntRect& BrightRegion,
-		const FIntRect& DimRegion,
+		const FIntRect& Region,
 		float MinDelta,
 		const TCHAR* Context)
 	{
-		const float BrightMean = ComputeBoxPointRegionMean(BoxPoint, ChannelIndex, BrightRegion);
-		const float DimMean = ComputeBoxPointRegionMean(BoxPoint, ChannelIndex, DimRegion);
+		const float ObservedMean = ComputeBoxPointRegionMean(Observed, ChannelIndex, Region);
+		const float BaselineMean = ComputeBoxPointRegionMean(Baseline, ChannelIndex, Region);
+		const float Delta = ObservedMean - BaselineMean;
 		return Test.TestTrue(
 			FString::Printf(
-				TEXT("%s: channel %d bright-region mean %.3f should exceed dim-region mean %.3f by >= %.3f"),
+				TEXT("%s: channel %d region delta %.3f (observed %.3f - baseline %.3f) should be >= %.3f"),
 				Context,
 				ChannelIndex,
-				BrightMean,
-				DimMean,
+				Delta,
+				ObservedMean,
+				BaselineMean,
 				MinDelta),
-			(BrightMean - DimMean) >= MinDelta);
+			Delta >= MinDelta);
+	}
+
+	bool AssertBoxPointRegionDominantChannel(
+		FAutomationTestBase& Test,
+		const FBoxPoint& BoxPoint,
+		int32 DominantChannelIndex,
+		const FIntRect& Region,
+		const TCHAR* Context)
+	{
+		const float DominantMean = ComputeBoxPointRegionMean(BoxPoint, DominantChannelIndex, Region);
+		bool bOk = true;
+		for (int32 ChannelIndex = 0; ChannelIndex < BoxPoint.Shape[0]; ++ChannelIndex)
+		{
+			if (ChannelIndex == DominantChannelIndex)
+			{
+				continue;
+			}
+
+			const float OtherMean = ComputeBoxPointRegionMean(BoxPoint, ChannelIndex, Region);
+			bOk &= Test.TestTrue(
+				FString::Printf(
+					TEXT("%s: channel %d mean %.3f should exceed channel %d mean %.3f"),
+					Context,
+					DominantChannelIndex,
+					DominantMean,
+					ChannelIndex,
+					OtherMean),
+				DominantMean > OtherMean);
+		}
+		return bOk;
 	}
 
 	UCameraSensor* SpawnCameraSensor(
@@ -367,6 +399,30 @@ namespace ScholaCameraSensorTest
 		MeshComponent->SetMaterial(0, DynamicMaterial);
 
 		return MeshComponent;
+	}
+
+	void DestroyColoredCube(UStaticMeshComponent* CubeComponent, FScholaCameraSensorTestWorld& TestWorld)
+	{
+		if (!CubeComponent)
+		{
+			return;
+		}
+
+		if (AActor* Owner = CubeComponent->GetOwner())
+		{
+			Owner->Destroy();
+		}
+
+		SettleScene(TestWorld);
+	}
+
+	void SettleScene(FScholaCameraSensorTestWorld& TestWorld, int32 TickCount)
+	{
+		for (int32 i = 0; i < TickCount; ++i)
+		{
+			TestWorld.Tick(0.016f);
+		}
+		FlushRenderingCommands();
 	}
 
 	void CaptureAndCollect(UCameraSensor* Sensor, FScholaCameraSensorTestWorld& TestWorld, FInstancedStruct& OutObservations)

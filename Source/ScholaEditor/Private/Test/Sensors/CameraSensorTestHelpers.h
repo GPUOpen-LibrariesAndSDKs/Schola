@@ -45,6 +45,12 @@ struct FScholaCameraSensorTestWorld
 
 namespace ScholaCameraSensorTest
 {
+	/** Minimum channel mean increase vs a baseline capture for spatial colour checks. */
+	constexpr float CaptureSpatialMinChannelDelta = 0.08f;
+
+	/** Ticks to wait after spawning or destroying scene geometry before capture. */
+	constexpr int32 CaptureSettleTickCount = 5;
+
 	/** Row-major FColor bitmap with R=(w,h) and G=(h,w) encodings for layout checks. */
 	void BuildKnownColorBitmap(int32 Width, int32 Height, TArray<FColor>& OutBitmap);
 
@@ -96,23 +102,26 @@ namespace ScholaCameraSensorTest
 		const FBoxPoint& BoxPoint,
 		int32 ChannelIndex,
 		const FIntRect& Region);
+	/**
+	 * @brief Assert that a channel mean in @p Region rose by at least @p MinDelta vs baseline.
+	 */
+	bool AssertBoxPointRegionChannelDeltaFromBaseline(
+		FAutomationTestBase& Test,
+		const FBoxPoint& Observed,
+		const FBoxPoint& Baseline,
+		int32 ChannelIndex,
+		const FIntRect& Region,
+		float MinDelta,
+		const TCHAR* Context);
 
 	/**
-	 * @brief Assert that a channel is brighter in one image region than another.
-	 *
-	 * Useful for spatial-localization checks (e.g. a cube rendered in the centre of the frame
-	 * should be brighter than the background corners). Compares mean(BrightRegion) against
-	 * mean(DimRegion) and requires the difference to be at least MinDelta.
-	 *
-	 * @return True if mean(BrightRegion) - mean(DimRegion) >= MinDelta.
+	 * @brief Assert that one channel mean exceeds the other two in @p Region.
 	 */
-	bool AssertBoxPointRegionBrighter(
+	bool AssertBoxPointRegionDominantChannel(
 		FAutomationTestBase& Test,
 		const FBoxPoint& BoxPoint,
-		int32 ChannelIndex,
-		const FIntRect& BrightRegion,
-		const FIntRect& DimRegion,
-		float MinDelta,
+		int32 DominantChannelIndex,
+		const FIntRect& Region,
 		const TCHAR* Context);
 
 	UCameraSensor* SpawnCameraSensor(
@@ -130,8 +139,12 @@ namespace ScholaCameraSensorTest
 		UWorld* World,
 		const FVector& Location,
 		const FLinearColor& Color,
-		const FVector& Scale = FVector(100.0f),
+		const FVector& Scale = FVector(1.0f),
 		UStaticMesh* CubeMesh = nullptr);
+
+	void DestroyColoredCube(UStaticMeshComponent* CubeComponent, FScholaCameraSensorTestWorld& TestWorld);
+
+	void SettleScene(FScholaCameraSensorTestWorld& TestWorld, int32 TickCount = CaptureSettleTickCount);
 
 	void CaptureAndCollect(UCameraSensor* Sensor, FScholaCameraSensorTestWorld& TestWorld, FInstancedStruct& OutObservations);
 

@@ -13,6 +13,23 @@
 
 using namespace ScholaCameraSensorTest;
 
+/**
+ * Scene-validation strategies used in this file:
+ *
+ * - Baseline + single cube: capture an empty scene, spawn one coloured cube, capture again,
+ *   and assert the expected channel rose vs baseline in a fixed region. Used by AfterInitSensor
+ *   and ObsSpaceMatchesCollect.
+ *
+ * - Sequential two-colour: baseline capture, then spawn cube A and assert, destroy A, spawn
+ *   cube B at a different location/colour and assert. Proves capture tracks scene changes and
+ *   that colour localises to the expected image region. Used only by SpatialLocalization.
+ *
+ * - Side-by-side cubes: baseline capture, then spawn multiple cubes in one pass before the
+ *   second capture. Used by DepthMode (two grey cubes along +X for centre depth geometry).
+ *
+ * ResolutionChange does not perform spatial/channel validation; it only checks value counts.
+ */
+
 static void SpawnDirectionalLight(UWorld* World)
 {
 	if (!World)
@@ -64,39 +81,49 @@ bool FCameraSensorCapture_AfterInitSensor_Test::RunTest(const FString& Parameter
 	TestEqual(TEXT("InitSensor default height"), static_cast<int32>(Sensor->TextureTarget->GetSurfaceHeight()), 128);
 	TestTrue(TEXT("InitSensor sets GPU shared flag"), Sensor->TextureTarget->bGPUSharedFlag);
 
-	SpawnColoredCube(World, FVector(0.0f, 0.0f, 0.0f), FLinearColor(0.0f, 1.0f, 0.0f, 1.0f));
-	for (int32 i = 0; i < 5; ++i)
-	{
-		TestWorld.Tick(0.016f);
-	}
+	// Baseline + single cube: empty scene first, then one green cube at the frame centre.
+	const int32 Width = 128;
+	const int32 Height = 128;
+	const FIntRect CenterRegion(Width * 7 / 16, Height * 7 / 16, Width * 9 / 16, Height * 9 / 16);
+	constexpr int32 GreenChannel = 1;
+
+	FInstancedStruct BaselineObservations;
+	CaptureAndCollect(Sensor, TestWorld, BaselineObservations);
+	TestTrue(TEXT("Baseline collect succeeds after InitSensor"), BaselineObservations.GetScriptStruct() == FBoxPoint::StaticStruct());
+	const FBoxPoint& BaselineBoxPoint = BaselineObservations.Get<FBoxPoint>();
+	AssertBoxPointShape(*this, BaselineBoxPoint, 3, Height, Width, TEXT("AfterInitSensor baseline"));
+
+	UStaticMeshComponent* GreenCube = SpawnColoredCube(
+		World,
+		FVector(0.0f, 0.0f, 0.0f),
+		FLinearColor(0.0f, 1.0f, 0.0f, 1.0f));
+	TestNotNull(TEXT("Green cube spawned"), GreenCube);
+	SettleScene(TestWorld);
 
 	FInstancedStruct Observations;
 	CaptureAndCollect(Sensor, TestWorld, Observations);
 	TestTrue(TEXT("CollectObservations succeeds after InitSensor"), Observations.GetScriptStruct() == FBoxPoint::StaticStruct());
 	TestTrue(TEXT("Collected values populated"), Observations.Get<FBoxPoint>().Values.Num() > 0);
 
-	// Spatial checks: InitSensor allocates a 128x128 target and FinalColorLDR yields RGB (3 channels).
 	const FBoxPoint& BoxPoint = Observations.Get<FBoxPoint>();
-	const int32 Width = 128;
-	const int32 Height = 128;
 	AssertBoxPointShape(*this, BoxPoint, 3, Height, Width, TEXT("AfterInitSensor"));
 
-	// The green cube sits directly ahead of the camera, so it projects to the centre of the frame.
-	const FIntRect CenterRegion(Width * 7 / 16, Height * 7 / 16, Width * 9 / 16, Height * 9 / 16);
-	const FIntRect CornerRegion(0, 0, Width / 8, Height / 8);
-	constexpr int32 RedChannel = 0;
-	constexpr int32 GreenChannel = 1;
-	constexpr int32 BlueChannel = 2;
+	AssertBoxPointRegionChannelDeltaFromBaseline(
+		*this,
+		BoxPoint,
+		BaselineBoxPoint,
+		GreenChannel,
+		CenterRegion,
+		CaptureSpatialMinChannelDelta,
+		TEXT("AfterInitSensor green centre vs baseline"));
+	AssertBoxPointRegionDominantChannel(
+		*this,
+		BoxPoint,
+		GreenChannel,
+		CenterRegion,
+		TEXT("AfterInitSensor green dominates centre"));
 
-	// Centre (cube) should be noticeably greener than the empty background corner.
-	AssertBoxPointRegionBrighter(*this, BoxPoint, GreenChannel, CenterRegion, CornerRegion, 0.05f, TEXT("AfterInitSensor green centre vs corner"));
-
-	// Green should dominate red/blue where the green cube is rendered.
-	const float CenterR = ComputeBoxPointRegionMean(BoxPoint, RedChannel, CenterRegion);
-	const float CenterG = ComputeBoxPointRegionMean(BoxPoint, GreenChannel, CenterRegion);
-	const float CenterB = ComputeBoxPointRegionMean(BoxPoint, BlueChannel, CenterRegion);
-	TestTrue(FString::Printf(TEXT("Centre green %.3f exceeds red %.3f"), CenterG, CenterR), CenterG > CenterR);
-	TestTrue(FString::Printf(TEXT("Centre green %.3f exceeds blue %.3f"), CenterG, CenterB), CenterG > CenterB);
+	DestroyColoredCube(GreenCube, TestWorld);
 
 	return true;
 }
@@ -117,12 +144,23 @@ bool FCameraSensorCapture_ObsSpaceMatchesCollect_Test::RunTest(const FString& Pa
 	SpawnDirectionalLight(World);
 
 	UCameraSensor* Sensor = SpawnCameraSensor(World, FVector(-400.0f, 0.0f, 0.0f), FRotator::ZeroRotator, 32, 32);
-	SpawnColoredCube(World, FVector(0.0f, 0.0f, 0.0f), FLinearColor(1.0f, 0.5f, 0.0f, 1.0f));
 
-	for (int32 i = 0; i < 5; ++i)
-	{
-		TestWorld.Tick(0.016f);
-	}
+	// Baseline + single cube: empty scene first, then one orange cube at the frame centre.
+	const int32 Width = 32;
+	const int32 Height = 32;
+	const FIntRect CenterRegion(Width * 3 / 8, Height * 3 / 8, Width * 5 / 8, Height * 5 / 8);
+	constexpr int32 RedChannel = 0;
+
+	FInstancedStruct BaselineObservations;
+	CaptureAndCollect(Sensor, TestWorld, BaselineObservations);
+	const FBoxPoint& BaselineBoxPoint = BaselineObservations.Get<FBoxPoint>();
+
+	UStaticMeshComponent* OrangeCube = SpawnColoredCube(
+		World,
+		FVector(0.0f, 0.0f, 0.0f),
+		FLinearColor(1.0f, 0.5f, 0.0f, 1.0f));
+	TestNotNull(TEXT("Orange cube spawned"), OrangeCube);
+	SettleScene(TestWorld);
 
 	FInstancedStruct ObservationSpace;
 	Sensor->GetObservationSpace_Implementation(ObservationSpace);
@@ -135,13 +173,22 @@ bool FCameraSensorCapture_ObsSpaceMatchesCollect_Test::RunTest(const FString& Pa
 	TestEqual(TEXT("Collected shape matches observation space"), BoxPoint.Shape, Space.Shape);
 	TestEqual(TEXT("Collected value count matches space dimensions"), BoxPoint.Values.Num(), Space.Dimensions.Num());
 
-	// Spatial check: the orange cube (strong red) sits centre-frame, so the centre should be
-	// clearly redder than the empty background corner.
-	const int32 Width = 32;
-	const int32 Height = 32;
-	const FIntRect CenterRegion(Width * 3 / 8, Height * 3 / 8, Width * 5 / 8, Height * 5 / 8);
-	const FIntRect CornerRegion(0, 0, Width / 8, Height / 8);
-	AssertBoxPointRegionBrighter(*this, BoxPoint, 0, CenterRegion, CornerRegion, 0.05f, TEXT("ObsSpaceMatchesCollect orange centre vs corner"));
+	AssertBoxPointRegionChannelDeltaFromBaseline(
+		*this,
+		BoxPoint,
+		BaselineBoxPoint,
+		RedChannel,
+		CenterRegion,
+		CaptureSpatialMinChannelDelta,
+		TEXT("ObsSpaceMatchesCollect red centre vs baseline"));
+	AssertBoxPointRegionDominantChannel(
+		*this,
+		BoxPoint,
+		RedChannel,
+		CenterRegion,
+		TEXT("ObsSpaceMatchesCollect red dominates centre"));
+
+	DestroyColoredCube(OrangeCube, TestWorld);
 
 	return true;
 }
@@ -175,37 +222,36 @@ bool FCameraSensorCapture_DepthMode_Test::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	SpawnColoredCube(World, FVector(-100.0f, 0.0f, 0.0f), FLinearColor(0.5f, 0.5f, 0.5f, 1.0f), FVector(150.0f));
-	SpawnColoredCube(World, FVector(200.0f, 0.0f, 0.0f), FLinearColor(0.5f, 0.5f, 0.5f, 1.0f), FVector(150.0f));
+	// Side-by-side cubes: baseline with no geometry, then two cubes spawned together along +X.
+	const int32 Width = 64;
+	const int32 Height = 64;
+	const FIntRect CenterRegion(Width * 3 / 8, Height * 3 / 8, Width * 5 / 8, Height * 5 / 8);
 
-	for (int32 i = 0; i < 5; ++i)
-	{
-		TestWorld.Tick(0.016f);
-	}
+	FInstancedStruct BaselineObservations;
+	CaptureAndCollect(Sensor, TestWorld, BaselineObservations);
+	const FBoxPoint& BaselineBoxPoint = BaselineObservations.Get<FBoxPoint>();
+
+	SpawnColoredCube(World, FVector(-50.0f, 0.0f, 0.0f), FLinearColor(0.5f, 0.5f, 0.5f, 1.0f));
+	SpawnColoredCube(World, FVector(50.0f, 0.0f, 0.0f), FLinearColor(0.5f, 0.5f, 0.5f, 1.0f));
+	SettleScene(TestWorld);
 
 	FInstancedStruct Observations;
 	CaptureAndCollect(Sensor, TestWorld, Observations);
 	const FBoxPoint& BoxPoint = Observations.Get<FBoxPoint>();
 
-	const int32 Width = 64;
-	const int32 Height = 64;
 	AssertBoxPointShape(*this, BoxPoint, 1, Height, Width, TEXT("DepthMode"));
 
 	const float CenterDepth = GetBoxPointChannelValue(BoxPoint, 0, Height / 2, Width / 2);
 	TestTrue(TEXT("Center depth value should be populated"), CenterDepth > 0.0f && CenterDepth <= 1.0f);
 
-	// Spatial check: the cubes occupy the centre of the frame while the corners see empty background,
-	// so the centre depth should be measurably different from the background corners.
-	const FIntRect CenterRegion(Width * 3 / 8, Height * 3 / 8, Width * 5 / 8, Height * 5 / 8);
-	const FIntRect CornerRegion(0, 0, Width / 8, Height / 8);
 	const float CenterDepthMean = ComputeBoxPointRegionMean(BoxPoint, 0, CenterRegion);
-	const float CornerDepthMean = ComputeBoxPointRegionMean(BoxPoint, 0, CornerRegion);
+	const float BaselineCenterDepthMean = ComputeBoxPointRegionMean(BaselineBoxPoint, 0, CenterRegion);
 	TestTrue(
 		FString::Printf(
-			TEXT("Centre depth (%.4f) should differ from background corner depth (%.4f)"),
+			TEXT("Centre depth (%.4f) should differ from baseline centre depth (%.4f)"),
 			CenterDepthMean,
-			CornerDepthMean),
-		!FMath::IsNearlyEqual(CenterDepthMean, CornerDepthMean, 0.02f));
+			BaselineCenterDepthMean),
+		!FMath::IsNearlyEqual(CenterDepthMean, BaselineCenterDepthMean, 0.02f));
 
 	return true;
 }
@@ -224,6 +270,7 @@ bool FCameraSensorCapture_ResolutionChange_Test::RunTest(const FString& Paramete
 
 	UWorld* World = TestWorld.GetWorld();
 	SpawnDirectionalLight(World);
+	// No baseline or spatial validation; a cube is present only so captures are non-empty.
 	SpawnColoredCube(World, FVector(0.0f, 0.0f, 0.0f), FLinearColor(1.0f, 0.0f, 0.0f, 1.0f));
 
 	auto RunCaptureAtResolution = [&](int32 Resolution) -> int32
@@ -277,35 +324,89 @@ bool FCameraSensorCapture_SpatialLocalization_Test::RunTest(const FString& Param
 		return false;
 	}
 
-	// Offset the green cube to +Y so it should render in the right half of the frame.
-	SpawnColoredCube(World, FVector(0.0f, 150.0f, 0.0f), FLinearColor(0.0f, 1.0f, 0.0f, 1.0f));
-
-	for (int32 i = 0; i < 5; ++i)
-	{
-		TestWorld.Tick(0.016f);
-	}
-
-	FInstancedStruct Observations;
-	CaptureAndCollect(Sensor, TestWorld, Observations);
-	const FBoxPoint& BoxPoint = Observations.Get<FBoxPoint>();
-
+	// Sequential two-colour: baseline, red cube at centre (assert + destroy), green cube at +Y (assert).
 	const int32 Width = 64;
 	const int32 Height = 64;
-	AssertBoxPointShape(*this, BoxPoint, 3, Height, Width, TEXT("SpatialLocalization"));
-
-	constexpr int32 GreenChannel = 1;
+	const FIntRect CenterRegion(Width * 3 / 8, Height * 3 / 8, Width * 5 / 8, Height * 5 / 8);
 	const FIntRect RightHalf(Width / 2, 0, Width, Height);
 	const FIntRect LeftHalf(0, 0, Width / 2, Height);
+	constexpr int32 RedChannel = 0;
+	constexpr int32 GreenChannel = 1;
 
-	// The +Y cube should localise to the right half of the image, leaving the left half dark.
-	AssertBoxPointRegionBrighter(
+	FInstancedStruct BaselineObservations;
+	CaptureAndCollect(Sensor, TestWorld, BaselineObservations);
+	const FBoxPoint& BaselineBoxPoint = BaselineObservations.Get<FBoxPoint>();
+	AssertBoxPointShape(*this, BaselineBoxPoint, 3, Height, Width, TEXT("SpatialLocalization baseline"));
+
+	UStaticMeshComponent* RedCube = SpawnColoredCube(
+		World,
+		FVector(0.0f, 0.0f, 0.0f),
+		FLinearColor(1.0f, 0.0f, 0.0f, 1.0f));
+	TestNotNull(TEXT("Red cube spawned"), RedCube);
+	SettleScene(TestWorld);
+
+	FInstancedStruct RedObservations;
+	CaptureAndCollect(Sensor, TestWorld, RedObservations);
+	const FBoxPoint& RedBoxPoint = RedObservations.Get<FBoxPoint>();
+
+	AssertBoxPointRegionChannelDeltaFromBaseline(
 		*this,
-		BoxPoint,
+		RedBoxPoint,
+		BaselineBoxPoint,
+		RedChannel,
+		CenterRegion,
+		CaptureSpatialMinChannelDelta,
+		TEXT("SpatialLocalization red centre vs baseline"));
+	AssertBoxPointRegionDominantChannel(
+		*this,
+		RedBoxPoint,
+		RedChannel,
+		CenterRegion,
+		TEXT("SpatialLocalization red dominates centre"));
+
+	DestroyColoredCube(RedCube, TestWorld);
+
+	UStaticMeshComponent* GreenCube = SpawnColoredCube(
+		World,
+		FVector(0.0f, 150.0f, 0.0f),
+		FLinearColor(0.0f, 1.0f, 0.0f, 1.0f));
+	TestNotNull(TEXT("Green cube spawned"), GreenCube);
+	SettleScene(TestWorld);
+
+	FInstancedStruct GreenObservations;
+	CaptureAndCollect(Sensor, TestWorld, GreenObservations);
+	const FBoxPoint& GreenBoxPoint = GreenObservations.Get<FBoxPoint>();
+
+	AssertBoxPointRegionChannelDeltaFromBaseline(
+		*this,
+		GreenBoxPoint,
+		BaselineBoxPoint,
 		GreenChannel,
 		RightHalf,
-		LeftHalf,
-		0.05f,
-		TEXT("SpatialLocalization +Y cube on right"));
+		CaptureSpatialMinChannelDelta,
+		TEXT("SpatialLocalization green right half vs baseline"));
+	AssertBoxPointRegionDominantChannel(
+		*this,
+		GreenBoxPoint,
+		GreenChannel,
+		RightHalf,
+		TEXT("SpatialLocalization green dominates right half"));
+
+	const float RightGreenDelta =
+		ComputeBoxPointRegionMean(GreenBoxPoint, GreenChannel, RightHalf)
+		- ComputeBoxPointRegionMean(BaselineBoxPoint, GreenChannel, RightHalf);
+	const float LeftGreenDelta =
+		ComputeBoxPointRegionMean(GreenBoxPoint, GreenChannel, LeftHalf)
+		- ComputeBoxPointRegionMean(BaselineBoxPoint, GreenChannel, LeftHalf);
+	TestTrue(
+		FString::Printf(
+			TEXT("SpatialLocalization right green delta %.3f should exceed left green delta %.3f by >= %.3f"),
+			RightGreenDelta,
+			LeftGreenDelta,
+			CaptureSpatialMinChannelDelta),
+		(RightGreenDelta - LeftGreenDelta) >= CaptureSpatialMinChannelDelta);
+
+	DestroyColoredCube(GreenCube, TestWorld);
 
 	return true;
 }

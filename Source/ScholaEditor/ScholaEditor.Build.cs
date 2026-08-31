@@ -19,7 +19,7 @@ public class ScholaEditor : ModuleRules
 		PublicDependencyModuleNames.AddRange(new string[] { "Kismet", "NNE", "BlueprintEditorLibrary", "Schola", "KismetCompiler", });
 
 		PrivateIncludePathModuleNames.AddRange(new string[] { });
-        PrivateDependencyModuleNames.AddRange(new string[] { "AIModule", "Engine", "Core", "BlueprintGraph", "UnrealEd", "CoreUObject", "AutomationController", "KismetCompiler", "Schola", "ScholaInteractors", "gRPC", "ScholaTraining", "Slate", "SlateCore", "ToolMenus" });
+        PrivateDependencyModuleNames.AddRange(new string[] { "AIModule", "Engine", "Core", "BlueprintGraph", "UnrealEd", "CoreUObject", "AutomationController", "KismetCompiler", "Schola", "ScholaInteractors", "gRPC", "ScholaTraining", "Slate", "SlateCore", "ToolMenus", "RenderCore", "RHI" });
 		DynamicallyLoadedModuleNames.AddRange(new string[] { });
 	}
 }

@@ -102,7 +102,7 @@ public:
 	 * @brief Collect image observations from the render target.
 	 * 
 	 * Reads pixels from the render target, extracts enabled channels, and normalizes to [0,1].
-	 * The resulting BoxPoint has shape [NumChannels, Width, Height] in CHW (channel-first) format.
+	 * The resulting BoxPoint has shape [NumChannels, Height, Width] in row-major (CHW) layout.
 	 * 
 	 * @param[out] OutObservations A BoxPoint that will be populated with normalized pixel values
 	 */
@@ -113,7 +113,7 @@ public:
 	 * 
 	 * Returns a BoxSpace describing the image dimensions and channels.
 	 * Each dimension is bounded [0.0, 1.0] for normalized pixel values.
-	 * Shape is [NumChannels, Height, Width] in CHW format.
+	 * Shape is [NumChannels, Height, Width] in row-major (CHW) layout.
 	 * 
 	 * @param[out] OutObservationSpace The observation space definition to be populated
 	 */

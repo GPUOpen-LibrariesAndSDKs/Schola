@@ -1,6 +1,7 @@
 // Copyright (c) 2023 Advanced Micro Devices, Inc. All Rights Reserved.
 
 #include "Sensors/CameraSensor.h"
+#include "Sensors/CameraSensorUtils.h"
 #include "LogScholaInteractors.h"
 #include "RHICommandList.h"
 
@@ -22,29 +23,30 @@ void UCameraSensor::InitSensor_Implementation()
 
 void UCameraSensor::GetObservationSpace_Implementation(FInstancedStruct& OutObservationSpace) const
 {
+	if (!TextureTarget)
+	{
+		UE_LOGFMT(LogScholaInteractors, Error, "UCameraSensor::GetObservationSpace_Implementation(): RenderTarget not found. Returning empty observation space.");
+		OutObservationSpace.InitializeAs<FBoxSpace>();
+		return;
+	}
+
 	int		  Width = TextureTarget->GetSurfaceWidth();
 	int		  Height = TextureTarget->GetSurfaceHeight();
 	FBoxSpace SpaceDefinition;
 	int		  NumChannels = GetNumChannels();
-	SpaceDefinition.Dimensions.Init(FBoxSpaceDimension(0.0, 1.0), Width * Height * (this->GetNumChannels()));
+	SpaceDefinition.Dimensions.Init(FBoxSpaceDimension(0.0, 1.0), Width * Height * NumChannels);
 	
 	// If a channel is in InvalidChannels, it cannot be observed, or if the channel hasn't been filtered
 	// e.g. Channels = R|G, InvalidChannels = A, bHasR will be True but bHasA will be False
 
-	SpaceDefinition.Shape = { this->GetNumChannels(), Height, Width };
+	SpaceDefinition.Shape = { NumChannels, Height, Width };
 
 	OutObservationSpace.InitializeAs<FBoxSpace>(MoveTemp(SpaceDefinition));
 }
 
 int UCameraSensor::GetNumChannels() const
 {
-	uint8 EnabledValidChannels = EnabledChannels & ~GetInvalidChannels();
-	bool  bHasR = (EnabledValidChannels & static_cast<uint8>(EChannels::R));
-	bool  bHasG = (EnabledValidChannels & static_cast<uint8>(EChannels::G));
-	bool  bHasB = (EnabledValidChannels & static_cast<uint8>(EChannels::B));
-	bool  bHasA = (EnabledValidChannels & static_cast<uint8>(EChannels::A));
-
-	return (bHasR + bHasG + bHasB + bHasA);
+	return FMath::CountBits(EnabledChannels & ~GetInvalidChannels());
 }
 
 void UCameraSensor::CollectObservations_Implementation(FInstancedStruct& OutObservations)
@@ -55,45 +57,13 @@ void UCameraSensor::CollectObservations_Implementation(FInstancedStruct& OutObse
 		return;
 	}
 
-	TArray<float> ObservationValues;
 	OutObservations.InitializeAs<FBoxPoint>();
 	FBoxPoint& OutBoxPoint = OutObservations.GetMutable<FBoxPoint>();
 
-	TArray<FColor> Bitmap;
-	int		   Width = TextureTarget->GetSurfaceWidth();
-	int		   Height = TextureTarget->GetSurfaceHeight();
-    OutBoxPoint.Values.AddUninitialized(Width * Height * this->GetNumChannels());
-	OutBoxPoint.Shape = {this->GetNumChannels(), Width, Height};
-
-	TextureTarget->GameThread_GetRenderTargetResource()->ReadPixels(Bitmap);
-	
-	uint8 InvalidChannels = GetInvalidChannels();
-
-	for (int i = 0; i < Width*Height; i++)
-    {
-		int Index = i;
-		if (EnabledChannels & ~InvalidChannels & static_cast<uint8>(EChannels::R))
-		{
-			OutBoxPoint.Values[Index] = ((float)Bitmap[i].R / 255.0); // R
-			Index += Width*Height;
-		}
-		
-		if (EnabledChannels & ~InvalidChannels & static_cast<uint8>(EChannels::G))
-		{
-			OutBoxPoint.Values[Index] = ((float)Bitmap[i].G / 255.0); // G
-			Index += Width * Height;
-		}
-
-		if (EnabledChannels & ~InvalidChannels & static_cast<uint8>(EChannels::B))
-		{
-			OutBoxPoint.Values[Index] = ((float)Bitmap[i].B / 255.0); // B
-			Index += Width * Height;
-		}
-
-		if (EnabledChannels & ~InvalidChannels & static_cast<uint8>(EChannels::A))
-		{
-			OutBoxPoint.Values[Index] = ((float)Bitmap[i].A / 255.0); // A
-		}
+	const uint8 EnabledValidChannels = EnabledChannels & ~GetInvalidChannels();
+	if (!CameraSensorUtils::ReadRenderTargetToBoxPoint(TextureTarget, EnabledValidChannels, OutBoxPoint))
+	{
+		UE_LOGFMT(LogScholaInteractors, Error, "UCameraSensor::CollectObservations_Implementation(): Failed to read render target into observations.");
 	}
 }
 
@@ -115,29 +85,33 @@ FString UCameraSensor::GenerateId() const
 	Output.Append("_");
 	//Add channels to Id
 	uint8 InvalidChannels = GetInvalidChannels();
+	uint8 EnabledValidChannels = EnabledChannels & ~InvalidChannels;
 
-	if (EnabledChannels & !InvalidChannels & static_cast<uint8>(EChannels::R))
+	if (EnabledValidChannels & static_cast<uint8>(EChannels::R))
 	{
 		Output = Output.Append("R");
 	}
 	
-	if (EnabledChannels & !InvalidChannels & static_cast<uint8>(EChannels::G))
+	if (EnabledValidChannels & static_cast<uint8>(EChannels::G))
 	{
 		Output = Output.Append("G");
 	}
 
-	if (EnabledChannels & !InvalidChannels & static_cast<uint8>(EChannels::B))
+	if (EnabledValidChannels & static_cast<uint8>(EChannels::B))
 	{
 		Output = Output.Append("B");
 	}
 
-	if (EnabledChannels & !InvalidChannels & static_cast<uint8>(EChannels::A))
+	if (EnabledValidChannels & static_cast<uint8>(EChannels::A))
 	{
 		Output = Output.Append("A");
 	}
 
 	//Add width and height
-	Output = Output.Appendf(TEXT("_W%.3f_H%.3f"), TextureTarget->GetSurfaceWidth(), TextureTarget->GetSurfaceHeight()); // Width and Height
+	if (this->TextureTarget)
+	{
+		Output = Output.Appendf(TEXT("_W%.3f_H%.3f"), TextureTarget->GetSurfaceWidth(), TextureTarget->GetSurfaceHeight()); // Width and Height
+	}
 	return Output;
 }
 

@@ -1,0 +1,96 @@
+// Copyright (c) 2023-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+
+#include "Sensors/CameraSensorUtils.h"
+#include "Sensors/CameraSensor.h"
+#include "Engine/TextureRenderTarget2D.h"
+#include "LogScholaInteractors.h"
+
+namespace CameraSensorUtils
+{
+	bool ConvertBitmapToBoxPoint(
+		const TArray<FColor>& Bitmap,
+		int32 Width,
+		int32 Height,
+		uint8 ChannelMask,
+		FBoxPoint& OutBoxPoint)
+	{
+		const int32 ChannelStride = Width * Height;
+
+		if (Bitmap.Num() != ChannelStride)
+		{
+			UE_LOGFMT(
+				LogScholaInteractors,
+				Error,
+				"CameraSensorUtils::ConvertBitmapToBoxPoint(): Bitmap size ({0}) does not match Width * Height ({1}).",
+				Bitmap.Num(),
+				ChannelStride);
+			return false;
+		}
+
+		const int32 NumChannels = FMath::CountBits(ChannelMask);
+        OutBoxPoint.Values.SetNum(ChannelStride * NumChannels);
+        OutBoxPoint.Shape = { NumChannels, Height, Width };
+
+		for (int32 PixelIndex = 0; PixelIndex < ChannelStride; ++PixelIndex)
+        {
+			int32 ChannelIndex = 0;
+			const FLinearColor& Color = Bitmap[PixelIndex].ReinterpretAsLinear();
+
+			if (ChannelMask & static_cast<uint8>(EChannels::R))
+        	{
+				OutBoxPoint.Values[ChannelIndex * ChannelStride + PixelIndex] = Color.R;
+				++ChannelIndex;
+        	}
+
+			if (ChannelMask & static_cast<uint8>(EChannels::G))
+        	{
+        		OutBoxPoint.Values[ChannelIndex * ChannelStride + PixelIndex] = Color.G;
+				++ChannelIndex;
+        	}
+
+			if (ChannelMask & static_cast<uint8>(EChannels::B))
+			{
+				OutBoxPoint.Values[ChannelIndex * ChannelStride + PixelIndex] = Color.B;
+        		++ChannelIndex;
+			}
+
+			if (ChannelMask & static_cast<uint8>(EChannels::A))
+			{
+				OutBoxPoint.Values[ChannelIndex * ChannelStride + PixelIndex] = Color.A;
+			}
+        }
+
+		return true;
+	}
+
+	bool ReadRenderTargetToBoxPoint(
+		UTextureRenderTarget2D* TextureTarget,
+		uint8 ChannelMask,
+		FBoxPoint& OutBoxPoint)
+	{
+		if (!TextureTarget)
+		{
+			UE_LOGFMT(LogScholaInteractors, Error, "CameraSensorUtils::ReadRenderTargetToBoxPoint(): TextureTarget is null.");
+			return false;
+		}
+
+		FTextureRenderTargetResource* Resource = TextureTarget->GameThread_GetRenderTargetResource();
+		if (!Resource)
+		{
+			UE_LOGFMT(LogScholaInteractors, Error, "CameraSensorUtils::ReadRenderTargetToBoxPoint(): Render target resource is null.");
+			return false;
+		}
+
+		TArray<FColor> Bitmap;
+		const int32 Width = TextureTarget->GetSurfaceWidth();
+		const int32 Height = TextureTarget->GetSurfaceHeight();
+
+		if (!Resource->ReadPixels(Bitmap))
+		{
+			UE_LOGFMT(LogScholaInteractors, Error, "CameraSensorUtils::ReadRenderTargetToBoxPoint(): ReadPixels failed.");
+			return false;
+		}
+
+		return ConvertBitmapToBoxPoint(Bitmap, Width, Height, ChannelMask, OutBoxPoint);
+	}
+}

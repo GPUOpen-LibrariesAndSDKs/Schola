@@ -148,6 +148,15 @@ def get_unreal_timeout_from_config(config) -> int:
         return int(timeout_option)
     return int(config.getini("unreal_timeout"))
 
+def get_null_rhi_from_config(config) -> bool:
+    # --no-null-rhi takes precedence
+    if config.getoption("--no-null-rhi"):
+        return False
+    null_rhi_option = config.getoption("--null-rhi")
+    if null_rhi_option is not None:
+        return null_rhi_option
+    return config.getini("null_rhi")
+
 def pytest_addoption(parser):
     try:
         parser.addoption(
@@ -259,6 +268,50 @@ def pytest_addoption(parser):
     except ValueError:
         pass
 
+    try:
+        parser.addoption(
+            "--null-rhi",
+            action="store_true",
+            default=None,
+            help="Run Unreal automation tests with NullRHI (default unless null_rhi ini is false)",
+        )
+    except ValueError:
+        pass
+
+    try:
+        parser.addoption(
+            "--no-null-rhi",
+            action="store_true",
+            default=False,
+            help="Run Unreal with a real RHI (required for NonNullRHI automation tests)",
+        )
+    except ValueError:
+        pass
+
+    try:
+        parser.addini(
+            "null_rhi",
+            type="bool",
+            help="Run Unreal automation tests with NullRHI",
+            default=True,
+        )
+    except ValueError:
+        pass
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "non_null_rhi: Unreal automation test that requires a real RHI (pass --no-null-rhi)",
+    )
+
+def pytest_collection_modifyitems(config, items):
+    if not get_null_rhi_from_config(config):
+        return
+    skip_marker = pytest.mark.skip(reason="Requires real RHI (pass --no-null-rhi)")
+    for item in items:
+        if isinstance(item, UnrealTestItem) and "requires_rhi" in item.flags:
+            item.add_marker(skip_marker)
+
 @pytest.fixture(scope="session")
 def unreal_path(request) -> pathlib.Path:
     return get_engine_path_from_config(request.config)
@@ -334,6 +387,7 @@ class UnrealTestRunner:
         self.unreal_path = get_engine_path_from_config(session.config)
         self.should_build = get_build_unreal_from_config(session.config)
         self.generate_cpp_coverage_report = is_cpp_coverage_enabled(session.config)
+        self.use_null_rhi = get_null_rhi_from_config(session.config)
         self.report_dir = report_dir
         self.command_line_file_dir = command_line_file_dir
 
@@ -354,7 +408,9 @@ class UnrealTestRunner:
                 "Error Building Unreal Project: No .uproject file found in directory"
             )
             unreal_test_batches = [
-                UnrealTestBatch(batch, self.report_dir, i, self.command_line_file_dir)
+                UnrealTestBatch(
+                    batch, self.report_dir, i, self.command_line_file_dir, use_null_rhi=self.use_null_rhi
+                )
                 for i, batch in enumerate(batches_list)
             ]
             for test_batch in unreal_test_batches:
@@ -389,13 +445,20 @@ class UnrealTestRunner:
         if opencpp is not None:
             unreal_test_batches = [
                 UnrealCoverageTestBatch(
-                    batch, self.report_dir, i, self.command_line_file_dir, opencpp=opencpp
+                    batch,
+                    self.report_dir,
+                    i,
+                    self.command_line_file_dir,
+                    use_null_rhi=self.use_null_rhi,
+                    opencpp=opencpp,
                 )
                 for i, batch in enumerate(batches_list)
             ]
         else:
             unreal_test_batches = [
-                UnrealTestBatch(batch, self.report_dir, i, self.command_line_file_dir)
+                UnrealTestBatch(
+                    batch, self.report_dir, i, self.command_line_file_dir, use_null_rhi=self.use_null_rhi
+                )
                 for i, batch in enumerate(batches_list)
             ]
 
@@ -500,7 +563,11 @@ def pytest_runtestloop(session):
     if session.config.option.collectonly:
         return True
 
-    unreal_items = [item for item in session.items if isinstance(item, UnrealTestItem)]
+    unreal_items = [
+        item
+        for item in session.items
+        if isinstance(item, UnrealTestItem) and not item.get_closest_marker("skip")
+    ]
 
     # Run Unreal tests in batch if we have any (only on Windows, since linux can hang)
     if unreal_items and sys.platform == "win32":

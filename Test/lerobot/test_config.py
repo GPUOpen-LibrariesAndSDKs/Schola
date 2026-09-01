@@ -25,17 +25,17 @@ from lerobot_env_schola.config import (
 from lerobot_env_schola.vector_env import LeRobotScholaVectorEnv, _policy_output
 from schola.gym.env import GymVectorEnv
 from schola.scripts.common.settings import (
-    ExternalSimulatorConfig,
     GrpcProtocolConfig,
-    UnrealExecutableSimulatorConfig,
-    UnrealProjectSimulatorConfig,
+    SingularExecutableSimulatorConfig,
+    SingularExternalSimulatorConfig,
+    SingularProjectSimulatorConfig,
 )
 from Test.gym.testing_env import GenericTestEnv
 
 
 @pytest.fixture
 def make_eval_config(tmp_path):
-    def _make(env_yaml: str) -> EvalPipelineConfig:
+    def _make(env_yaml: str, args: list[str] | None = None) -> EvalPipelineConfig:
         config_path = tmp_path / "schola_eval.yaml"
         env_block = indent(dedent(env_yaml).strip(), "  ")
         config_path.write_text(
@@ -44,11 +44,12 @@ def make_eval_config(tmp_path):
 eval:
   n_episodes: 1
   batch_size: 1
-  use_async_envs: false
 """,
             encoding="utf-8",
         )
-        return draccus.parse(EvalPipelineConfig, config_path=config_path, args=[])
+        return draccus.parse(
+            EvalPipelineConfig, config_path=config_path, args=args or []
+        )
 
     return _make
 
@@ -73,7 +74,31 @@ def test_schola_external_alias_parses_from_yaml(make_eval_config):
         """)
 
     assert isinstance(cfg.env, ScholaExternalEnvConfig)
-    assert isinstance(cfg.env.simulator, ExternalSimulatorConfig)
+    assert isinstance(cfg.env.simulator, SingularExternalSimulatorConfig)
+
+
+@pytest.mark.parametrize("field", ["num_simulators", "num_environments"])
+def test_schola_yaml_rejects_environment_counts(make_eval_config, field):
+    with pytest.raises(draccus.utils.DecodingError, match=field):
+        make_eval_config(f"""
+            type: schola
+            simulator:
+              {field}: 5
+            observations:
+              state: observation.state
+            """)
+
+
+def test_schola_cli_rejects_use_async_envs(make_eval_config):
+    with pytest.raises(SystemExit):
+        make_eval_config(
+            """
+            type: schola
+            observations:
+              state: observation.state
+            """,
+            args=["--env.use_async_envs=true"],
+        )
 
 
 @pytest.mark.parametrize(
@@ -82,14 +107,14 @@ def test_schola_external_alias_parses_from_yaml(make_eval_config):
         (
             "schola-project",
             ScholaProjectEnvConfig,
-            UnrealProjectSimulatorConfig,
+            SingularProjectSimulatorConfig,
             "uproject_path",
             "RobotLab.uproject",
         ),
         (
             "schola-executable",
             ScholaExecutableEnvConfig,
-            UnrealExecutableSimulatorConfig,
+            SingularExecutableSimulatorConfig,
             "executable_path",
             "RobotLab.exe",
         ),
@@ -188,6 +213,14 @@ def test_features_are_inferred_from_normalized_spaces(caplog):
     assert "policy feature action" in caplog.text
 
 
+def test_feature_inference_rejects_non_dict_observation_space():
+    observation_space = gym.spaces.Box(-1, 1, shape=(3,), dtype=np.float32)
+    action_space = gym.spaces.Box(-1, 1, shape=(2,), dtype=np.float32)
+
+    with pytest.raises(TypeError, match="mapped observation space.*Gymnasium Dict"):
+        infer_features_from_spaces(observation_space, action_space)
+
+
 @pytest.mark.parametrize(
     ("policy_key", "expected"),
     [
@@ -223,11 +256,11 @@ def test_create_envs_builds_schola_vector_env(make_vec_env_server):
         episode_length=200,
         render_fps=24,
         observations={"state": "observation.joints"},
-        simulator=ExternalSimulatorConfig(),
+        simulator=SingularExternalSimulatorConfig(),
         protocol=GrpcProtocolConfig(url="localhost", port=port),
     )
 
-    env = cfg.create_envs(n_envs=2)["schola"][0]
+    env = cfg.create_envs(n_envs=2, use_async_envs=True)["schola"][0]
     try:
         assert isinstance(env, LeRobotScholaVectorEnv)
         assert isinstance(env.env, GymVectorEnv)
@@ -277,7 +310,7 @@ def test_create_envs_uses_schola_vector_size_on_mismatch(make_vec_env_server, ca
     )
     cfg = ScholaEnvConfig(
         observations={"state": "observation.observation"},
-        simulator=ExternalSimulatorConfig(),
+        simulator=SingularExternalSimulatorConfig(),
         protocol=GrpcProtocolConfig(url="localhost", port=port),
     )
 
@@ -290,11 +323,6 @@ def test_create_envs_uses_schola_vector_size_on_mismatch(make_vec_env_server, ca
         assert observations["agent_pos"].shape == (2, 4)
     finally:
         env.close()
-
-
-def test_create_envs_rejects_lerobot_async_vectorization():
-    with pytest.raises(ValueError, match="async environment wrapping"):
-        ScholaEnvConfig().create_envs(n_envs=1, use_async_envs=True)
 
 
 def test_create_envs_requires_observation_configuration():

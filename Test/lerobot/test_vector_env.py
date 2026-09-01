@@ -27,7 +27,7 @@ def make_wrapper():
         if observation_space is None:
             observation_space = Dict(
                 {
-                    "camera": Box(0, 255, shape=(8, 8, 3), dtype=np.uint8),
+                    "camera": Box(0, 1, shape=(3, 8, 8), dtype=np.float32),
                     "joints": Box(-1, 1, shape=(3,), dtype=np.float32),
                 }
             )
@@ -116,6 +116,23 @@ def test_wrapper_uses_info_mask_when_mapping_success(make_wrapper):
     np.testing.assert_array_equal(info["_is_success"], [True, False])
 
 
+def test_wrapper_does_not_reinterpret_nested_final_info(make_wrapper):
+    env = make_wrapper(success_key="goal_reached")
+    nested_final_info = {"goal_reached": "false"}
+    info = env._normalize_info(
+        {
+            "final_info": {
+                "goal_reached": "true",
+                "final_info": nested_final_info,
+            }
+        }
+    )
+
+    assert info["final_info"]["is_success"] is True
+    assert info["final_info"]["final_info"] is nested_final_info
+    assert "is_success" not in nested_final_info
+
+
 def test_wrapper_does_not_require_success_key(make_wrapper):
     env = make_wrapper()
     info = env._normalize_info({"episode_reason": np.array(["timeout", "goal"])})
@@ -127,9 +144,9 @@ def test_wrapper_groups_multiple_mapped_cameras(make_wrapper):
         num_envs=1,
         observation_space=Dict(
             {
-                "front": Box(0, 255, shape=(8, 8, 3), dtype=np.uint8),
+                "front": Box(0, 1, shape=(3, 8, 8), dtype=np.float32),
                 "joints": Box(-1, 1, shape=(3,), dtype=np.float32),
-                "wrist": Box(0, 255, shape=(4, 4, 3), dtype=np.uint8),
+                "wrist": Box(0, 1, shape=(3, 4, 4), dtype=np.float32),
             }
         ),
         observation_config={
@@ -174,7 +191,7 @@ def test_wrapper_converts_policy_feature_observations(make_wrapper):
         num_envs=2,
         observation_space=Dict(
             {
-                "front_camera": Box(0, 255, shape=(8, 8, 3), dtype=np.uint8),
+                "front_camera": Box(0, 1, shape=(3, 8, 8), dtype=np.float32),
                 "gripper": Box(-3, 3, shape=(1,), dtype=np.float32),
                 "joint_positions": Box(-1, 1, shape=(2,), dtype=np.float32),
                 "joint_velocities": Box(-2, 2, shape=(2,), dtype=np.float32),
@@ -193,7 +210,7 @@ def test_wrapper_converts_policy_feature_observations(make_wrapper):
     )
 
     observation = {
-        "front_camera": np.zeros((2, 8, 8, 3), dtype=np.uint8),
+        "front_camera": np.zeros((2, 3, 8, 8), dtype=np.float32),
         "gripper": np.array([[5.0], [6.0]], dtype=np.float32),
         "joint_positions": np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32),
         "joint_velocities": np.array([[0.1, 0.2], [0.3, 0.4]], dtype=np.float32),
@@ -306,33 +323,10 @@ def test_wrapper_converts_native_schola_camera_to_lerobot_format(make_wrapper):
     np.testing.assert_array_equal(pixels[0, 0, 0], [0, 128, 255])
 
 
-def test_wrapper_prefers_hwc_for_ambiguous_float_image_shape(make_wrapper):
-    camera_values = np.arange(4 * 5 * 3, dtype=np.float32).reshape(4, 5, 3)
-    camera_values /= camera_values.max()
-    wrapper = make_wrapper(
-        num_envs=1,
-        observation_space=Dict(
-            {"camera": Box(0.0, 1.0, shape=(4, 5, 3), dtype=np.float32)}
-        ),
-        observation_config={"observation.images.front": "observation.camera"},
-    )
-
-    pixels = wrapper._convert_observation({"camera": camera_values[np.newaxis, ...]})[
-        "pixels"
-    ]["front"]
-
-    assert wrapper.single_observation_space["pixels"]["front"].shape == (4, 5, 3)
-    assert pixels.shape == (1, 4, 5, 3)
-    np.testing.assert_array_equal(
-        pixels[0],
-        np.rint(camera_values * 255).astype(np.uint8),
-    )
-
-
 def test_wrapper_maps_singular_policy_image(make_wrapper):
     wrapper = make_wrapper(
         num_envs=1,
-        observation_space=Box(0, 255, shape=(8, 8, 3), dtype=np.uint8),
+        observation_space=Box(0, 1, shape=(3, 8, 8), dtype=np.float32),
         observation_config={"observation.image": "observation"},
         render_camera="image",
     )
@@ -366,7 +360,7 @@ def test_wrapper_warns_about_reused_observation_source(make_wrapper, caplog):
         wrapper = make_wrapper(
             num_envs=1,
             observation_space=Dict(
-                {"camera": Box(0, 255, shape=(8, 8, 3), dtype=np.uint8)}
+                {"camera": Box(0, 1, shape=(3, 8, 8), dtype=np.float32)}
             ),
             observation_config={
                 "observation.images.front": "observation.camera",
@@ -379,7 +373,7 @@ def test_wrapper_warns_about_reused_observation_source(make_wrapper, caplog):
         observation["pixels"]["front"], observation["pixels"]["wrist"]
     )
     assert "observation.camera" in caplog.text
-    assert "device-memory costs" in caplog.text
+    assert "reused by" in caplog.text
 
 
 def test_wrapper_rejects_unsupported_camera_dtype(make_wrapper):
@@ -387,7 +381,7 @@ def test_wrapper_rejects_unsupported_camera_dtype(make_wrapper):
         make_wrapper(
             num_envs=2,
             observation_space=Dict(
-                {"camera": Box(0, 255, shape=(8, 8, 3), dtype=np.int32)}
+                {"camera": Box(0, 255, shape=(3, 8, 8), dtype=np.int32)}
             ),
             observation_config={"observation.images.front": "observation.camera"},
         )
@@ -399,7 +393,7 @@ def test_wrapper_resolves_nested_schola_sources_with_dots(make_wrapper):
         observation_space=Dict(
             {
                 "robot": Dict({"joints": Box(-1, 1, shape=(3,), dtype=np.float32)}),
-                "sensors": Dict({"top": Box(0, 255, shape=(8, 8, 3), dtype=np.uint8)}),
+                "sensors": Dict({"top": Box(0, 1, shape=(3, 8, 8), dtype=np.float32)}),
             }
         ),
         observation_config={
@@ -452,7 +446,7 @@ def test_wrapper_maps_top_level_dict_key(make_wrapper):
 
 @pytest.mark.parametrize(
     ("value", "expected"),
-    [("true", True), ("FALSE", False), (True, True), (np.bool_(False), False)],
+    [("true", True), ("FALSE", False), (" True ", True)],
 )
 def test_coerce_success_accepts_scalar_values(value, expected):
     assert _coerce_success(value) is expected
@@ -468,3 +462,8 @@ def test_coerce_success_accepts_array_values():
 def test_coerce_success_rejects_non_schola_strings(value):
     with pytest.raises(ValueError, match="true' or 'false"):
         _coerce_success(value)
+
+
+def test_coerce_success_rejects_bool_values():
+    with pytest.raises(TypeError, match="true' or 'false' string"):
+        _coerce_success(True)

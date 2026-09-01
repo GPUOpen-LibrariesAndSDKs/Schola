@@ -22,10 +22,10 @@ from lerobot.utils.constants import (
     OBS_STATE,
 )
 from schola.scripts.common.settings import (
-    ExternalSimulatorConfig,
     GrpcProtocolConfig,
-    UnrealExecutableSimulatorConfig,
-    UnrealProjectSimulatorConfig,
+    SingularExecutableSimulatorConfig,
+    SingularExternalSimulatorConfig,
+    SingularProjectSimulatorConfig,
 )
 
 if TYPE_CHECKING:
@@ -78,14 +78,13 @@ class ScholaObservationConfig(
                     if not camera_name:
                         raise ValueError("Observation camera names cannot be empty")
                     mapping[f"{OBS_IMAGES}.{camera_name}"] = camera_sources
-                continue
-
-            if isinstance(configured_sources, Mapping):
-                raise TypeError(
-                    f"observations.{field_name} must be a Schola source string "
-                    "or ordered list of source strings"
-                )
-            mapping[f"{OBS_PREFIX}{field_name}"] = configured_sources
+            else:
+                if isinstance(configured_sources, Mapping):
+                    raise TypeError(
+                        f"observations.{field_name} must be a Schola source string "
+                        "or ordered list of source strings"
+                    )
+                mapping[f"{OBS_PREFIX}{field_name}"] = configured_sources
 
         return mapping
 
@@ -102,10 +101,23 @@ def _decode_observation_config(
 
 
 def infer_features_from_spaces(
-    observation_space: Dict,
-    action_space: Box,
+    observation_space: gym.Space,
+    action_space: gym.Space,
 ) -> tuple[dict[str, PolicyFeature], dict[str, str]]:
-    """Infer LeRobot features from an environment's single-environment spaces."""
+    """Infer LeRobot features from an adapter's mapped environment spaces."""
+    if not isinstance(observation_space, Dict):
+        raise TypeError(
+            "LeRobot feature inference requires the adapter's mapped observation "
+            "space to be a Gymnasium Dict; raw Schola Box observations must first "
+            "be mapped through env.observations; "
+            f"got {type(observation_space).__name__}"
+        )
+    if not isinstance(action_space, Box):
+        raise TypeError(
+            "LeRobot feature inference requires the adapter's flattened action "
+            f"space to be a Gymnasium Box; got {type(action_space).__name__}"
+        )
+
     features: dict[str, PolicyFeature] = {}
     features_map: dict[str, str] = {}
 
@@ -176,7 +188,7 @@ class BaseScholaEnvConfig(EnvConfig):
     """Configure a LeRobot evaluation environment backed by Schola.
 
     Supports one simulator process, which may expose multiple homogeneous
-    agent slots through Schola's native ``GymVectorEnv``.
+    environments through Schola's native ``GymVectorEnv``.
     """
 
     task: str | None = "schola"
@@ -215,22 +227,12 @@ class BaseScholaEnvConfig(EnvConfig):
 
         if n_envs < 1:
             raise ValueError("n_envs must be at least 1")
-        if use_async_envs:
-            raise ValueError(
-                "Schola manages vectorization through GymVectorEnv; "
-                "LeRobot async environment wrapping is not supported."
-            )
         if not self.observations:
             raise ValueError(
                 "ScholaEnvConfig requires observations to declare how policy "
                 "features map to Schola sources."
             )
         simulator_config = self._get_simulator_config()
-        if simulator_config.num_simulators != 1:
-            raise ValueError(
-                "ScholaEnvConfig currently supports one simulator process; "
-                f"got num_simulators={simulator_config.num_simulators}."
-            )
 
         schola_env = GymVectorEnv(
             simulator=simulator_config.make(),
@@ -241,7 +243,7 @@ class BaseScholaEnvConfig(EnvConfig):
         if schola_env.num_envs != n_envs:
             logger.warning(
                 "LeRobot requested %d environment(s), but Schola exposed %d "
-                "homogeneous agent slot(s); using Schola's native vector size.",
+                "homogeneous environment(s); using Schola's native vector size.",
                 n_envs,
                 schola_env.num_envs,
             )
@@ -291,9 +293,11 @@ class BaseScholaEnvConfig(EnvConfig):
 class ScholaEnvConfig(BaseScholaEnvConfig):
     """Connect to an externally managed simulator process."""
 
-    simulator: ExternalSimulatorConfig = field(default_factory=ExternalSimulatorConfig)
+    simulator: SingularExternalSimulatorConfig = field(
+        default_factory=SingularExternalSimulatorConfig
+    )
 
-    def _get_simulator_config(self) -> ExternalSimulatorConfig:
+    def _get_simulator_config(self) -> SingularExternalSimulatorConfig:
         return self.simulator
 
 
@@ -308,9 +312,9 @@ class ScholaExternalEnvConfig(ScholaEnvConfig):
 class ScholaProjectEnvConfig(BaseScholaEnvConfig):
     """Build and launch an Unreal project for LeRobot evaluation."""
 
-    simulator: UnrealProjectSimulatorConfig = field()
+    simulator: SingularProjectSimulatorConfig = field()
 
-    def _get_simulator_config(self) -> UnrealProjectSimulatorConfig:
+    def _get_simulator_config(self) -> SingularProjectSimulatorConfig:
         return self.simulator
 
 
@@ -319,7 +323,7 @@ class ScholaProjectEnvConfig(BaseScholaEnvConfig):
 class ScholaExecutableEnvConfig(BaseScholaEnvConfig):
     """Launch a packaged Unreal executable for LeRobot evaluation."""
 
-    simulator: UnrealExecutableSimulatorConfig = field()
+    simulator: SingularExecutableSimulatorConfig = field()
 
-    def _get_simulator_config(self) -> UnrealExecutableSimulatorConfig:
+    def _get_simulator_config(self) -> SingularExecutableSimulatorConfig:
         return self.simulator

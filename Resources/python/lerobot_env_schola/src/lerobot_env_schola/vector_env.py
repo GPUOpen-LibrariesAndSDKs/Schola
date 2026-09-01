@@ -10,6 +10,7 @@ from typing import Any
 
 import gymnasium as gym
 import numpy as np
+from numpy.typing import NDArray
 from gymnasium.spaces import Box, Dict, Tuple
 from gymnasium.spaces.utils import flatten, flatten_space, unflatten
 from gymnasium.vector.utils import (
@@ -36,11 +37,17 @@ from lerobot_env_schola.config import (
 logger = logging.getLogger(__name__)
 
 BATCHED_IMAGE_NDIMS = 4
-CHW_CHANNEL_DIM = -3
 UINT8_MAX = np.iinfo(np.uint8).max
 BATCH_DIM = 0
 SCHOLA_OBSERVATION_ROOT = "observation"
 
+# Batched Schola Gym observations: nested dicts whose leaves are arrays.
+type ScholaObservationTree = NDArray[np.generic] | Mapping[str, ScholaObservationTree]
+
+# Gym keys follow LeRobot's env convention: images under ``pixels``,
+# proprioception under ``agent_pos``. ``infer_features_from_spaces`` later
+# maps ``pixels`` / ``pixels/<camera>`` to ``observation.image`` /
+# ``observation.images.<camera>``.
 _EXACT_POLICY_OUTPUTS = {
     OBS_IMAGE: ("single_image", "pixels"),
     OBS_STATE: ("value", "agent_pos"),
@@ -76,7 +83,9 @@ def _flatten_observation_spaces(
     return flattened
 
 
-def _get_observation_value(observation: Any, source: str) -> Any:
+def _get_observation_value(
+    observation: ScholaObservationTree, source: str
+) -> ScholaObservationTree:
     """Resolve a dot-separated source path in one batched Schola observation."""
     segments = source.split(".")
     if not segments or segments[0] != SCHOLA_OBSERVATION_ROOT:
@@ -100,7 +109,7 @@ def _get_observation_value(observation: Any, source: str) -> Any:
 
 
 def _flatten_batched_observation(
-    space: gym.Space, value: Any, num_envs: int
+    space: gym.Space, value: ScholaObservationTree, num_envs: int
 ) -> np.ndarray:
     """Apply Gymnasium's flattening convention to a batched space value."""
     return np.stack(
@@ -136,11 +145,8 @@ def _policy_output(policy_key: str) -> tuple[str, str]:
     )
 
 
-def _coerce_success(value: Any) -> Any:
-    """Parse Schola ``info`` success flags for LeRobot eval (UE convention: ``true`` / ``false``)."""
-    if isinstance(value, (bool, np.bool_)):
-        return bool(value)
-
+def _coerce_success(value: object) -> bool | NDArray[np.bool_]:
+    """Parse Schola ``info`` success flags (``true`` / ``false`` strings)."""
     if isinstance(value, str):
         normalized = value.strip().lower()
         values = {"true": True, "false": False}
@@ -161,12 +167,12 @@ def _coerce_success(value: Any) -> Any:
         return parsed.reshape(values.shape)
 
     raise TypeError(
-        "Success info must be a bool or 'true'/'false' string; "
+        "Success info must be a 'true' or 'false' string; "
         f"got {type(value).__name__}"
     )
 
 
-def _convert_image_space(space: gym.Space, name: str) -> tuple[Box, str]:
+def _convert_image_space(space: gym.Space, name: str) -> tuple[Box, bool]:
     if not isinstance(space, Box) or len(space.shape) != SINGLE_IMAGE_NDIMS:
         raise TypeError(f"Image observation {name!r} must be a three-dimensional Box")
 
@@ -180,35 +186,26 @@ def _convert_image_space(space: gym.Space, name: str) -> tuple[Box, str]:
             "within [0, 1]"
         )
 
-    # Prefer channel-last when both edge dimensions look like channel counts.
-    # This matches the normalized output layout and avoids treating a small
-    # image height as channels (for example, an HWC shape of (4, 5, 3)).
-    if space.shape[HWC_CHANNEL_DIM] in SUPPORTED_IMAGE_CHANNELS:
-        height, width, channels = space.shape
-        layout = "hwc"
-    elif space.shape[CHW_CHANNEL_DIM] in SUPPORTED_IMAGE_CHANNELS:
-        channels, height, width = space.shape
-        layout = "chw"
-    else:
+    channels, height, width = space.shape
+    if channels not in SUPPORTED_IMAGE_CHANNELS:
         raise ValueError(
             f"Image observation {name!r} must have 1, 3, or 4 channels; "
             f"got shape {space.shape}"
         )
-
-    mode = f"{layout}_{'float' if is_float else 'uint8'}"
     return (
         Box(0, UINT8_MAX, shape=(height, width, channels), dtype=np.uint8),
-        mode,
+        is_float,
     )
 
 
-def _convert_image_value(value: Any, mode: str) -> np.ndarray:
+def _convert_image_value(
+    value: NDArray[np.generic], is_float: bool
+) -> NDArray[np.uint8]:
     image = np.asarray(value)
-    if mode.startswith("chw"):
-        if image.ndim not in (SINGLE_IMAGE_NDIMS, BATCHED_IMAGE_NDIMS):
-            raise ValueError(f"Expected a CHW image batch, got shape {image.shape}")
-        image = np.moveaxis(image, CHW_CHANNEL_DIM, HWC_CHANNEL_DIM)
-    if mode.endswith("float"):
+    if image.ndim != BATCHED_IMAGE_NDIMS:
+        raise ValueError(f"Expected a CHW image batch, got shape {image.shape}")
+    image = np.moveaxis(image, 1, HWC_CHANNEL_DIM)
+    if is_float:
         image = np.rint(np.clip(image, 0, 1) * UINT8_MAX).astype(np.uint8)
     return np.ascontiguousarray(image)
 
@@ -263,8 +260,7 @@ class LeRobotScholaVectorEnv(gym.vector.VectorEnv):
         self._camera_sources: dict[str, str] = {}
         self._single_image_source: str | None = None
         self._value_sources: dict[str, tuple[str, ...]] = {}
-        self._concatenated_outputs: set[str] = set()
-        self._image_modes: dict[str, str] = {}
+        self._float_images: dict[str, bool] = {}
         self._vector_dtypes: dict[str, np.dtype] = {}
         self._validate_observation_config(env.single_observation_space)
         self.single_observation_space = self._build_observation_space()
@@ -312,7 +308,7 @@ class LeRobotScholaVectorEnv(gym.vector.VectorEnv):
         claimed_sources: dict[str, list[str]] = {}
         claimed_gym_keys: dict[str, str] = {}
 
-        def claim_source(source: str, owner: str) -> None:
+        def register_source(source: str, owner: str) -> None:
             if not source:
                 raise ValueError(f"{owner} contains an empty Schola source path")
             if source not in self._source_spaces:
@@ -323,26 +319,19 @@ class LeRobotScholaVectorEnv(gym.vector.VectorEnv):
             previous_owners = claimed_sources.setdefault(source, [])
             if previous_owners:
                 logger.warning(
-                    "Schola observation %r is reused by %s; previous use(s): %s. "
-                    "This duplicates policy input data, may increase preprocessing "
-                    "and device-memory costs, and can be semantically incorrect.",
+                    "Schola observation %r is reused by %s; previous use(s): %s.",
                     source,
                     owner,
                     ", ".join(previous_owners),
                 )
-            source_space = self._source_spaces[source]
-            box_space = (
-                source_space
-                if isinstance(source_space, Box)
-                else flatten_space(source_space)
-            )
-            if not isinstance(box_space, Box):
+            flattened = flatten_space(self._source_spaces[source])
+            if not isinstance(flattened, Box):
                 raise TypeError(
                     f"{owner} source {source!r} uses "
-                    f"{type(source_space).__name__}, which Gymnasium cannot "
-                    "flatten to a fixed-shape Box"
+                    f"{type(self._source_spaces[source]).__name__}, which "
+                    "Gymnasium cannot flatten to a fixed-shape Box"
                 )
-            self._source_box_spaces[source] = box_space
+            self._source_box_spaces[source] = flattened
             previous_owners.append(owner)
 
         for policy_key, configured_sources in config.items():
@@ -371,20 +360,14 @@ class LeRobotScholaVectorEnv(gym.vector.VectorEnv):
             if behavior in {"camera", "single_image"} and len(sources) != 1:
                 raise ValueError(f"{owner} must map to exactly one image source")
             for source in sources:
-                claim_source(source, owner)
+                register_source(source, owner)
 
             if behavior == "camera":
                 self._camera_sources[gym_key] = sources[0]
             elif behavior == "single_image":
-                if self._camera_sources:
-                    raise ValueError(
-                        "observation.image cannot be combined with observation.images.*"
-                    )
                 self._single_image_source = sources[0]
             else:
                 self._value_sources[gym_key] = sources
-                if isinstance(configured_sources, list):
-                    self._concatenated_outputs.add(gym_key)
 
         if self._single_image_source is not None and self._camera_sources:
             raise ValueError(
@@ -400,22 +383,29 @@ class LeRobotScholaVectorEnv(gym.vector.VectorEnv):
             )
 
     def _build_observation_space(self) -> Dict:
+        """Build the LeRobot Gym observation space from registered sources.
+
+        Camera outputs are stored under ``pixels`` to match LeRobot's Gym
+        observation layout.
+        """
         output_spaces: dict[str, gym.Space] = {}
         if self._camera_sources:
             camera_spaces: dict[str, gym.Space] = {}
             for camera_name, source in self._camera_sources.items():
-                camera_spaces[camera_name], self._image_modes[camera_name] = (
+                camera_spaces[camera_name], self._float_images[camera_name] = (
                     _convert_image_space(self._source_spaces[source], source)
                 )
             output_spaces["pixels"] = Dict(camera_spaces)
         elif self._single_image_source is not None:
-            output_spaces["pixels"], self._image_modes["pixels"] = _convert_image_space(
-                self._source_spaces[self._single_image_source],
-                self._single_image_source,
+            output_spaces["pixels"], self._float_images["pixels"] = (
+                _convert_image_space(
+                    self._source_spaces[self._single_image_source],
+                    self._single_image_source,
+                )
             )
 
         for gym_key, sources in self._value_sources.items():
-            if gym_key not in self._concatenated_outputs:
+            if len(sources) == 1:
                 output_spaces[gym_key] = self._source_box_spaces[sources[0]]
                 continue
 
@@ -433,7 +423,20 @@ class LeRobotScholaVectorEnv(gym.vector.VectorEnv):
 
         return Dict(output_spaces)
 
-    def _convert_observation(self, observation: Any) -> dict[str, Any]:
+    def _value_observation(
+        self,
+        observation: ScholaObservationTree,
+        source: str,
+    ) -> NDArray[np.generic]:
+        value = _get_observation_value(observation, source)
+        source_space = self._source_spaces[source]
+        if isinstance(source_space, Box):
+            return np.asarray(value).reshape(self.num_envs, -1)
+        return _flatten_batched_observation(source_space, value, self.num_envs)
+
+    def _convert_observation(
+        self, observation: ScholaObservationTree
+    ) -> dict[str, Any]:
         """Convert one batched Schola observation to LeRobot's layout."""
         converted: dict[str, Any] = {}
 
@@ -441,67 +444,41 @@ class LeRobotScholaVectorEnv(gym.vector.VectorEnv):
             converted["pixels"] = {
                 camera_name: _convert_image_value(
                     _get_observation_value(observation, source),
-                    self._image_modes[camera_name],
+                    self._float_images[camera_name],
                 )
                 for camera_name, source in self._camera_sources.items()
             }
         elif self._single_image_source is not None:
             converted["pixels"] = _convert_image_value(
                 _get_observation_value(observation, self._single_image_source),
-                self._image_modes["pixels"],
+                self._float_images["pixels"],
             )
 
         for gym_key, sources in self._value_sources.items():
-            if gym_key not in self._concatenated_outputs:
-                source = sources[0]
-                value = _get_observation_value(observation, source)
-                source_space = self._source_spaces[source]
-                converted[gym_key] = (
-                    value
-                    if isinstance(source_space, Box)
-                    else _flatten_batched_observation(
-                        source_space, value, self.num_envs
-                    )
-                )
-                continue
             values = [
-                (
-                    np.asarray(_get_observation_value(observation, source)).reshape(
-                        self.num_envs, -1
-                    )
-                    if isinstance(self._source_spaces[source], Box)
-                    else _flatten_batched_observation(
-                        self._source_spaces[source],
-                        _get_observation_value(observation, source),
-                        self.num_envs,
-                    )
-                )
-                for source in sources
+                self._value_observation(observation, source) for source in sources
             ]
-            converted[gym_key] = np.concatenate(values, axis=-1).astype(
-                self._vector_dtypes[gym_key],
-                copy=False,
-            )
+            if len(values) == 1:
+                converted[gym_key] = values[0]
+            else:
+                converted[gym_key] = np.concatenate(values, axis=-1).astype(
+                    self._vector_dtypes[gym_key],
+                    copy=False,
+                )
 
         return converted
 
-    def _convert_action(self, action: np.ndarray) -> Any:
-        action = np.asarray(action)
-        expected_shape = self.action_space.shape
-        if action.shape != expected_shape:
-            raise ValueError(
-                f"Expected LeRobot action shape {expected_shape}, got {action.shape}"
-            )
-
+    def _convert_action(self, action: np.ndarray) -> ScholaObservationTree:
         unflattened = [
-            unflatten(self.env.single_action_space, value) for value in action
+            unflatten(self.env.single_action_space, value)
+            for value in np.asarray(action)
         ]
         batched_action = create_empty_array(
             self.env.single_action_space, n=self.num_envs
         )
         return concatenate(self.env.single_action_space, unflattened, batched_action)
 
-    def _normalize_info(self, info: dict[str, Any]) -> dict[str, Any]:
+    def _normalize_success_info(self, info: dict[str, Any]) -> dict[str, Any]:
         normalized = dict(info)
         if self.success_key is not None and self.success_key in normalized:
             source_mask = normalized.get(f"_{self.success_key}")
@@ -516,14 +493,21 @@ class LeRobotScholaVectorEnv(gym.vector.VectorEnv):
                 )
                 normalized["is_success"] = success_values
                 normalized["_is_success"] = source_mask
+        return normalized
 
+    def _normalize_info(self, info: dict[str, Any]) -> dict[str, Any]:
+        normalized = self._normalize_success_info(info)
         final_info = normalized.get("final_info")
         if isinstance(final_info, dict):
-            normalized["final_info"] = self._normalize_info(final_info)
+            normalized["final_info"] = self._normalize_success_info(final_info)
         elif isinstance(final_info, np.ndarray):
             normalized["final_info"] = np.asarray(
                 [
-                    self._normalize_info(item) if isinstance(item, dict) else item
+                    (
+                        self._normalize_success_info(item)
+                        if isinstance(item, dict)
+                        else item
+                    )
                     for item in final_info
                 ],
                 dtype=object,

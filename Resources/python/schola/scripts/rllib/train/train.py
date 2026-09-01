@@ -1,4 +1,5 @@
-# Copyright (c) 2024-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+# Copyright (c) 2024-2026 Advanced Micro Devices, Inc. All Rights Reserved.
+from __future__ import annotations
 
 """
 Script to train an rllib model using Schola.
@@ -7,11 +8,8 @@ Script to train an rllib model using Schola.
 import logging
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any, Callable, cast
 
-from schola.scripts.common.settings import (
-    get_activation_function,
-)
 from schola.scripts.common.command_template import ScholaCommandTemplate
 
 from schola.scripts.rllib.settings import (
@@ -20,10 +18,18 @@ from schola.scripts.rllib.settings import (
     SACSettings,
     IMPALASettings,
 )
+from schola.scripts.rllib.training import (
+    ResourcePlan,
+    TrainingPlan,
+    configure_training,
+    run_training,
+)
 from schola.scripts.rllib.train.settings import RllibScriptSettings
 
 from cyclopts import App
 
+if TYPE_CHECKING:
+    from ray.tune import ExperimentAnalysis
 # Logging setup
 if not logging.getLogger().handlers:
     logging.basicConfig(
@@ -32,11 +38,9 @@ if not logging.getLogger().handlers:
     )
 logger = logging.getLogger(__name__)
 
+
 app = App(name="train", help="Train a Model using ray")
 STOP_METRIC = "num_env_steps_sampled_lifetime"
-
-if TYPE_CHECKING:
-    import ray.tune
 
 
 def _get_restored_env_steps(checkpoint_path: Path | None) -> int:
@@ -62,7 +66,7 @@ def _get_restored_env_steps(checkpoint_path: Path | None) -> int:
     if not env_runner_state_path.is_file():
         logger.warning(
             "Could not determine restored RLlib timestep count from %s. "
-            "Using --timesteps as a lifetime stop target.",
+            + "Using --timesteps as a lifetime stop target.",
             checkpoint_path,
         )
         return 0
@@ -75,7 +79,7 @@ def _get_restored_env_steps(checkpoint_path: Path | None) -> int:
     except Exception as exc:
         logger.warning(
             "Could not read restored RLlib timestep count from %s: %s. "
-            "Using --timesteps as a lifetime stop target.",
+            + "Using --timesteps as a lifetime stop target.",
             env_runner_state_path,
             exc,
         )
@@ -84,7 +88,7 @@ def _get_restored_env_steps(checkpoint_path: Path | None) -> int:
     if not isinstance(state, dict):
         logger.warning(
             "Unexpected RLlib env runner state in %s. "
-            "Using --timesteps as a lifetime stop target.",
+            + "Using --timesteps as a lifetime stop target.",
             env_runner_state_path,
         )
         return 0
@@ -95,7 +99,7 @@ def _get_restored_env_steps(checkpoint_path: Path | None) -> int:
     except (TypeError, ValueError):
         logger.warning(
             "Unexpected RLlib restored timestep value %r in %s. "
-            "Using --timesteps as a lifetime stop target.",
+            + "Using --timesteps as a lifetime stop target.",
             restored_steps,
             env_runner_state_path,
         )
@@ -103,7 +107,7 @@ def _get_restored_env_steps(checkpoint_path: Path | None) -> int:
     if restored_steps < 0:
         logger.warning(
             "Unexpected negative RLlib restored timestep value %s in %s. "
-            "Using --timesteps as a lifetime stop target.",
+            + "Using --timesteps as a lifetime stop target.",
             restored_steps,
             env_runner_state_path,
         )
@@ -154,12 +158,9 @@ def _make_stop_criterion(
     }
 
 
-# forward declare here for type hinting with no load
-
-
-def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
+def main_online(args: RllibScriptSettings) -> ExperimentAnalysis:
     """
-    Main function for launching training with ray.
+    Train an online RLlib algorithm against a Schola environment.
 
     Parameters
     ----------
@@ -172,18 +173,8 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
         The results of the training
     """
     # Import ray and rllib dependencies lazily when the command is actually executed
-    import ray
-    from ray import air, tune
-    from ray.rllib.algorithms.algorithm import Algorithm
     from ray.rllib.policy.policy import PolicySpec
-    from ray.rllib.algorithms.ppo import PPOConfig
-    from ray.rllib.algorithms.sac.sac import SACConfig
-    from ray.rllib.algorithms.appo.appo import APPOConfig
-    from ray.rllib.algorithms.impala.impala import IMPALAConfig
-    from ray.tune.registry import register_env
-    from schola.rllib.export import export_onnx_from_policy
-    from ray.rllib.policy.policy import Policy
-    from ray.rllib.core.rl_module.rl_module import RLModuleSpec, RLModule
+    from ray.rllib.algorithms.algorithm import Algorithm
     from schola.rllib.connectors import schola_env_to_module_flatten_connector
     from schola.rllib.env_runner import ScholaEnvRunner
     from schola.rllib.policy_mapping import (
@@ -218,7 +209,7 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
 
     # Pass the frozen mapping to the ScholaAlgorithm via env_config (ignored by
     # make_env) so it gets checkpointed as an RLlib subcomponent.
-    env_config[ENV_CONFIG_POLICY_MAPPING_RECORD_KEY] = agent_to_policy
+    env_config[ENV_CONFIG_POLICY_MAPPING_RECORD_KEY] = dict(agent_to_policy)
 
     typed_policy_ids = {
         agent_id: policy_id
@@ -234,33 +225,12 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
             ),
         )
 
-    # Clusters configure resources automatically
-    if not args.resource_settings.using_cluster:
-        ray.init(
-            num_cpus=args.resource_settings.num_cpus,
-            num_gpus=args.resource_settings.num_gpus,
-        )
-    else:
-        if args.resource_settings.num_cpus > 1:
-            logger.warning(
-                "--num-cpus is a non-default value, but the script is connecting to an existing cluster. This parameter will be ignored."
-            )
-        if args.resource_settings.num_gpus > 0:
-            logger.warning(
-                "--num-gpus is a non-default value, but the script is connecting to an existing cluster. This parameter will be ignored."
-            )
-
-    # Get activation function for model config
-    activation_fn = get_activation_function(
-        args.network_architecture_settings.activation
-    )
-
     # make a new variable to get typing information
     algorithm_config: AlgorithmConfig = args.algorithm_settings.rllib_config()
 
     # Use NEW API stack with RayEnv/RayVecEnv (new stack interface)
     # Auto-assignment: RayEnv for local runner (num_env_runners=0), RayVecEnv for remote runners
-    config: PPOConfig | SACConfig | APPOConfig | IMPALAConfig = (
+    config = configure_training(
         algorithm_config.api_stack(
             enable_rl_module_and_learner=True,  # Enable new stack
             enable_env_runner_and_connector_v2=True,  # Enable EnvRunner
@@ -276,7 +246,7 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
         )
         .multi_agent(
             policies=policies,
-            policy_mapping_fn=make_policy_mapping_fn_from_dict(agent_to_policy),
+            policy_mapping_fn=make_policy_mapping_fn_from_dict(agent_to_policy),  # type: ignore
         )
         .resources(
             num_gpus=args.resource_settings.num_gpus,
@@ -292,35 +262,43 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
             ),
             num_gpus_per_learner=args.resource_settings.num_gpus_per_learner,
             num_cpus_per_learner=args.resource_settings.num_cpus_per_learner,
+        ),
+        args,
+        seed=args.environment_settings.seed,
+    )
+
+    # Train through a Schola Algorithm subclass so the frozen policy mapping is
+    # saved/restored as a native RLlib Checkpointable subcomponent,
+    # mirroring RLlib's own checkpoint behavior.
+    algo_class = config.algo_class
+    if algo_class is None:
+        raise RuntimeError("RLlib config did not define an algorithm class.")
+    schola_algorithm_cls = schola_algorithm_subclass(cast(type[Algorithm], algo_class))
+
+    restore: Path | None = None
+    warm_start_rl_module_dir: Path | None = None
+    resume_from = args.resume_settings.resume_from
+    if resume_from is not None:
+        from schola.rllib.checkpoint import plan_resume_from_checkpoint
+
+        restore, warm_start_rl_module_dir = plan_resume_from_checkpoint(
+            resume_from,
+            schola_algorithm_cls,
+            config,
+            tuple(policies),
         )
-        .rl_module(
-            model_config={
-                "fcnet_hiddens": args.network_architecture_settings.fcnet_hiddens,
-                "fcnet_activation": activation_fn,
-                "use_lstm": args.network_architecture_settings.use_lstm,
-                "lstm_cell_size": args.network_architecture_settings.lstm_cell_size,
-                "max_seq_len": args.network_architecture_settings.max_seq_len,
-            },
-        )
-        .training(
-            lr=args.training_settings.learning_rate,
-            gamma=args.training_settings.gamma,
-            num_epochs=args.training_settings.num_epochs,
-            train_batch_size_per_learner=args.training_settings.train_batch_size_per_learner,
-            minibatch_size=args.training_settings.minibatch_size,
-            **args.algorithm_settings.get_settings_dict(),
-        )
-        .debugging(
-            log_level=args.logging_settings.rllib_log_level,
-            seed=args.environment_settings.seed,
-        )
-    )  # type: ignore
+        if warm_start_rl_module_dir is not None:
+            logger.info(
+                "Checkpoint algorithm family does not match this train command. "
+                "Loading RLModule weights only from %s (warm start).",
+                warm_start_rl_module_dir,
+            )
 
     # Use the new API stack metric name for stopping criterion.
     # Old stack used "timesteps_total", new stack uses "num_env_steps_sampled_lifetime".
     stop = _make_stop_criterion(
         args.training_settings.timesteps,
-        args.resume_settings.resume_from,
+        restore,
         args.resume_settings.reset_timestep,
     )
 
@@ -328,64 +306,26 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
     if ckpt.export_onnx and not ckpt.save_final_policy:
         logger.info(
             "export_onnx without save_final_policy: saving an end-of-run snapshot so "
-            "the exported model matches the final training weights (writes an end-of-run checkpoint)."
+            + "the exported model matches the final training weights (writes an end-of-run checkpoint)."
         )
-    callbacks = []
-    if ckpt.should_persist:
-        try:
-            from ray.tune.logger import TBXLoggerCallback
-
-            callbacks.append(TBXLoggerCallback())
-        except ImportError:
-            logger.warning(
-                "tensorboardX is not installed; TensorBoard logging will be skipped. "
-                "Install tensorboardX to enable TensorBoard logging with RLlib."
-            )
-
-    # Train through a Schola Algorithm subclass so the frozen policy mapping is
-    # saved/restored as a native RLlib Checkpointable subcomponent ,
-    # mirroring RLlib's own checkpoint behavior.
-    assert config.algo_class is not None, "Algorithm class is required"
-    schola_algorithm_cls = schola_algorithm_subclass(config.algo_class)
-
-    logger.info("Starting training")
-    try:
-        results = tune.run(
-            schola_algorithm_cls,
-            config=config,  # type: ignore
+    return run_training(
+        args,
+        TrainingPlan(
+            config=config,
+            trainable=schola_algorithm_cls,
             stop=stop,
-            checkpoint_config=air.CheckpointConfig(
-                checkpoint_frequency=(ckpt.save_freq if ckpt.enable_checkpoints else 0),
-                checkpoint_at_end=ckpt.save_final_policy or ckpt.export_onnx,
-            ),  # type: ignore
-            restore=(
-                str(args.resume_settings.resume_from)
-                if args.resume_settings.resume_from
-                else None
-            ),
-            verbose=args.logging_settings.rllib_verbosity,
-            storage_path=ckpt.storage_path,
-            callbacks=callbacks,
-        )
-        last_checkpoint = results.get_last_checkpoint() if ckpt.should_persist else None
-        logger.info("Training complete")
-    finally:
-        # Always shutdown ray and release the environment from training even if there is an error
-        # will reraise the error unless a control flow statement is added
-        if not args.resource_settings.using_cluster:
-            ray.shutdown()
+            resource_plan=ResourcePlan.online(args),
+            label="online RLlib training",
+            restore=restore,
+            warm_start_rl_module_dir=warm_start_rl_module_dir,
+            warm_start_policy_ids=tuple(policies),
+        ),
+    )
 
-    if (
-        args.checkpoint_settings.export_onnx
-        and last_checkpoint
-        and len(results.trials) > 0
-        and results.trials[-1].path
-    ):
-        export_onnx_from_policy(
-            Algorithm.from_checkpoint(last_checkpoint), Path(results.trials[-1].path)
-        )
-        logger.info("Models exported to ONNX at %s", results.trials[-1].path)
-    return results
+
+def main(args: RllibScriptSettings) -> ExperimentAnalysis:
+    """Run an RLlib training settings object from the Python API."""
+    return main_online(args)
 
 
 class RllibTrainCommand(ScholaCommandTemplate[RllibScriptSettings]):
@@ -420,7 +360,7 @@ class RllibTrainCommand(ScholaCommandTemplate[RllibScriptSettings]):
         return RllibScriptSettings
 
     @property
-    def main_func(self) -> Callable[[RllibScriptSettings], Any]:
+    def main_func(self) -> Callable[[RllibScriptSettings], ExperimentAnalysis]:
         return main
 
 

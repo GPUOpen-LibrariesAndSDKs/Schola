@@ -89,7 +89,7 @@ class ResumeSettings:
             alias="-r",
         ),
     ] = None
-    "Path to a trusted RLlib checkpoint to resume training from: the checkpoint directory that contains `rllib_checkpoint.json` (for example `.../checkpoint_000000`). You can also pass a single checkpoint file for older layouts. If set to None, training will start from scratch. Only use checkpoints from trusted sources because RLlib checkpoint metadata is read with pickle."
+    "Path to a trusted RLlib checkpoint to resume from: the directory that contains `rllib_checkpoint.json` (for example `.../checkpoint_000000`). Same-algorithm checkpoints restore Tune state (optimizer, step counts, env-runners). A BC or MARWIL checkpoint into PPO or IMPALA loads only RLModule weights into a fresh run. Network flags must match the imitation run. SAC is not supported. Only use checkpoints from trusted sources because RLlib checkpoint metadata is read with pickle."
 
     reset_timestep: bool = False
     "Whether to treat --timesteps as additional steps to run beyond the checkpoint rather than an absolute lifetime cap. When False (default), --timesteps is the absolute num_env_steps_sampled_lifetime stop target, so the same command can resume training without modification. When True, the restored step count is added to --timesteps, matching the behaviour of SB3's reset_num_timesteps=True."

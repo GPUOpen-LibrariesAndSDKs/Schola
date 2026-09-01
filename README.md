@@ -49,10 +49,11 @@ See `Resources/python/pyproject.toml` for a comprehensive list of dependencies. 
 
 | Extra | Description |
 | ----- | ----------- |
-| `sb3` | Dependencies for running training with Stable Baselines 3 |
-| `rllib` | Dependencies for running training with RLlib |
-| `minari` | Dependencies for collecting Minari datasets with Schola |
-| `all` | Equivalent to installing `sb3`, `rllib`, and `minari` together |
+| `sb3` | Stable Baselines 3, for `schola sb3 train` |
+| `rllib` | Ray RLlib, for `schola rllib train` and `schola rllib eval` |
+| `minari` | Minari, for `schola minari collect` |
+| `rllib-offline` | RLlib plus the msgpack codecs, for `schola rllib collect` and `schola rllib offline-train` |
+| `all` | Everything above |
 | `docs` | Dependencies for building documentation with Sphinx |
 
 Test dependencies are declared under `[dependency-groups]` in `pyproject.toml`, not as a pip extra. Install them with **`pip install --group test`** (for example `pip install --group test -e ./Resources/python[all]` from your project, or the same with `cd` into `Resources/python` first).

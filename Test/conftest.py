@@ -1,9 +1,10 @@
-# Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
+# Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All Rights Reserved.
+from __future__ import annotations
 
 """Root pytest fixtures and helpers for the Schola plugin Python tests."""
 
 from concurrent import futures
-from typing import Callable, List
+from typing import Any, Callable, ClassVar, cast
 from unittest.mock import MagicMock
 import grpc
 
@@ -11,8 +12,6 @@ import gymnasium as gym
 import numpy as np
 import pytest
 from functools import cache
-from typing import Dict, List, Optional, Any, Tuple
-import pytest
 
 from schola.core.protocols.base_protocol import BaseRLProtocol
 from schola.core.simulators.base_simulator import BaseSimulator
@@ -61,11 +60,11 @@ def stub_protocol_class():
         ACTION_SPACE = gym.spaces.Discrete(2)
         AGENT_ID = "agent_0"
 
-        instances: list = []
-        # Shadow the ``@property`` descriptor on ``BaseProtocol`` with a
-        # plain class attribute so ``simulator.start(protocol.properties)``
-        # reads a real dict without needing an instance-level setter.
-        properties = {}
+        instances: ClassVar[list[Any]] = []
+
+        @property
+        def properties(self) -> dict[str, Any]:
+            return {}
 
         def __init__(self, **kwargs):
             self.init_kwargs = kwargs
@@ -133,8 +132,11 @@ def stub_simulator_class():
     """
 
     class _StubSimulator(BaseSimulator):
-        instances: list = []
-        supported_protocols = (BaseRLProtocol,)
+        instances: ClassVar[list[Any]] = []
+
+        @property
+        def supported_protocols(self) -> tuple[type[BaseRLProtocol], ...]:
+            return (BaseRLProtocol,)
 
         def __init__(self, **kwargs):
             self.init_kwargs = kwargs
@@ -170,7 +172,9 @@ def make_env_server():
     servers = []
 
     def _make_env_server(
-        env_name: str | Callable[..., gym.Env], wrappers: list = None, port: int = 0
+        env_name: str | Callable[..., gym.Env[Any, Any]],
+        wrappers: list[Any] | None = None,
+        port: int = 0,
     ):
         servicer = GymToGymServiceServicer(env_name, wrappers)
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
@@ -195,8 +199,8 @@ def make_vec_env_server():
     servers = []
 
     def _make_env_server(
-        env_name: List[Callable[..., gym.Env]],
-        wrappers: Optional[list] = None,
+        env_name: list[Callable[..., gym.Env[Any, Any]]],
+        wrappers: list[Any] | None = None,
         port: int = 0,
     ):
         servicer = VecGymToGymServiceServicer(env_name, wrappers)
@@ -216,6 +220,54 @@ def make_vec_env_server():
         server.wait_for_termination()
 
 
+class SimplePolicy:
+    """Random demonstrator, for tests that only care that data flows."""
+
+    def __init__(self, env: gym.Env[Any, Any]):
+        self.action_space = env.action_space
+        self.action_space.seed(123)
+
+    def __call__(self, observation):
+        return self.action_space.sample()
+
+
+@pytest.fixture(scope="function")
+def simple_policy():
+    return SimplePolicy
+
+
+@pytest.fixture(scope="function")
+def make_imitation_server():
+    """Serve a Gym environment over the imitation connector, driven by a demonstrator."""
+
+    servers = []
+
+    def _make_imitation_server(
+        env_name: str | Callable[..., gym.Env[Any, Any]],
+        policy_class: type[SimplePolicy],
+        wrappers: list[Any] | None = None,
+        port: int = 0,
+        options: dict[str, Any] | None = None,
+    ):
+        servicer = GymToImitationServiceServicer(env_name, policy_class, wrappers or [])
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
+        imitation_connector_grpc.add_ImitationConnectorServiceServicer_to_server(
+            servicer, server
+        )
+        port = server.add_insecure_port(f"[::]:{port}")
+        server.start()
+        servers.append(server)
+        return port
+
+    yield _make_imitation_server
+
+    for server in servers:
+        server.stop(0)
+
+    for server in servers:
+        server.wait_for_termination()
+
+
 @pytest.fixture(scope="function")
 def make_pettingzoo_env_server():
     """Create a PettingZoo environment server (single environment)."""
@@ -223,9 +275,11 @@ def make_pettingzoo_env_server():
     servicers = []
 
     def _make_env_server(
-        env_name: str | Callable, wrappers: Optional[list] = None, port: int = 0
+        env_name: str | Callable[..., gym.Env[Any, Any]],
+        wrappers: list[Any] | None = None,
+        port: int = 0,
     ):
-        servicer = PettingZooToGymServiceServicer(env_name, wrappers)
+        servicer = PettingZooToGymServiceServicer(cast(Any, env_name), wrappers or [])
         # Set max message sizes to 100MB to handle large environment definitions
         options = [
             ("grpc.max_send_message_length", 100 * 1024 * 1024),
@@ -261,9 +315,11 @@ def make_vec_pettingzoo_env_server():
     servicers = []
 
     def _make_env_server(
-        env_funcs: List[Callable], wrappers: Optional[list] = None, port: int = 0
+        env_funcs: list[Callable[..., gym.Env[Any, Any]]],
+        wrappers: list[Any] | None = None,
+        port: int = 0,
     ):
-        servicer = VecPettingZooToGymServiceServicer(env_funcs, wrappers)
+        servicer = VecPettingZooToGymServiceServicer(env_funcs, wrappers or [])
         # Set max message sizes to 100MB to handle large messages
         options = [
             ("grpc.max_send_message_length", 100 * 1024 * 1024),
@@ -320,7 +376,9 @@ def _check_inputs_have_valid_shape(
     graph_inputs = {inp.name: inp for inp in model.graph.input}
     for input_name, inp in graph_inputs.items():
         dims = inp.type.tensor_type.shape.dim
-        assert dims, f"Expected input '{input_name}' to have non-empty dimensions. Must have at least one dimension."
+        assert (
+            dims
+        ), f"Expected input '{input_name}' to have non-empty dimensions. Must have at least one dimension."
 
         batch_dim = dims[0]
         assert (
@@ -334,8 +392,8 @@ def onnx_model_checker():
         model_path,
         observation_space,
         action_space,
-        state_shapes: Dict[str, Tuple[int, ...]] = None,
-        metadata: Dict[str, Dict[str, str]] = None,
+        state_shapes: dict[str, tuple[int, ...]] | None = None,
+        metadata: dict[str, dict[str, str]] | None = None,
     ):
         """Check that the ONNX model exists and has the correct input and output names."""
         assert model_path.exists(), f"ONNX file not created at {model_path}"
@@ -356,6 +414,7 @@ def onnx_model_checker():
             action_space = gym.spaces.Dict({"action": action_space})
 
         action_space = batch_space(action_space, n=batch_size)
+        dict_action_space = cast(gym.spaces.Dict, action_space)
 
         # Check that the model has the correct input and output names
 
@@ -368,7 +427,7 @@ def onnx_model_checker():
         assert (
             set(input_names) == expected_input_names
         ), "Input names should be the keys of the observation space or state inputs"
-        assert set(output_names) == set(action_space.spaces.keys()) | {
+        assert set(output_names) == set(dict_action_space.spaces.keys()) | {
             f"state_out_{k}" for k in state_shapes.keys()
         }, "Output names should be the keys of the action space or 'state_out'"
         _check_inputs_have_valid_shape(model)
@@ -417,18 +476,18 @@ def onnx_model_checker():
 
         # check the output actions
         for action_name, action in output_actions.items():
-            assert action_space.spaces[action_name].contains(
+            assert dict_action_space.spaces[action_name].contains(
                 action
             ), f"Expected Action '{action_name}' to be in action space. Got {action}"
-
         # check the state outputs
         assert set(output_states.keys()) == {
             f"state_out_{k}" for k in state_shapes.keys()
         }, f"Expected output states to be the keys of the state shapes. Got {output_states.keys()} != {state_shapes.keys()}"
         for state_name, state in output_states.items():
-            assert state.shape == (
+            state_array = np.asarray(state)
+            assert state_array.shape == (
                 batch_size,
                 *state_shapes[state_name[len("state_out_") :]],
-            ), f"Expected output state '{state_name}' to have shape {state_shapes[state_name[len('state_out_'):]]}. Got {state.shape}"
+            ), f"Expected output state '{state_name}' to have shape {state_shapes[state_name[len('state_out_'):]]}. Got {state_array.shape}"
 
     return _check_onnx_model

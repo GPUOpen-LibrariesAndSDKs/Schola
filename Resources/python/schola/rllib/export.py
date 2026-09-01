@@ -29,12 +29,16 @@ from schola.core.model import *
 import gymnasium as gym
 from gymnasium import spaces
 import copy
+from schola.rllib.checkpoint import load_rl_module_from_algorithm_checkpoint
 from schola.rllib.env import RayVecEnv
 from torch.export.dynamic_shapes import Dim
-from typing import Any, TypedDict, cast
+from typing import TYPE_CHECKING, Any, Literal, TypedDict, cast
 import logging
 
 from schola.rllib.policy_mapping import PolicyMappingFn
+
+if TYPE_CHECKING:
+    from ray.tune import ExperimentAnalysis
 
 logger = logging.getLogger(__name__)
 
@@ -251,6 +255,51 @@ def _(arg: Algorithm, path: pathlib.Path) -> None:
             )
 
     export_onnx_from_policy(module, path, obs_space, act_space)
+
+
+def export_onnx_from_training(
+    results: "ExperimentAnalysis",
+    *,
+    source: Literal["algorithm_checkpoint", "rl_module"],
+    observation_space: gym.Space[Any] | None = None,
+    action_space: gym.Space[Any] | None = None,
+) -> None:
+    """Export the final model from a completed Tune run.
+
+    ``algorithm_checkpoint`` restores the Algorithm (online runs have an
+    EnvRunner). ``rl_module`` loads the learner module from the checkpoint
+    layout; pass the original observation and action spaces so Unreal still
+    sees one input per sensor.
+    """
+    if not results.trials or not results.trials[-1].path:
+        logger.warning("No completed Tune trial was available for ONNX export.")
+        return
+    last_checkpoint = results.get_last_checkpoint()
+    if last_checkpoint is None:
+        logger.warning(
+            "No checkpoint was written, so there is no trained model to export to ONNX."
+        )
+        return
+
+    trial_path = pathlib.Path(results.trials[-1].path)
+    if source == "algorithm_checkpoint":
+        export_onnx_from_policy(Algorithm.from_checkpoint(last_checkpoint), trial_path)
+    elif source == "rl_module":
+        if observation_space is None or action_space is None:
+            raise ValueError(
+                "ONNX export from an RLModule requires observation_space and action_space."
+            )
+        export_onnx_from_policy(
+            load_rl_module_from_algorithm_checkpoint(
+                pathlib.Path(last_checkpoint.path)
+            ),
+            trial_path,
+            observation_space,
+            action_space,
+        )
+    else:
+        raise ValueError(f"Unknown ONNX export source {source!r}.")
+    logger.info("Models exported to ONNX at %s", trial_path)
 
 
 class ModelOutputDict(TypedDict):

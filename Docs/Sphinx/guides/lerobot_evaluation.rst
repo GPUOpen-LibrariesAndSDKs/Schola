@@ -341,6 +341,13 @@ Unreal. If LeRobot still passes a ``batch_size`` (including its default),
 the plugin logs a warning when that value differs from Unreal's environment
 count and uses Unreal's count.
 
+Each Unreal environment may contain multiple agents. Schola flattens those
+agents into separate LeRobot vector slots, so one homogeneous policy can
+evaluate all of them in a batch. Every agent exposed by the simulator must
+have the same observation and action spaces. Heterogeneous agents are not
+supported and cause environment creation to fail. Agents within one Unreal
+environment must also terminate or truncate on the same step.
+
 Action Spaces
 -------------
 

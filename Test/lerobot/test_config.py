@@ -235,6 +235,89 @@ def test_policy_output_rules(policy_key, expected):
     assert _policy_output(policy_key) == expected
 
 
+def test_homogeneous_multi_agent_definition_becomes_vector_slots(
+    mock_protocol_and_simulator,
+):
+    protocol, simulator = mock_protocol_and_simulator
+    agent_ids = ["agent_0", "agent_1"]
+    observation_space = gym.spaces.Box(-1, 1, shape=(3,), dtype=np.float32)
+    action_space = gym.spaces.Box(-1, 1, shape=(2,), dtype=np.float32)
+    protocol.get_definition.return_value = (
+        [agent_ids],
+        [{agent_id: "" for agent_id in agent_ids}],
+        {0: {agent_id: observation_space for agent_id in agent_ids}},
+        {0: {agent_id: action_space for agent_id in agent_ids}},
+    )
+    protocol.send_reset_msg.return_value = (
+        [
+            {
+                "agent_0": np.array([1.0, 2.0, 3.0], dtype=np.float32),
+                "agent_1": np.array([4.0, 5.0, 6.0], dtype=np.float32),
+            }
+        ],
+        [{agent_id: {} for agent_id in agent_ids}],
+    )
+
+    schola_env = GymVectorEnv(simulator, protocol)
+    env = LeRobotScholaVectorEnv(
+        schola_env,
+        task="multi_agent",
+        task_description="Homogeneous multi-agent test.",
+        max_episode_steps=10,
+        observation_config={"observation.state": "observation"},
+    )
+    try:
+        observations, _ = env.reset()
+        assert env.num_envs == 2
+        np.testing.assert_array_equal(
+            observations["agent_pos"],
+            [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
+        )
+    finally:
+        env.close()
+
+
+@pytest.mark.parametrize(
+    ("mismatch", "error_pattern"),
+    [
+        ("observation", "Observation Space Mismatch"),
+        ("action", "Action Space Mismatch"),
+    ],
+)
+def test_heterogeneous_multi_agent_definition_fails_and_cleans_up(
+    mock_protocol_and_simulator,
+    mismatch,
+    error_pattern,
+):
+    protocol, simulator = mock_protocol_and_simulator
+    observation_spaces = {
+        "agent_0": gym.spaces.Box(-1, 1, shape=(3,), dtype=np.float32),
+        "agent_1": gym.spaces.Box(-1, 1, shape=(3,), dtype=np.float32),
+    }
+    action_spaces = {
+        "agent_0": gym.spaces.Box(-1, 1, shape=(2,), dtype=np.float32),
+        "agent_1": gym.spaces.Box(-1, 1, shape=(2,), dtype=np.float32),
+    }
+    if mismatch == "observation":
+        observation_spaces["agent_1"] = gym.spaces.Box(
+            -2, 2, shape=(3,), dtype=np.float32
+        )
+    else:
+        action_spaces["agent_1"] = gym.spaces.Box(-2, 2, shape=(2,), dtype=np.float32)
+    protocol.get_definition.return_value = (
+        [["agent_0", "agent_1"]],
+        [{"agent_0": "", "agent_1": ""}],
+        {0: observation_spaces},
+        {0: action_spaces},
+    )
+
+    with pytest.raises(AssertionError, match=error_pattern):
+        GymVectorEnv(simulator, protocol)
+
+    assert protocol.close.call_count >= 1
+    assert simulator.stop.call_count >= 1
+
+
 def test_create_envs_builds_schola_vector_env(make_vec_env_server):
     observation_space = gym.spaces.Dict(
         {"joints": gym.spaces.Box(-1, 1, shape=(3,), dtype=float)}

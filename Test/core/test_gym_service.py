@@ -62,6 +62,13 @@ def _step(servicer: GymToGymServiceServicer, action: int):
     return servicer.UpdateState(state_update, None)
 
 
+def _step_without_action(servicer: GymToGymServiceServicer):
+    """Send a step update whose ``updates`` map is empty, as RLlib does on an autoreset step."""
+    state_update = StateUpdate(step=Step())
+    state_update.step.environments.add()
+    return servicer.UpdateState(state_update, None)
+
+
 def _agent_state_values(state):
     agent = state.training_state.environment_states[0].agent_states["single_agent"]
     obs, reward, terminated, truncated, _info = from_proto(agent)
@@ -133,6 +140,35 @@ class TestAutoreset:
             assert obs == 1
             assert reward == 1.0
             assert terminated is False
+
+    def test_next_step_autoreset_without_action(self):
+        """RLlib sends no action for an env being autoreset, so the servicer must not read one."""
+        servicer = GymToGymServiceServicer(_make_env_factory(max_count=2))
+        _start_servicer(servicer, AutoResetType.NEXT_STEP)
+        _reset(servicer)
+
+        _step(servicer, 1)
+        _step(servicer, 1)
+
+        state = _step_without_action(servicer)
+        obs, reward, terminated, _truncated = _agent_state_values(state)
+        assert obs == 0
+        assert reward == 0.0
+        assert terminated is False
+
+        # The new episode must run normally rather than resetting on every step.
+        state = _step(servicer, 1)
+        obs, _reward, terminated, _truncated = _agent_state_values(state)
+        assert obs == 1
+        assert terminated is False
+
+    def test_step_without_action_raises_when_action_required(self):
+        servicer = GymToGymServiceServicer(_make_env_factory(max_count=2))
+        _start_servicer(servicer, AutoResetType.NEXT_STEP)
+        _reset(servicer)
+
+        with pytest.raises(Exception, match="no action for agent"):
+            _step_without_action(servicer)
 
     def test_autoreset_disabled_blocks_step_after_done(self):
         servicer = GymToGymServiceServicer(_make_env_factory(max_count=1))

@@ -13,16 +13,11 @@ from typing import Callable
 from cyclopts import App
 
 from schola.scripts.common.command_template import ScholaCommandTemplate
+from schola.scripts.common.console import configure_logging, console
 from schola.scripts.env.inspect.settings import EnvInspectScriptSettings
 from schola.scripts.env.utils import (
     inspect_agents,
 )
-
-if not logging.getLogger().handlers:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(levelname)s %(name)s: %(message)s",
-    )
 
 logger = logging.getLogger(__name__)
 
@@ -38,18 +33,13 @@ def main(args: EnvInspectScriptSettings) -> None:
     """
     from schola.core.error_manager import ScholaErrorContextManager
     from schola.gym.env import GymVectorEnv
+    import numpy as np
+    configure_logging(args.logging_settings.log_level)
 
     env = None
     try:
         with ScholaErrorContextManager():
-            n_sim = args.environment_settings.simulator_settings.num_simulators
-            if n_sim > 1:
-                logger.warning(
-                    "Multiple simulators (-n=%d) is not supported for inspect; "
-                    "using a single simulator.",
-                    n_sim,
-                )
-
+            np.set_printoptions(precision=4, threshold=16, linewidth=console.width)
             sim_args = args.environment_settings.simulator_settings
             protocol_args = args.environment_settings.protocol_settings
             env = GymVectorEnv(
@@ -58,16 +48,13 @@ def main(args: EnvInspectScriptSettings) -> None:
                 verbosity=args.logging_settings.schola_verbosity,
             )
 
-            logger.info("Environment definitions:")
-            logger.info("  Sub-environments: %d", env.id_manager.num_envs)
-            logger.info("  Total agents: %d", env.id_manager.num_ids)
-
-            inspect_agents(
+            renderable = inspect_agents(
                 env,
-                logger=logger,
                 seed=args.environment_settings.seed,
                 options=args.environment_settings.env_options or None,
             )
+            console.print(renderable)
+
     except (KeyboardInterrupt, Exception) as exc:
         if isinstance(exc, KeyboardInterrupt):
             logger.info("Ctrl-C received. Shutting down gracefully;")

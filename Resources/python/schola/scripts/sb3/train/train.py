@@ -17,7 +17,6 @@ from schola.scripts.common.settings import (
     get_activation_function,
 )
 from schola.scripts.common.command_template import ScholaCommandTemplate
-from schola.scripts.common.console import configure_logging
 from schola.scripts.sb3.train.settings import (
     PPOTrainSettings,
     SACTrainSettings,
@@ -82,7 +81,7 @@ def main(args: Sb3TrainScriptSettings) -> (tuple[float, float]) | None:
     tuple[float, float] | None
         The mean and standard deviation of the rewards if evaluation is enabled, otherwise None.
     """
-    configure_logging()
+    configure_logging(args.logging_settings.log_level)
 
     if args.training_settings.pbar:
         try:

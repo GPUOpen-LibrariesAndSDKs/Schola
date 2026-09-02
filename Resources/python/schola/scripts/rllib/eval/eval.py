@@ -178,7 +178,7 @@ def main(args: RllibEvalScriptSettings) -> dict[str, Any]:
     ``hist_stats``, etc.). Raises ``RuntimeError`` if sampling does not complete
     the requested number of episodes.
     """
-    configure_logging()
+    configure_logging(args.logging_settings.log_level)
 
     import ray
     from ray.rllib.core.rl_module.multi_rl_module import (
@@ -192,12 +192,15 @@ def main(args: RllibEvalScriptSettings) -> dict[str, Any]:
         make_policy_mapping_fn_from_dict,
         resolve_policy_mapping_for_eval,
     )
-    from schola.scripts.rllib.utils import discover_env_metadata
+    from schola.scripts.rllib.utils import configure_ray_logging, discover_env_metadata
+
+    configure_ray_logging(args.logging_settings.rllib_log_level)
 
     if not args.resource_settings.using_cluster:
         ray.init(
             num_cpus=args.resource_settings.num_cpus,
             num_gpus=args.resource_settings.num_gpus,
+            configure_logging=False,
         )
     else:
         if args.resource_settings.num_cpus > 1:

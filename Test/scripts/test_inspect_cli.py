@@ -95,32 +95,7 @@ def test_inspect_cli_accepts_n_flag(mock_inspect_app, mock_main):
     assert args.environment_settings.simulator_settings.num_simulators == 3
 
 
-def test_inspect_main_warns_on_multiple_simulators(
-    make_vec_env_server, caplog, mocker
-):
-    import gymnasium as gym
-
-    mocker.patch(
-        "schola.gym.env.GymVectorEnv",
-        return_value=mocker.MagicMock(id_manager=mocker.MagicMock()),
-    )
-    mocker.patch("schola.scripts.env.inspect.inspect.inspect_agents")
-
-    port = make_vec_env_server([gym.make("CartPole-v1")])
-    args = EnvInspectScriptSettings(
-        environment_settings=EnvInspectEnvironmentSettings(
-            simulator_settings=ExternalSimulatorConfig(num_simulators=3),
-            protocol_settings=GrpcProtocolConfig(port=port, url="localhost"),
-        )
-    )
-
-    with caplog.at_level(logging.WARNING):
-        main(args)
-
-    assert "not supported for inspect" in caplog.text
-
-
-def test_inspect_main_on_real_env(make_vec_env_server, caplog):
+def test_inspect_main_on_real_env(make_vec_env_server, capsys):
     import gymnasium as gym
 
     port = make_vec_env_server([gym.make("CartPole-v1")])
@@ -131,10 +106,12 @@ def test_inspect_main_on_real_env(make_vec_env_server, caplog):
         )
     )
 
-    with caplog.at_level(logging.INFO):
-        main(args)
+    main(args)
 
-    messages = "\n".join(record.message for record in caplog.records)
-    assert "Sub-environments: 1" in messages
-    assert "Agent definitions:" in messages
-    assert "Initial Obs in Space: True" in messages
+    err = capsys.readouterr().err
+    assert "Environment definitions:" in err
+    assert "Observation Space: Box([" in err
+    assert "single_agent:" in err
+    assert "Action Space: Discrete(2)" in err
+    assert "Initial Obs: [" in err
+    assert "Initial Obs in Space: True" in err

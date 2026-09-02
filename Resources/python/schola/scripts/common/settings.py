@@ -4,10 +4,12 @@
 Common utility functions and classes for use in Schola scripts.
 """
 
+import logging
 from collections.abc import Sequence
 from enum import Enum
 from typing import (
     Annotated,
+    ClassVar,
     Generic,
     Literal,
 )
@@ -15,10 +17,6 @@ from typing import (
 from dataclasses import dataclass, field
 from cyclopts import App, Parameter, validators, group_extractors, Group, types
 from pathlib import Path
-
-from rich.console import Console
-
-console = Console()
 
 from typing import TYPE_CHECKING, TypeVar
 
@@ -28,6 +26,7 @@ if TYPE_CHECKING:
     from schola.core.simulators.external_simulator import ExternalSimulator
     from schola.core.simulators.gym.simulator import GymSimulator
     import ray.tune.callback
+    import torch
 
 
 class ActivationFunctionEnum(str, Enum):
@@ -40,7 +39,7 @@ class ActivationFunctionEnum(str, Enum):
     TanH = "tanh"  #: Hyperbolic Tangent activation function.
 
 
-def get_activation_function(activation: ActivationFunctionEnum) -> type["torch.nn.Module"]:  # type: ignore
+def get_activation_function(activation: ActivationFunctionEnum) -> type["torch.nn.Module"]:
     """
     Get the PyTorch activation function class for the specified activation type.
 
@@ -467,6 +466,28 @@ class GrpcProtocolConfig:
 
 IgnoreParameter = Parameter(show=False, parse=False)
 
+ScholaVerbosity = Literal[0,1,2,3]
+@dataclass
+class BaseLoggingSettings:
+    """Shared CLI logging flags for Schola scripts.
+
+    ``schola_verbosity`` controls only ``schola.*`` loggers. Framework-specific
+    subclasses add a separate verbosity field for third-party libraries.
+    """
+
+    VERBOSITY_TO_LEVEL: ClassVar[dict[ScholaVerbosity, int]] = {
+        0: logging.ERROR,
+        1: logging.WARNING,
+        2: logging.INFO,
+        3: logging.DEBUG,
+    }
+
+    schola_verbosity: ScholaVerbosity = 0
+    "Verbosity for Schola loggers (``schola.*``): 0=ERROR, 1=WARNING, 2=INFO, 3=DEBUG."
+
+    @property
+    def log_level(self) -> int:
+        return self.VERBOSITY_TO_LEVEL.get(self.schola_verbosity, logging.WARNING)
 
 @dataclass
 class CheckpointSettings:

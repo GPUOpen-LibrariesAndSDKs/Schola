@@ -3,7 +3,7 @@
 Scripts for training with Stable Baselines 3.
 """
 
-from cyclopts import App, Parameter, validators, group_extractors, Group
+from cyclopts import App
 
 sb3_app = App(name="schola-sb3", help="Use StableBaselines3 with Schola!")
 

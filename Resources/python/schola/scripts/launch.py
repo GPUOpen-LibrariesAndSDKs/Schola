@@ -81,7 +81,6 @@ def main():
     -----
     On unexpected exceptions, prints a Rich traceback and exits with status code ``1``.
     """
-    configure_logging()
     try:
         app()
     except Exception:

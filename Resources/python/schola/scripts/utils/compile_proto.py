@@ -635,7 +635,7 @@ def main(
     add_type_stubs : bool, default=True
         If True, pass ``--pyi_out`` so ``.pyi`` stubs are emitted next to ``_pb2.py``.
     """
-    configure_logging()
+    configure_logging(logging.INFO)
     if warnings_to_disable is None:
         warnings_to_disable = default_warnings(None)
 

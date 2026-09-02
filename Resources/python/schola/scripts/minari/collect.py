@@ -30,7 +30,7 @@ def main(args: MinariScriptSettings):
     str
         The dataset ID of the created dataset.
     """
-    configure_logging()
+    configure_logging(args.logging_settings.log_level)
 
     import os
 

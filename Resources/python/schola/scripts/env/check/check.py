@@ -28,12 +28,7 @@ from schola.scripts.common.settings import (
 )
 from schola.scripts.env.check.settings import EnvCheckScriptSettings
 from schola.scripts.env.utils import run_gym_env_checker
-
-if not logging.getLogger().handlers:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(levelname)s %(name)s: %(message)s",
-    )
+from schola.scripts.common.console import configure_logging, console
 
 logger = logging.getLogger(__name__)
 
@@ -49,10 +44,13 @@ def main(args: EnvCheckScriptSettings) -> None:
     """
     from schola.core.error_manager import ScholaErrorContextManager
     from schola.gym.env import GymEnv
+    import numpy as np
+    configure_logging(args.logging_settings.log_level)
 
     env = None
     try:
         with ScholaErrorContextManager():
+            np.set_printoptions(precision=4, threshold=16, linewidth=console.width)
             sim_args = args.environment_settings.simulator_settings
 
             protocol_args = args.environment_settings.protocol_settings
@@ -76,11 +74,13 @@ def main(args: EnvCheckScriptSettings) -> None:
                 )
                 return
 
-            logger.info("Checking environment:")
-            logger.info("  Action space: %s", env.action_space)
-            logger.info("  Observation space: %s", env.observation_space)
+            console.print("[bold]Checking environment:[/bold]")
+            console.print(f"  Action space: {env.action_space}", highlight=True)
+            console.print(
+                f"  Observation space: {env.observation_space}", highlight=True
+            )
 
-            run_gym_env_checker(env, logger=logger)
+            run_gym_env_checker(env, console=console)
     except (KeyboardInterrupt, Exception) as exc:
         if isinstance(exc, KeyboardInterrupt):
             logger.info("Ctrl-C received. Shutting down gracefully;")

@@ -5,14 +5,39 @@ Shared helper functions for the Schola RLlib scripts (train, eval, export)
 
 from __future__ import annotations
 
+import logging
 import signal
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from schola.core.simulators import SupportsSpawn
 from schola.core.simulators.base_simulator import BaseSimulator
+from schola.scripts.common.console import redirect_logger_to_console
 from schola.scripts.common.settings import EnvironmentSettings
 from schola.scripts.common.settings import BaseSimulatorConfig
 from schola.scripts.rllib.settings import RllibEnvironmentSettings
+
+
+_RAY_LOGGER_NAMES = ("ray", "ray.rllib", "ray.tune", "ray.air", "ray.train")
+
+
+def configure_ray_logging(rllib_log_level: str | None = None) -> None:
+    """Route Ray's loggers onto the shared Schola Rich console.
+
+    Importing ``ray`` and ``ray.rllib`` installs a plain stderr handler on each
+    of those loggers and sets ``propagate = False``, so Ray, Tune and RLlib
+    records never reach the handler installed by
+    :func:`schola.scripts.common.console.configure_logging`. Call this after
+    importing the ray modules the script needs and before :func:`ray.init`.
+
+    Parameters
+    ----------
+    rllib_log_level : str, optional
+        Level applied to Ray's named loggers (from ``--rllib-verbosity``).
+        Ray pins ``ray.rllib`` to ``WARN`` on import regardless of the
+        requested verbosity. When ``None`` existing logger levels are kept.
+    """
+    for name in _RAY_LOGGER_NAMES:
+        redirect_logger_to_console(name, level=rllib_log_level)
 
 
 def discover_env_metadata(
@@ -44,8 +69,6 @@ def discover_env_metadata(
         env_config = build_env_config(environment_settings, primary_sim)
     except (Exception, KeyboardInterrupt) as exc:
         if isinstance(exc, KeyboardInterrupt):
-            import logging
-
             logging.getLogger(__name__).info(
                 "Ctrl-C received. Shutting down gracefully;"
             )

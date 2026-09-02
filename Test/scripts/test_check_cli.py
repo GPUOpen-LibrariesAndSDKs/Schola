@@ -71,7 +71,7 @@ def test_check_cli_env_options_and_seed(mock_check_app, mock_main):
     assert args.environment_settings.env_options == {"level": "1"}
 
 
-def test_check_main_on_real_env(caplog, mocker):
+def test_check_main_on_real_env(capsys, mocker):
     mock_check_env = mocker.patch("schola.scripts.env.utils.check_env")
 
     args = EnvCheckScriptSettings(
@@ -80,11 +80,10 @@ def test_check_main_on_real_env(caplog, mocker):
         )
     )
 
-    with caplog.at_level(logging.INFO):
-        main(args)
+    main(args)
 
     mock_check_env.assert_called_once()
     assert mock_check_env.call_args.kwargs["skip_render_check"] is True
-    messages = "\n".join(record.message for record in caplog.records)
-    assert "Running Gymnasium environment checker" in messages
-    assert "Environment checker passed." in messages
+    err = capsys.readouterr().err
+    assert "Running Gymnasium environment checker" in err
+    assert "Environment checker passed." in err

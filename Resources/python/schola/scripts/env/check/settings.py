@@ -9,26 +9,22 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Annotated
 
-from cyclopts import Parameter, validators
+from cyclopts import Parameter
 
 from schola.scripts.common.settings import (
     AllSingularSimulatorConfigs,
     EnvironmentSettings,
     SingularExternalSimulatorConfig,
     IgnoreParameter,
+    BaseLoggingSettings,
 )
 
 
 @dataclass
-class EnvCheckLoggingSettings:
+class EnvCheckLoggingSettings(BaseLoggingSettings):
     """
     Logging settings for ``schola env check``.
     """
-
-    schola_verbosity: Annotated[
-        int, Parameter(validator=validators.Number(gte=0, lte=2))
-    ] = 0
-    "Verbosity level for Schola-specific logging during environment checking."
 
 
 @dataclass

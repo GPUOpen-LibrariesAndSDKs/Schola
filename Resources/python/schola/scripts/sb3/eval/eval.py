@@ -31,7 +31,7 @@ def main(args: Sb3EvalScriptSettings) -> tuple[float, float]:
     tuple[float, float]
         Mean and standard deviation of episodic return over ``n_eval_episodes``.
     """
-    configure_logging()
+    configure_logging(args.logging_settings.log_level)
 
     import gymnasium as gym
     import numpy as np

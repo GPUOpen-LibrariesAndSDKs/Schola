@@ -21,7 +21,7 @@ from schola.gym.env import GymVectorEnv
 
 
 def _format_value_for_log(value: Any) -> str:
-    
+
     if isinstance(value, np.ndarray):
         flat = value.ravel()
         if flat.size <= 16:
@@ -73,21 +73,29 @@ def inspect_agents(
         (env_id, agent_id): single_obs
         for env_id, agent_id, single_obs in _iter_single_observations(env, observations)
     }
-    tree = Tree(label="[bold green]Environment definitions:[/bold green]", highlight=True)
+    tree = Tree(
+        label="[bold green]Environment definitions:[/bold green]", highlight=True
+    )
     for env_id, agent_ids in enumerate(id_manager.ids):
         env_node = tree.add(f"[bold]Environment {env_id}[/bold]:")
         env_agent_types = agent_types.get(env_id, {})
         for agent_id in agent_ids:
             agent_type = env_agent_types.get(agent_id, "")
             if agent_type:
-                agent_node = env_node.add(f"[bold]{agent_id}[/bold] (type: [bold]{agent_type}[/bold]):")
+                agent_node = env_node.add(
+                    f"[bold]{agent_id}[/bold] (type: [bold]{agent_type}[/bold]):"
+                )
             else:
                 agent_node = env_node.add(f"[bold]{agent_id}[/bold]:")
 
             single_obs = obs_by_agent.get((env_id, agent_id))
-            agent_node.add(f"[bold]Observation Space:[/bold] {env.single_observation_space}")
+            agent_node.add(
+                f"[bold]Observation Space:[/bold] {env.single_observation_space}"
+            )
             agent_node.add(f"[bold]Action Space:[/bold] {env.single_action_space}")
-            agent_node.add(f"[bold]Initial Obs:[/bold] {_format_value_for_log(single_obs)}")
+            agent_node.add(
+                f"[bold]Initial Obs:[/bold] {_format_value_for_log(single_obs)}"
+            )
             in_space = (
                 env.single_observation_space.contains(single_obs)
                 if single_obs is not None
@@ -108,4 +116,3 @@ def run_gym_env_checker(env: gym.Env, *, console: Console) -> None:
         )
         check_env(env, skip_render_check=True)
     console.print("Environment checker passed.")
-    

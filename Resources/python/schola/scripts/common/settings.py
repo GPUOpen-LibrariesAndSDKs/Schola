@@ -39,7 +39,9 @@ class ActivationFunctionEnum(str, Enum):
     TanH = "tanh"  #: Hyperbolic Tangent activation function.
 
 
-def get_activation_function(activation: ActivationFunctionEnum) -> type["torch.nn.Module"]:
+def get_activation_function(
+    activation: ActivationFunctionEnum,
+) -> type["torch.nn.Module"]:
     """
     Get the PyTorch activation function class for the specified activation type.
 
@@ -466,7 +468,9 @@ class GrpcProtocolConfig:
 
 IgnoreParameter = Parameter(show=False, parse=False)
 
-ScholaVerbosity = Literal[0,1,2,3]
+ScholaVerbosity = Literal[0, 1, 2, 3]
+
+
 @dataclass
 class BaseLoggingSettings:
     """Shared CLI logging flags for Schola scripts.
@@ -488,6 +492,7 @@ class BaseLoggingSettings:
     @property
     def log_level(self) -> int:
         return self.VERBOSITY_TO_LEVEL.get(self.schola_verbosity, logging.WARNING)
+
 
 @dataclass
 class CheckpointSettings:

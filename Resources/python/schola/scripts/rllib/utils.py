@@ -16,7 +16,6 @@ from schola.scripts.common.settings import EnvironmentSettings
 from schola.scripts.common.settings import BaseSimulatorConfig
 from schola.scripts.rllib.settings import RllibEnvironmentSettings
 
-
 _RAY_LOGGER_NAMES = ("ray", "ray.rllib", "ray.tune", "ray.air", "ray.train")
 
 

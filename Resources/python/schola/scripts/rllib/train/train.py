@@ -16,7 +16,7 @@ from schola.scripts.common.console import (
     ConsolePrintSettingsProxy,
     configure_logging,
     redirect_stdout_to_console,
-    console
+    console,
 )
 
 from schola.scripts.rllib.settings import (
@@ -356,7 +356,11 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
     try:
         # Tune's progress reporters and Ray's worker log forwarding write to
         # stdout with bare prints rather than through logging.
-        with redirect_stdout_to_console(ConsolePrintSettingsProxy(console, soft_wrap=True, highlight=False, markup=False)):
+        with redirect_stdout_to_console(
+            ConsolePrintSettingsProxy(
+                console, soft_wrap=True, highlight=False, markup=False
+            )
+        ):
             results = tune.run(
                 schola_algorithm_cls,
                 config=config,  # type: ignore

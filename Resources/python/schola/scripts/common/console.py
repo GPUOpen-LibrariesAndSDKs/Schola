@@ -115,7 +115,13 @@ class ConsolePrintSettingsProxy(Console):
     such as soft_wrap, highlight, and markup.
     """
 
-    def __init__(self, console: Console, soft_wrap: bool = True, highlight: bool = True, markup: bool = True):
+    def __init__(
+        self,
+        console: Console,
+        soft_wrap: bool = True,
+        highlight: bool = True,
+        markup: bool = True,
+    ):
         self.__console = console
         self.soft_wrap = soft_wrap
         self.highlight = highlight

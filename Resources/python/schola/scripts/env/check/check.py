@@ -45,6 +45,7 @@ def main(args: EnvCheckScriptSettings) -> None:
     from schola.core.error_manager import ScholaErrorContextManager
     from schola.gym.env import GymEnv
     import numpy as np
+
     configure_logging(args.logging_settings.log_level)
 
     env = None

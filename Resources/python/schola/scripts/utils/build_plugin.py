@@ -24,11 +24,8 @@ from pathlib import Path
 
 from cyclopts import App
 
-# Logging setup (match pattern in other scripts)
-if not logging.getLogger().handlers:
-    logging.basicConfig(
-        level=logging.INFO, format="%(levelname)s %(name)s: %(message)s"
-    )
+from schola.scripts.common.console import configure_logging
+
 logger = logging.getLogger(__name__)
 
 app = App(
@@ -96,8 +93,7 @@ def main(
     verbose : bool
         Increase logging verbosity.
     """
-    if verbose:
-        logger.setLevel(logging.DEBUG)
+    configure_logging(logging.DEBUG if verbose else logging.INFO)
 
     plugin_folder = Path(plugin_folder).resolve()
     logger.debug("Plugin folder: %s", plugin_folder)

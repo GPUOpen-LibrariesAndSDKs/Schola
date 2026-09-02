@@ -14,12 +14,8 @@ from os.path import isfile, join
 import re
 from typing import Annotated, Any
 
-# Logging setup
-if not logging.getLogger().handlers:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(levelname)s %(name)s: %(message)s",
-    )
+from schola.scripts.common.console import configure_logging
+
 logger = logging.getLogger(__name__)
 
 
@@ -639,6 +635,7 @@ def main(
     add_type_stubs : bool, default=True
         If True, pass ``--pyi_out`` so ``.pyi`` stubs are emitted next to ``_pb2.py``.
     """
+    configure_logging(logging.INFO)
     if warnings_to_disable is None:
         warnings_to_disable = default_warnings(None)
 

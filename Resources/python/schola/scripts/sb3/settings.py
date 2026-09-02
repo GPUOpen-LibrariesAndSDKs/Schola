@@ -16,6 +16,7 @@ from schola.scripts.common.settings import (
     AllSimulatorConfigs,
     ExternalSimulatorConfig,
     IgnoreParameter,
+    BaseLoggingSettings,
 )
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -25,15 +26,10 @@ from cyclopts import types
 
 
 @dataclass
-class Sb3BaseLoggingSettings:
+class Sb3BaseLoggingSettings(BaseLoggingSettings):
     """
     Dataclass for configuring logging settings for SB3 Scripts.
     """
-
-    schola_verbosity: Annotated[
-        int, Parameter(validator=validators.Number(gte=0, lte=2))
-    ] = 0
-    "Verbosity level for Schola-specific logging. This controls the level of detail in the output from Schola-related components during training."
 
     sb3_verbosity: Annotated[
         int, Parameter(validator=validators.Number(gte=0, lte=2))

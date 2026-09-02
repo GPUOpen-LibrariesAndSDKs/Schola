@@ -1,18 +1,20 @@
-# Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
+# Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 """Lightweight panel printing utilities for CLI scripts.
 
 Provides simple helpers to present messages (info / warning / error) using
-Cyclopts' rich panel integration. This module intentionally excludes any
-exception hooking or context manager capture logic; scripts should decide how
-exceptions are handled explicitly.
+Cyclopts' rich panel integration. Panels are printed on the shared
+``console`` from ``schola.scripts.common.console``, which is also passed to
+the top-level Cyclopts ``App`` as both ``console`` and ``error_console`` so
+Cyclopts does not allocate a separate stderr console.
 """
 
 from __future__ import annotations
 
 from typing import Iterable
 import sys
-from rich.console import Console
 from cyclopts import CycloptsPanel
+
+from schola.scripts.common.console import console
 
 __all__ = [
     "print_panel",
@@ -20,8 +22,6 @@ __all__ = [
     "print_warning",
     "print_info",
 ]
-
-_console = Console()
 
 STYLE_ERROR = "red"
 STYLE_WARNING = "yellow"
@@ -45,9 +45,7 @@ def print_panel(
     """
     if not isinstance(message, str):
         message = "\n".join(str(m) for m in message)
-    _console.print(
-        CycloptsPanel(message=message, title=title or "Message", style=style)
-    )
+    console.print(CycloptsPanel(message=message, title=title or "Message", style=style))
 
 
 def print_error(message: str | Iterable[str]) -> None:  # noqa: D401
@@ -60,10 +58,7 @@ def print_error(message: str | Iterable[str]) -> None:  # noqa: D401
         The message to print.
     """
     print_panel(message, title="Error", style=STYLE_ERROR)
-    try:
-        sys.exit(1)
-    except SystemExit:
-        raise
+    sys.exit(1)
 
 
 def print_warning(message: str | Iterable[str]) -> None:  # noqa: D401

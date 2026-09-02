@@ -5,7 +5,6 @@ Script to train an rllib model using Schola.
 """
 
 import logging
-
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
@@ -13,6 +12,12 @@ from schola.scripts.common.settings import (
     get_activation_function,
 )
 from schola.scripts.common.command_template import ScholaCommandTemplate
+from schola.scripts.common.console import (
+    ConsolePrintSettingsProxy,
+    configure_logging,
+    redirect_stdout_to_console,
+    console,
+)
 
 from schola.scripts.rllib.settings import (
     APPOSettings,
@@ -24,12 +29,6 @@ from schola.scripts.rllib.train.settings import RllibScriptSettings
 
 from cyclopts import App
 
-# Logging setup
-if not logging.getLogger().handlers:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(levelname)s %(name)s: %(message)s",
-    )
 logger = logging.getLogger(__name__)
 
 app = App(name="train", help="Train a Model using ray")
@@ -171,6 +170,8 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
     tune.ExperimentAnalysis
         The results of the training
     """
+    configure_logging(args.logging_settings.log_level)
+
     # Import ray and rllib dependencies lazily when the command is actually executed
     import ray
     from ray import air, tune
@@ -191,10 +192,12 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
         make_policy_mapping_fn_from_dict,
         schola_algorithm_subclass,
     )
-    from schola.scripts.rllib.utils import discover_env_metadata
+    from schola.scripts.rllib.utils import configure_ray_logging, discover_env_metadata
     from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 
     from schola.scripts.common.settings import GymSimulatorConfig
+
+    configure_ray_logging(args.logging_settings.rllib_log_level)
 
     sim_args = args.environment_settings.simulator_settings
     n_sim = sim_args.num_simulators
@@ -239,6 +242,7 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
         ray.init(
             num_cpus=args.resource_settings.num_cpus,
             num_gpus=args.resource_settings.num_gpus,
+            configure_logging=False,
         )
     else:
         if args.resource_settings.num_cpus > 1:
@@ -350,23 +354,32 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
 
     logger.info("Starting training")
     try:
-        results = tune.run(
-            schola_algorithm_cls,
-            config=config,  # type: ignore
-            stop=stop,
-            checkpoint_config=air.CheckpointConfig(
-                checkpoint_frequency=(ckpt.save_freq if ckpt.enable_checkpoints else 0),
-                checkpoint_at_end=ckpt.save_final_policy or ckpt.export_onnx,
-            ),  # type: ignore
-            restore=(
-                str(args.resume_settings.resume_from)
-                if args.resume_settings.resume_from
-                else None
-            ),
-            verbose=args.logging_settings.rllib_verbosity,
-            storage_path=ckpt.storage_path,
-            callbacks=callbacks,
-        )
+        # Tune's progress reporters and Ray's worker log forwarding write to
+        # stdout with bare prints rather than through logging.
+        with redirect_stdout_to_console(
+            ConsolePrintSettingsProxy(
+                console, soft_wrap=True, highlight=False, markup=False
+            )
+        ):
+            results = tune.run(
+                schola_algorithm_cls,
+                config=config,  # type: ignore
+                stop=stop,
+                checkpoint_config=air.CheckpointConfig(
+                    checkpoint_frequency=(
+                        ckpt.save_freq if ckpt.enable_checkpoints else 0
+                    ),
+                    checkpoint_at_end=ckpt.save_final_policy or ckpt.export_onnx,
+                ),  # type: ignore
+                restore=(
+                    str(args.resume_settings.resume_from)
+                    if args.resume_settings.resume_from
+                    else None
+                ),
+                verbose=args.logging_settings.rllib_verbosity,
+                storage_path=ckpt.storage_path,
+                callbacks=callbacks,
+            )
         last_checkpoint = results.get_last_checkpoint() if ckpt.should_persist else None
         logger.info("Training complete")
     finally:

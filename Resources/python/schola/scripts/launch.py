@@ -1,4 +1,4 @@
-# Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
+# Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
 """
 Entry point for the ``schola`` CLI.
@@ -6,13 +6,12 @@ Entry point for the ``schola`` CLI.
 
 import sys
 from cyclopts import App, Parameter, validators, group_extractors, Group
+from schola.scripts.common.console import configure_logging, console
 from schola.scripts.common.panel import print_error
 
-from rich.console import Console
-
-console = Console()
 app = App(
     console=console,
+    error_console=console,
     name="schola",
     help="CLI for Schola. Useful for training a model or invoking utilities",
 )
@@ -35,7 +34,7 @@ try:
     from schola.scripts.rllib import rllib_app
 
     app.command(rllib_app, name="rllib")
-except ImportError as e:
+except ImportError:
     console.print_exception()
     print_error(
         "Ray RLlib is not installed. Install via:\n"
@@ -84,8 +83,7 @@ def main():
     """
     try:
         app()
-    except Exception as e:  # keep lightweight panel reporting
-        # print_error(f"Unhandled exception: {e}")
+    except Exception:
         console.print_exception()
         sys.exit(1)
 

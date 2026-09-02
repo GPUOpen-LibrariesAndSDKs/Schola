@@ -10,6 +10,7 @@ import logging
 import signal
 from typing import Any, Callable, cast
 
+from schola.scripts.common.console import configure_logging
 from schola.scripts.common.settings import (
     ExternalSimulatorConfig,
     GymSimulatorConfig,
@@ -23,13 +24,6 @@ from schola.scripts.sb3.train.settings import (
 )
 from cyclopts import App
 from schola.scripts.common.panel import print_error
-
-# Logging setup (idempotent)
-if not logging.getLogger().handlers:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(levelname)s %(name)s: %(message)s",
-    )
 
 logger = logging.getLogger(__name__)
 
@@ -87,19 +81,13 @@ def main(args: Sb3TrainScriptSettings) -> (tuple[float, float]) | None:
     tuple[float, float] | None
         The mean and standard deviation of the rewards if evaluation is enabled, otherwise None.
     """
+    configure_logging(args.logging_settings.log_level)
 
     if args.training_settings.pbar:
         try:
-            import tqdm
-        except Exception:
+            import tqdm  # noqa: F401
+        except ImportError:
             logger.warning("tqdm not installed. disabling PBar")
-            args.training_settings.pbar = False
-
-    if args.training_settings.pbar:
-        try:
-            import rich
-        except Exception:
-            logger.warning("rich not installed. disabling PBar")
             args.training_settings.pbar = False
 
     if args.logging_settings.enable_tensorboard:
@@ -115,6 +103,7 @@ def main(args: Sb3TrainScriptSettings) -> (tuple[float, float]) | None:
     from stable_baselines3.common.vec_env import VecNormalize
 
     from schola.scripts.sb3.utils import RewardCallback, CustomProgressBarCallback
+    from schola.scripts.sb3.logging import configure_sb3_logger
     from schola.sb3.env import VecEnv
     from schola.sb3.async_env import AsyncVecEnv
     from schola.sb3.utils import VecMergeDictActionWrapper
@@ -123,7 +112,6 @@ def main(args: Sb3TrainScriptSettings) -> (tuple[float, float]) | None:
     from stable_baselines3.common.vec_env.vec_monitor import VecMonitor
     from stable_baselines3.common.base_class import BaseAlgorithm
     from schola.sb3.export import save_model_as_onnx
-    from stable_baselines3.common import utils
     from stable_baselines3.common.off_policy_algorithm import OffPolicyAlgorithm
 
     # initialize so we can force closure at the end
@@ -266,11 +254,8 @@ def main(args: Sb3TrainScriptSettings) -> (tuple[float, float]) | None:
 
             callbacks = []
 
-            # grab all loggers that we can find installed in the pc,
-            output_formats = []
-
-            # This is a bit of a hack, since output_formats doesn't have a getter/setter but it this is totally safe otherwise
-            sb3_logger = utils.configure_logger(
+            # Use a custom configure function to handle things like redirecting to a shared console.
+            sb3_logger = configure_sb3_logger(
                 args.logging_settings.sb3_verbosity,
                 (
                     str(args.logging_settings.log_dir)
@@ -280,7 +265,7 @@ def main(args: Sb3TrainScriptSettings) -> (tuple[float, float]) | None:
                 args.algorithm_settings.name,
                 args.resume_settings.reset_timestep,
             )
-            sb3_logger.output_formats += output_formats
+
             model.set_logger(sb3_logger)
 
             if args.logging_settings.enable_tensorboard:

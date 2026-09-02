@@ -6,7 +6,6 @@ Cyclopts dataclasses for Minari dataset collection with Schola.
 
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING, Annotated
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -17,6 +16,7 @@ from schola.scripts.common.settings import (
     EnvironmentSettings,
     ExternalSimulatorConfig,
     IgnoreParameter,
+    BaseLoggingSettings,
 )
 
 
@@ -67,15 +67,10 @@ class MinariCollectionSettings:
 
 
 @dataclass
-class MinariLoggingSettings:
+class MinariLoggingSettings(BaseLoggingSettings):
     """
     Dataclass for configuring logging settings for Minari data collection.
     """
-
-    schola_verbosity: Annotated[
-        int, Parameter(validator=validators.Number(gte=0, lte=2))
-    ] = 0
-    "Verbosity level for Schola-specific logging. This controls the level of detail in the output from Schola-related components during data collection."
 
 
 @dataclass

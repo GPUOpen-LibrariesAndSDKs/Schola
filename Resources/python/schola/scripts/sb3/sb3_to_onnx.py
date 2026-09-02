@@ -5,8 +5,11 @@ Script to convert a Stable Baselines3 model to an ONNX model for use in Unreal E
 """
 
 import enum
+import logging
 from cyclopts import App, Parameter, types
 from typing import Annotated, Literal
+
+from schola.scripts.common.console import configure_logging
 
 export_onnx_app = App(
     name="sb3-to-onnx",
@@ -51,6 +54,7 @@ def export(
     algorithm : Algorithm, default="PPO"
         The SB3 algorithm used to train the policy being loaded.
     """
+    configure_logging(logging.INFO)
     from schola.sb3.export import convert_ckpt_to_onnx_for_unreal
 
     trainer = _get_algorithm_class(algorithm)

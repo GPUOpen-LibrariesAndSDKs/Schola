@@ -130,7 +130,18 @@ class GymToGymServiceServicer(GymServiceServicer):
             return response
 
         elif msg_type == "step":
-            action = from_proto(request.step.environments[0].updates[self._agent_id])
+            updates = request.step.environments[0].updates
+
+            def next_action():
+                # Under NEXT_STEP autoreset the client sends no action for an
+                # environment that is being reset, so only read the map on the
+                # branches that actually step. Indexing a protobuf map inserts a
+                # default entry, hence the explicit membership check.
+                if self._agent_id not in updates:
+                    raise ValueError(
+                        f"Step update contains no action for agent '{self._agent_id}'."
+                    )
+                return from_proto(updates[self._agent_id])
 
             initial_state: InitialState | None = None
 
@@ -140,17 +151,20 @@ class GymToGymServiceServicer(GymServiceServicer):
                     reward = 0.0
                     terminated = False
                     truncated = False
+                    self._completed_env = False
                 else:
-                    obs, reward, terminated, truncated, info = self.env.step(action)
+                    obs, reward, terminated, truncated, info = self.env.step(
+                        next_action()
+                    )
                     self._completed_env = terminated or truncated
             elif self._autoreset_type == AutoResetType.DISABLED:
                 assert (
                     not self._completed_env
                 ), "Attempted to step an environment that is already terminated or truncated"
-                obs, reward, terminated, truncated, info = self.env.step(action)
+                obs, reward, terminated, truncated, info = self.env.step(next_action())
                 self._completed_env = terminated or truncated
             elif self._autoreset_type == AutoResetType.SAME_STEP:
-                obs, reward, terminated, truncated, info = self.env.step(action)
+                obs, reward, terminated, truncated, info = self.env.step(next_action())
                 if terminated or truncated:
                     initial_obs, initial_info = self.env.reset()
                     initial_state = self._make_initial_state(initial_obs, initial_info)

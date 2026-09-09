@@ -10,17 +10,13 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from draccus import decode
-from gymnasium.spaces import Box, Dict
-from lerobot.configs import FeatureType, PolicyFeature
+from gymnasium.spaces import Box
+from gymnasium.spaces.utils import flatten_space
 from lerobot.envs.configs import EnvConfig
-from lerobot.utils.constants import (
-    ACTION,
-    OBS_ENV_STATE,
-    OBS_IMAGE,
-    OBS_IMAGES,
-    OBS_PREFIX,
-    OBS_STATE,
-)
+from lerobot.processor import PolicyProcessorPipeline
+from lerobot.utils.constants import OBS_IMAGES, OBS_PREFIX
+from lerobot_env_schola.feature_mapping import as_source_tuple, infer_features
+from lerobot_env_schola.processors import ScholaProcessorStep
 from schola.scripts.common.settings import (
     GrpcProtocolConfig,
     SingularExecutableSimulatorConfig,
@@ -32,16 +28,6 @@ if TYPE_CHECKING:
     import gymnasium as gym
 
 logger = logging.getLogger(__name__)
-
-SINGLE_IMAGE_NDIMS = 3
-HWC_CHANNEL_DIM = -1
-SUPPORTED_IMAGE_CHANNELS = (1, 3, 4)
-
-_GYM_VALUE_POLICY_FEATURES = {
-    "agent_pos": OBS_STATE,
-    "environment_state": OBS_ENV_STATE,
-}
-
 
 ScholaObservationSource = str | list[str]
 
@@ -57,9 +43,9 @@ class ScholaObservationConfig(
     nested ``Dict`` spaces. Every source begins with ``observation``.
     """
 
-    def to_policy_mapping(self) -> dict[str, ScholaObservationSource]:
-        """Expand the mirrored configuration into canonical policy feature keys."""
-        mapping: dict[str, ScholaObservationSource] = {}
+    def to_policy_mapping(self) -> dict[str, tuple[str, ...]]:
+        """Expand YAML observations into policy keys mapped to source tuples."""
+        policy_sources: dict[str, tuple[str, ...]] = {}
         for field_name, configured_sources in self.items():
             if not field_name:
                 raise ValueError("Observation field names cannot be empty")
@@ -77,16 +63,22 @@ class ScholaObservationConfig(
                 for camera_name, camera_sources in configured_sources.items():
                     if not camera_name:
                         raise ValueError("Observation camera names cannot be empty")
-                    mapping[f"{OBS_IMAGES}.{camera_name}"] = camera_sources
+                    policy_key = f"{OBS_IMAGES}.{camera_name}"
+                    policy_sources[policy_key] = as_source_tuple(
+                        policy_key, camera_sources
+                    )
             else:
                 if isinstance(configured_sources, Mapping):
                     raise TypeError(
                         f"observations.{field_name} must be a Schola source string "
                         "or ordered list of source strings"
                     )
-                mapping[f"{OBS_PREFIX}{field_name}"] = configured_sources
+                policy_key = f"{OBS_PREFIX}{field_name}"
+                policy_sources[policy_key] = as_source_tuple(
+                    policy_key, configured_sources
+                )
 
-        return mapping
+        return policy_sources
 
 
 @decode.register(ScholaObservationConfig)
@@ -98,89 +90,6 @@ def _decode_observation_config(
     if not isinstance(raw_value, Mapping):
         raise TypeError("observations must be a mapping")
     return ScholaObservationConfig(raw_value)
-
-
-def infer_features_from_spaces(
-    observation_space: gym.Space,
-    action_space: gym.Space,
-) -> tuple[dict[str, PolicyFeature], dict[str, str]]:
-    """Infer LeRobot features from an adapter's mapped environment spaces."""
-    if not isinstance(observation_space, Dict):
-        raise TypeError(
-            "LeRobot feature inference requires the adapter's mapped observation "
-            "space to be a Gymnasium Dict; raw Schola Box observations must first "
-            "be mapped through env.observations; "
-            f"got {type(observation_space).__name__}"
-        )
-    if not isinstance(action_space, Box):
-        raise TypeError(
-            "LeRobot feature inference requires the adapter's flattened action "
-            f"space to be a Gymnasium Box; got {type(action_space).__name__}"
-        )
-
-    features: dict[str, PolicyFeature] = {}
-    features_map: dict[str, str] = {}
-
-    for key, space in observation_space.spaces.items():
-        if isinstance(space, Dict):
-            for camera_name, camera_space in space.spaces.items():
-                if (
-                    not isinstance(camera_space, Box)
-                    or camera_space.dtype.name != "uint8"
-                    or len(camera_space.shape) != SINGLE_IMAGE_NDIMS
-                    or camera_space.shape[HWC_CHANNEL_DIM]
-                    not in SUPPORTED_IMAGE_CHANNELS
-                ):
-                    raise TypeError(
-                        f"Nested observation {key!r}/{camera_name!r} must be a "
-                        "channel-last, three-dimensional uint8 Box"
-                    )
-                feature_key = f"{key}/{camera_name}"
-                features[feature_key] = PolicyFeature(
-                    type=FeatureType.VISUAL, shape=camera_space.shape
-                )
-                features_map[feature_key] = f"{OBS_IMAGES}.{camera_name}"
-            continue
-
-        if not isinstance(space, Box):
-            raise TypeError(
-                f"Observation {key!r} uses unsupported space {type(space).__name__}; "
-                "LeRobot feature inference supports Box observations only."
-            )
-        if not space.shape:
-            raise ValueError(f"Observation {key!r} must have at least one dimension")
-        if (
-            space.dtype.name == "uint8"
-            and len(space.shape) == SINGLE_IMAGE_NDIMS
-            and space.shape[HWC_CHANNEL_DIM] in SUPPORTED_IMAGE_CHANNELS
-        ):
-            features[key] = PolicyFeature(type=FeatureType.VISUAL, shape=space.shape)
-            features_map[key] = OBS_IMAGE
-            continue
-
-        feature_type = (
-            FeatureType.ENV if key == "environment_state" else FeatureType.STATE
-        )
-        features[key] = PolicyFeature(type=feature_type, shape=space.shape)
-        features_map[key] = _GYM_VALUE_POLICY_FEATURES.get(key, f"{OBS_PREFIX}{key}")
-
-    if not action_space.shape:
-        raise ValueError(
-            "The flattened Schola action space must have at least one dimension"
-        )
-    features[ACTION] = PolicyFeature(type=FeatureType.ACTION, shape=action_space.shape)
-    features_map[ACTION] = ACTION
-
-    for feature_key, policy_key in features_map.items():
-        feature = features[feature_key]
-        logger.info(
-            "Inferred LeRobot policy feature %s (type=%s, shape=%s)",
-            policy_key,
-            feature.type.value,
-            feature.shape,
-        )
-
-    return features, features_map
 
 
 @dataclass(kw_only=True)
@@ -204,6 +113,7 @@ class BaseScholaEnvConfig(EnvConfig):
     """LeRobot-shaped observation fields mapped to Schola source paths."""
     render_camera: str | None = None
     render_fps: int = 30
+    _processor: ScholaProcessorStep | None = field(default=None, init=False, repr=False)
 
     @property
     def gym_kwargs(self) -> dict[str, Any]:
@@ -214,6 +124,17 @@ class BaseScholaEnvConfig(EnvConfig):
         """Return the concrete simulator configuration for this environment type."""
         raise NotImplementedError
 
+    def get_env_processors(
+        self,
+    ) -> tuple[PolicyProcessorPipeline, PolicyProcessorPipeline]:
+        """Return the Schola observation processor and an identity action pipeline."""
+        if self._processor is None:
+            raise RuntimeError("create_envs() must run before get_env_processors()")
+        return (
+            PolicyProcessorPipeline(steps=[self._processor]),
+            PolicyProcessorPipeline(steps=[]),
+        )
+
     def create_envs(
         self, n_envs: int, use_async_envs: bool = False
     ) -> dict[str, dict[int, gym.vector.VectorEnv]]:
@@ -222,15 +143,21 @@ class BaseScholaEnvConfig(EnvConfig):
         Schola performs vectorization inside the connected simulator, so
         LeRobot must not add another ``AsyncVectorEnv`` layer around it.
         """
-        from lerobot_env_schola.vector_env import LeRobotScholaVectorEnv
+        from lerobot_env_schola.vector_env import (
+            LeRobotScholaVectorEnv,
+            _build_source_spaces,
+        )
         from schola.gym.env import GymVectorEnv
 
-        if n_envs < 1:
-            raise ValueError("n_envs must be at least 1")
         if not self.observations:
             raise ValueError(
                 "ScholaEnvConfig requires observations to declare how policy "
                 "features map to Schola sources."
+            )
+        if self.features or self.features_map:
+            raise ValueError(
+                "Schola infers features and features_map from the connected "
+                "environment; do not set them in YAML or on the config"
             )
         simulator_config = self._get_simulator_config()
 
@@ -249,40 +176,36 @@ class BaseScholaEnvConfig(EnvConfig):
             )
 
         try:
-            observation_mapping = ScholaObservationConfig(
+            policy_sources = ScholaObservationConfig(
                 self.observations
             ).to_policy_mapping()
+            source_spaces = _build_source_spaces(schola_env.single_observation_space)
+            action_space = flatten_space(schola_env.single_action_space)
+            if not isinstance(action_space, Box):
+                raise TypeError(
+                    "Flattening Schola's action space did not produce a Box"
+                )
+            self.features, self.features_map = infer_features(
+                policy_sources,
+                source_spaces,
+                action_space,
+            )
             env = LeRobotScholaVectorEnv(
                 schola_env,
                 task=self.task or "schola",
                 task_description=self.task_description or self.task or "schola",
                 max_episode_steps=self.episode_length,
+                policy_sources=policy_sources,
                 success_key=self.success_key,
-                observation_config=ScholaObservationConfig(observation_mapping),
-                render_camera=self.render_camera,
                 render_fps=self.render_fps,
             )
+            self._processor = ScholaProcessorStep(
+                policy_keys=tuple(policy_sources),
+                uint8_image_keys=env.uint8_image_keys,
+            )
+            env.set_render_camera(self.render_camera)
         except Exception:
             schola_env.close()
-            raise
-
-        try:
-            if bool(self.features) != bool(self.features_map):
-                raise ValueError(
-                    "features and features_map must either both be provided or both be empty"
-                )
-            if self.features:
-                if self.features.keys() != self.features_map.keys():
-                    raise ValueError(
-                        "features and features_map must contain the same keys"
-                    )
-            else:
-                self.features, self.features_map = infer_features_from_spaces(
-                    env.single_observation_space,
-                    env.single_action_space,
-                )
-        except Exception:
-            env.close()
             raise
 
         return {self.type: {0: env}}

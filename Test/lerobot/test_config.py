@@ -14,15 +14,17 @@ import pytest
 from lerobot.configs import FeatureType, PolicyFeature
 from lerobot.configs.eval import EvalPipelineConfig
 from lerobot.envs.configs import EnvConfig
-from lerobot.utils.constants import ACTION, OBS_IMAGES, OBS_STATE
+from lerobot.utils.constants import ACTION
 from lerobot_env_schola.config import (
     ScholaEnvConfig,
     ScholaExecutableEnvConfig,
     ScholaExternalEnvConfig,
     ScholaProjectEnvConfig,
-    infer_features_from_spaces,
 )
-from lerobot_env_schola.vector_env import LeRobotScholaVectorEnv, _policy_output
+from lerobot_env_schola.vector_env import (
+    LeRobotScholaVectorEnv,
+    _build_source_spaces,
+)
 from schola.gym.env import GymVectorEnv
 from schola.scripts.common.settings import (
     GrpcProtocolConfig,
@@ -52,6 +54,90 @@ eval:
         )
 
     return _make
+
+
+@pytest.fixture
+def make_schola_spaces():
+    """Build nested Schola Gym spaces and the matching policy source mapping."""
+
+    def _make(
+        *,
+        state_shape=(3,),
+        cameras=None,
+        action_shape=(2,),
+    ):
+        if cameras is None:
+            cameras = {"front": (3, 8, 8), "wrist": (3, 4, 4)}
+
+        observation_spaces: dict[str, gym.Space] = {
+            "joints": gym.spaces.Box(-1, 1, shape=state_shape, dtype=np.float32),
+        }
+        if cameras:
+            observation_spaces["cameras"] = gym.spaces.Dict(
+                {
+                    name: gym.spaces.Box(0, 255, shape=shape, dtype=np.uint8)
+                    for name, shape in cameras.items()
+                }
+            )
+        observation_space = gym.spaces.Dict(observation_spaces)
+        action_space = gym.spaces.Box(-1, 1, shape=action_shape, dtype=np.float32)
+        policy_sources = {"observation.state": ("observation.joints",)}
+        for name in cameras:
+            policy_sources[f"observation.images.{name}"] = (
+                f"observation.cameras.{name}",
+            )
+        return {
+            "observation_space": observation_space,
+            "action_space": action_space,
+            "policy_sources": policy_sources,
+            "source_spaces": _build_source_spaces(observation_space),
+        }
+
+    return _make
+
+
+@pytest.fixture
+def make_created_env(make_vec_env_server):
+    """Start a fake Schola server and return the env from ``create_envs()``."""
+    created = []
+
+    def _make(
+        *,
+        observation_space: gym.Space,
+        action_space: gym.Space,
+        observations: dict[str, object],
+        num_server_envs: int = 2,
+        n_envs: int | None = None,
+        use_async_envs: bool = False,
+        **config_kwargs,
+    ) -> tuple[ScholaEnvConfig, LeRobotScholaVectorEnv]:
+        port = make_vec_env_server(
+            [
+                partial(
+                    GenericTestEnv,
+                    observation_space=observation_space,
+                    action_space=action_space,
+                )
+                for _ in range(num_server_envs)
+            ]
+        )
+        cfg = ScholaEnvConfig(
+            observations=observations,
+            simulator=SingularExternalSimulatorConfig(),
+            protocol=GrpcProtocolConfig(url="localhost", port=port),
+            **config_kwargs,
+        )
+        env = cfg.create_envs(
+            n_envs=num_server_envs if n_envs is None else n_envs,
+            use_async_envs=use_async_envs,
+        )["schola"][0]
+        created.append(env)
+        return cfg, env
+
+    yield _make
+
+    for env in reversed(created):
+        env.close()
 
 
 def test_schola_config_is_registered():
@@ -165,74 +251,6 @@ def test_policy_feature_observations_parse_from_yaml(make_eval_config):
         ],
         "environment_state": "observation.target",
     }
-    assert cfg.env.observations.to_policy_mapping() == {
-        "observation.images.front": "observation.sensors.front_camera",
-        "observation.state": [
-            "observation.robot.joint_positions",
-            "observation.robot.joint_velocities",
-        ],
-        "observation.environment_state": "observation.target",
-    }
-
-
-def test_features_are_inferred_from_normalized_spaces(caplog):
-    observation_space = gym.spaces.Dict(
-        {
-            "agent_pos": gym.spaces.Box(-1, 1, shape=(3,), dtype=np.float32),
-            "pixels": gym.spaces.Dict(
-                {
-                    "front": gym.spaces.Box(0, 255, shape=(8, 8, 3), dtype=np.uint8),
-                    "wrist": gym.spaces.Box(0, 255, shape=(4, 4, 3), dtype=np.uint8),
-                }
-            ),
-        }
-    )
-    action_space = gym.spaces.Box(-1, 1, shape=(2,), dtype=np.float32)
-
-    with caplog.at_level(logging.INFO, logger="lerobot_env_schola.config"):
-        features, features_map = infer_features_from_spaces(
-            observation_space,
-            action_space,
-        )
-
-    assert features == {
-        "agent_pos": PolicyFeature(type=FeatureType.STATE, shape=(3,)),
-        "pixels/front": PolicyFeature(type=FeatureType.VISUAL, shape=(8, 8, 3)),
-        "pixels/wrist": PolicyFeature(type=FeatureType.VISUAL, shape=(4, 4, 3)),
-        ACTION: PolicyFeature(type=FeatureType.ACTION, shape=(2,)),
-    }
-    assert features_map == {
-        "agent_pos": OBS_STATE,
-        "pixels/front": f"{OBS_IMAGES}.front",
-        "pixels/wrist": f"{OBS_IMAGES}.wrist",
-        ACTION: ACTION,
-    }
-    assert "policy feature observation.state" in caplog.text
-    assert "policy feature observation.images.front" in caplog.text
-    assert "policy feature observation.images.wrist" in caplog.text
-    assert "policy feature action" in caplog.text
-
-
-def test_feature_inference_rejects_non_dict_observation_space():
-    observation_space = gym.spaces.Box(-1, 1, shape=(3,), dtype=np.float32)
-    action_space = gym.spaces.Box(-1, 1, shape=(2,), dtype=np.float32)
-
-    with pytest.raises(TypeError, match="mapped observation space.*Gymnasium Dict"):
-        infer_features_from_spaces(observation_space, action_space)
-
-
-@pytest.mark.parametrize(
-    ("policy_key", "expected"),
-    [
-        ("observation.images.front", ("camera", "front")),
-        ("observation.image", ("single_image", "pixels")),
-        ("observation.state", ("value", "agent_pos")),
-        ("observation.environment_state", ("value", "environment_state")),
-        ("observation.velocity", ("value", "velocity")),
-    ],
-)
-def test_policy_output_rules(policy_key, expected):
-    assert _policy_output(policy_key) == expected
 
 
 def test_homogeneous_multi_agent_definition_becomes_vector_slots(
@@ -264,13 +282,13 @@ def test_homogeneous_multi_agent_definition_becomes_vector_slots(
         task="multi_agent",
         task_description="Homogeneous multi-agent test.",
         max_episode_steps=10,
-        observation_config={"observation.state": "observation"},
+        policy_sources={"observation.state": ("observation",)},
     )
     try:
         observations, _ = env.reset()
         assert env.num_envs == 2
         np.testing.assert_array_equal(
-            observations["agent_pos"],
+            observations["state"],
             [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
         )
     finally:
@@ -318,96 +336,96 @@ def test_heterogeneous_multi_agent_definition_fails_and_cleans_up(
     assert simulator.stop.call_count >= 1
 
 
-def test_create_envs_builds_schola_vector_env(make_vec_env_server):
-    observation_space = gym.spaces.Dict(
-        {"joints": gym.spaces.Box(-1, 1, shape=(3,), dtype=float)}
-    )
-    action_space = gym.spaces.Box(-1, 1, shape=(1,), dtype=float)
-    port = make_vec_env_server(
-        [
-            partial(
-                GenericTestEnv,
-                observation_space=observation_space,
-                action_space=action_space,
-            )
-            for _ in range(2)
-        ]
-    )
-    cfg = ScholaEnvConfig(
+def test_create_envs_builds_schola_vector_env(make_created_env, make_schola_spaces):
+    spaces = make_schola_spaces(cameras={}, action_shape=(1,))
+    observation_space = spaces["observation_space"]
+    action_space = spaces["action_space"]
+    cfg, env = make_created_env(
+        observation_space=observation_space,
+        action_space=action_space,
+        observations={"state": "observation.joints"},
+        use_async_envs=True,
         task="swing_up",
         task_description="Swing the pendulum upright.",
         episode_length=200,
         render_fps=24,
-        observations={"state": "observation.joints"},
-        simulator=SingularExternalSimulatorConfig(),
-        protocol=GrpcProtocolConfig(url="localhost", port=port),
     )
 
-    env = cfg.create_envs(n_envs=2, use_async_envs=True)["schola"][0]
-    try:
-        assert isinstance(env, LeRobotScholaVectorEnv)
-        assert isinstance(env.env, GymVectorEnv)
-        assert env.num_envs == 2
-        assert env.single_observation_space["agent_pos"] == observation_space["joints"]
-        assert env.single_action_space == action_space
-        assert env.unwrapped.metadata["render_fps"] == 24
-        assert env.call("task") == ("swing_up", "swing_up")
-        assert env.call("task_description") == (
-            "Swing the pendulum upright.",
-            "Swing the pendulum upright.",
-        )
-        assert env.call("_max_episode_steps") == (200, 200)
-        assert cfg.features == {
-            "agent_pos": PolicyFeature(type=FeatureType.STATE, shape=(3,)),
-            ACTION: PolicyFeature(type=FeatureType.ACTION, shape=(1,)),
-        }
-        assert cfg.features_map == {"agent_pos": OBS_STATE, ACTION: ACTION}
+    assert isinstance(env, LeRobotScholaVectorEnv)
+    assert isinstance(env.env, GymVectorEnv)
+    assert env.num_envs == 2
+    assert env.single_observation_space["state"] == observation_space["joints"]
+    assert env.single_action_space == action_space
+    assert env.unwrapped.metadata["render_fps"] == 24
+    assert env.call("task") == ("swing_up", "swing_up")
+    assert env.call("task_description") == (
+        "Swing the pendulum upright.",
+        "Swing the pendulum upright.",
+    )
+    assert env.call("_max_episode_steps") == (200, 200)
+    assert cfg.features == {
+        "observation.state": PolicyFeature(type=FeatureType.STATE, shape=(3,)),
+        ACTION: PolicyFeature(type=FeatureType.ACTION, shape=(1,)),
+    }
+    assert cfg.features_map == {
+        "observation.state": "observation.state",
+        ACTION: ACTION,
+    }
 
-        observations, _ = env.reset(options={"lerobot_new_rollout": True})
-        assert observations["agent_pos"].shape == (2, 3)
+    observations, _ = env.reset(options={"lerobot_new_rollout": True})
+    assert observations["state"].shape == (2, 3)
 
-        next_observations, rewards, terminated, truncated, infos = env.step(
-            env.action_space.sample()
-        )
-        assert next_observations["agent_pos"].shape == (2, 3)
-        assert rewards.shape == terminated.shape == truncated.shape == (2,)
-        assert isinstance(infos, dict)
-    finally:
-        env.close()
+    next_observations, rewards, terminated, truncated, infos = env.step(
+        env.action_space.sample()
+    )
+    assert next_observations["state"].shape == (2, 3)
+    assert rewards.shape == terminated.shape == truncated.shape == (2,)
+    assert isinstance(infos, dict)
 
 
-def test_create_envs_uses_schola_vector_size_on_mismatch(make_vec_env_server, caplog):
+def test_create_envs_uses_schola_vector_size_on_mismatch(make_created_env, caplog):
     observation_space = gym.spaces.Dict(
         {"observation": gym.spaces.Box(-1, 1, shape=(4,), dtype=np.float32)}
     )
     action_space = gym.spaces.Box(-1, 1, shape=(1,), dtype=np.float32)
-    port = make_vec_env_server(
-        [
-            partial(
-                GenericTestEnv,
-                observation_space=observation_space,
-                action_space=action_space,
-            )
-            for _ in range(2)
-        ]
-    )
-    cfg = ScholaEnvConfig(
-        observations={"state": "observation.observation"},
-        simulator=SingularExternalSimulatorConfig(),
-        protocol=GrpcProtocolConfig(url="localhost", port=port),
-    )
 
     with caplog.at_level(logging.WARNING, logger="lerobot_env_schola.config"):
-        env = cfg.create_envs(n_envs=1)["schola"][0]
-    try:
-        assert env.num_envs == 2
-        assert "using Schola's native vector size" in caplog.text
-        observations, _ = env.reset()
-        assert observations["agent_pos"].shape == (2, 4)
-    finally:
-        env.close()
+        _, env = make_created_env(
+            observation_space=observation_space,
+            action_space=action_space,
+            observations={"state": "observation.observation"},
+            n_envs=1,
+        )
+
+    assert env.num_envs == 2
+    assert "using Schola's native vector size" in caplog.text
+    observations, _ = env.reset()
+    assert observations["state"].shape == (2, 4)
 
 
 def test_create_envs_requires_observation_configuration():
     with pytest.raises(ValueError, match="requires observations"):
         ScholaEnvConfig().create_envs(n_envs=1)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {
+            "features": {
+                "observation.state": PolicyFeature(type=FeatureType.STATE, shape=(3,))
+            }
+        },
+        {"features_map": {"observation.state": "observation.state"}},
+        {
+            "features": {
+                "observation.state": PolicyFeature(type=FeatureType.STATE, shape=(3,))
+            },
+            "features_map": {"observation.state": "observation.state"},
+        },
+    ],
+)
+def test_create_envs_rejects_configured_features(kwargs):
+    cfg = ScholaEnvConfig(observations={"state": "observation"}, **kwargs)
+    with pytest.raises(ValueError, match="infers features and features_map"):
+        cfg.create_envs(n_envs=1)

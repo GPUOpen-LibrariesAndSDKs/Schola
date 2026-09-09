@@ -107,7 +107,7 @@ mode. ``schola-external`` is preferred when the explicit lifecycle name
 improves clarity.
 
 Use ``schola-project`` to build and launch an Unreal project. The project path
-is required. The Unreal Built Tool(UBT) path is optional as Schola can
+is required. The Unreal Build Tool (UBT) path is optional as Schola can
 discover the UBT path from the project if it has a corresponding Visual
 Studio solution:
 
@@ -138,11 +138,12 @@ evaluation, though that process may expose multiple sub-environments.
 Configure Observations
 ----------------------
 
-The ``observations`` configuration mirrors LeRobot's observation tree. A
-top-level field such as ``state`` becomes the policy feature
-``observation.state``. Camera entries nested under ``images`` become features
-such as ``observation.images.front``. Each field maps to a Schola source path,
-or to an ordered list of sources that are flattened and concatenated.
+The ``observations`` configuration mirrors LeRobot's observation tree. YAML
+field names omit the ``observation.`` prefix: a top-level field such as
+``state`` becomes the policy feature ``observation.state``. Camera entries
+nested under ``images`` become features such as ``observation.images.front``.
+Non-image fields map to a Schola source path, or to an ordered list of sources
+that are flattened and concatenated. Image fields map to exactly one source.
 
 Every Schola source path starts at ``observation``. If the top-level Schola
 space is a ``Dict``, dots traverse its nested keys; for example,
@@ -160,9 +161,12 @@ the shape and type of its mapped Schola space; it is not inferred from the
 policy checkpoint. No separate type declaration is needed:
 
 * ``images.<camera>`` and singular ``image`` each map to exactly one image
-  source. Schola camera sources are channel-first ``(C, H, W)`` data: either
-  floating-point values bounded by ``[0, 1]``, or ``uint8``. The adapter emits
-  channel-last ``uint8`` images. ``image`` cannot be combined with ``images``.
+  source. Schola camera sources are channel-first ``(C, H, W)`` ``Box``
+  spaces: either floating-point values bounded by ``[0, 1]``, or ``uint8``.
+  The Gym observation keeps that layout and dtype. After tensorization,
+  ``uint8`` cameras are scaled to float ``[0, 1]``; float cameras stay in
+  ``[0, 1]``. Inferred visual ``PolicyFeature`` shapes match the channel-first
+  data, for example ``(3, 480, 640)``.
 * Every non-image source is flattened to a one-dimensional ``Box`` using
   Gymnasium's standard ``flatten_space`` and ``flatten`` behavior. A ``Box``
   preserves its dtype and element order but not a multidimensional shape. For
@@ -170,6 +174,11 @@ policy checkpoint. No separate type declaration is needed:
   ``Discrete(4)`` becomes a four-element one-hot ``Box``.
 * A YAML list of non-image sources is flattened using the same Gymnasium
   convention and concatenated in the order written.
+
+Do not set ``features`` or ``features_map`` in YAML. The plugin infers both
+from the mapped Schola spaces when the environment is created. ``features``
+is already keyed by policy names such as ``observation.state``, so
+``features_map`` is the identity mapping LeRobot still requires.
 
 Schola sources that are not mapped are ignored and produce a warning. The
 same source may be listed under more than one policy feature; the adapter
@@ -214,8 +223,8 @@ channel-first:
        }),
    })
 
-A typical wrist-camera SO-101 checkpoint has these LeRobot features (shown as
-``PolicyFeature`` values for clarity):
+From those mapped spaces the plugin infers these LeRobot features (shown as
+``PolicyFeature`` values). Visual shapes match the channel-first camera data:
 
 .. code-block:: python
 
@@ -253,7 +262,7 @@ value on the right identifies the Schola source from which it is built.
      - Mapping behavior
      - Schola source
    * - ``observation.images.wrist`` with shape ``(3, 480, 640)``
-     - Read one image and convert CHW float to HWC ``uint8``
+     - Read the one CHW image; keep float values in ``[0, 1]``
      - ``observation.cameras.wrist`` with shape ``(3, 480, 640)``
    * - ``observation.state`` with shape ``(6,)``
      - Flatten and concatenate the listed sources in YAML order
@@ -352,9 +361,10 @@ Action Spaces
 -------------
 
 The plugin derives LeRobot policy features from the connected Schola spaces
-after applying the mirrored ``observations`` configuration. It derives the
-action feature from the flattened action space. No separate feature mapping is
-required.
+after applying the mirrored ``observations`` configuration. Image feature
+shapes match the channel-first camera arrays. The action feature is derived
+from the flattened action space. Do not set ``features`` or ``features_map``
+in YAML.
 
 Schola action spaces must be a ``Box`` or a nested ``Dict`` containing only
 ``Box`` spaces. Nested actions are flattened for the policy and reconstructed
@@ -364,4 +374,6 @@ Troubleshooting
 ---------------
 
 Common configuration failures are caused by an unknown Schola source path or
-an image whose type, bounds, or channel count is unsupported.
+an image whose type, bounds, or channel count is unsupported. Image sources
+must be three-dimensional ``Box`` spaces with 1, 3, or 4 channels, using
+either ``uint8`` or float values in ``[0, 1]``.

@@ -119,7 +119,7 @@ def _add_image_feature(
         raise TypeError(
             f"Image observation {sources[0]!r} must be a three-dimensional Box"
         )
-    channels, height, width = space.shape
+    channels, _, _ = space.shape
     if channels not in SUPPORTED_IMAGE_CHANNELS:
         raise ValueError(
             f"Image observation {sources[0]!r} must have 1, 3, or 4 channels"
@@ -138,7 +138,7 @@ def _add_image_feature(
 
     features[policy_key] = PolicyFeature(
         type=FeatureType.VISUAL,
-        shape=(height, width, channels),
+        shape=space.shape,
     )
 
 

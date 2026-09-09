@@ -75,7 +75,7 @@ def test_infer_features_uses_policy_keys_and_identity_map():
     assert features == {
         "observation.state": PolicyFeature(type=FeatureType.STATE, shape=(5,)),
         "observation.images.front": PolicyFeature(
-            type=FeatureType.VISUAL, shape=(8, 10, 3)
+            type=FeatureType.VISUAL, shape=(3, 8, 10)
         ),
         ACTION: PolicyFeature(type=FeatureType.ACTION, shape=(4,)),
     }

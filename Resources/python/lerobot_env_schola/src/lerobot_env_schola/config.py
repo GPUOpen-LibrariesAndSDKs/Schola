@@ -175,6 +175,7 @@ class BaseScholaEnvConfig(EnvConfig):
                 schola_env.num_envs,
             )
 
+        env = None
         try:
             policy_sources = ScholaObservationConfig(
                 self.observations
@@ -205,7 +206,10 @@ class BaseScholaEnvConfig(EnvConfig):
             )
             env.set_render_camera(self.render_camera)
         except Exception:
-            schola_env.close()
+            if env is not None:
+                env.close()
+            else:
+                schola_env.close()
             raise
 
         return {self.type: {0: env}}

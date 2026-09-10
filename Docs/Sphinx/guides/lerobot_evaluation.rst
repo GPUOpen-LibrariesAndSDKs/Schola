@@ -142,8 +142,16 @@ The ``observations`` configuration mirrors LeRobot's observation tree. YAML
 field names omit the ``observation.`` prefix: a top-level field such as
 ``state`` becomes the policy feature ``observation.state``. Camera entries
 nested under ``images`` become features such as ``observation.images.front``.
-Non-image fields map to a Schola source path, or to an ordered list of sources
-that are flattened and concatenated. Image fields map to exactly one source.
+Do not write the prefix on the YAML keys; ``observation.state: ...`` is
+rejected. Non-image fields map to a Schola source path, or to an ordered list
+of sources that are flattened and concatenated. Image fields map to exactly
+one source.
+
+The Gymnasium observation dict uses those same unprefixed keys
+(``state``, ``images.front``). LeRobot's ``preprocess_observation`` adds
+``observation.`` before the policy. Selection, concatenation, discrete
+one-hot encoding, and ``uint8`` image scaling all happen in the Schola
+vector environment. There is no extra Schola observation processor.
 
 Every Schola source path starts at ``observation``. If the top-level Schola
 space is a ``Dict``, dots traverse its nested keys; for example,
@@ -163,10 +171,11 @@ policy checkpoint. No separate type declaration is needed:
 * ``images.<camera>`` and singular ``image`` each map to exactly one image
   source. Schola camera sources are channel-first ``(C, H, W)`` ``Box``
   spaces: either floating-point values bounded by ``[0, 1]``, or ``uint8``.
-  The Gym observation keeps that layout and dtype. After tensorization,
-  ``uint8`` cameras are scaled to float ``[0, 1]``; float cameras stay in
-  ``[0, 1]``. Inferred visual ``PolicyFeature`` shapes match the channel-first
-  data, for example ``(3, 480, 640)``.
+  The Gym observation keeps channel-first layout. ``uint8`` cameras are
+  converted to ``float32`` and divided by ``255`` in the environment;
+  float cameras keep their dtype and stay in ``[0, 1]``. Inferred visual
+  ``PolicyFeature`` shapes match the channel-first data, for example
+  ``(3, 480, 640)``.
 * Every non-image source is flattened to a one-dimensional ``Box`` using
   Gymnasium's standard ``flatten_space`` and ``flatten`` behavior. A ``Box``
   preserves its dtype and element order but not a multidimensional shape. For
@@ -174,6 +183,9 @@ policy checkpoint. No separate type declaration is needed:
   ``Discrete(4)`` becomes a four-element one-hot ``Box``.
 * A YAML list of non-image sources is flattened using the same Gymnasium
   convention and concatenated in the order written.
+* ``environment_state`` is inferred as LeRobot's environment-state feature
+  (``FeatureType.ENV``). Other non-image fields are inferred as
+  ``FeatureType.STATE``.
 
 Do not set ``features`` or ``features_map`` in YAML. The plugin infers both
 from the mapped Schola spaces when the environment is created. ``features``
@@ -309,6 +321,12 @@ evaluation configuration such as ``schola_eval.yaml``:
    eval:
      n_episodes: 10
 
+``episode_length`` and ``render_fps`` must be at least ``1``. LeRobot
+reads ``episode_length`` as ``_max_episode_steps``. ``task`` is the
+string returned by ``env.call("task")``; it is not an Unreal map or
+Schola source name. ``task_description`` defaults to ``task`` when
+omitted.
+
 Then evaluate a local checkpoint or a policy from the Hugging Face Hub:
 
 .. code-block:: bash
@@ -335,20 +353,30 @@ Success Metrics
 ~~~~~~~~~~~~~~~
 
 Set ``success_key`` to the name of a Schola ``info`` value that indicates task
-success. The plugin exposes that value to LeRobot as ``is_success``. Unreal
-string info values must be ``"true"`` or ``"false"`` (case-insensitive).
-If ``success_key`` is omitted, evaluation
-still runs but no successful episodes are reported by this mapping.
+success. The plugin copies that value to top-level ``is_success`` and the
+matching Gymnasium vector mask to ``_is_success``. Unreal string info values
+must be exactly ``"true"`` or ``"false"`` (case-insensitive, surrounding
+whitespace allowed). Other strings such as ``"yes"`` are rejected. If
+``success_key`` is omitted, evaluation still runs but no successful episodes
+are reported by this mapping.
+
+The plugin always starts the gRPC gym connector in Gymnasium's
+``NextStep`` autoreset mode. Unreal applies that mode from the Python
+start request; it is not an Editor setting for this path. A finished
+episode's ``is_success`` is therefore on the top-level ``info`` dict of
+the done step, not under ``final_info``.
 
 Vectorized Evaluation
 ~~~~~~~~~~~~~~~~~~~~~
 
 Schola performs vectorization inside Unreal. LeRobot's ``use_async_envs``
 and ``eval.batch_size`` settings do not create environments, so they do not
-need to be included in the YAML. The number of environments is configured in
-Unreal. If LeRobot still passes a ``batch_size`` (including its default),
-the plugin logs a warning when that value differs from Unreal's environment
-count and uses Unreal's count.
+need to be included in the YAML. ``--env.use_async_envs`` is rejected.
+Do not set ``simulator.num_environments`` or ``simulator.num_simulators``;
+those fields are not part of the Schola LeRobot config. The number of
+environments is configured in Unreal. If LeRobot still passes a
+``batch_size`` (including its default), the plugin logs a warning when that
+value differs from Unreal's environment count and uses Unreal's count.
 
 Each Unreal environment may contain multiple agents. Schola flattens those
 agents into separate LeRobot vector slots, so one homogeneous policy can
@@ -364,7 +392,8 @@ The plugin derives LeRobot policy features from the connected Schola spaces
 after applying the mirrored ``observations`` configuration. Image feature
 shapes match the channel-first camera arrays. The action feature is derived
 from the flattened action space. Do not set ``features`` or ``features_map``
-in YAML.
+in YAML; both are inferred when the environment is created, and
+``features_map`` is always the identity map LeRobot still requires.
 
 Schola action spaces must be a ``Box`` or a nested ``Dict`` containing only
 ``Box`` spaces. Nested actions are flattened for the policy and reconstructed
@@ -376,4 +405,7 @@ Troubleshooting
 Common configuration failures are caused by an unknown Schola source path or
 an image whose type, bounds, or channel count is unsupported. Image sources
 must be three-dimensional ``Box`` spaces with 1, 3, or 4 channels, using
-either ``uint8`` or float values in ``[0, 1]``.
+either ``uint8`` or float values in ``[0, 1]``. Dictionary keys in the Schola
+observation space cannot contain ``.``. Rendering requires a configured
+image observation; ``render()`` before ``reset()`` raises ``RuntimeError``,
+and a missing image observation raises ``ValueError``.

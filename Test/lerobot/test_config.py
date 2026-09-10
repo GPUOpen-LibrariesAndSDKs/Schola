@@ -5,12 +5,14 @@ from __future__ import annotations
 import logging
 from functools import partial
 from textwrap import dedent, indent
+from unittest.mock import MagicMock, patch
 
 import draccus
 import gymnasium as gym
 import numpy as np
 import pytest
 
+from gymnasium.vector import AutoresetMode
 from lerobot.configs import FeatureType, PolicyFeature
 from lerobot.configs.eval import EvalPipelineConfig
 from lerobot.envs.configs import EnvConfig
@@ -152,6 +154,18 @@ def test_schola_config_does_not_use_gym_make():
     assert cfg.gym_kwargs == {}
 
 
+@pytest.mark.parametrize(
+    ("kwargs", "match"),
+    [
+        ({"episode_length": 0}, "episode_length"),
+        ({"render_fps": 0}, "render_fps"),
+    ],
+)
+def test_schola_config_rejects_non_positive_timing_fields(kwargs, match):
+    with pytest.raises(ValueError, match=match):
+        ScholaEnvConfig(**kwargs)
+
+
 def test_schola_external_alias_parses_from_yaml(make_eval_config):
     cfg = make_eval_config("""
         type: schola-external
@@ -276,14 +290,19 @@ def test_homogeneous_multi_agent_definition_becomes_vector_slots(
         [{agent_id: {} for agent_id in agent_ids}],
     )
 
-    schola_env = GymVectorEnv(simulator, protocol)
-    env = LeRobotScholaVectorEnv(
-        schola_env,
+    simulator_config = MagicMock()
+    simulator_config.make.return_value = simulator
+    cfg = ScholaEnvConfig(
+        observations={"state": "observation"},
         task="multi_agent",
         task_description="Homogeneous multi-agent test.",
-        max_episode_steps=10,
-        policy_sources={"observation.state": ("observation",)},
+        episode_length=10,
     )
+    with (
+        patch.object(cfg, "_get_simulator_config", return_value=simulator_config),
+        patch.object(cfg.protocol, "make", return_value=protocol),
+    ):
+        env = LeRobotScholaVectorEnv(config=cfg)
     try:
         observations, _ = env.reset()
         assert env.num_envs == 2
@@ -357,6 +376,9 @@ def test_create_envs_builds_schola_vector_env(make_created_env, make_schola_spac
     assert env.single_observation_space["state"] == observation_space["joints"]
     assert env.single_action_space == action_space
     assert env.unwrapped.metadata["render_fps"] == 24
+    assert env.autoreset_mode is AutoresetMode.NEXT_STEP
+    assert env.env.autoreset_mode is AutoresetMode.NEXT_STEP
+    assert env.metadata["autoreset_mode"] is AutoresetMode.NEXT_STEP
     assert env.call("task") == ("swing_up", "swing_up")
     assert env.call("task_description") == (
         "Swing the pendulum upright.",

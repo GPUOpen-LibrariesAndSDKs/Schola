@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pytest
 from gymnasium.spaces import Box, Dict, Discrete
 
+from lerobot_env_schola.config import ScholaEnvConfig
 from lerobot_env_schola.feature_mapping import as_source_tuple
 from lerobot_env_schola.vector_env import (
     LeRobotScholaVectorEnv,
@@ -39,7 +42,7 @@ def make_source_mapping():
 
 
 @pytest.fixture
-def make_wrapper(make_source_mapping):
+def make_wrapper():
     wrappers = []
 
     def _make(
@@ -47,7 +50,7 @@ def make_wrapper(make_source_mapping):
         num_envs=2,
         observation_space=None,
         action_space=None,
-        policy_sources=None,
+        observations=None,
         success_key=None,
         render_camera=None,
         render_fps=30,
@@ -66,30 +69,40 @@ def make_wrapper(make_source_mapping):
                     "gripper": Box(-1, 1, shape=(1,), dtype=np.float32),
                 }
             )
-        if policy_sources is None:
-            policy_sources = {
-                "observation.images.front": "observation.camera",
-                "observation.state": "observation.joints",
+        if observations is None:
+            observations = {
+                "images": {"front": "observation.camera"},
+                "state": "observation.joints",
             }
-        env = GenericTestVectorEnv(
+        inner = GenericTestVectorEnv(
             num_envs=num_envs,
             observation_space=observation_space,
             action_space=action_space,
         )
+        cfg = ScholaEnvConfig(
+            observations=observations,
+            task="reach",
+            task_description="Reach the target.",
+            episode_length=50,
+            success_key=success_key,
+            render_fps=render_fps,
+            render_camera=render_camera,
+        )
+        simulator_config = MagicMock()
         try:
-            mapping = make_source_mapping(observation_space, policy_sources)
-            wrapper = LeRobotScholaVectorEnv(
-                env,
-                task="reach",
-                task_description="Reach the target.",
-                max_episode_steps=50,
-                policy_sources=mapping["policy_sources"],
-                success_key=success_key,
-                render_fps=render_fps,
-            )
-            wrapper.set_render_camera(render_camera)
+            with (
+                patch.object(
+                    cfg, "_get_simulator_config", return_value=simulator_config
+                ),
+                patch.object(cfg.protocol, "make", return_value=MagicMock()),
+                patch(
+                    "lerobot_env_schola.vector_env.GymVectorEnv",
+                    return_value=inner,
+                ),
+            ):
+                wrapper = LeRobotScholaVectorEnv(config=cfg)
         except Exception:
-            env.close()
+            inner.close()
             raise
         wrappers.append(wrapper)
         return wrapper
@@ -123,11 +136,15 @@ def test_schola_observation_helpers_preserve_schola_sources(
     }
     assert set(gym_space) == {"images.front", "state"}
     assert gym_space["images.front"].shape == (3, 2, 2)
+    assert gym_space["images.front"].dtype == np.float32
     assert gym_space["state"].shape == (3,)
 
     wrapper = make_wrapper(
         observation_space=mapping["observation_space"],
-        policy_sources=mapping["policy_sources"],
+        observations={
+            "images": {"front": "observation.camera"},
+            "state": "observation.robot.mode",
+        },
     )
     converted = wrapper._convert_schola_observation(
         {
@@ -137,17 +154,29 @@ def test_schola_observation_helpers_preserve_schola_sources(
     )
 
     assert set(converted) == {"images.front", "state"}
-    assert converted["images.front"].shape == (2, 3, 2, 2)
+    assert converted["images.front"].dtype == np.float32
+    np.testing.assert_allclose(
+        converted["images.front"],
+        np.arange(24, dtype=np.uint8).reshape(2, 3, 2, 2).astype(np.float32) / 255,
+    )
     np.testing.assert_array_equal(
         converted["state"],
         np.array([[1, 0, 0], [0, 0, 1]], dtype=np.int64),
     )
-    assert wrapper.uint8_image_keys == ("observation.images.front",)
 
 
-def test_wrapper_reports_float_image_keys_as_not_uint8(make_wrapper):
+def test_wrapper_leaves_float_images_unscaled(make_wrapper):
     wrapper = make_wrapper()
-    assert wrapper.uint8_image_keys == ()
+    assert wrapper.single_observation_space["images.front"].dtype == np.float32
+    converted = wrapper._convert_schola_observation(
+        {
+            "camera": np.full((2, 3, 8, 8), 0.5, dtype=np.float32),
+            "joints": np.zeros((2, 3), dtype=np.float32),
+        }
+    )
+    np.testing.assert_array_equal(
+        converted["images.front"], np.full((2, 3, 8, 8), 0.5, dtype=np.float32)
+    )
 
 
 def test_root_box_observation_maps_directly_to_policy_key(
@@ -165,7 +194,7 @@ def test_root_box_observation_maps_directly_to_policy_key(
 
     wrapper = make_wrapper(
         observation_space=mapping["observation_space"],
-        policy_sources=mapping["policy_sources"],
+        observations={"state": "observation"},
     )
     values = np.arange(8, dtype=np.float32).reshape(2, 4)
     converted = wrapper._convert_schola_observation(values)
@@ -226,24 +255,6 @@ def test_wrapper_uses_info_mask_when_mapping_success(make_wrapper):
     np.testing.assert_array_equal(info["_is_success"], [True, False])
 
 
-def test_wrapper_does_not_reinterpret_nested_final_info(make_wrapper):
-    env = make_wrapper(success_key="goal_reached")
-    nested_final_info = {"goal_reached": "false"}
-    info = _normalize_info(
-        {
-            "final_info": {
-                "goal_reached": "true",
-                "final_info": nested_final_info,
-            }
-        },
-        env.success_key,
-    )
-
-    assert info["final_info"]["is_success"] is True
-    assert info["final_info"]["final_info"] is nested_final_info
-    assert "is_success" not in nested_final_info
-
-
 def test_wrapper_does_not_require_success_key(make_wrapper):
     env = make_wrapper()
     info = _normalize_info(
@@ -262,10 +273,12 @@ def test_wrapper_groups_multiple_mapped_cameras(make_wrapper):
                 "wrist": Box(0, 1, shape=(3, 4, 4), dtype=np.float32),
             }
         ),
-        policy_sources={
-            "observation.images.front": "observation.front",
-            "observation.images.wrist": "observation.wrist",
-            "observation.state": "observation.joints",
+        observations={
+            "images": {
+                "front": "observation.front",
+                "wrist": "observation.wrist",
+            },
+            "state": "observation.joints",
         },
         render_camera="wrist",
     )
@@ -291,7 +304,7 @@ def test_wrapper_rejects_discrete_actions(make_wrapper):
                 {"observation": Box(-1, 1, shape=(4,), dtype=np.float32)}
             ),
             action_space=Discrete(2),
-            policy_sources={"observation.state": "observation.observation"},
+            observations={"state": "observation.observation"},
         )
 
 
@@ -307,14 +320,14 @@ def test_wrapper_converts_policy_feature_observations(make_wrapper):
                 "target": Box(-1, 1, shape=(3,), dtype=np.float32),
             }
         ),
-        policy_sources={
-            "observation.images.front": "observation.front_camera",
-            "observation.state": [
+        observations={
+            "images": {"front": "observation.front_camera"},
+            "state": [
                 "observation.joint_positions",
                 "observation.joint_velocities",
                 "observation.gripper",
             ],
-            "observation.environment_state": "observation.target",
+            "environment_state": "observation.target",
         },
     )
 
@@ -348,7 +361,7 @@ def test_wrapper_one_hot_encodes_discrete_observation(make_wrapper):
     wrapper = make_wrapper(
         num_envs=2,
         observation_space=Dict({"mode": Discrete(4)}),
-        policy_sources={"observation.state": "observation.mode"},
+        observations={"state": "observation.mode"},
     )
 
     converted = wrapper._convert_schola_observation({"mode": np.array([0, 2])})
@@ -371,8 +384,8 @@ def test_wrapper_flattens_discrete_observation_before_concatenating(make_wrapper
                 "mode": Discrete(3),
             }
         ),
-        policy_sources={
-            "observation.state": [
+        observations={
+            "state": [
                 "observation.joints",
                 "observation.mode",
             ]
@@ -409,9 +422,9 @@ def test_wrapper_converts_native_schola_camera_to_lerobot_format(make_wrapper):
                 "joints": Box(-1, 1, shape=(2,), dtype=np.float32),
             }
         ),
-        policy_sources={
-            "observation.images.front": "observation.camera",
-            "observation.state": "observation.joints",
+        observations={
+            "images": {"front": "observation.camera"},
+            "state": "observation.joints",
         },
     )
 
@@ -435,7 +448,7 @@ def test_wrapper_maps_singular_policy_image(make_wrapper):
     wrapper = make_wrapper(
         num_envs=1,
         observation_space=Box(0, 1, shape=(3, 8, 8), dtype=np.float32),
-        policy_sources={"observation.image": "observation"},
+        observations={"image": "observation"},
         render_camera="image",
     )
 
@@ -453,7 +466,7 @@ def test_wrapper_ignores_unmapped_observations(make_wrapper):
                 "unused": Box(-1, 1, shape=(1,), dtype=np.float32),
             }
         ),
-        policy_sources={"observation.state": "observation.joints"},
+        observations={"state": "observation.joints"},
     )
 
     observation, _ = wrapper.reset()
@@ -466,9 +479,11 @@ def test_wrapper_allows_reused_observation_source(make_wrapper):
         observation_space=Dict(
             {"camera": Box(0, 1, shape=(3, 8, 8), dtype=np.float32)}
         ),
-        policy_sources={
-            "observation.images.front": "observation.camera",
-            "observation.images.wrist": "observation.camera",
+        observations={
+            "images": {
+                "front": "observation.camera",
+                "wrist": "observation.camera",
+            },
         },
     )
 
@@ -487,9 +502,9 @@ def test_wrapper_resolves_nested_schola_sources_with_dots(make_wrapper):
                 "sensors": Dict({"top": Box(0, 1, shape=(3, 8, 8), dtype=np.float32)}),
             }
         ),
-        policy_sources={
-            "observation.images.top": "observation.sensors.top",
-            "observation.state": "observation.robot.joints",
+        observations={
+            "images": {"top": "observation.sensors.top"},
+            "state": "observation.robot.joints",
         },
     )
 
@@ -504,7 +519,7 @@ def test_wrapper_rejects_literal_dots_in_schola_keys(make_wrapper):
             observation_space=Dict(
                 {"robot.joints": Box(-1, 1, shape=(3,), dtype=np.float32)}
             ),
-            policy_sources={"observation.state": "observation.robot.joints"},
+            observations={"state": "observation.robot.joints"},
         )
 
 
@@ -514,26 +529,24 @@ def test_wrapper_maps_top_level_dict_key(make_wrapper):
         observation_space=Dict(
             {"proprioception": Box(-1, 1, shape=(3,), dtype=np.float32)}
         ),
-        policy_sources={"observation.state": "observation.proprioception"},
+        observations={"state": "observation.proprioception"},
     )
 
     observation, _ = wrapper.reset()
     assert observation["state"].shape == (1, 3)
 
 
-def test_normalize_info_maps_masked_and_final_values():
+def test_normalize_info_maps_masked_values():
     info = _normalize_info(
         {
             "goal_reached": np.array(["true", None], dtype=object),
             "_goal_reached": np.array([True, False]),
-            "final_info": {"goal_reached": "false"},
         },
         "goal_reached",
     )
 
     np.testing.assert_array_equal(info["is_success"], [True, False])
     np.testing.assert_array_equal(info["_is_success"], [True, False])
-    assert info["final_info"]["is_success"] is False
 
 
 @pytest.mark.parametrize(
@@ -556,6 +569,6 @@ def test_parse_success_rejects_non_schola_strings(value):
         _parse_success_string(value)
 
 
-def test_parse_success_rejects_bool_values():
-    with pytest.raises(TypeError, match="true' or 'false' string or array"):
-        _normalize_info({"goal_reached": True}, "goal_reached")
+def test_normalize_info_requires_vector_mask():
+    with pytest.raises(TypeError, match="Gymnasium mask"):
+        _normalize_info({"goal_reached": np.array(["true", "false"])}, "goal_reached")

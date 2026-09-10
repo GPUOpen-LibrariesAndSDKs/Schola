@@ -13,10 +13,8 @@ from draccus import decode
 from gymnasium.spaces import Box
 from gymnasium.spaces.utils import flatten_space
 from lerobot.envs.configs import EnvConfig
-from lerobot.processor import PolicyProcessorPipeline
 from lerobot.utils.constants import OBS_IMAGES, OBS_PREFIX
 from lerobot_env_schola.feature_mapping import as_source_tuple, infer_features
-from lerobot_env_schola.processors import ScholaProcessorStep
 from schola.scripts.common.settings import (
     GrpcProtocolConfig,
     SingularExecutableSimulatorConfig,
@@ -113,7 +111,12 @@ class BaseScholaEnvConfig(EnvConfig):
     """LeRobot-shaped observation fields mapped to Schola source paths."""
     render_camera: str | None = None
     render_fps: int = 30
-    _processor: ScholaProcessorStep | None = field(default=None, init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        if self.episode_length < 1:
+            raise ValueError("episode_length must be at least 1")
+        if self.render_fps < 1:
+            raise ValueError("render_fps must be at least 1")
 
     @property
     def gym_kwargs(self) -> dict[str, Any]:
@@ -123,17 +126,6 @@ class BaseScholaEnvConfig(EnvConfig):
     def _get_simulator_config(self) -> Any:
         """Return the concrete simulator configuration for this environment type."""
         raise NotImplementedError
-
-    def get_env_processors(
-        self,
-    ) -> tuple[PolicyProcessorPipeline, PolicyProcessorPipeline]:
-        """Return the Schola observation processor and an identity action pipeline."""
-        if self._processor is None:
-            raise RuntimeError("create_envs() must run before get_env_processors()")
-        return (
-            PolicyProcessorPipeline(steps=[self._processor]),
-            PolicyProcessorPipeline(steps=[]),
-        )
 
     def create_envs(
         self, n_envs: int, use_async_envs: bool = False
@@ -147,7 +139,6 @@ class BaseScholaEnvConfig(EnvConfig):
             LeRobotScholaVectorEnv,
             _build_source_spaces,
         )
-        from schola.gym.env import GymVectorEnv
 
         if not self.observations:
             raise ValueError(
@@ -159,29 +150,20 @@ class BaseScholaEnvConfig(EnvConfig):
                 "Schola infers features and features_map from the connected "
                 "environment; do not set them in YAML or on the config"
             )
-        simulator_config = self._get_simulator_config()
 
-        schola_env = GymVectorEnv(
-            simulator=simulator_config.make(),
-            protocol=self.protocol.make(),
-            verbosity=self.verbosity,
-        )
-
-        if schola_env.num_envs != n_envs:
-            logger.warning(
-                "LeRobot requested %d environment(s), but Schola exposed %d "
-                "homogeneous environment(s); using Schola's native vector size.",
-                n_envs,
-                schola_env.num_envs,
-            )
-
+        policy_sources = ScholaObservationConfig(self.observations).to_policy_mapping()
         env = None
         try:
-            policy_sources = ScholaObservationConfig(
-                self.observations
-            ).to_policy_mapping()
-            source_spaces = _build_source_spaces(schola_env.single_observation_space)
-            action_space = flatten_space(schola_env.single_action_space)
+            env = LeRobotScholaVectorEnv(config=self)
+            if env.num_envs != n_envs:
+                logger.warning(
+                    "LeRobot requested %d environment(s), but Schola exposed %d "
+                    "homogeneous environment(s); using Schola's native vector size.",
+                    n_envs,
+                    env.num_envs,
+                )
+            source_spaces = _build_source_spaces(env.env.single_observation_space)
+            action_space = flatten_space(env.env.single_action_space)
             if not isinstance(action_space, Box):
                 raise TypeError(
                     "Flattening Schola's action space did not produce a Box"
@@ -191,25 +173,9 @@ class BaseScholaEnvConfig(EnvConfig):
                 source_spaces,
                 action_space,
             )
-            env = LeRobotScholaVectorEnv(
-                schola_env,
-                task=self.task or "schola",
-                task_description=self.task_description or self.task or "schola",
-                max_episode_steps=self.episode_length,
-                policy_sources=policy_sources,
-                success_key=self.success_key,
-                render_fps=self.render_fps,
-            )
-            self._processor = ScholaProcessorStep(
-                policy_keys=tuple(policy_sources),
-                uint8_image_keys=env.uint8_image_keys,
-            )
-            env.set_render_camera(self.render_camera)
         except Exception:
             if env is not None:
                 env.close()
-            else:
-                schola_env.close()
             raise
 
         return {self.type: {0: env}}

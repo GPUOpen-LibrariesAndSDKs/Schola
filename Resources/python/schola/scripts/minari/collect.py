@@ -9,15 +9,9 @@ from typing import Any, Callable, Literal
 from typing_extensions import Annotated
 
 from schola.scripts.common.command_template import ScholaCommandTemplate
+from schola.scripts.common.console import configure_logging
 from schola.scripts.minari.settings import MinariScriptSettings
 from cyclopts import App, Parameter
-
-# Logging setup (idempotent)
-if not logging.getLogger().handlers:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(levelname)s %(name)s: %(message)s",
-    )
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +30,8 @@ def main(args: MinariScriptSettings):
     str
         The dataset ID of the created dataset.
     """
+    configure_logging(args.logging_settings.log_level)
+
     import os
 
     import gymnasium as gym

@@ -3,11 +3,12 @@
 
 from __future__ import annotations
 
-import logging
+from io import StringIO
 from unittest.mock import MagicMock
 
 import gymnasium as gym
 import numpy as np
+from rich.console import Console
 
 from schola.core.utils.id_manager import IdManager
 from schola.scripts.env.utils import (
@@ -32,8 +33,9 @@ def test_format_value_for_log_truncates_large_dicts():
     assert "key_8=" not in text
 
 
-def test_inspect_agents_gym_vector_env(caplog):
-    logger = logging.getLogger("test.env.utils.reset")
+def test_inspect_agents_gym_vector_env():
+    buffer = StringIO()
+    console = Console(file=buffer, width=120, highlight=False)
     env = MagicMock()
     env.id_manager = IdManager([["agent_0"]])
     env.single_observation_space = gym.spaces.Box(
@@ -48,11 +50,11 @@ def test_inspect_agents_gym_vector_env(caplog):
         {},
     )
 
-    with caplog.at_level(logging.INFO, logger="test.env.utils.reset"):
-        inspect_agents(env, logger=logger)
-
+    renderable = inspect_agents(env)
+    console.print(renderable)
     env.reset.assert_called_once()
-    assert "Observation Space:" in caplog.text
-    assert "Action Space:" in caplog.text
-    assert "Initial Obs:" in caplog.text
-    assert "Initial Obs in Space: True" in caplog.text
+    text = buffer.getvalue()
+    assert "Observation Space:" in text
+    assert "Action Space:" in text
+    assert "Initial Obs:" in text
+    assert "Initial Obs in Space: True" in text

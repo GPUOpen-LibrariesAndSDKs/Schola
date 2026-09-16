@@ -4,8 +4,11 @@
 Script to convert a Ray model to an ONNX model for use in Unreal Engine.
 """
 
+import logging
 from typing import Annotated
 from cyclopts import App, Parameter, types
+
+from schola.scripts.common.console import configure_logging
 
 export_onnx_app = App(
     name="rllib-to-onnx",
@@ -28,6 +31,7 @@ def export(
     output_path : types.ExistingDirectory | None
         The path to save the ONNX model to. If not provided, the model will be saved in the same directory as the checkpoint.
     """
+    configure_logging(logging.INFO)
     if output_path is None:
         output_path = policy_checkpoint_path
     from ray.rllib.algorithms.algorithm import Algorithm

@@ -15,7 +15,7 @@ from schola.core.protocols.base_protocol import BaseRLProtocol
 from schola.core.simulators.base_simulator import BaseSimulator
 from schola.rllib.env import RayVecEnv
 
-logger = logging.getLogger("ray.rllib")
+logger = logging.getLogger(__name__)
 
 
 class ScholaEnvRunner(MultiAgentEnvRunner):

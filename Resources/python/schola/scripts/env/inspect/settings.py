@@ -9,38 +9,34 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Annotated
 
-from cyclopts import Parameter, validators
+from cyclopts import Parameter
 
 from schola.scripts.common.settings import (
-    AllSimulatorConfigs,
+    AllSingularSimulatorConfigs,
     EnvironmentSettings,
-    ExternalSimulatorConfig,
     IgnoreParameter,
+    BaseLoggingSettings,
+    SingularExternalSimulatorConfig,
 )
 
 
 @dataclass
-class EnvInspectLoggingSettings:
+class EnvInspectLoggingSettings(BaseLoggingSettings):
     """
     Logging settings for ``schola env inspect``.
     """
 
-    schola_verbosity: Annotated[
-        int, Parameter(validator=validators.Number(gte=0, lte=2))
-    ] = 0
-    "Verbosity level for Schola-specific logging during environment inspection."
-
 
 @dataclass
-class EnvInspectEnvironmentSettings(EnvironmentSettings[AllSimulatorConfigs]):
+class EnvInspectEnvironmentSettings(EnvironmentSettings[AllSingularSimulatorConfigs]):
     """
     Environment settings for ``schola env inspect``.
     """
 
     simulator_settings: Annotated[
-        AllSimulatorConfigs,
+        AllSingularSimulatorConfigs,
         IgnoreParameter,
-    ] = field(default_factory=ExternalSimulatorConfig)
+    ] = field(default_factory=SingularExternalSimulatorConfig)
 
 
 @dataclass

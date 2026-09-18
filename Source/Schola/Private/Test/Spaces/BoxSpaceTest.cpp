@@ -353,4 +353,56 @@ bool FBoxSpaceToStringWithShapeTest::RunTest(const FString& Parameters)
 		FString(TEXT("BoxSpace(Dimensions={[-1, 1], [-2, 2]}, Shape=[2])")));
 	return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoxSpaceToStringUnboundedTest, "Schola.Spaces.BoxSpace.ToString.Unbounded", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FBoxSpaceToStringUnboundedTest::RunTest(const FString& Parameters)
+{
+	FBoxSpace BoxSpace;
+	BoxSpace.Add(FBoxSpaceDimension::Unbounded());
+	BoxSpace.Add(FBoxSpaceDimension::LowerBounded(0.0f));
+
+	TestEqual(
+		TEXT("FBoxSpace::ToString with unbounded dimensions"),
+		BoxSpace.ToString(),
+		FString(TEXT("BoxSpace(Dimensions={[-inf, inf], [0, inf]})")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoxSpaceValidateUnboundedTest, "Schola.Spaces.BoxSpace.Validate Unbounded Test", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FBoxSpaceValidateUnboundedTest::RunTest(const FString& Parameters)
+{
+	FBoxSpace BoxSpace;
+	BoxSpace.Add(FBoxSpaceDimension::Unbounded());
+	BoxSpace.Add(FBoxSpaceDimension::UpperBounded(5.0f));
+
+	FBoxPoint InBoundsPoint = FBoxPoint({1.0e10f, 5.0f});
+	TInstancedStruct<FPoint> InBounds = TInstancedStruct<FPoint>::Make<FBoxPoint>(InBoundsPoint);
+	TestTrue(TEXT("Unbounded dim accepts large value"), BoxSpace.Validate(InBounds) == ESpaceValidationResult::Success);
+
+	FBoxPoint OutOfBoundsPoint = FBoxPoint({0.0f, 6.0f});
+	TInstancedStruct<FPoint> OutOfBounds = TInstancedStruct<FPoint>::Make<FBoxPoint>(OutOfBoundsPoint);
+	TestTrue(TEXT("Finite high still rejects above high"), BoxSpace.Validate(OutOfBounds) == ESpaceValidationResult::OutOfBounds);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoxSpaceNormalizedObservationSpaceUnboundedTest, "Schola.Spaces.BoxSpace.Get Normalized Observation Space Unbounded Test", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FBoxSpaceNormalizedObservationSpaceUnboundedTest::RunTest(const FString& Parameters)
+{
+	FBoxSpace BoxSpace;
+	BoxSpace.Add(-1.0f, 1.0f);
+	BoxSpace.Add(FBoxSpaceDimension::Unbounded());
+
+	FBoxSpace NormalizedBoxSpace = BoxSpace.GetNormalizedObservationSpace();
+	const TArray<FBoxSpaceDimension> ExpectedNormalized = {
+		FBoxSpaceDimension(0.f, 1.f),
+		FBoxSpaceDimension::Unbounded(),
+	};
+	TestEqual(TEXT("NormalizedBoxSpace.Dimensions"), NormalizedBoxSpace.Dimensions, ExpectedNormalized);
+
+	return true;
+}
 #endif

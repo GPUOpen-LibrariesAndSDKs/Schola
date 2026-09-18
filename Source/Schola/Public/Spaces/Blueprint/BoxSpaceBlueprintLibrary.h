@@ -58,7 +58,34 @@ public:
     static TInstancedStruct<FBoxSpace> TransformToBoxSpace(
         UPARAM(DisplayName="Location Low") const FVector& InLocationLow, 
         UPARAM(DisplayName="Location High") const FVector& InLocationHigh,
-        UPARAM(DisplayName="Scale Low") const FVector& InScaleLow,
+        UPARAM(DisplayName="Scale Low") const FVector& InScaleLow, 
         UPARAM(DisplayName="Scale High") const FVector& InScaleHigh);
+
+    /**
+     * @brief Creates a fully unbounded box space dimension.
+     */
+    UFUNCTION(BlueprintPure, Category="Schola|Space|Box", meta=(DisplayName="Unbounded Dimension (Box Space)"))
+    static FBoxSpaceDimension MakeUnboundedBoxSpaceDimension();
+
+    /**
+     * @brief Creates a box space dimension bounded below and unbounded above.
+     * @param[in] InLow The finite lower bound.
+     */
+    UFUNCTION(BlueprintPure, Category="Schola|Space|Box", meta=(DisplayName="Lower Bounded Dimension (Box Space)"))
+    static FBoxSpaceDimension MakeLowerBoundedBoxSpaceDimension(UPARAM(DisplayName="Low") float InLow);
+
+    /**
+     * @brief Creates a box space dimension unbounded below and bounded above.
+     * @param[in] InHigh The finite upper bound.
+     */
+    UFUNCTION(BlueprintPure, Category="Schola|Space|Box", meta=(DisplayName="Upper Bounded Dimension (Box Space)"))
+    static FBoxSpaceDimension MakeUpperBoundedBoxSpaceDimension(UPARAM(DisplayName="High") float InHigh);
+
+    /**
+     * @brief Creates a box space with unbounded dimensions matching the given shape.
+     * @param[in] InShape The dimensional shape of the space.
+     */
+    UFUNCTION(BlueprintPure, Category="Schola|Space|Box", meta=(DisplayName="Unbounded (Box Space)"))
+    static TInstancedStruct<FBoxSpace> MakeUnboundedBoxSpace(UPARAM(DisplayName="Shape") const TArray<int32>& InShape);
 
 };

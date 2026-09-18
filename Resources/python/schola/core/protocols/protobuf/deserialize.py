@@ -96,8 +96,8 @@ def _(msg: proto_spaces.BoxSpace) -> spaces.Box:
     low = []
     high = []
     for dimension in msg.dimensions:
-        low.append(dimension.low)
-        high.append(dimension.high)
+        low.append(dimension.low if dimension.HasField("low") else -np.inf)
+        high.append(dimension.high if dimension.HasField("high") else np.inf)
     if len(msg.shape_dimensions) == 0:
         shape = [len(low)]
     else:

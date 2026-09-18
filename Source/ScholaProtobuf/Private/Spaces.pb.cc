@@ -350,27 +350,28 @@ static const ::_pb::Message* PROTOBUF_NONNULL const file_default_instances[] = {
 };
 const char descriptor_table_protodef_Spaces_2eproto[] ABSL_ATTRIBUTE_SECTION_VARIABLE(
     protodesc_cold) = {
-    "\n\014Spaces.proto\022\006Schola\032\013DType.proto\"\252\001\n\010"
+    "\n\014Spaces.proto\022\006Schola\032\013DType.proto\"\305\001\n\010"
     "BoxSpace\0226\n\ndimensions\030\001 \003(\0132\".Schola.Bo"
     "xSpace.BoxSpaceDimension\022\030\n\020shape_dimens"
     "ions\030\002 \003(\005\022\034\n\005dtype\030\003 \001(\0162\r.Schola.DType"
-    "\032.\n\021BoxSpaceDimension\022\013\n\003low\030\001 \001(\002\022\014\n\004hi"
-    "gh\030\002 \001(\002\"\035\n\rDiscreteSpace\022\014\n\004high\030\001 \001(\005\""
-    "\"\n\022MultiDiscreteSpace\022\014\n\004high\030\001 \003(\005\"!\n\020M"
-    "ultiBinarySpace\022\r\n\005shape\030\001 \001(\005\"D\n\tTextSp"
-    "ace\022\022\n\nmax_length\030\001 \001(\005\022\022\n\nmin_length\030\002 "
-    "\001(\005\022\017\n\007charset\030\003 \001(\t\"\256\002\n\005Space\022%\n\tbox_sp"
-    "ace\030\001 \001(\0132\020.Schola.BoxSpaceH\000\022/\n\016discret"
-    "e_space\030\002 \001(\0132\025.Schola.DiscreteSpaceH\000\022:"
-    "\n\024multi_discrete_space\030\003 \001(\0132\032.Schola.Mu"
-    "ltiDiscreteSpaceH\000\0226\n\022multi_binary_space"
-    "\030\004 \001(\0132\030.Schola.MultiBinarySpaceH\000\022\'\n\ndi"
-    "ct_space\030\005 \001(\0132\021.Schola.DictSpaceH\000\022\'\n\nt"
-    "ext_space\030\006 \001(\0132\021.Schola.TextSpaceH\000B\007\n\005"
-    "space\"x\n\tDictSpace\022-\n\006spaces\030\001 \003(\0132\035.Sch"
-    "ola.DictSpace.SpacesEntry\032<\n\013SpacesEntry"
-    "\022\013\n\003key\030\001 \001(\t\022\034\n\005value\030\002 \001(\0132\r.Schola.Sp"
-    "ace:\0028\001b\006proto3"
+    "\032I\n\021BoxSpaceDimension\022\020\n\003low\030\001 \001(\002H\000\210\001\001\022"
+    "\021\n\004high\030\002 \001(\002H\001\210\001\001B\006\n\004_lowB\007\n\005_high\"\035\n\rD"
+    "iscreteSpace\022\014\n\004high\030\001 \001(\005\"\"\n\022MultiDiscr"
+    "eteSpace\022\014\n\004high\030\001 \003(\005\"!\n\020MultiBinarySpa"
+    "ce\022\r\n\005shape\030\001 \001(\005\"D\n\tTextSpace\022\022\n\nmax_le"
+    "ngth\030\001 \001(\005\022\022\n\nmin_length\030\002 \001(\005\022\017\n\007charse"
+    "t\030\003 \001(\t\"\256\002\n\005Space\022%\n\tbox_space\030\001 \001(\0132\020.S"
+    "chola.BoxSpaceH\000\022/\n\016discrete_space\030\002 \001(\013"
+    "2\025.Schola.DiscreteSpaceH\000\022:\n\024multi_discr"
+    "ete_space\030\003 \001(\0132\032.Schola.MultiDiscreteSp"
+    "aceH\000\0226\n\022multi_binary_space\030\004 \001(\0132\030.Scho"
+    "la.MultiBinarySpaceH\000\022\'\n\ndict_space\030\005 \001("
+    "\0132\021.Schola.DictSpaceH\000\022\'\n\ntext_space\030\006 \001"
+    "(\0132\021.Schola.TextSpaceH\000B\007\n\005space\"x\n\tDict"
+    "Space\022-\n\006spaces\030\001 \003(\0132\035.Schola.DictSpace"
+    ".SpacesEntry\032<\n\013SpacesEntry\022\013\n\003key\030\001 \001(\t"
+    "\022\034\n\005value\030\002 \001(\0132\r.Schola.Space:\0028\001b\006prot"
+    "o3"
 };
 static const ::_pbi::DescriptorTable* PROTOBUF_NONNULL const
     descriptor_table_Spaces_2eproto_deps[1] = {
@@ -380,7 +381,7 @@ static ::absl::once_flag descriptor_table_Spaces_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_Spaces_2eproto = {
     false,
     false,
-    815,
+    842,
     descriptor_table_protodef_Spaces_2eproto,
     "Spaces.proto",
     &descriptor_table_Spaces_2eproto_once,
@@ -511,19 +512,19 @@ BoxSpace_BoxSpaceDimension::_table_ = {
     ::_pbi::TcParser::GetTable<::Schola::BoxSpace_BoxSpaceDimension>(),  // to_prefetch
     #endif  // PROTOBUF_PREFETCH_PARSE_TABLE
   }, {{
-    // float high = 2;
+    // optional float high = 2;
     {::_pbi::TcParser::FastF32S1,
      {21, 1, 0, PROTOBUF_FIELD_OFFSET(BoxSpace_BoxSpaceDimension, _impl_.high_)}},
-    // float low = 1;
+    // optional float low = 1;
     {::_pbi::TcParser::FastF32S1,
      {13, 0, 0, PROTOBUF_FIELD_OFFSET(BoxSpace_BoxSpaceDimension, _impl_.low_)}},
   }}, {{
     65535, 65535
   }}, {{
-    // float low = 1;
+    // optional float low = 1;
     {PROTOBUF_FIELD_OFFSET(BoxSpace_BoxSpaceDimension, _impl_.low_), _Internal::kHasBitsOffset + 0, 0,
     (0 | ::_fl::kFcOptional | ::_fl::kFloat)},
-    // float high = 2;
+    // optional float high = 2;
     {PROTOBUF_FIELD_OFFSET(BoxSpace_BoxSpaceDimension, _impl_.high_), _Internal::kHasBitsOffset + 1, 0,
     (0 | ::_fl::kFcOptional | ::_fl::kFloat)},
   }},
@@ -563,22 +564,19 @@ PROTOBUF_NOINLINE void BoxSpace_BoxSpaceDimension::Clear() {
   ::uint32_t cached_has_bits = 0;
   (void)cached_has_bits;
 
-  // float low = 1;
-  if ((this_._impl_._has_bits_[0] & 0x00000001u) != 0) {
-    if (::absl::bit_cast<::uint32_t>(this_._internal_low()) != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteFloatToArray(
-          1, this_._internal_low(), target);
-    }
+  cached_has_bits = this_._impl_._has_bits_[0];
+  // optional float low = 1;
+  if ((cached_has_bits & 0x00000001u) != 0) {
+    target = stream->EnsureSpace(target);
+    target = ::_pbi::WireFormatLite::WriteFloatToArray(
+        1, this_._internal_low(), target);
   }
 
-  // float high = 2;
-  if ((this_._impl_._has_bits_[0] & 0x00000002u) != 0) {
-    if (::absl::bit_cast<::uint32_t>(this_._internal_high()) != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteFloatToArray(
-          2, this_._internal_high(), target);
-    }
+  // optional float high = 2;
+  if ((cached_has_bits & 0x00000002u) != 0) {
+    target = stream->EnsureSpace(target);
+    target = ::_pbi::WireFormatLite::WriteFloatToArray(
+        2, this_._internal_high(), target);
   }
 
   if (ABSL_PREDICT_FALSE(this_._internal_metadata_.have_unknown_fields())) {
@@ -606,20 +604,7 @@ PROTOBUF_NOINLINE void BoxSpace_BoxSpaceDimension::Clear() {
 
   ::_pbi::Prefetch5LinesFrom7Lines(&this_);
   cached_has_bits = this_._impl_._has_bits_[0];
-  if ((cached_has_bits & 0x00000003u) != 0) {
-    // float low = 1;
-    if ((cached_has_bits & 0x00000001u) != 0) {
-      if (::absl::bit_cast<::uint32_t>(this_._internal_low()) != 0) {
-        total_size += 5;
-      }
-    }
-    // float high = 2;
-    if ((cached_has_bits & 0x00000002u) != 0) {
-      if (::absl::bit_cast<::uint32_t>(this_._internal_high()) != 0) {
-        total_size += 5;
-      }
-    }
-  }
+  total_size += ::absl::popcount(0x00000003u & cached_has_bits) * 5;
   return this_.MaybeComputeUnknownFieldsSize(total_size,
                                              &this_._impl_._cached_size_);
 }
@@ -635,14 +620,10 @@ void BoxSpace_BoxSpaceDimension::MergeImpl(::google::protobuf::MessageLite& to_m
   cached_has_bits = from._impl_._has_bits_[0];
   if ((cached_has_bits & 0x00000003u) != 0) {
     if ((cached_has_bits & 0x00000001u) != 0) {
-      if (::absl::bit_cast<::uint32_t>(from._internal_low()) != 0) {
-        _this->_impl_.low_ = from._impl_.low_;
-      }
+      _this->_impl_.low_ = from._impl_.low_;
     }
     if ((cached_has_bits & 0x00000002u) != 0) {
-      if (::absl::bit_cast<::uint32_t>(from._internal_high()) != 0) {
-        _this->_impl_.high_ = from._impl_.high_;
-      }
+      _this->_impl_.high_ = from._impl_.high_;
     }
   }
   _this->_impl_._has_bits_[0] |= cached_has_bits;

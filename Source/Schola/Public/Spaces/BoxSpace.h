@@ -14,9 +14,9 @@
  * @brief A struct representing a box (continuous) space of possible observations or actions.
  * 
  * A BoxSpace is a Cartesian product of BoxSpaceDimensions, where each dimension
- * defines a continuous range with upper and lower bounds. This is commonly used
+ * defines a continuous range with optional upper and lower bounds. This is commonly used
  * for continuous control problems where actions or observations are real-valued
- * vectors within specified ranges.
+ * vectors, possibly unbounded.
  */
 USTRUCT(BlueprintType)
 struct SCHOLA_API FBoxSpace : public FSpace
@@ -75,8 +75,8 @@ public:
 	void Copy(const FBoxSpace& Other);
 
 	/**
-	 * @brief Gets a normalized version of this BoxSpace with all dimensions in [0, 1].
-	 * @return A new BoxSpace with all dimensions normalized.
+	 * @brief Gets a normalized version of this BoxSpace.
+	 * @return A new BoxSpace with fully bounded dimensions mapped to [0, 1]; unbounded dimensions are copied as is.
 	 */
 	FBoxSpace GetNormalizedObservationSpace() const;
 

@@ -187,8 +187,14 @@ public:
 		for (const FBoxSpaceDimension& SpaceValue : Space.Dimensions)
 		{
 			Schola::BoxSpace_BoxSpaceDimension* Dimension = ConcreteSpace->add_dimensions();
-			Dimension->set_low(SpaceValue.Low);
-			Dimension->set_high(SpaceValue.High);
+			if (SpaceValue.bHasLow)
+			{
+				Dimension->set_low(SpaceValue.Low);
+			}
+			if (SpaceValue.bHasHigh)
+			{
+				Dimension->set_high(SpaceValue.High);
+			}
 		}
 		for (int DimensionSize : Space.Shape)
 		{

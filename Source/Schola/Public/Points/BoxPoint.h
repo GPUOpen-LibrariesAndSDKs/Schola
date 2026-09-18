@@ -12,7 +12,7 @@
  * 
  * Conceptually represents a floating point vector with continuous values.
  * Box points are used to represent continuous observations or actions
- * in a bounded multi-dimensional space.
+ * in a multi-dimensional box space.
  */
 USTRUCT(BlueprintType)
 struct SCHOLA_API FBoxPoint : public FPoint

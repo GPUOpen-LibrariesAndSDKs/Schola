@@ -83,3 +83,31 @@ TInstancedStruct<FBoxSpace> UBoxSpaceBlueprintLibrary::TransformToBoxSpace(
 
 	return TInstancedStruct<FBoxSpace>::Make<FBoxSpace>(Low, High, Shape);
 }
+
+FBoxSpaceDimension UBoxSpaceBlueprintLibrary::MakeUnboundedBoxSpaceDimension()
+{
+	return FBoxSpaceDimension::Unbounded();
+}
+
+FBoxSpaceDimension UBoxSpaceBlueprintLibrary::MakeLowerBoundedBoxSpaceDimension(float InLow)
+{
+	return FBoxSpaceDimension::LowerBounded(InLow);
+}
+
+FBoxSpaceDimension UBoxSpaceBlueprintLibrary::MakeUpperBoundedBoxSpaceDimension(float InHigh)
+{
+	return FBoxSpaceDimension::UpperBounded(InHigh);
+}
+
+TInstancedStruct<FBoxSpace> UBoxSpaceBlueprintLibrary::MakeUnboundedBoxSpace(const TArray<int32>& InShape)
+{
+	TInstancedStruct<FBoxSpace> Result;
+	Result.InitializeAs<FBoxSpace>(InShape);
+	FBoxSpace& Space = Result.GetMutable<FBoxSpace>();
+	const FBoxSpaceDimension UnboundedDimension = FBoxSpaceDimension::Unbounded();
+	for (FBoxSpaceDimension& Dimension : Space.Dimensions)
+	{
+		Dimension = UnboundedDimension;
+	}
+	return Result;
+}

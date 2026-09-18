@@ -192,9 +192,10 @@ def _space_to_proto_box(space: Box) -> proto_spaces.BoxSpace:
     def box_space_dim_factory(
         dim_bounds: tuple[Any, Any],
     ) -> proto_spaces.BoxSpace.BoxSpaceDimension:
-        return proto_spaces.BoxSpace.BoxSpaceDimension(
-            low=dim_bounds[0], high=dim_bounds[1]
-        )
+        low, high = dim_bounds
+        low = float(low) if np.isfinite(low) else None
+        high = float(high) if np.isfinite(high) else None
+        return proto_spaces.BoxSpace.BoxSpaceDimension(low=low, high=high)
 
     msg.dimensions.extend(
         map(box_space_dim_factory, zip(space.low.flat, space.high.flat))

@@ -118,6 +118,88 @@ bool FProtobufBoxSpaceDeserializationTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProtobufBoxSpaceUnboundedDeserializationTest, "Schola.Protobuf.Deserialization.Spaces.BoxUnbounded", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FProtobufBoxSpaceUnboundedDeserializationTest::RunTest(const FString& Parameters)
+{
+	Schola::Space InProto;
+	auto* BoxProto = InProto.mutable_box_space();
+	BoxProto->add_dimensions();
+	BoxProto->add_shape_dimensions(1);
+
+	TInstancedStruct<FSpace> Out;
+	ProtobufDeserializer::FromProto(InProto, Out);
+
+	const FBoxSpace* Space = Out.GetPtr<FBoxSpace>();
+	TestTrue(TEXT("Box space deserialized as box_space"), Space != nullptr);
+	if (Space)
+	{
+		TestEqual(TEXT("BoxSpace has 1 dim"), Space->Dimensions.Num(), 1);
+		if (Space->Dimensions.Num() >= 1)
+		{
+			TestTrue(TEXT("Omitted low is unbounded"), !Space->Dimensions[0].bHasLow);
+			TestTrue(TEXT("Omitted high is unbounded"), !Space->Dimensions[0].bHasHigh);
+		}
+	}
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProtobufBoxSpaceLowerBoundedDeserializationTest, "Schola.Protobuf.Deserialization.Spaces.BoxLowerBounded", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FProtobufBoxSpaceLowerBoundedDeserializationTest::RunTest(const FString& Parameters)
+{
+	Schola::Space InProto;
+	auto* BoxProto = InProto.mutable_box_space();
+	auto* LowerOnly = BoxProto->add_dimensions();
+	LowerOnly->set_low(0.0f);
+	BoxProto->add_shape_dimensions(1);
+
+	TInstancedStruct<FSpace> Out;
+	ProtobufDeserializer::FromProto(InProto, Out);
+
+	const FBoxSpace* Space = Out.GetPtr<FBoxSpace>();
+	TestTrue(TEXT("Box space deserialized as box_space"), Space != nullptr);
+	if (Space)
+	{
+		TestEqual(TEXT("BoxSpace has 1 dim"), Space->Dimensions.Num(), 1);
+		if (Space->Dimensions.Num() >= 1)
+		{
+			TestTrue(TEXT("Set low is bounded"), Space->Dimensions[0].bHasLow);
+			TestTrue(TEXT("Missing high is unbounded"), !Space->Dimensions[0].bHasHigh);
+			TestTrue(TEXT("Lower bound 0"), FMath::IsNearlyEqual(Space->Dimensions[0].Low, 0.0f));
+		}
+	}
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProtobufBoxSpaceUpperBoundedDeserializationTest, "Schola.Protobuf.Deserialization.Spaces.BoxUpperBounded", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FProtobufBoxSpaceUpperBoundedDeserializationTest::RunTest(const FString& Parameters)
+{
+	Schola::Space InProto;
+	auto* BoxProto = InProto.mutable_box_space();
+	auto* UpperOnly = BoxProto->add_dimensions();
+	UpperOnly->set_high(2.0f);
+	BoxProto->add_shape_dimensions(1);
+
+	TInstancedStruct<FSpace> Out;
+	ProtobufDeserializer::FromProto(InProto, Out);
+
+	const FBoxSpace* Space = Out.GetPtr<FBoxSpace>();
+	TestTrue(TEXT("Box space deserialized as box_space"), Space != nullptr);
+	if (Space)
+	{
+		TestEqual(TEXT("BoxSpace has 1 dim"), Space->Dimensions.Num(), 1);
+		if (Space->Dimensions.Num() >= 1)
+		{
+			TestTrue(TEXT("Missing low is unbounded"), !Space->Dimensions[0].bHasLow);
+			TestTrue(TEXT("Set high is bounded"), Space->Dimensions[0].bHasHigh);
+			TestTrue(TEXT("Upper bound 2"), FMath::IsNearlyEqual(Space->Dimensions[0].High, 2.0f));
+		}
+	}
+
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProtobufTextSpaceDeserializationTest, "Schola.Protobuf.Deserialization.Spaces.Text", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 bool FProtobufTextSpaceDeserializationTest::RunTest(const FString& Parameters)
 {

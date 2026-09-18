@@ -82,6 +82,47 @@ class TestBoxPoint:
         ), "BoxPoint with values [1.0, 2.0, 1.0, 2.0] and shape [2, 2] should deserialize to np.array([[1.0, 2.0], [1.0, 2.0]], dtype=np.float32)"
 
 
+class TestBoxSpace:
+    def test_finite_bounds(self):
+        proto = BoxSpace(
+            dimensions=[
+                BoxSpace.BoxSpaceDimension(low=0.0, high=1.0),
+                BoxSpace.BoxSpaceDimension(low=0.0, high=1.0),
+            ],
+            shape_dimensions=[2],
+            dtype=DType.FLOAT32,
+        )
+        space = from_proto(proto)
+        assert isinstance(space, spaces.Box)
+        assert np.allclose(space.low, 0.0)
+        assert np.allclose(space.high, 1.0)
+
+    def test_omitted_fields_are_infinite(self):
+        proto = BoxSpace(
+            dimensions=[BoxSpace.BoxSpaceDimension()],
+            shape_dimensions=[1],
+            dtype=DType.FLOAT32,
+        )
+        space = from_proto(proto)
+        assert np.isneginf(space.low).all()
+        assert np.isposinf(space.high).all()
+
+    def test_mixed_optional_bounds(self):
+        proto = BoxSpace(
+            dimensions=[
+                BoxSpace.BoxSpaceDimension(high=0.0),
+                BoxSpace.BoxSpaceDimension(low=0.0),
+            ],
+            shape_dimensions=[2],
+            dtype=DType.FLOAT32,
+        )
+        space = from_proto(proto)
+        assert np.isneginf(space.low[0])
+        assert space.high[0] == 0.0
+        assert space.low[1] == 0.0
+        assert np.isposinf(space.high[1])
+
+
 class TestTextPoint:
     def test_value(self):
         point = TextPoint(value="one two")

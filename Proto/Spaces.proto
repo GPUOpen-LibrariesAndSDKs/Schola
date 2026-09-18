@@ -8,8 +8,8 @@ import "DType.proto";
 message BoxSpace {
 
     message BoxSpaceDimension {
-        float low = 1;
-        float high = 2;
+        optional float low = 1;   // unset => unbounded below
+        optional float high = 2;  // unset => unbounded above
     }
     repeated BoxSpaceDimension dimensions = 1;
     repeated int32 shape_dimensions = 2;

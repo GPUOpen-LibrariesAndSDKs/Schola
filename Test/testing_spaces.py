@@ -46,10 +46,10 @@ TESTING_FUNDAMENTAL_SPACES = [
     Discrete(3),
     # Discrete(3, start=-1),
     Box(low=0.0, high=1.0),
-    # Box(low=0.0, high=np.inf, shape=(2, 2)),
+    Box(low=0.0, high=np.inf, shape=(2, 2)),
     Box(low=np.array([-10.0, 0.0]), high=np.array([10.0, 10.0]), dtype=np.float64),
-    # Box(low=-np.inf, high=0.0, shape=(2, 1)),
-    # Box(low=0.0, high=np.inf, shape=(2, 1)),
+    Box(low=-np.inf, high=0.0, shape=(2, 1)),
+    Box(low=0.0, high=np.inf, shape=(2, 1)),
     Box(low=0, high=255, shape=(2, 2, 3), dtype=np.uint8),
     Box(low=np.array([0, 0, 1]), high=np.array([1, 0, 1]), dtype=np.bool_),
     # Box(

@@ -215,7 +215,26 @@ public:
 		Space.Dimensions.Reserve(InBoxSpace.dimensions_size());
 		for (const auto& Dim : InBoxSpace.dimensions())
 		{
-			Space.Dimensions.Add(FBoxSpaceDimension(Dim.low(), Dim.high()));
+			FBoxSpaceDimension Dimension;
+			if (Dim.has_low() && FMath::IsFinite(Dim.low()))
+			{
+				Dimension.Low = Dim.low();
+				Dimension.bHasLow = true;
+			}
+			else
+			{
+				Dimension.bHasLow = false;
+			}
+			if (Dim.has_high() && FMath::IsFinite(Dim.high()))
+			{
+				Dimension.High = Dim.high();
+				Dimension.bHasHigh = true;
+			}
+			else
+			{
+				Dimension.bHasHigh = false;
+			}
+			Space.Dimensions.Add(Dimension);
 		}
 		// Shape
 		Space.Shape.Empty();

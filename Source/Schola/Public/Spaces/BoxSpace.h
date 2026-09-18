@@ -76,7 +76,7 @@ public:
 
 	/**
 	 * @brief Gets a normalized version of this BoxSpace.
-	 * @return A new BoxSpace with fully bounded dimensions mapped to [0, 1]; unbounded dimensions are copied as is.
+	 * @return A new BoxSpace with the same Shape, fully bounded dimensions mapped to [0, 1], and unbounded dimensions copied as is.
 	 */
 	FBoxSpace GetNormalizedObservationSpace() const;
 

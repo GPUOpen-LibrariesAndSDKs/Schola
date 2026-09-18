@@ -195,6 +195,7 @@ bool FBoxSpaceNormalizedObservationSpaceTest::RunTest(const FString& Parameters)
         FBoxSpaceDimension(0.f, 1.f),
     };
     TestEqual(TEXT("NormalizedBoxSpace.Dimensions"), NormalizedBoxSpace.Dimensions, ExpectedNormalized);
+    TestEqual(TEXT("NormalizedBoxSpace.Shape"), NormalizedBoxSpace.Shape, BoxSpace.Shape);
 
     return true;
 }
@@ -395,6 +396,7 @@ bool FBoxSpaceNormalizedObservationSpaceUnboundedTest::RunTest(const FString& Pa
 	FBoxSpace BoxSpace;
 	BoxSpace.Add(-1.0f, 1.0f);
 	BoxSpace.Add(FBoxSpaceDimension::Unbounded());
+	BoxSpace.Shape = {2};
 
 	FBoxSpace NormalizedBoxSpace = BoxSpace.GetNormalizedObservationSpace();
 	const TArray<FBoxSpaceDimension> ExpectedNormalized = {
@@ -402,6 +404,7 @@ bool FBoxSpaceNormalizedObservationSpaceUnboundedTest::RunTest(const FString& Pa
 		FBoxSpaceDimension::Unbounded(),
 	};
 	TestEqual(TEXT("NormalizedBoxSpace.Dimensions"), NormalizedBoxSpace.Dimensions, ExpectedNormalized);
+	TestEqual(TEXT("NormalizedBoxSpace.Shape"), NormalizedBoxSpace.Shape, BoxSpace.Shape);
 
 	return true;
 }

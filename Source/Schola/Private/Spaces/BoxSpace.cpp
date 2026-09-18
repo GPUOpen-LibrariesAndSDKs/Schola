@@ -163,6 +163,7 @@ FBoxPoint FBoxSpace::NormalizeObservation(const FBoxPoint& Observation) const
 FBoxSpace FBoxSpace::GetNormalizedObservationSpace() const
 {
 	FBoxSpace OutBoxSpace;
+	OutBoxSpace.Shape = Shape;
 
 	for (int i = 0; i < Dimensions.Num(); i++)
 	{

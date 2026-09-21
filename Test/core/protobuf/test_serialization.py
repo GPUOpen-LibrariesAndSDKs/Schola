@@ -3,10 +3,12 @@
 """Tests for the protobuf serialization"""
 
 from schola.core.protocols.protobuf.serialize import to_proto, space_to_proto
+from schola.core.protocols.protobuf.deserialize import from_proto
 from schola.generated.Points_pb2 import *
 from schola.generated.Spaces_pb2 import *
 from schola.generated.DType_pb2 import *
 import numpy as np
+import pytest
 from gymnasium.spaces import Box, Discrete, MultiDiscrete, MultiBinary, Dict, Text
 from gymnasium.spaces.text import alphanumeric
 
@@ -111,6 +113,55 @@ class TestBoxPoint:
         ], "BoxPoint values should be flattened [1.0, 2.0, 1.0, 2.0]"
         assert point.dtype == DType.FLOAT32, "BoxPoint dtype should be FLOAT32"
         assert list(point.shape) == [2, 2], "BoxPoint shape should be [2, 2]"
+
+
+class TestBoxSpace:
+    def test_finite_bounds(self):
+        space = Box(low=0.0, high=1.0, shape=(2,), dtype=np.float32)
+        proto = space_to_proto(space)
+        assert isinstance(proto, BoxSpace)
+        assert len(proto.dimensions) == 2
+        for dim in proto.dimensions:
+            assert dim.HasField("low")
+            assert dim.HasField("high")
+            assert dim.low == 0.0
+            assert dim.high == 1.0
+
+    def test_unbounded_omits_fields(self):
+        space = Box(low=-np.inf, high=np.inf, shape=(2,), dtype=np.float32)
+        proto = space_to_proto(space)
+        assert len(proto.dimensions) == 2
+        for dim in proto.dimensions:
+            assert not dim.HasField("low")
+            assert not dim.HasField("high")
+
+    def test_mixed_bounds(self):
+        space = Box(
+            low=np.array([-np.inf, 0.0], dtype=np.float32),
+            high=np.array([0.0, np.inf], dtype=np.float32),
+        )
+        proto = space_to_proto(space)
+        assert not proto.dimensions[0].HasField("low")
+        assert proto.dimensions[0].HasField("high")
+        assert proto.dimensions[1].HasField("low")
+        assert not proto.dimensions[1].HasField("high")
+
+    @pytest.mark.parametrize(
+        "space",
+        [
+            Box(low=0.0, high=1.0, shape=(2,), dtype=np.float32),
+            Box(low=0.0, high=np.inf, shape=(2, 2), dtype=np.float32),
+            Box(low=-np.inf, high=0.0, shape=(2, 2), dtype=np.float32),
+            Box(
+                low=np.array([-np.inf, 0.0], dtype=np.float32),
+                high=np.array([0.0, np.inf], dtype=np.float32),
+            ),
+        ],
+        ids=["finite", "unbounded_high", "unbounded_low", "mixed_inf"],
+    )
+    def test_roundtrip(self, space: Box):
+        restored = from_proto(space_to_proto(space))
+        assert restored == space
 
 
 class TestTextPoint:

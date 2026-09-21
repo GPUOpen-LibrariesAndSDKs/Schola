@@ -139,9 +139,10 @@ ESpaceValidationResult FBoxSpace::Validate(const TInstancedStruct<FPoint>& Point
 
 	for (int i = 0; i < Dimensions.Num(); i++)
 	{
-		if (TypedObservation.Values[i] > Dimensions[i].High || TypedObservation.Values[i] < Dimensions[i].Low)
+		const ESpaceValidationResult DimResult = Dimensions[i].ValidateDimension(TypedObservation.Values[i]);
+		if (DimResult != ESpaceValidationResult::Success)
 		{
-			return ESpaceValidationResult::OutOfBounds;
+			return DimResult;
 		}
 	}
 
@@ -162,11 +163,18 @@ FBoxPoint FBoxSpace::NormalizeObservation(const FBoxPoint& Observation) const
 FBoxSpace FBoxSpace::GetNormalizedObservationSpace() const
 {
 	FBoxSpace OutBoxSpace;
+	OutBoxSpace.Shape = Shape;
 
-	// Set extent to be between 0 and 1 for normalized observations.
 	for (int i = 0; i < Dimensions.Num(); i++)
 	{
-		OutBoxSpace.Add(FBoxSpaceDimension::ZeroOneUnitDimension());
+		if (Dimensions[i].IsFullyBounded())
+		{
+			OutBoxSpace.Add(FBoxSpaceDimension::ZeroOneUnitDimension());
+		}
+		else
+		{
+			OutBoxSpace.Add(Dimensions[i]);
+		}
 	}
 	return OutBoxSpace;
 }
@@ -202,7 +210,7 @@ FString FBoxSpace::ToString() const
 		{
 			DimPart += TEXT(", ");
 		}
-		DimPart += FString::Printf(TEXT("[%.6g, %.6g]"), Dimensions[i].Low, Dimensions[i].High);
+		DimPart += Dimensions[i].ToString();
 	}
 	FString ShapePart;
 	if (Shape.Num() > 0)

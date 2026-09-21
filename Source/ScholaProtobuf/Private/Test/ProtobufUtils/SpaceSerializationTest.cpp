@@ -113,6 +113,89 @@ bool FProtobufBoxSpaceSerializationTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProtobufBoxSpaceUnboundedSerializationTest, "Schola.Protobuf.Serialization.Spaces.BoxUnbounded", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FProtobufBoxSpaceUnboundedSerializationTest::RunTest(const FString& Parameters)
+{
+	TInstancedStruct<FSpace> Inst;
+	Inst.InitializeAs<FBoxSpace>();
+	FBoxSpace* Space = Inst.GetMutablePtr<FBoxSpace>();
+	Space->Dimensions = TArray<FBoxSpaceDimension>({FBoxSpaceDimension::Unbounded()});
+	Space->Shape = TArray<int>({1});
+
+	Schola::Space OutProto;
+	ProtobufSerializer::ToProto(Inst, &OutProto);
+
+	TestTrue(TEXT("Box space serialized as box_space"), OutProto.has_box_space());
+	if (OutProto.has_box_space())
+	{
+		auto& Dims = OutProto.box_space().dimensions();
+		TestEqual(TEXT("BoxSpace has 1 dim"), (int)Dims.size(), 1);
+		if (Dims.size() >= 1)
+		{
+			TestTrue(TEXT("Unbounded dim omits low"), !Dims.Get(0).has_low());
+			TestTrue(TEXT("Unbounded dim omits high"), !Dims.Get(0).has_high());
+		}
+	}
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProtobufBoxSpaceLowerBoundedSerializationTest, "Schola.Protobuf.Serialization.Spaces.BoxLowerBounded", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FProtobufBoxSpaceLowerBoundedSerializationTest::RunTest(const FString& Parameters)
+{
+	TInstancedStruct<FSpace> Inst;
+	Inst.InitializeAs<FBoxSpace>();
+	FBoxSpace* Space = Inst.GetMutablePtr<FBoxSpace>();
+	Space->Dimensions = TArray<FBoxSpaceDimension>({FBoxSpaceDimension::LowerBounded(0.0f)});
+	Space->Shape = TArray<int>({1});
+
+	Schola::Space OutProto;
+	ProtobufSerializer::ToProto(Inst, &OutProto);
+
+	TestTrue(TEXT("Box space serialized as box_space"), OutProto.has_box_space());
+	if (OutProto.has_box_space())
+	{
+		auto& Dims = OutProto.box_space().dimensions();
+		TestEqual(TEXT("BoxSpace has 1 dim"), (int)Dims.size(), 1);
+		if (Dims.size() >= 1)
+		{
+			TestTrue(TEXT("LowerBounded sets low"), Dims.Get(0).has_low());
+			TestTrue(TEXT("LowerBounded omits high"), !Dims.Get(0).has_high());
+			TestTrue(TEXT("LowerBounded low == 0"), FMath::IsNearlyEqual((float)Dims.Get(0).low(), 0.0f));
+		}
+	}
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProtobufBoxSpaceUpperBoundedSerializationTest, "Schola.Protobuf.Serialization.Spaces.BoxUpperBounded", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FProtobufBoxSpaceUpperBoundedSerializationTest::RunTest(const FString& Parameters)
+{
+	TInstancedStruct<FSpace> Inst;
+	Inst.InitializeAs<FBoxSpace>();
+	FBoxSpace* Space = Inst.GetMutablePtr<FBoxSpace>();
+	Space->Dimensions = TArray<FBoxSpaceDimension>({FBoxSpaceDimension::UpperBounded(2.0f)});
+	Space->Shape = TArray<int>({1});
+
+	Schola::Space OutProto;
+	ProtobufSerializer::ToProto(Inst, &OutProto);
+
+	TestTrue(TEXT("Box space serialized as box_space"), OutProto.has_box_space());
+	if (OutProto.has_box_space())
+	{
+		auto& Dims = OutProto.box_space().dimensions();
+		TestEqual(TEXT("BoxSpace has 1 dim"), (int)Dims.size(), 1);
+		if (Dims.size() >= 1)
+		{
+			TestTrue(TEXT("UpperBounded omits low"), !Dims.Get(0).has_low());
+			TestTrue(TEXT("UpperBounded sets high"), Dims.Get(0).has_high());
+			TestTrue(TEXT("UpperBounded high == 2"), FMath::IsNearlyEqual((float)Dims.Get(0).high(), 2.0f));
+		}
+	}
+
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProtobufTextSpaceSerializationTest, "Schola.Protobuf.Serialization.Spaces.Text", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 bool FProtobufTextSpaceSerializationTest::RunTest(const FString& Parameters)
 {

@@ -319,6 +319,42 @@ bool FBoxSpaceBlueprintLibrary_TransformToBoxSpace_NegativeScaleTest::RunTest(co
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoxSpaceBlueprintLibrary_MakeUnboundedBoxSpaceTest, "Schola.Spaces.Blueprint.BoxSpaceBlueprintLibrary.MakeUnboundedBoxSpace", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FBoxSpaceBlueprintLibrary_MakeUnboundedBoxSpaceTest::RunTest(const FString& Parameters)
+{
+    TArray<int32> Shape = {2, 2};
+    TInstancedStruct<FBoxSpace> Result = UBoxSpaceBlueprintLibrary::MakeUnboundedBoxSpace(Shape);
+
+    TestTrue(TEXT("Result is valid"), Result.IsValid());
+    const FBoxSpace& BoxSpace = Result.Get<FBoxSpace>();
+    TestEqual(TEXT("BoxSpace.Shape"), BoxSpace.Shape, Shape);
+    TestEqual(TEXT("BoxSpace.Dimensions.Num() == 4"), BoxSpace.Dimensions.Num(), 4);
+    for (const FBoxSpaceDimension& Dimension : BoxSpace.Dimensions)
+    {
+        TestTrue(TEXT("Dimension is unbounded"), Dimension.IsUnbounded());
+    }
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoxSpaceBlueprintLibrary_MakeHalfBoundedBoxSpaceDimensionTest, "Schola.Spaces.Blueprint.BoxSpaceBlueprintLibrary.MakeHalfBoundedBoxSpaceDimension", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FBoxSpaceBlueprintLibrary_MakeHalfBoundedBoxSpaceDimensionTest::RunTest(const FString& Parameters)
+{
+    TestEqual(
+        TEXT("MakeLowerBoundedBoxSpaceDimension"),
+        UBoxSpaceBlueprintLibrary::MakeLowerBoundedBoxSpaceDimension(0.0f),
+        FBoxSpaceDimension::LowerBounded(0.0f));
+    TestEqual(
+        TEXT("MakeUpperBoundedBoxSpaceDimension"),
+        UBoxSpaceBlueprintLibrary::MakeUpperBoundedBoxSpaceDimension(2.0f),
+        FBoxSpaceDimension::UpperBounded(2.0f));
+
+    return true;
+}
+
+
 #endif
 
 

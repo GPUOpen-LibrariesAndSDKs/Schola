@@ -1058,7 +1058,8 @@ class SCHOLAPROTOBUF_API BoxSpace_BoxSpaceDimension final : public ::google::pro
     kLowFieldNumber = 1,
     kHighFieldNumber = 2,
   };
-  // float low = 1;
+  // optional float low = 1;
+  bool has_low() const;
   void clear_low() ;
   float low() const;
   void set_low(float value);
@@ -1068,7 +1069,8 @@ class SCHOLAPROTOBUF_API BoxSpace_BoxSpaceDimension final : public ::google::pro
   void _internal_set_low(float value);
 
   public:
-  // float high = 2;
+  // optional float high = 2;
+  bool has_high() const;
   void clear_high() ;
   float high() const;
   void set_high(float value);
@@ -1927,7 +1929,11 @@ SCHOLAPROTOBUF_API extern const ::google::protobuf::internal::ClassDataFull Spac
 
 // BoxSpace_BoxSpaceDimension
 
-// float low = 1;
+// optional float low = 1;
+inline bool BoxSpace_BoxSpaceDimension::has_low() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000001u) != 0;
+  return value;
+}
 inline void BoxSpace_BoxSpaceDimension::clear_low() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.low_ = 0;
@@ -1951,7 +1957,11 @@ inline void BoxSpace_BoxSpaceDimension::_internal_set_low(float value) {
   _impl_.low_ = value;
 }
 
-// float high = 2;
+// optional float high = 2;
+inline bool BoxSpace_BoxSpaceDimension::has_high() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000002u) != 0;
+  return value;
+}
 inline void BoxSpace_BoxSpaceDimension::clear_high() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.high_ = 0;

@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2026 Advanced Micro Devices, Inc. All Rights Reserved.
+// Copyright (c) 2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
 #include "Sensors/FakeCameraSensor.h"
 #include "LogScholaInteractors.h"

@@ -15,6 +15,9 @@ dependencies = [
     "schola>=2.1.0",
 ]
 
+[project.scripts]
+lerobot-to-onnx = "lerobot_env_schola.lerobot_to_onnx:export_onnx_app"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["lerobot_env_schola*"]

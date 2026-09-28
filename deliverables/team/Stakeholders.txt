@@ -1,0 +1,35 @@
+STAKEHOLDERS
+============
+
+1. PARTNERS
+-----------
+Partner 1
+  Name: 
+  Title:
+  Email:
+
+Partner 2
+  Name:
+  Title:
+  Email:
+
+
+2. PARTNER CONTACTS
+-------------------
+Primary Partner Contact (the person you work with and meet regularly)
+  Name:
+  Role/Title:
+  Email:
+  Meeting cadence:
+
+Secondary Partner Contact (e.g., someone you met once or who is less involved)
+  Name:
+  Role/Title:
+  Email:
+  Context (how/when you met):
+
+
+3. TEACHING ASSISTANT (TA)
+--------------------------
+  Name:
+  Email:

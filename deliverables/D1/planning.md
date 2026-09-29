@@ -46,9 +46,23 @@ As a Godot developer, I want a trained policy to drive my agent with Python clos
 #### Q5: Have you decided on how you will build it? Share what you know now or tell us the options you are considering.
 
 > Short (1-2 min' read max)
- * What is the technology stack? Specify languages, frameworks, libraries, PaaS products or tools to be used or being considered. 
+ * What is the technology stack? Specify languages, frameworks, libraries, PaaS products or tools to be used or being considered.
+
+Tech Stack:
+* *Game engine:* Godot
+* *Engine-side language:* GDScript or C# .net (to be discussed with partners)
+* *RL-side* Python and Gymnasium
+* *Communication:* gRPC with Protocol Buffers
+* *Inference:* ONNX (model format) and ONNX Runtime (to run trained models inside Godot)
+
  * How will you deploy the application?
- * Describe the architecture - what are the high level components or patterns you will use? Diagrams are useful here. 
+
+Schola-Godot is a developer library, not a hosted service, so there is no server to deploy. It will be distributed as a Godot **addon** that developers drop into their project's `addons/` folder, with the Python side installed via `pip` as Schola already is.
+
+Training-only code (gRPC, connectors) will be packaged separately from the core and inference code, so a shipped game includes only what it needs to run a trained model. Longer term, the work is intended to be merged into AMD's open-source Schola repository.
+
+ * Describe the architecture - what are the high level components or patterns you will use? Diagrams are useful here.
+
  * Will you be using third party applications or APIs? If so, what are they?
 
 ----

@@ -20,6 +20,34 @@ Currently, developers wanting to use Godot for RL either have to write custom so
  * User stories must contain acceptance criteria. Examples of user stories with different formats can be found here: https://www.justinmind.com/blog/user-story-examples/. **It is important that you provide a link to an artifact containing your user stories**.
  * If you have a partner, these must be reviewed and accepted by them. You need to include the evidence of partner approval (e.g., screenshot from email) or at least communication to the partner (e.g., email you sent)
 
+US1: Defining an Environment
+
+As a Godot developer, I want to create an RL environment by implementing a simple interface, in order to train an agent without writing networking code.
+
+US2: Declaring Spaces
+
+As a Godot developer, I want to declare my agent's observation and action spaces using reusable types, in order to tell Python the shape of my problem.
+
+US3: Transport - gRPC Server
+
+As an ML practitioner, I want my Godot game to answer the same gRPC calls Unreal does, in order to reuse Python's existing training tools unmodified.
+
+US4: Core - The Connector Loop
+
+As a Godot developer, I want reset/step/auto-reset to behave exactly like Unreal's, in order for training to work identically across engines.
+
+US5: Godot Bindings + The Demo Environment
+
+As a Godot developer, I want to build an RL environment using normal Godot nodes and the Inspector, in order to work the way I already work in Godot.
+
+US6: ONNX Export (Python)
+
+As a Godot developer, I want to export a trained policy to ONNX, in order to run it later without Python.
+
+US7: ONNX Inference + Shipping
+
+As a Godot developer, I want a trained policy to drive my agent with Python closed, and to ship my game without training bloat.
+
 #### Q5: Have you decided on how you will build it? Share what you know now or tell us the options you are considering.
 
 > Short (1-2 min' read max)

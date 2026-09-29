@@ -128,7 +128,6 @@ Tech Stack:
  * How will you deploy the application?
 
 Schola-Godot is a developer library, not a hosted service, so there is no server to deploy. It will be distributed as a Godot **addon** that developers drop into their project's `addons/` folder, with the Python side installed via `pip` as Schola already is.
-
 Training-only code (gRPC, connectors) will be packaged separately from the core and inference code, so a shipped game includes only what it needs to run a trained model. Longer term, the work is intended to be merged into AMD's open-source Schola repository.
 
  * Describe the architecture - what are the high level components or patterns you will use? Diagrams are useful here.
@@ -190,7 +189,7 @@ Describe meetings (and other events) you are planning to have.
   
 #### Q9: How will you organize your team?
 
-List/describe the artifacts you will produce to organize your team. (We strongly recommend that you use standard collaboration tools like Linear.app, Jira, Slack, Discord, GitHub.)       
+List/describe the artifacts you will produce to organize your team. (We strongly recommend that you use standard collaboration tools like Linear.app, Jira, Slack, Discord, GitHub.)
 
  * Artifacts can be To-Do lists, Task boards, schedule(s), meeting minutes, etc.
  * We want to understand:
@@ -199,15 +198,31 @@ List/describe the artifacts you will produce to organize your team. (We strongly
    * How do tasks get assigned to team members?
    * How do you determine the status of work from inception to completion?
 
+Our team organizes work through Discord and Trello.
+
+We use Discord for day-to-day communication and as a hub for our artifacts and important links. Our server has channels organized by deliverable and by user story, alongside dedicated channels linking to our Trello board, AMD Schola's GitHub repository, and our fork. We hold our meetings in Discord voice channels and document meeting minutes directly in our forked repository. Our TA and partners have been given access to our Discord server and Trello board so they can follow our progress.
+
+We manage tasks and to-do lists on our Trello board, with cards organized into Not Started, In Progress, and Completed lists. We prioritize tasks by ordering cards within each list, so the most important or time-sensitive tasks sit at the top. As a team, we decide together how to break a deliverable into tasks, and members assign themselves as the owner of the tickets they take on.
+
+To track status from inception to completion, we pair Trello with code reviews and a pull-request process: a card stays in "In Progress" while the corresponding work is being reviewed, and we only move it to "Completed" once the pull request has been approved and merged. This keeps our board reflecting what has actually been reviewed and merged, not just written.
+
 #### Q10: What are the rules regarding how your team works?
 
 **Communications:**
  * What is the expected frequency? What methods/channels will be used? 
  * If you have a partner project, what is your process for communicating with your partner? Who is responsible?
- 
+
+We expect daily communication as a team, mainly through quick check-ins on Discord, since it's already central to how we organize our work (see Q9).
+
+For our partners, we have a Microsoft Teams group chat with AMD, and Vansh Sehrawat is our primary point of contact and partner liaison responsible for that channel. We plan to hold weekly meetings with them, tentatively Friday 11:00 a.m.–12:00 p.m., though this time still needs to be confirmed with AMD.
+
 **Collaboration:**
  * How are people held accountable for attending meetings, completing action items? What is your process?
  * How will you address the issue if one person doesn't contribute or is not responsive?
+
+We expect everyone to communicate proactively about attending meetings and completing action items. Our team has been active and engaged so far, so this hasn't been a problem, but if someone misses a meeting, that absence is recorded in the meeting minutes. This way, if it becomes a pattern, we can clearly present evidence to the person missing the meeting.
+
+If a team member stops contributing, we will first talk to them directly to understand and address whatever is preventing them from contributing. If the issue continues and they remain unresponsive, we will escalate the situation to our TA and proceed from there.
 
 ## Organisation Details
 

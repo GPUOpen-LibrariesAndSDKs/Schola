@@ -14,7 +14,7 @@
 ### AMD
 
 - Alexander Cann -- MTS @ AMD. Primary representative for the meeting.
-- Tian Yue -- Senior SWE @ AMD. Per Alex, the main contact as time goes on.
+- TianYue Liu (Michael) -- Senior SWE @ AMD. Per Alex, the main contact as time goes on.
 
 ### CSC301 team
 

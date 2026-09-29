@@ -3,7 +3,7 @@
 ## Product Details
  
 #### Q1: What is the product?
-We are building a Godot Engine port of AMD Schola, an open-source cross-platform reinforcement learning library currently built for Unreal Engine. We are partnering with AMD to extend their tool to support Godot. Our partners are: Alexander Cann (Member of Technical Staff) and Michael Liu (Senior Software Engineer). This tool will allow developers to natively define Reinforcement Learning (RL) Environments and Agents within Godot, attaching modular sensors and actuators, and connecting them to Python-based RL frameworks like Gymnasium, RLlib, or Stable-Baselines3. For example, a developer can create a racing car in Godot and train it to navigate a track using RL, without having to write the complex engine-to-Python communication logic from scratch.
+We are building a Godot Engine port of AMD Schola, an open-source cross-platform reinforcement learning library currently built for Unreal Engine. We are partnering with AMD to extend their tool to support Godot. Our partners are Alexander Cann (Member of Technical Staff) and TianYue Liu, who also uses the name Michael (Senior Software Engineer). This tool will allow developers to natively define Reinforcement Learning (RL) Environments and Agents within Godot, attaching modular sensors and actuators, and connecting them to Python-based RL frameworks like Gymnasium, RLlib, or Stable-Baselines3. For example, a developer can create a racing car in Godot and train it to navigate a track using RL, without having to write the complex engine-to-Python communication logic from scratch.
 
 #### Q2: Who are your target users?
 - Game developers building NPCs or AI gameplay systems using Godot.
@@ -11,7 +11,7 @@ We are building a Godot Engine port of AMD Schola, an open-source cross-platform
 - Robotics and sim-to-real practitioners leveraging game engines for prototyping simulation environments before transferring to hardware.
 
 #### Q3: Why would your users choose your product? What are they using today to solve their problem/need?
-Currently, developers wanting to use Godot for RL either have to write custom sockets/RPC layers from scratch or rely on unsupported/unofficial Godot plugins which may not support the latest Python framework updates. Our product brings the official, actively supported AMD Schola architecture to Godot. It saves significant time by providing pre-built modular sensors, actuators, and an established gRPC communication layer to connect Godot directly to robust Python RL frameworks. This aligns with AMD's goal of broadening access to machine learning tools.
+Currently, developers wanting to use Godot for RL either have to write custom sockets or RPC layers from scratch or rely on unofficial Godot integrations that are separate from Schola's maintained Python ecosystem. Our product brings Schola's environment, training, and inference workflow to Godot. The MVP saves developers from implementing engine-to-Python communication, episode coordination, space serialization, and local policy inference themselves. Reusable specialized sensor and actuator nodes are a stretch goal rather than an MVP promise. This supports AMD's goal of making Schola a maintained multi-engine platform with transferable concepts across engines.
 
 #### Q4: What are the user stories that make up the Minumum Viable Product (MVP)?
 
@@ -110,7 +110,9 @@ List/describe the artifacts you will produce to organize your team. (We strongly
 Our team functions as an external feature expansion team for AMD. The partner's team developed the core Schola library and the Unreal implementation. We are taking the role of porting this functionality to a new engine (Godot), effectively opening up a new platform for their product. We act semi-autonomously, relying on their Unreal plugin as a reference architecture, and contributing back to their open-source ecosystem.
 
 #### Q12. How does your project fit within the overall product from the partner?
-Our project is a horizontal expansion of the AMD Schola product. Currently, Schola provides an Unreal Engine plugin and an engine-agnostic Python package. Our project provides a Godot plugin that interfaces with the exact same Python package. It fits seamlessly alongside the Unreal plugin, offering developers a choice of game engine while keeping the RL training pipeline identical. The partner considers success to be achieving feature parity with the Unreal reference on Godot and validating end-to-end training on at least one benchmark environment.
+Our project is a horizontal expansion of AMD Schola. Schola currently provides an Unreal Engine plugin and a Python package that supports reinforcement-learning frameworks such as Gymnasium, RLlib, and Stable-Baselines3. Our team is responsible for the initial Godot engine integration and will reuse the existing Python stack wherever practical. AMD continues to maintain the Python and Unreal components and can assist when multi-engine compatibility requires changes to them.
+
+The Godot port is not intended to copy every Unreal feature or implementation decision. For this project, success is a small, well-designed, extensible core that completes one end-to-end workflow: define a simple environment in Godot, train a policy through Schola's Python tooling, export it to ONNX, and run it in Godot without Python. Training dependencies must remain separable from the runtime and inference components so they can be excluded from a shipped game.
 
 ## Potential Risks
 

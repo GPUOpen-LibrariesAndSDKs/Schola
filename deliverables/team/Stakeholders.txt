@@ -9,7 +9,7 @@ Partner 1
   Email: alexander.cann@amd.com
 
 Partner 2
-  Name: Michael Liu
+  Name: TianYue Liu (also uses the name Michael)
   Title: Senior Software Engineer
   Email: tianyliu@amd.com
 
@@ -19,13 +19,13 @@ Primary Partner Contact (the person you work with and meet regularly)
   Name: Alexander Cann
   Role/Title: Member of Technical Staff
   Email: alexander.cann@amd.com
-  Meeting cadence: Weekly
+  Meeting cadence: Weekly; exact recurring time to be confirmed
 
 Secondary Partner Contact (e.g., someone you met once or who is less involved)
-  Name:
-  Role/Title:
-  Email:
-  Context (how/when you met):
+  Name: TianYue Liu (also uses the name Michael)
+  Role/Title: Senior Software Engineer
+  Email: tianyliu@amd.com
+  Context (how/when you met): Attended the September 25 partner kickoff and is expected to become the team's main technical contact as the project progresses.
 
 
 3. TEACHING ASSISTANT (TA)

@@ -15,38 +15,15 @@ Currently, developers wanting to use Godot for RL either have to write custom so
 
 #### Q4: What are the user stories that make up the Minumum Viable Product (MVP)?
 
- * At least 5 user stories concerning the main features of the application - note that this can broken down further
- * You must follow proper user story format (as taught in lecture) ```As a <user of the app>, I want to <do something in the app> in order to <accomplish some goal>```
- * User stories must contain acceptance criteria. Examples of user stories with different formats can be found here: https://www.justinmind.com/blog/user-story-examples/. **It is important that you provide a link to an artifact containing your user stories**.
- * If you have a partner, these must be reviewed and accepted by them. You need to include the evidence of partner approval (e.g., screenshot from email) or at least communication to the partner (e.g., email you sent)
+The MVP is defined by seven user stories covering the complete workflow from configuring a Godot environment to training and running a learned policy. The detailed stories, acceptance criteria, and partner-review status are maintained in the [MVP user-story artifact](./user-stories.md). Implementation tasks, ownership, and progress are tracked on the team's [Trello board](https://trello.com/b/Ry0Qkx2R).
 
-US1: Defining an Environment
-
-As a Godot developer, I want to create an RL environment by implementing a simple interface, in order to train an agent without writing networking code.
-
-US2: Declaring Spaces
-
-As a Godot developer, I want to declare my agent's observation and action spaces using reusable types, in order to tell Python the shape of my problem.
-
-US3: Transport - gRPC Server
-
-As an ML practitioner, I want my Godot game to answer the same gRPC calls Unreal does, in order to reuse Python's existing training tools unmodified.
-
-US4: Core - The Connector Loop
-
-As a Godot developer, I want reset/step/auto-reset to behave exactly like Unreal's, in order for training to work identically across engines.
-
-US5: Godot Bindings + The Demo Environment
-
-As a Godot developer, I want to build an RL environment using normal Godot nodes and the Inspector, in order to work the way I already work in Godot.
-
-US6: ONNX Export (Python)
-
-As a Godot developer, I want to export a trained policy to ONNX, in order to run it later without Python.
-
-US7: ONNX Inference + Shipping
-
-As a Godot developer, I want a trained policy to drive my agent with Python closed, and to ship my game without training bloat.
+1. Define a reinforcement-learning environment using Godot-native APIs.
+2. Declare reusable observation and action spaces.
+3. Connect a Godot environment to Schola's existing Python training tools.
+4. Execute the complete reinforcement-learning episode lifecycle correctly.
+5. Configure agents and environments through Godot nodes and the Inspector.
+6. Export a trained policy from Python to ONNX.
+7. Run the ONNX policy in Godot and ship without training-only dependencies.
 
 #### Q5: Have you decided on how you will build it? Share what you know now or tell us the options you are considering.
 

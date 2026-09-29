@@ -88,6 +88,8 @@ documentation/*.bkp
 #ONNX files
 *.onnx
 !/basic_test_model.onnx
+!/Godot/src/Schola.Onnx/
+!/Godot/src/Schola.Onnx/.gitkeep
 
 # Don't ignore Bundled third party dependencies
 !/Source/ThirdParty/**/*.lib

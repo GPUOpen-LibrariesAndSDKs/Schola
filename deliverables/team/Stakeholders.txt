@@ -4,23 +4,22 @@ STAKEHOLDERS
 1. PARTNERS
 -----------
 Partner 1
-  Name: 
-  Title:
-  Email:
+  Name: Alexander Cann
+  Title: Member of Technical Staff
+  Email: alexander.cann@amd.com
 
 Partner 2
-  Name:
-  Title:
-  Email:
-
+  Name: Michael Liu
+  Title: Senior Software Engineer
+  Email: tianyliu@amd.com
 
 2. PARTNER CONTACTS
 -------------------
 Primary Partner Contact (the person you work with and meet regularly)
-  Name:
-  Role/Title:
-  Email:
-  Meeting cadence:
+  Name: Alexander Cann
+  Role/Title: Member of Technical Staff
+  Email: alexander.cann@amd.com
+  Meeting cadence: Weekly
 
 Secondary Partner Contact (e.g., someone you met once or who is less involved)
   Name:
@@ -31,5 +30,5 @@ Secondary Partner Contact (e.g., someone you met once or who is less involved)
 
 3. TEACHING ASSISTANT (TA)
 --------------------------
-  Name:
-  Email:
+  Name: Salman Sayeed
+  Email: salman.sayeed@utoronto.ca

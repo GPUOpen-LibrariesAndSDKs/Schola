@@ -101,6 +101,13 @@ documentation/*.bkp
 *.egg-info/
 *.egg
 
+# Python virtual environments
+.venv/
+venv/
+
+# macOS
+**/.DS_Store
+
 #Training checkpoints and logs
 **/ckpt/*
 **/logs/*

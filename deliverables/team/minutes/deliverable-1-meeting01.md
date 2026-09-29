@@ -1,4 +1,4 @@
-# AMD Schola Partner Kickoff Meeting
+# AMD Schola General Meeting
 
 ## Meeting details
 
@@ -27,29 +27,23 @@
 
 ## Discussion
 
-### 1. Project assignment and Godot scope
+### 1. Deliverable outcomes
 
-### 2. Existing Schola architecture and reuse
+The team discussed the expected outcomes for Deliverable 1 and confirmed what needs to be submitted.
 
-### 3. Product and API design expectations
+### 2. Codebase
 
-### 4. MVP workflow
+The team reviewed the codebase and confirmed their understanding of the tasks assigned at the previous meeting, then worked on those tasks.
 
-### 5. Training and inference separation
+## Deliverable 1 Tasks
 
-### 6. Long-term product direction
+Reviewed the Deliverable Tasks on Quercus and divided tasks on D1 for even commits
 
-### 7. Communication
-
-### 8. Repository access and confidentiality
-
-## Decisions and agreements
-
-## Action items
-
-| Owner | Action | Target date | Status |
-| --- | --- | --- | --- |
+Prototype: Sanjay, Jimmy
+User Stories: Isaac, Vansh, Shahyar, Guneev, Bohdan
 
 ## Open questions for the next meeting
+
+N/A
 
 

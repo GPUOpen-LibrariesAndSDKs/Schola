@@ -246,9 +246,39 @@ The Godot port is not intended to copy every Unreal feature or implementation de
   * User stories that are too abstract or too simple
 * For each risk, provide a brief bullet point and then explain the risk in detail. 
 
+**1: The implementation language and extension mechanism are not settled.**
+We have not determined what to use between GDScript, C#, and a C++ GDExtension. The choice affects most user stories, so changing it later would mean rewriting completed work.
+
+**2: Hosting the gRPC server inside Godot may be difficult.**
+Unreal Schola fully  relies on Unreal's build tooling for gRPC, while Godot has no equivalent. Thus, we must find a gRPC setup that works in Godot ourselves or a non-gPRC equivalent. This can cause divergence from the existing design.
+
+**3: Parts of the Python stack are tied to Unreal.**
+We cannot assume some Python components like launching the engine and exporting models can work with Godot unchanged. Changing them would add work outside our plan.
+
+**4: The demonstration environment might not show learning within the time available.**
+AMD's MVP requires a policy that learns the forward/backward/stand-still task. Getting an agent to could require reinforcement learning knowledge as training with bad settings might not produce wanted results.
+
+**5: Decisions and acceptance criteria from AMD are still open.**
+We do not have an guideline on what Godot version and whether multi-environment and multi-agent features are required. Without exact requirements, the result may not meet AMD's expectations.
+
 #### Q14. What are some potential mitigation strategies for the risks you identified?
 * Examples of mitigation strategies:
   * More communication with the partner might help with improving clarity.
   * Adding more details for an user story might make it less abstract.
   * Adding an extra user story might increase the project complexity, making it less simple.
 * It's ok if you are unable to find mitigation strategies for all the risks right now.
+
+**1: Language and extension mechanism.** 
+Compare the options and at the weekly partner meeting, ask AMD to make a decision after informing them.
+
+**2: gRPC in Godot.** 
+Build a small test gRPC prototype early to confirm if it works with the Python client. If it does not, discuss a fallback with AMD before other work depends on gPRC.
+
+**3: Python stack tied to Unreal.** 
+For the MVP, we could start Godot manually and connect from Python, which avoids Python code changes. Any later planned Python changes will be communicated to AMD beforehand.
+
+**4: The demonstration might not show learning.** 
+Firstly, keep the environment as simple as possible and learn online on how to properly tune training on a plain Python environment. If there are still tuning problems, ask AMD for recommended training settings.
+
+**5: Open decisions from AMD.** 
+For Godot version, compare the options and at the weekly partner meeting, ask AMD to make a decision after informing them. For required features, ask AMD.

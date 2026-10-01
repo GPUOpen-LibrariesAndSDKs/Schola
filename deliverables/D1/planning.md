@@ -269,7 +269,7 @@ We do not have an guideline on what Godot version and whether multi-environment 
 * It's ok if you are unable to find mitigation strategies for all the risks right now.
 
 **1: Language and extension mechanism.** 
-Compare the options and at the weekly partner meeting, ask AMD to make a decision after informing them.
+Compare the options and at the weekly partner meeting ask AMD to make a decision after informing them.
 
 **2: gRPC in Godot.** 
 Build a small test gRPC prototype early to confirm if it works with the Python client. If it does not, discuss a fallback with AMD before other work depends on gPRC.
@@ -281,4 +281,4 @@ For the MVP, we could start Godot manually and connect from Python, which avoids
 Firstly, keep the environment as simple as possible and learn online on how to properly tune training on a plain Python environment. If there are still tuning problems, ask AMD for recommended training settings.
 
 **5: Open decisions from AMD.** 
-For Godot version, compare the options and at the weekly partner meeting, ask AMD to make a decision after informing them. For required features, ask AMD.
+For Godot version, compare the options and at the weekly partner meeting ask AMD to make a decision after informing them. For required features, communicate with AMD.

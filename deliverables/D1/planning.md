@@ -167,13 +167,15 @@ Isaac is taking on the role of a backend developer as he is contributing code to
 
 Jimmy Zhu - Developer & QA
 
+Jimmy Zhu is taking up the role of a Developer and QA(quality assurance). His role as developer is to allow Godot to build and understand protos that are sent out and in respectively in the format already defined in Schola. So, it can handle Box, Discrete, MultiDiscrete, and MultiBinary. So, it can understand, get actions and send observations, and also, handle describing spaces at startup. His role as QA is to make sure all code works properly and is up to standards through tests and various verification methods. Although not an architect, Jimmy makes some decisions on how the major pieces of a system should be structured and how they interact. He chose these roles because of his existing experience in deep reinforcement learning and a drive to experience the work of a QA.
+
 Bohdan Zmeul - AI Integration Developer
 
-Bohdan brings a strong background in artificial intelligence and computer vision, having previously worked with models like YOLO and SAM as well as PyTorch and ONNX formats. His primary role is to build the local inference system that allows Godot to load and execute exported ONNX models. He is responsible for creating the observe-infer-act loop that drives the agent directly during gameplay, ensuring the AI performs its learned behaviors completely offline with Python closed.
+Bohdan brings a strong background in artificial intelligence and computer vision, having previously worked with models like YOLO and SAM as well as PyTorch and ONNX formats. His primary role is to build the local inference system that allows Godot to load and execute exported ONNX models. He is responsible for creating the observe -> infer -> act loop that drives the agent directly during gameplay, ensuring the AI performs its learned behaviors completely offline with Python closed.
 
 Additionally, he is handling the project's export configuration. He will ensure that the final shipped game is packaged cleanly and is entirely decoupled from any training-only dependencies or external networking infrastructure. Alongside his main tasks, he will participate in code reviews, testing, and documenting the inference pipeline.
 
-He chose this role because it perfectly bridges his existing machine learning experience with core systems engineering. It allows him to tackle the highly practical challenge of taking a trained AI model and deploying it natively into a commercial game engine environment.
+He chose this role because it perfectly bridges his existing machine learning experience with core systems engineering. It allows him to tackle the highly practical challenge of taking a trained AI model and deploying it natively into a game engine environment.
 
 
 #### Q8: How will you work as a team?

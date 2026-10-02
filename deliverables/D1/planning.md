@@ -158,7 +158,7 @@ We made a group chat on Discord and played games together.
 ![Games on Discord](d1-teambuilding-evidence.png)
 
 ##### Fun facts
-1. Issac and Vansh teach Unity 
+1. Isaac and Vansh teach Unity 
 2. Jimmy made an automatic boss beater using RL
 3. Vansh is 3d printing a spoiler for his Miata
 
@@ -174,6 +174,17 @@ List each team member and:
  * A description of their role(s) and responsibilities including the components they'll work on and non-software related work
  * Why did you choose them to take that role? Specify if they are interested in learning that part, experienced in it, or any other reasons. Do no make things up. This part is not graded but may be reviewed later.
 
+Shahyar Anfaz - Developer
+Guneev Pannu - Developer & Project Manager
+Sanjay Ram - Developer & Meeting Manager
+Vansh Sehrawat - Developer & Partner Liaison
+
+Isaac Tilahun - Backend Developer
+
+Isaac is taking on the role of a backend developer as he is contributing code to define the reinforcement-learning evironment and connect the Godot environment towards Schola's existing Python training tools. He will test how those parts work together, help fix issues, and review pull requests before they are merged. He also drafted the initial user stories to help the team divide the work. He chose this role because he wants to be hands-on with both building and testing the system throughout development.
+
+Jimmy Zhu - Developer & QA
+Bohdan Zmeul - Backend & Networking Developer
 
 
 #### Q8: How will you work as a team?

@@ -177,6 +177,13 @@ List each team member and:
 Shahyar Anfaz - Developer
 Guneev Pannu - Developer & Project Manager
 Sanjay Ram - Developer & Meeting Manager
+
+Sanjay is well-versed in systems programming, primarily in C++. His role is to handle the reinforcement-learning environment and gRPC layer between the Python RL environment and the Godot engine, working alongside Isaac. He also has simple tasks such as code reviews, pull requests, and writing tests, as a regular backend developer has.
+
+Additionally, he will handle the meeting notes for all meetings between the group, using Granola to summarize partner meetings and write down details so everyone is on the right track.
+
+He chose these roles mainly because he is more focused on backend systems, especially in C++. Additionally, with the meetings role, he wants to take on an initiative in the team and have a sense of responsibility.
+
 Vansh Sehrawat - Developer & Partner Liaison
 
 Isaac Tilahun - Backend Developer

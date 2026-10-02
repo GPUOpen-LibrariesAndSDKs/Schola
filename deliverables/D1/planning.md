@@ -136,6 +136,10 @@ Training-only code (gRPC, connectors) will be packaged separately from the core 
 
 
  * Will you be using third party applications or APIs? If so, what are they?
+ No hosted or paid APIs. We only use open-source libraries that run locally:
+*Godot side:* godot-cpp (to build the GDExtension), gRPC(to call methods on a server application) and Protobuf(training server, only in the training add-on), and ONNX Runtime (inference in shipped games).
+*Python side:* Schola's existing package: Gymnasium(reinforcement learning library), Stable-Baselines3/RLlib(reinforcement learning library), PyTorch(machine learning and deep learning framework), ONNX export(to export ONNX).
+*Testing:* pytest(python testing), plus GdUnit4(godot unit testing) or GUT(godot unit testing).
 
 ----
 ## Intellectual Property Confidentiality Agreement 

@@ -193,7 +193,8 @@ Isaac Tilahun - Backend Developer
 
 Isaac is taking on the role of a backend developer as he is contributing code to define the reinforcement-learning evironment and connect the Godot environment towards Schola's existing Python training tools. He will test how those parts work together, help fix issues, and review pull requests before they are merged. He also drafted the initial user stories to help the team divide the work. He chose this role because he wants to be hands-on with both building and testing the system throughout development.
 
-Jimmy Zhu - Developer & QA
+Jimmy Zhu is taking up the role of a Developer and QA(quality assurance). His role as developer is to allow Godot to build and understand protos that are sent out and in respectively in the format already defined in Schola. So, it can handle Box, Discrete, MultiDiscrete, and MultiBinary. So, it can understand, get actions and send observations, and also, handle describing spaces at startup. His role as QA is to make sure all code works properly and is up to standards through tests and various verification methods. Although not an architect, Jimmy makes some decisions on how the major pieces of a system should be structured and how they interact. He chose these roles because of his existing experience in deep reinforcement learning and a drive to experience the work of a QA.
+
 Bohdan Zmeul - Backend & Networking Developer
 
 

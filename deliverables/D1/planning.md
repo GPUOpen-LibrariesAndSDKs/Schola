@@ -100,7 +100,7 @@ Implementation tasks, ownership, dependencies, and progress are tracked on the t
 
 ##### Partner review
 
-The team will send this artifact and the accompanying architecture to AMD through the shared Microsoft Teams channel. Evidence of that communication and any requested revisions will be linked here after the review.
+User stories were discussed with partners in second meeting, Gronola summary can be read at `deliverables/team/minutes/partner-meeting-02.md`.
 
 #### Q5: Have you decided on how you will build it? Share what you know now or tell us the options you are considering.
 
@@ -176,6 +176,9 @@ List each team member and:
 
 Shahyar Anfaz - Developer
 Guneev Pannu - Developer & Project Manager
+
+Guneev has been meaning to expand his C++ skills so as a developer he will focus on applying the decision made by the Python side into a measurable change in the Godot side and giving the Python side information about the state of things in the Godot side. Additionally he has the PM role in the UTMIST club and is experienced making sure nothing falls through the cracks in a big project.
+
 Sanjay Ram - Developer & Meeting Manager
 
 Sanjay is well-versed in systems programming, primarily in C++. His role is to handle the reinforcement-learning environment and gRPC layer between the Python RL environment and the Godot engine, working alongside Isaac. He also has simple tasks such as code reviews, pull requests, and writing tests, as a regular backend developer has.
@@ -237,7 +240,7 @@ To track status from inception to completion, we pair Trello with code reviews a
 
 We expect daily communication as a team, mainly through quick check-ins on Discord, since it's already central to how we organize our work (see Q9).
 
-For our partners, we have a Microsoft Teams group chat with AMD, and Vansh Sehrawat is our primary point of contact and partner liaison responsible for that channel. We plan to hold weekly meetings with them, tentatively Friday 11:00 a.m.–12:00 p.m., though this time still needs to be confirmed with AMD.
+For our partners, we have a Microsoft Teams group chat with AMD, and Vansh Sehrawat is our primary point of contact and partner liaison responsible for that channel. We plan to hold weekly meetings with them, tentatively Friday 11:00 a.m.–12:00 p.m this time has been confirmed with AMD.
 
 **Collaboration:**
  * How are people held accountable for attending meetings, completing action items? What is your process?
@@ -269,8 +272,8 @@ The Godot port is not intended to copy every Unreal feature or implementation de
   * User stories that are too abstract or too simple
 * For each risk, provide a brief bullet point and then explain the risk in detail. 
 
-**1: The implementation language and extension mechanism are not settled.**
-We have not determined what to use between GDScript, C#, and a C++ GDExtension. The choice affects most user stories, so changing it later would mean rewriting completed work.
+**1: The implementation language and extension mechanism have been chosen badly.**
+We have currently decided to use C++ as a GDExtension. The choice affects most user stories, so if changing it becomes required then we would have to rewrite a lot of code.
 
 **2: Hosting the gRPC server inside Godot may be difficult.**
 Unreal Schola fully  relies on Unreal's build tooling for gRPC, while Godot has no equivalent. Thus, we must find a gRPC setup that works in Godot ourselves or a non-gPRC equivalent. This can cause divergence from the existing design.
@@ -281,8 +284,6 @@ We cannot assume some Python components like launching the engine and exporting 
 **4: The demonstration environment might not show learning within the time available.**
 AMD's MVP requires a policy that learns the forward/backward/stand-still task. Getting an agent to could require reinforcement learning knowledge as training with bad settings might not produce wanted results.
 
-**5: Decisions and acceptance criteria from AMD are still open.**
-We do not have an guideline on what Godot version and whether multi-environment and multi-agent features are required. Without exact requirements, the result may not meet AMD's expectations.
 
 #### Q14. What are some potential mitigation strategies for the risks you identified?
 * Examples of mitigation strategies:

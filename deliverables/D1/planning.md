@@ -104,51 +104,32 @@ User stories were discussed with partners in second meeting, Gronola summary can
 
 #### Q5: Have you decided on how you will build it? Share what you know now or tell us the options you are considering.
 
-> Short (1-2 min' read max)
- * What is the technology stack? Specify languages, frameworks, libraries, PaaS products or tools to be used or being considered.
-
 Tech Stack:
 * *Game engine:* Godot
 * *Engine-side language:* C++ for native GDExtension
-* *RL-side* Python and Gymnasium
+* *RL-side:* Python and Gymnasium
 * *Communication:* Custom gRPC plugin
 * *Inference:* ONNX (model format) and ONNX Runtime (to run trained models inside Godot)
-
- * How will you deploy the application?
 
 Schola-Godot is a developer library, not a hosted service, so there is no server to deploy. It will be distributed as a Godot **addon** that developers drop into their project's `addons/` folder, with the Python side installed via `pip` as Schola already is.
 Training-only code (gRPC, connectors) will be packaged separately from the core and inference code, so a shipped game includes only what it needs to run a trained model. Longer term, the work is intended to be merged into AMD's open-source Schola repository.
 
- * Describe the architecture - what are the high level components or patterns you will use? Diagrams are useful here.
- ![Architecture diagram](d1-architecture-diagram.png)
- Schola will to ported to Godot 4(4.7) with a C++ GDExtension addon. Runs on gPRC server using existing .proto contract(for details refer to diagram). The main components are ScholaEnvironment nodes with sensor and actuator children, a ScholaConnector autoload singleton that steps every environment, a C++ GrpcGymConnector, and an OnnxPolicy node for inference in exported games. Environments follow a template-method pattern where users override _initialize_environment, _reset, _step and _collect. gPRC hands requests to the main thread via producer-consumer queue. Note that each step runs in lockstep with physics, action at N frame and results collected in N+1. On the Python side, we are using Schola's protocol/simulator split(a strategy pattern) to keep necessary new code locked into simulator. Trained policies are exported to ONNX.
+![Architecture diagram](d1-architecture-diagram.png)
+Schola will to ported to Godot 4(4.7) with a C++ GDExtension addon. Runs on gPRC server using existing .proto contract(for details refer to diagram). The main components are ScholaEnvironment nodes with sensor and actuator children, a ScholaConnector autoload singleton that steps every environment, a C++ GrpcGymConnector, and an OnnxPolicy node for inference in exported games. Environments follow a template-method pattern where users override _initialize_environment, _reset, _step and _collect. gPRC hands requests to the main thread via producer-consumer queue. Note that each step runs in lockstep with physics, action at N frame and results collected in N+1. On the Python side, we are using Schola's protocol/simulator split(a strategy pattern) to keep necessary new code locked into simulator. Trained policies are exported to ONNX.
 
-
- * Will you be using third party applications or APIs? If so, what are they?
- No hosted or paid APIs. We only use open-source libraries that run locally:
+No hosted or paid APIs. We only use open-source libraries that run locally:
 *Godot side:* godot-cpp (to build the GDExtension), gRPC(to call methods on a server application) and Protobuf(training server, only in the training add-on), and ONNX Runtime (inference in shipped games).
 *Python side:* Schola's existing package: Gymnasium(reinforcement learning library), Stable-Baselines3/RLlib(reinforcement learning library), PyTorch(machine learning and deep learning framework), ONNX export(to export ONNX).
 *Testing:* pytest(python testing), plus GdUnit4(godot unit testing) or GUT(godot unit testing).
 
 ----
 ## Intellectual Property Confidentiality Agreement 
-> Note this section is **not marked** but must be completed briefly if you have a partner. If you have any questions, please ask on Piazza.
-> 
-
-**Your partner cannot ask you to sign any legal agreements or documents pertaining to non-disclosure, confidentiality, IP ownership, etc.**
-
-Briefly describe which option you have agreed to.
 
 We will upload our code as an open source project on GitHub under the MIT licence, the same licence the current AMD Schola project is under.
 
 ## Teamwork Details
 
 #### Q6: Have you met with your team?
-
-Do a team-building activity in-person or online. This can be playing an online game, meeting for bubble tea, lunch, or any other activity you all enjoy.
-* Get to know each other on a more personal level.
-* Provide a few sentences on what you did and share a picture or other evidence of your team building activity.
-* Share at least three fun facts from members of you team (total not 3 for each member).
 
 ##### What we did
 We made a group chat on Discord and played games together.
@@ -164,16 +145,6 @@ We made a group chat on Discord and played games together.
 3. Vansh is 3d printing a spoiler for his Miata
 
 #### Q7: What are the roles & responsibilities on the team?
-
-Describe the different roles on the team and the responsibilities associated with each role (e.g., frontend, database). 
- * Roles should reflect the structure of your team and be appropriate for your project. One person may have multiple roles.  
- * Add role(s) to your Team-[Team_Number]-[Team_Name].csv file on the main folder.
- * At least one person must be identified as the dedicated partner liaison. They need to have great organization and communication skills.
- * Everyone must contribute to code. Students who don't contribute to code enough will receive a lower mark at the end of the term.
-
-List each team member and:
- * A description of their role(s) and responsibilities including the components they'll work on and non-software related work
- * Why did you choose them to take that role? Specify if they are interested in learning that part, experienced in it, or any other reasons. Do no make things up. This part is not graded but may be reviewed later.
 
 Shahyar Anfaz - Developer
 Guneev Pannu - Developer & Project Manager
@@ -207,14 +178,6 @@ He chose this role because it perfectly bridges his existing machine learning ex
 
 #### Q8: How will you work as a team?
 
-Describe meetings (and other events) you are planning to have. 
- * When and where? Recurring or ad hoc? In-person or online?
- * What's the purpose of each meeting?
- * Other events could be coding sessions, code reviews, quick weekly sync meeting online, etc.
- * You should have 2 meetings with your project partner (if you have one) before D1 is due. Describe them here:
-   * You must keep track of meeting minutes and add them to your repo under "deliverables/minutes" folder
-   * You must have a regular meeting schedule established for the rest of the term.  
-
 We plan on having recurring meetings together with our partner on Fridays at 11 am on MS Teams. These meetings are designed to allow us to show our work and get clarification questions from the AMD staff. These meetings take around 40-50 minutes.
 
 Additionally we have a group chat and server that we will use to keep track of everything and so everyone can talk to each other. We have each other's contacts and see each other in class.
@@ -222,15 +185,6 @@ Additionally we have a group chat and server that we will use to keep track of e
 Meeting minutes for our first two meetings with our partners can additionally be found under deliverables/team/minutes.
 
 #### Q9: How will you organize your team?
-
-List/describe the artifacts you will produce to organize your team. (We strongly recommend that you use standard collaboration tools like Linear.app, Jira, Slack, Discord, GitHub.)
-
- * Artifacts can be To-Do lists, Task boards, schedule(s), meeting minutes, etc.
- * We want to understand:
-   * How do you keep track of what needs to get done? (You must grant your TA and partner access to systems you use to manage work)
-   * **How do you prioritize tasks?**
-   * How do tasks get assigned to team members?
-   * How do you determine the status of work from inception to completion?
 
 Our team organizes work through Discord and Trello.
 
@@ -243,16 +197,12 @@ To track status from inception to completion, we pair Trello with code reviews a
 #### Q10: What are the rules regarding how your team works?
 
 **Communications:**
- * What is the expected frequency? What methods/channels will be used? 
- * If you have a partner project, what is your process for communicating with your partner? Who is responsible?
 
 We expect daily communication as a team, mainly through quick check-ins on Discord, since it's already central to how we organize our work (see Q9).
 
 For our partners, we have a Microsoft Teams group chat with AMD, and Vansh Sehrawat is our primary point of contact and partner liaison responsible for that channel. We plan to hold weekly meetings with them, tentatively Friday 11:00 a.m.–12:00 p.m this time has been confirmed with AMD.
 
 **Collaboration:**
- * How are people held accountable for attending meetings, completing action items? What is your process?
- * How will you address the issue if one person doesn't contribute or is not responsive?
 
 We expect everyone to communicate proactively about attending meetings and completing action items. Our team has been active and engaged so far, so this hasn't been a problem, but if someone misses a meeting, that absence is recorded in the meeting minutes. This way, if it becomes a pattern, we can clearly present evidence to the person missing the meeting.
 
@@ -271,14 +221,6 @@ The Godot port is not intended to copy every Unreal feature or implementation de
 ## Potential Risks
 
 #### Q13. What are some potential risks to your project?
-* Now that you have defined your project, what risks can you identify that might impact it?
-* Some examples of risks at this planning stage could include:
-  * Uncertainties regarding a specific feature
-  * Misaligned expectations or conflicts
-  * Lack of clarity in execution or decision-making
-  * Limited access to data, systems, or other dependencies
-  * User stories that are too abstract or too simple
-* For each risk, provide a brief bullet point and then explain the risk in detail. 
 
 **1: The implementation language and extension mechanism have been chosen badly.**
 We have currently decided to use C++ as a GDExtension. The choice affects most user stories, so if changing it becomes required then we would have to rewrite a lot of code.
@@ -294,11 +236,6 @@ AMD's MVP requires a policy that learns the forward/backward/stand-still task. G
 
 
 #### Q14. What are some potential mitigation strategies for the risks you identified?
-* Examples of mitigation strategies:
-  * More communication with the partner might help with improving clarity.
-  * Adding more details for an user story might make it less abstract.
-  * Adding an extra user story might increase the project complexity, making it less simple.
-* It's ok if you are unable to find mitigation strategies for all the risks right now.
 
 **1: Language and extension mechanism.** 
 Compare the options and at the weekly partner meeting ask AMD to make a decision after informing them.

@@ -194,7 +194,14 @@ Isaac Tilahun - Backend Developer
 Isaac is taking on the role of a backend developer as he is contributing code to define the reinforcement-learning evironment and connect the Godot environment towards Schola's existing Python training tools. He will test how those parts work together, help fix issues, and review pull requests before they are merged. He also drafted the initial user stories to help the team divide the work. He chose this role because he wants to be hands-on with both building and testing the system throughout development.
 
 Jimmy Zhu - Developer & QA
-Bohdan Zmeul - Backend & Networking Developer
+
+Bohdan Zmeul - AI Integration Developer
+
+Bohdan brings a strong background in artificial intelligence and computer vision, having previously worked with models like YOLO and SAM as well as PyTorch and ONNX formats. His primary role is to build the local inference system that allows Godot to load and execute exported ONNX models. He is responsible for creating the observe-infer-act loop that drives the agent directly during gameplay, ensuring the AI performs its learned behaviors completely offline with Python closed.
+
+Additionally, he is handling the project's export configuration. He will ensure that the final shipped game is packaged cleanly and is entirely decoupled from any training-only dependencies or external networking infrastructure. Alongside his main tasks, he will participate in code reviews, testing, and documenting the inference pipeline.
+
+He chose this role because it perfectly bridges his existing machine learning experience with core systems engineering. It allows him to tackle the highly practical challenge of taking a trained AI model and deploying it natively into a commercial game engine environment.
 
 
 #### Q8: How will you work as a team?

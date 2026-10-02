@@ -156,6 +156,7 @@ We made a group chat on Discord and played games together.
 ##### Evidence
 
 ![Games on Discord](d1-teambuilding-evidence.png)
+![Games on Discord](d1-teambuilding-evidence-2.png)
 
 ##### Fun facts
 1. Isaac and Vansh teach Unity 

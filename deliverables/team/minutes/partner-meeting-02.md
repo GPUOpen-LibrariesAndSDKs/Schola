@@ -27,13 +27,17 @@
 
 ## Meeting objectives
 
--   Plan for the term: what our team aims to achieve by the end of the term
--   MVP check: Reviewing our current user stories and discussing potential changes
--   Demo: a quick look at our Godot frontend demo.
--   Plugin language: C#, C++, or Rust? Each have their own trade-offs
--   Multi-agent support
+- Plan for the term: what our team aims to achieve by the end of the term
+- MVP check: Reviewing our current user stories and discussing potential changes
+- Demo: a quick look at our Godot frontend demo.
+- Plugin language: C#, C++, or Rust? Each have their own trade-offs
+- Multi-agent support
+
+
 
 ## Discussion
+
+
 
 ### Plan for the Term: User Stories Overview
 
@@ -69,7 +73,7 @@
 
 **User Story 6: model export validation**
 
-- Train a basic CartPole model, export via Skola's existing export functions
+- Train a basic CartPole model, export via Schola's existing export functions
 - Visualize ONNX output to confirm input/output shapes
 - Prep step for User Story 7; export code already exists on the Python side
 
@@ -81,10 +85,12 @@
 - Alternatives if ONNX is a bottleneck: LibTorch (C++ PyTorch); export format could be adapted on the Python side
 - ONNX preferred for universality; will continue searching for a suitable library
 
+
+
 ### Godot Demo Walkthrough
 
 - Demo scene shown: player, platform, goal node
-- Skola environment node configurable in inspector: progress reward, step reward, goal reward, penalty, episode limit
+- Schola environment node configurable in inspector: progress reward, step reward, goal reward, penalty, episode limit
 - Agent node links to environment; no actuators yet
 - Hardcoded logic for course deliverable, no ML running
 - Feedback on reward fields (goal reward, failure penalty): risk of over-engineering
@@ -92,17 +98,21 @@
 - Step reward is more reasonable to keep as a built-in
 - Preferred pattern: modular helper components (e.g. frame stacking) that users compose, rather than baking everything into the environment node
 
+
+
 ### Plugin Language: C#, C++, or Rust
 
 - Three options considered: C# (.NET Godot only), C++ (official GDExtension), Rust (community-maintained)
 - C# limitation: restricts plugin to the .NET build of Godot, excluding the standard build
-- C++ concern raised: existing Skola architecture is already C++, making it feel like a less novel port
+- C++oncern raised: existing Schola architecture is already C++, making it feel like a less novel port
 - Counterpoint: adaptation needs are still significant due to Godot-specific constraints (threading, interfaces, etc.)
 - Rust: unknown gRPC compatibility and ecosystem maturity; needs research
 - Key factor: inference library availability, especially for User Story 7
 - If no C# inference library exists, C# becomes a blocker
 - Decision deferred; team leaning toward C++ but will research Rust
 - Will update and confirm at next meeting (aim for earlier in the week)
+
+
 
 ### Scope and Velocity Check
 
@@ -111,11 +121,13 @@
 - Ways to scale up: add more actuator/observer types, more advanced example scenarios, end-to-end trained model demo
 - Rough velocity target: ~3 user stories/month to finish on time (10 total)
 
+
+
 ### Coding Standards and AI Use
 
 **Godot style guide**
 
-- Follow Godot's own style guide and tooling, not Skola's Unreal-based Clang file
+- Follow Godot's own style guide and tooling, not Schola's Unreal-based Clang file
 - Unreal conventions (e.g. bBool, FStruct, AActor prefixes) should not carry over to Godot
 - Python side uses Black and PEP-adjacent style; each engine branch should look idiomatic to its own ecosystem
 - Official Godot naming conventions exist; team to research and document
@@ -124,13 +136,15 @@
 
 - Top-level pod directory with plugin source and tests is fine
 - Follow Godot's recommended plugin folder structure for internal organization
-- Skola may eventually consolidate into a monorepo or multi-repo (one per engine); team's structure will be adapted at that point
+- Schola may eventually consolidate into a monorepo or multi-repo (one per engine); team's structure will be adapted at that point
 
 **AI use policy**
 
 - No restrictions on using AI for coding
 - Strong recommendation: read, understand, and take ownership of all generated code
 - Code quality matters as a reusable package; "slop" affects usability and integration
+
+
 
 ## Next Steps
 

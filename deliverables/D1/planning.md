@@ -3,7 +3,7 @@
 ## Product Details
  
 #### Q1: What is the product?
-We are building a Godot Engine port of AMD Schola, an open-source cross-platform reinforcement learning library currently built for Unreal Engine. We are partnering with AMD to extend their tool to support Godot. Our partners are Alexander Cann (Member of Technical Staff) and TianYue Liu, who also uses the name Michael (Senior Software Engineer). This tool will allow developers to natively define Reinforcement Learning (RL) Environments and Agents within Godot, attaching modular sensors and actuators, and connecting them to Python-based RL frameworks like Gymnasium, RLlib, or Stable-Baselines3. For example, a developer can create a racing car in Godot and train it to navigate a track using RL, without having to write the complex engine-to-Python communication logic from scratch.
+We are building a Godot Engine port of AMD Schola, an open-source cross-platform reinforcement learning library currently built for Unreal Engine. We are partnering with AMD to extend their tool to support Godot. Our partners are Alexander Cann (Member of Technical Staff) and TianYue "Micheal" Liu (Senior Software Engineer). This tool will allow developers to natively define Reinforcement Learning (RL) Environments and Agents within Godot, attaching modular sensors and actuators, and connecting them to Python-based RL frameworks like Gymnasium, RLlib, or Stable-Baselines3. For example, a developer can create a racing car in Godot and train it to navigate a track using RL, without having to write the complex engine-to-Python communication logic from scratch.
 
 #### Q2: Who are your target users?
 - Game developers building NPCs or AI gameplay systems using Godot.
@@ -14,18 +14,18 @@ We are building a Godot Engine port of AMD Schola, an open-source cross-platform
 Currently, developers wanting to use Godot for RL either have to write custom sockets or RPC layers from scratch or rely on unofficial Godot integrations that are separate from Schola's maintained Python ecosystem. Our product brings Schola's environment, training, and inference workflow to Godot. The MVP saves developers from implementing engine-to-Python communication, episode coordination, space serialization, and local policy inference themselves. Reusable specialized sensor and actuator nodes are a stretch goal rather than an MVP promise. This supports AMD's goal of making Schola a maintained multi-engine platform with transferable concepts across engines.
 
 #### Q4: What are the user stories that make up the Minumum Viable Product (MVP)?
-
 These stories describe the minimum end-to-end product agreed upon during the initial AMD partner meeting: a Godot developer can define a simple reinforcement-learning environment, train an agent through Schola's existing Python ecosystem, export the learned policy, and run that policy inside Godot without Python.
 
 Implementation tasks, ownership, dependencies, and progress are tracked on the team's [Trello board](https://trello.com/b/Ry0Qkx2R). This document states the user value and acceptance boundary; Trello breaks each story into engineering tasks.
 
 ##### US1: Define a reinforcement-learning environment
 
-**Story:** As a Godot developer, I want to define a reinforcement-learning environment through a small engine-independent interface so that I can make an environment trainable without writing networking code.
+**Story:** As a Godot developer, I want to define a reinforcement-learning environment through a small Godot styled interface so that I can make an environment trainable without writing networking code.
 
 **Acceptance criteria:**
 
 - A developer can implement or configure the environment's initialization, reset, observation, reward, and terminal-state behavior.
+- The interface is designed to look native to Godot without bringing along unnecessary design decisions that were made specifically for Unreal
 - The environment can contain at least one agent.
 - Environment code does not directly manage sockets, RPC calls, or serialized protocol messages.
 - The environment accepts a reproducible random seed and optional reset configuration.
@@ -83,17 +83,6 @@ Implementation tasks, ownership, dependencies, and progress are tracked on the t
 - A configurable maximum step count truncates an episode that does not otherwise terminate.
 - Running the scene reports missing or conflicting configuration clearly.
 
-##### US6: Export a trained policy to ONNX
-
-**Story:** As a Godot developer, I want to export a trained policy to ONNX so that I can transfer the learned policy from the Python training process into Godot.
-
-**Acceptance criteria:**
-
-- A policy trained with Stable-Baselines3 can be exported through Schola's existing Python export workflow.
-- The resulting file is a valid ONNX model that can be opened by an independent model-inspection tool.
-- The model's input and output names, shapes, and data types are documented for the inference implementation.
-- A policy trained for the Godot demonstration environment is exported with inputs and outputs matching that environment's declared spaces.
-
 ##### US7: Run and ship an ONNX policy
 
 **Story:** As a Godot developer, I want a trained policy to drive my agent with Python closed and to exclude training-only dependencies from exported games so that I can ship an autonomous agent without unnecessary training infrastructure.
@@ -120,9 +109,9 @@ The team will send this artifact and the accompanying architecture to AMD throug
 
 Tech Stack:
 * *Game engine:* Godot
-* *Engine-side language:* GDScript or C# .net (to be discussed with partners)
+* *Engine-side language:* C++ for native GDExtension
 * *RL-side* Python and Gymnasium
-* *Communication:* gRPC with Protocol Buffers
+* *Communication:* Custom gRPC plugin
 * *Inference:* ONNX (model format) and ONNX Runtime (to run trained models inside Godot)
 
  * How will you deploy the application?
@@ -144,19 +133,13 @@ Training-only code (gRPC, connectors) will be packaged separately from the core 
 ----
 ## Intellectual Property Confidentiality Agreement 
 > Note this section is **not marked** but must be completed briefly if you have a partner. If you have any questions, please ask on Piazza.
->  
-**By default, you own any work that you do as part of your coursework.** However, some partners may want you to keep the project confidential after the course is complete. As part of your first deliverable, you should discuss and agree upon an option with your partner. Examples include:
-1. You can share the software and the code freely with anyone with or without a license, regardless of domain, for any use.
-2. You can upload the code to GitHub or other similar publicly available domains.
-3. You will only share the code under an open-source license with the partner but agree to not distribute it in any way to any other entity or individual. 
-4. You will share the code under an open-source license and distribute it as you wish but only the partner can access the system deployed during the course.
-5. You will only reference the work you did in your resume, interviews, etc. You agree to not share the code or software in any capacity with anyone unless your partner has agreed to it.
+> 
 
 **Your partner cannot ask you to sign any legal agreements or documents pertaining to non-disclosure, confidentiality, IP ownership, etc.**
 
 Briefly describe which option you have agreed to.
 
-----
+We will upload our code as an open source project on GitHub under the MIT licence, the same licence the current AMD Schola project is under.
 
 ## Teamwork Details
 
@@ -167,6 +150,17 @@ Do a team-building activity in-person or online. This can be playing an online g
 * Provide a few sentences on what you did and share a picture or other evidence of your team building activity.
 * Share at least three fun facts from members of you team (total not 3 for each member).
 
+##### What we did
+We made a group chat on Discord and played games together.
+
+##### Evidence
+
+![Games on Discord](d1-teambuilding-evidence.png)
+
+##### Fun facts
+1. Issac and Vansh teach Unity 
+2. Jimmy made an automatic boss beater using RL
+3. Vansh is 3d printing a spoiler for his Miata
 
 #### Q7: What are the roles & responsibilities on the team?
 
@@ -181,6 +175,7 @@ List each team member and:
  * Why did you choose them to take that role? Specify if they are interested in learning that part, experienced in it, or any other reasons. Do no make things up. This part is not graded but may be reviewed later.
 
 
+
 #### Q8: How will you work as a team?
 
 Describe meetings (and other events) you are planning to have. 
@@ -190,7 +185,13 @@ Describe meetings (and other events) you are planning to have.
  * You should have 2 meetings with your project partner (if you have one) before D1 is due. Describe them here:
    * You must keep track of meeting minutes and add them to your repo under "deliverables/minutes" folder
    * You must have a regular meeting schedule established for the rest of the term.  
-  
+
+We plan on having recurring meetings together with our partner on Fridays at 11 am on MS Teams. These meetings are designed to allow us to show our work and get clarification questions from the AMD staff. These meetings take around 40-50 minutes.
+
+Additionally we have a group chat and server that we will use to keep track of everything and so everyone can talk to each other. We have each other's contacts and see each other in class.
+
+Meeting minutes for our first two meetings with our partners can additionally be found under deliverables/team/minutes.
+
 #### Q9: How will you organize your team?
 
 List/describe the artifacts you will produce to organize your team. (We strongly recommend that you use standard collaboration tools like Linear.app, Jira, Slack, Discord, GitHub.)

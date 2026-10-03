@@ -1,4 +1,4 @@
-# AMD Schola Partner Kickoff Meeting
+# AMD Schola Partner Meeting 2
 
 ## Meeting details
 
@@ -104,19 +104,20 @@
 
 - Three options considered: C# (.NET Godot only), C++ (official GDExtension), Rust (community-maintained)
 - C# limitation: restricts plugin to the .NET build of Godot, excluding the standard build
-- C++oncern raised: existing Schola architecture is already C++, making it feel like a less novel port
+- C++ concern raised: the existing Schola architecture is already C++, making it feel like a less novel port
 - Counterpoint: adaptation needs are still significant due to Godot-specific constraints (threading, interfaces, etc.)
 - Rust: unknown gRPC compatibility and ecosystem maturity; needs research
 - Key factor: inference library availability, especially for User Story 7
 - If no C# inference library exists, C# becomes a blocker
-- Decision deferred; team leaning toward C++ but will research Rust
-- Will update and confirm at next meeting (aim for earlier in the week)
+- Decision deferred at the end of the meeting; the team was leaning toward C++ but planned to research Rust.
+
+**Post-meeting resolution:** The team subsequently confirmed C++ with a native GDExtension and Godot 4.7 as the target implementation.
 
 
 
 ### Scope and Velocity Check
 
-- Overall user story scope looks good on first review
+- Alexander Cann approved the proposed user stories and their overall scope.
 - Ways to scale down if needed: focus on training or inference only, cut certain space types
 - Ways to scale up: add more actuator/observer types, more advanced example scenarios, end-to-end trained model demo
 - Rough velocity target: ~3 user stories/month to finish on time (10 total)

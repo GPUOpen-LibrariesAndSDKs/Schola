@@ -105,12 +105,11 @@ Alexander Cann reviewed and approved these user stories during our second partne
 #### Q5: Have you decided on how you will build it? Share what you know now or tell us the options you are considering.
 
 Tech Stack:
-* *Game engine:* Godot
-  * *Target version:* Godot 4.7
-* *Engine-side language:* C++ for a native GDExtension (confirmed)
-* *RL-side:* Python and Gymnasium
-* *Communication:* Custom gRPC plugin
-* *Inference:* ONNX (model format) and ONNX Runtime (to run trained models inside Godot)
+- *Game engine:* Godot 4.7
+- *Engine-side language:* C++ with a native GDExtension
+- *RL side:* Python and Gymnasium
+- *Communication:* Custom gRPC integration
+- *Inference:* ONNX as the model format and ONNX Runtime for inference inside Godot
 
 Schola-Godot is a developer library, not a hosted service, so there is no server to deploy. It will be distributed as a Godot **addon** that developers drop into their project's `addons/` folder, with the Python side installed via `pip` as Schola already is.
 Training-only code (gRPC, connectors) will be packaged separately from the core and inference code, so a shipped game includes only what it needs to run a trained model. Longer term, the work is intended to be merged into AMD's open-source Schola repository.
@@ -119,9 +118,9 @@ Training-only code (gRPC, connectors) will be packaged separately from the core 
 Schola will be ported to Godot through a C++ GDExtension add-on. It will use Schola's existing `.proto` contract over gRPC, as shown in the architecture diagram. The main components are `ScholaEnvironment` nodes with sensor and actuator children, a `ScholaConnector` autoload singleton that steps every environment, a C++ `GrpcGymConnector`, and an `OnnxPolicy` node for inference in exported games. Environments follow a template-method pattern in which users override `_initialize_environment`, `_reset`, `_step`, and `_collect`. The gRPC layer passes requests to the main thread through a producer-consumer queue. Each step runs in lockstep with the physics loop: an action is applied in frame N, and its results are collected in frame N+1. On the Python side, we will use Schola's protocol/simulator split, following a strategy pattern, to isolate the Godot-specific integration in a simulator implementation. Trained policies will be exported to ONNX.
 
 No hosted or paid APIs. We only use open-source libraries that run locally:
-*Godot side:* godot-cpp (to build the GDExtension), gRPC(to call methods on a server application) and Protobuf(training server, only in the training add-on), and ONNX Runtime (inference in shipped games).
-*Python side:* Schola's existing package: Gymnasium(reinforcement learning library), Stable-Baselines3/RLlib(reinforcement learning library), PyTorch(machine learning and deep learning framework), ONNX export(to export ONNX).
-*Testing:* pytest(python testing), plus GdUnit4(godot unit testing) or GUT(godot unit testing).
+- *Godot side:* godot-cpp for the GDExtension, gRPC and Protocol Buffers in the training add-on, and ONNX Runtime for inference in shipped games.
+- *Python side:* Schola's existing package, including Gymnasium, Stable-Baselines3 or RLlib, PyTorch, and ONNX export.
+- *Testing:* pytest for Python, plus GdUnit4 or GUT for Godot.
 
 ----
 ## Intellectual Property Confidentiality Agreement 
@@ -143,13 +142,14 @@ We made a group chat on Discord and played games together.
 ##### Fun facts
 1. Isaac and Vansh teach Unity 
 2. Jimmy made an automatic boss beater using RL
-3. Vansh is 3d printing a spoiler for his Miata
+3. Vansh is 3D printing a spoiler for his Miata.
 
 #### Q7: What are the roles & responsibilities on the team?
 
 Shahyar Anfaz - Episode Lifecycle Developer
 
 Shahyar is responsible for US4, the episode lifecycle. He will implement and test the flow of observations, actions, rewards, termination and truncation states, and environment resets between Godot and Schola's Python tooling. He will also help ensure that multiple environments and the supported auto-reset modes behave consistently across complete episodes. He chose this role because he is interested in low-level systems work and wants to apply that interest to the state coordination at the core of the integration.
+
 Guneev Pannu - Developer & Project Manager
 
 Guneev has been meaning to expand his C++ skills so as a developer he will focus on applying the decision made by the Python side into a measurable change in the Godot side and giving the Python side information about the state of things in the Godot side. Additionally he has the PM role in the UTMIST club and is experienced making sure nothing falls through the cracks in a big project.
@@ -170,7 +170,7 @@ Isaac is taking on the role of a backend developer. He will contribute code that
 
 Jimmy Zhu - Developer & QA
 
-Jimmy Zhu is taking up the role of a Developer and QA(quality assurance). His role as developer is to allow Godot to build and understand protos that are sent out and in respectively in the format already defined in Schola. So, it can handle Box, Discrete, MultiDiscrete, and MultiBinary. So, it can understand, get actions and send observations, and also, handle describing spaces at startup. His role as QA is to make sure all code works properly and is up to standards through tests and various verification methods. Although not an architect, Jimmy makes some decisions on how the major pieces of a system should be structured and how they interact. He chose these roles because of his existing experience in deep reinforcement learning and a drive to experience the work of a QA.
+Jimmy Zhu is taking on the roles of developer and quality-assurance lead. As a developer, he will implement the Protocol Buffer handling that lets Godot describe Box, Discrete, MultiDiscrete, and MultiBinary spaces, send observations, and receive actions. As QA lead, he will verify the implementation through tests and other review methods and will contribute to decisions about how the major components interact. He chose these roles because of his experience with deep reinforcement learning and his interest in gaining quality-assurance experience.
 
 Bohdan Zmeul - AI Integration Developer
 

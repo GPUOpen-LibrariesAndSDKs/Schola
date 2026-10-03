@@ -42,6 +42,8 @@ The team converted the workflow described by AMD at the kickoff meeting into sev
 
 The team agreed to keep environment-independent C# logic separate from Godot bindings and infrastructure. The proposed projects are `Schola.Core`, `Schola.Godot`, `Schola.Grpc`, and `Schola.Onnx`. Runtime functionality will live in `addons/schola`, while training-only functionality will live in `addons/schola_training` so it can be excluded from exported games.
 
+**Subsequent decision:** After evaluating the language options, the team confirmed C++ with a native GDExtension and Godot 4.7. The C# structure above records the initial proposal discussed at this meeting and is no longer the implementation plan.
+
 ### 4. Work allocation
 
 - Sanjay Ram and Jimmy Zhu will work on the D1 prototype.

@@ -172,7 +172,7 @@ Isaac is taking on the role of a backend developer. He will contribute code that
 
 Jimmy Zhu - Developer & QA
 
-Jimmy Zhu is taking on the roles of developer and quality-assurance lead. As a developer, he will implement the Protocol Buffer handling that lets Godot describe Box, Discrete, MultiDiscrete, and MultiBinary spaces, send observations, and receive actions. As QA lead, he will verify the implementation through tests and other review methods and will contribute to decisions about how the major components interact. He chose these roles because of his experience with deep reinforcement learning and his interest in gaining quality-assurance experience.
+Jimmy Zhu is taking on the roles of developer and quality-assurance(QA) lead. As a developer, he will implement the Protocol Buffer handling that lets Godot describe Box, Discrete, MultiDiscrete, and MultiBinary spaces, send observations, and receive actions. As QA, he will verify the implementation through tests and other review methods. In addition, although not fully an architect, he will make some decisions on the major components and how they interact. He chose these roles because of his experience with deep reinforcement learning and his drive in experiencing the work of quality-assurance.
 
 Bohdan Zmeul - AI Integration Developer
 

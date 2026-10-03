@@ -1,0 +1,110 @@
+[gd_scene format=3 uid="uid://dsmna666w70e7"]
+
+[ext_resource type="Script" uid="uid://dq40uqwgjod31" path="res://assets/DemoController.cs" id="1_0miaj"]
+[ext_resource type="Script" uid="uid://din6v6uknv3s3" path="res://addons/schola/nodes/ScholaEnvironmentNode.cs" id="1_l4713"]
+[ext_resource type="PackedScene" uid="uid://cayw3ijhjv0gt" path="res://addons/schola/ui/RewardStatusPanel.tscn" id="2_umdxf"]
+[ext_resource type="Script" uid="uid://cnd6yjwr1jdmg" path="res://addons/schola/nodes/ScholaAgentNode.cs" id="3_0miaj"]
+[ext_resource type="Script" uid="uid://ct684vjlxcili" path="res://assets/PlayerController.cs" id="4_wppxa"]
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_yryht"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_3xrpy"]
+albedo_color = Color(0.3330168, 0.53753316, 1, 1)
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_ftgeh"]
+
+[sub_resource type="SphereMesh" id="SphereMesh_yryht"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_wppxa"]
+albedo_color = Color(0, 1, 0, 1)
+metallic_specular = 1.0
+roughness = 0.2
+emission_enabled = true
+emission = Color(0, 3.1672676, 0, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_ftgeh"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_6kxbp"]
+albedo_color = Color(0.72464263, 0.7246426, 0.7246426, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_yryht"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_3xrpy"]
+
+[sub_resource type="Sky" id="Sky_wppxa"]
+sky_material = SubResource("ProceduralSkyMaterial_3xrpy")
+
+[sub_resource type="Environment" id="Environment_yryht"]
+background_mode = 2
+sky = SubResource("Sky_wppxa")
+ambient_light_color = Color(1, 1, 1, 1)
+reflected_light_source = 2
+
+[node name="World" type="Node3D" unique_id=312968168]
+script = ExtResource("1_0miaj")
+EnvironmentPath = NodePath("ScholaEnvironmentNode")
+
+[node name="ScholaEnvironmentNode" type="Node" parent="." unique_id=91823768]
+script = ExtResource("1_l4713")
+EpisodeLimit = 3
+metadata/_custom_type_script = "uid://din6v6uknv3s3"
+
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1323691097]
+
+[node name="RewardStatusPanel" parent="CanvasLayer" unique_id=1046343981 instance=ExtResource("2_umdxf")]
+EnvironmentPath = NodePath("../../ScholaEnvironmentNode")
+
+[node name="Label" type="Label" parent="CanvasLayer" unique_id=505389696]
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_top = -23.0
+offset_right = 147.0
+grow_vertical = 0
+size_flags_horizontal = 0
+size_flags_vertical = 8
+text = "Use WASD to move towards the Reward sphere"
+vertical_alignment = 2
+
+[node name="Player" type="CharacterBody3D" parent="." unique_id=1513954829]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.4334106, 0)
+script = ExtResource("4_wppxa")
+GoalPath = NodePath("../Goal")
+
+[node name="ScholaAgentNode" type="Node" parent="Player" unique_id=963754968]
+script = ExtResource("3_0miaj")
+EnvironmentPath = NodePath("../../ScholaEnvironmentNode")
+metadata/_custom_type_script = "uid://cnd6yjwr1jdmg"
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Player" unique_id=876789057]
+mesh = SubResource("CapsuleMesh_yryht")
+surface_material_override/0 = SubResource("StandardMaterial3D_3xrpy")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Player" unique_id=136180905]
+shape = SubResource("CapsuleShape3D_ftgeh")
+
+[node name="Goal" type="Marker3D" parent="." unique_id=218388921]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.85455847, -9.703717)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Goal" unique_id=1575729431]
+mesh = SubResource("SphereMesh_yryht")
+surface_material_override/0 = SubResource("StandardMaterial3D_wppxa")
+
+[node name="Ground" type="StaticBody3D" parent="." unique_id=1864793308]
+transform = Transform3D(25, 0, 0, 0, 0.5, 0, 0, 0, 25, 0, 0, 0)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Ground" unique_id=1521134519]
+mesh = SubResource("BoxMesh_ftgeh")
+surface_material_override/0 = SubResource("StandardMaterial3D_6kxbp")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Ground" unique_id=161013656]
+shape = SubResource("BoxShape3D_yryht")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=275282860]
+transform = Transform3D(1, 0, 0, 0, 0.7071068, 0.7071068, 0, -0.7071068, 0.7071068, 0, 25.973753, 20.195454)
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=1073244878]
+transform = Transform3D(1, 0, 0, 0, 0.59589666, 0.8030612, 0, -0.8030612, 0.59589666, 0, 9.304219, 5.9527445)
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1948442355]
+environment = SubResource("Environment_yryht")

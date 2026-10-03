@@ -102,6 +102,12 @@ Implementation tasks, ownership, dependencies, and progress are tracked on the t
 
 Alexander Cann reviewed and approved these user stories during our second partner meeting. The meeting summary is available in [`deliverables/team/minutes/partner-meeting-02.md`](../team/minutes/partner-meeting-02.md).
 
+##### Interactive mockup
+
+Our team created an interactive Godot prototype under [`Godot/demo`](../../Godot/demo). It demonstrates the Godot-native workflow from US5: adding Schola environment and agent nodes, configuring reward and episode settings in the Inspector, moving an agent toward a goal, displaying reward feedback, and resetting after success or failure. A [video walkthrough is available on YouTube](https://youtu.be/zg4K3fiQjJw). AMD did not provide the prototype; Alexander Cann reviewed the demo during our second partner meeting and provided feedback about keeping the environment interface small and composable.
+
+The prototype uses C# to demonstrate the interface without a training backend or persistence. It is not the final implementation language; the production add-on will use the confirmed C++ GDExtension architecture described below.
+
 #### Q5: Have you decided on how you will build it? Share what you know now or tell us the options you are considering.
 
 Tech Stack:

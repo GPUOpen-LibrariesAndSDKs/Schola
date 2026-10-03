@@ -164,6 +164,8 @@ He chose these roles mainly because he is more focused on backend systems, espec
 
 Vansh Sehrawat - Developer & Partner Liaison
 
+Vansh is responsible for US7, running and shipping an ONNX policy. He will help integrate the trained policy into Godot so the demonstration agent can observe, infer, and act with Python closed, and ensure the inference workflow can be included in an exported game without training-only dependencies. He brings experience with reinforcement learning and gRPC in Unity, which gives him a foundation in connecting game-engine environments to RL workflows. He chose this role to apply that experience to Godot and help make the trained agent usable in a standalone build. As partner liaison, he is also the team's primary point of contact with AMD.
+
 Isaac Tilahun - Backend Developer
 
 Isaac is taking on the role of a backend developer. He will contribute code that defines the reinforcement-learning environment and connects Godot to Schola's existing Python training tools. He will test how those parts work together, help fix issues, and review pull requests before they are merged. He also drafted the initial user stories to help the team divide the work. He chose this role because he wants to be hands-on with both building and testing the system throughout development.

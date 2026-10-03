@@ -13,7 +13,7 @@ We are building a Godot Engine port of AMD Schola, an open-source cross-platform
 #### Q3: Why would your users choose your product? What are they using today to solve their problem/need?
 Currently, developers wanting to use Godot for RL either have to write custom sockets or RPC layers from scratch or rely on unofficial Godot integrations that are separate from Schola's maintained Python ecosystem. Our product brings Schola's environment, training, and inference workflow to Godot. The MVP saves developers from implementing engine-to-Python communication, episode coordination, space serialization, and local policy inference themselves. Reusable specialized sensor and actuator nodes are a stretch goal rather than an MVP promise. This supports AMD's goal of making Schola a maintained multi-engine platform with transferable concepts across engines.
 
-#### Q4: What are the user stories that make up the Minumum Viable Product (MVP)?
+#### Q4: What are the user stories that make up the Minimum Viable Product (MVP)?
 These stories describe the minimum end-to-end product agreed upon during the initial AMD partner meeting: a Godot developer can define a simple reinforcement-learning environment, train an agent through Schola's existing Python ecosystem, export the learned policy, and run that policy inside Godot without Python.
 
 Implementation tasks, ownership, dependencies, and progress are tracked on the team's [Trello board](https://trello.com/b/Ry0Qkx2R). This document states the user value and acceptance boundary; Trello breaks each story into engineering tasks.
@@ -100,13 +100,14 @@ Implementation tasks, ownership, dependencies, and progress are tracked on the t
 
 ##### Partner review
 
-User stories were discussed with partners in second meeting, Gronola summary can be read at `deliverables/team/minutes/partner-meeting-02.md`.
+Alexander Cann reviewed and approved these user stories during our second partner meeting. The meeting summary is available in [`deliverables/team/minutes/partner-meeting-02.md`](../team/minutes/partner-meeting-02.md).
 
 #### Q5: Have you decided on how you will build it? Share what you know now or tell us the options you are considering.
 
 Tech Stack:
 * *Game engine:* Godot
-* *Engine-side language:* C++ for native GDExtension
+  * *Target version:* Godot 4.7
+* *Engine-side language:* C++ for a native GDExtension (confirmed)
 * *RL-side:* Python and Gymnasium
 * *Communication:* Custom gRPC plugin
 * *Inference:* ONNX (model format) and ONNX Runtime (to run trained models inside Godot)
@@ -115,7 +116,7 @@ Schola-Godot is a developer library, not a hosted service, so there is no server
 Training-only code (gRPC, connectors) will be packaged separately from the core and inference code, so a shipped game includes only what it needs to run a trained model. Longer term, the work is intended to be merged into AMD's open-source Schola repository.
 
 ![Architecture diagram](d1-architecture-diagram.png)
-Schola will to ported to Godot 4(4.7) with a C++ GDExtension addon. Runs on gPRC server using existing .proto contract(for details refer to diagram). The main components are ScholaEnvironment nodes with sensor and actuator children, a ScholaConnector autoload singleton that steps every environment, a C++ GrpcGymConnector, and an OnnxPolicy node for inference in exported games. Environments follow a template-method pattern where users override _initialize_environment, _reset, _step and _collect. gPRC hands requests to the main thread via producer-consumer queue. Note that each step runs in lockstep with physics, action at N frame and results collected in N+1. On the Python side, we are using Schola's protocol/simulator split(a strategy pattern) to keep necessary new code locked into simulator. Trained policies are exported to ONNX.
+Schola will be ported to Godot through a C++ GDExtension add-on. It will use Schola's existing `.proto` contract over gRPC, as shown in the architecture diagram. The main components are `ScholaEnvironment` nodes with sensor and actuator children, a `ScholaConnector` autoload singleton that steps every environment, a C++ `GrpcGymConnector`, and an `OnnxPolicy` node for inference in exported games. Environments follow a template-method pattern in which users override `_initialize_environment`, `_reset`, `_step`, and `_collect`. The gRPC layer passes requests to the main thread through a producer-consumer queue. Each step runs in lockstep with the physics loop: an action is applied in frame N, and its results are collected in frame N+1. On the Python side, we will use Schola's protocol/simulator split, following a strategy pattern, to isolate the Godot-specific integration in a simulator implementation. Trained policies will be exported to ONNX.
 
 No hosted or paid APIs. We only use open-source libraries that run locally:
 *Godot side:* godot-cpp (to build the GDExtension), gRPC(to call methods on a server application) and Protobuf(training server, only in the training add-on), and ONNX Runtime (inference in shipped games).
@@ -146,7 +147,9 @@ We made a group chat on Discord and played games together.
 
 #### Q7: What are the roles & responsibilities on the team?
 
-Shahyar Anfaz - Developer
+Shahyar Anfaz - Episode Lifecycle Developer
+
+Shahyar is responsible for US4, the episode lifecycle. He will implement and test the flow of observations, actions, rewards, termination and truncation states, and environment resets between Godot and Schola's Python tooling. He will also help ensure that multiple environments and the supported auto-reset modes behave consistently across complete episodes. He chose this role because he is interested in low-level systems work and wants to apply that interest to the state coordination at the core of the integration.
 Guneev Pannu - Developer & Project Manager
 
 Guneev has been meaning to expand his C++ skills so as a developer he will focus on applying the decision made by the Python side into a measurable change in the Godot side and giving the Python side information about the state of things in the Godot side. Additionally he has the PM role in the UTMIST club and is experienced making sure nothing falls through the cracks in a big project.
@@ -163,7 +166,7 @@ Vansh Sehrawat - Developer & Partner Liaison
 
 Isaac Tilahun - Backend Developer
 
-Isaac is taking on the role of a backend developer as he is contributing code to define the reinforcement-learning evironment and connect the Godot environment towards Schola's existing Python training tools. He will test how those parts work together, help fix issues, and review pull requests before they are merged. He also drafted the initial user stories to help the team divide the work. He chose this role because he wants to be hands-on with both building and testing the system throughout development.
+Isaac is taking on the role of a backend developer. He will contribute code that defines the reinforcement-learning environment and connects Godot to Schola's existing Python training tools. He will test how those parts work together, help fix issues, and review pull requests before they are merged. He also drafted the initial user stories to help the team divide the work. He chose this role because he wants to be hands-on with both building and testing the system throughout development.
 
 Jimmy Zhu - Developer & QA
 
@@ -182,7 +185,7 @@ He chose this role because it perfectly bridges his existing machine learning ex
 
 We plan on having recurring meetings together with our partner on Fridays at 11 am on MS Teams. These meetings are designed to allow us to show our work and get clarification questions from the AMD staff. These meetings take around 40-50 minutes.
 
-Additionally we have a group chat and server that we will use to keep track of everything and so everyone can talk to each other. We have each other's contacts and see each other in class.
+The student team works on flexible individual schedules rather than holding a second recurring meeting. We coordinate asynchronously through Discord, use ad hoc Discord calls when an issue needs live discussion, and review pull requests asynchronously. This lets members work on their own schedules while keeping decisions, blockers, and review feedback visible to the full team. We also have each other's contact information and see each other in class.
 
 Meeting minutes for our first two meetings with our partners can additionally be found under deliverables/team/minutes.
 
@@ -202,7 +205,7 @@ To track status from inception to completion, we pair Trello with code reviews a
 
 We expect daily communication as a team, mainly through quick check-ins on Discord, since it's already central to how we organize our work (see Q9).
 
-For our partners, we have a Microsoft Teams group chat with AMD, and Vansh Sehrawat is our primary point of contact and partner liaison responsible for that channel. We plan to hold weekly meetings with them, tentatively Friday 11:00 a.m.–12:00 p.m this time has been confirmed with AMD.
+For our partners, we have a Microsoft Teams group chat with AMD. Vansh Sehrawat is our primary point of contact and the partner liaison responsible for that channel. AMD has confirmed a weekly meeting time of Friday from 11:00 a.m. to 12:00 p.m.
 
 **Collaboration:**
 
@@ -224,32 +227,29 @@ The Godot port is not intended to copy every Unreal feature or implementation de
 
 #### Q13. What are some potential risks to your project?
 
-**1: The implementation language and extension mechanism have been chosen badly.**
-We have currently decided to use C++ as a GDExtension. The choice affects most user stories, so if changing it becomes required then we would have to rewrite a lot of code.
+**1: The C++ GDExtension may introduce unexpected integration or build constraints.**
+We have confirmed C++ and GDExtension for the engine-side implementation. This choice affects most user stories, so unexpected limitations in Godot's extension API or native build process could require significant redesign.
 
 **2: Hosting the gRPC server inside Godot may be difficult.**
-Unreal Schola fully  relies on Unreal's build tooling for gRPC, while Godot has no equivalent. Thus, we must find a gRPC setup that works in Godot ourselves or a non-gPRC equivalent. This can cause divergence from the existing design.
+Unreal Schola relies on Unreal's build tooling for gRPC, while Godot has no equivalent. We must therefore create a gRPC setup that works with Godot or agree on an alternative with AMD. An alternative transport could cause the Godot integration to diverge from Schola's existing design.
 
 **3: Parts of the Python stack are tied to Unreal.**
 We cannot assume some Python components like launching the engine and exporting models can work with Godot unchanged. Changing them would add work outside our plan.
 
 **4: The demonstration environment might not show learning within the time available.**
-AMD's MVP requires a policy that learns the forward/backward/stand-still task. Getting an agent to could require reinforcement learning knowledge as training with bad settings might not produce wanted results.
+AMD's MVP requires a policy that learns the forward, backward, and stand-still task. Producing the intended behavior will require suitable reinforcement-learning settings; poorly chosen settings may prevent the agent from learning it within the available time.
 
 
 #### Q14. What are some potential mitigation strategies for the risks you identified?
 
-**1: Language and extension mechanism.** 
-Compare the options and at the weekly partner meeting ask AMD to make a decision after informing them.
+**1: C++ GDExtension constraints.** 
+Prototype the highest-risk engine integrations early, including gRPC, main-thread coordination, and ONNX Runtime. Keep engine-independent behavior behind interfaces so that integration details can change without rewriting the episode lifecycle or space definitions.
 
 **2: gRPC in Godot.** 
-Build a small test gRPC prototype early to confirm if it works with the Python client. If it does not, discuss a fallback with AMD before other work depends on gPRC.
+Build a small gRPC prototype early to confirm that it works with the Python client. If it does not, discuss a fallback with AMD before other work depends on gRPC.
 
 **3: Python stack tied to Unreal.** 
 For the MVP, we could start Godot manually and connect from Python, which avoids Python code changes. Any later planned Python changes will be communicated to AMD beforehand.
 
 **4: The demonstration might not show learning.** 
-Firstly, keep the environment as simple as possible and learn online on how to properly tune training on a plain Python environment. If there are still tuning problems, ask AMD for recommended training settings.
-
-**5: Open decisions from AMD.** 
-For Godot version, compare the options and at the weekly partner meeting ask AMD to make a decision after informing them. For required features, communicate with AMD.
+Keep the environment as simple as possible and validate the training configuration first in a plain Python environment. If tuning problems remain, ask AMD for recommended training settings.

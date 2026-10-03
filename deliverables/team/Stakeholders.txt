@@ -19,7 +19,7 @@ Primary Partner Contact (the person you work with and meet regularly)
   Name: Alexander Cann
   Role/Title: Member of Technical Staff
   Email: alexander.cann@amd.com
-  Meeting cadence: Weekly; exact recurring time to be confirmed
+  Meeting cadence: Weekly on Fridays from 11:00 a.m. to 12:00 p.m.
 
 Secondary Partner Contact (e.g., someone you met once or who is less involved)
   Name: TianYue Liu (also uses the name Michael)

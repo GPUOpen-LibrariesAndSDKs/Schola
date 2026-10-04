@@ -6,17 +6,17 @@ This directory contains the Godot port of AMD Schola. The design keeps reusable 
 
 ```text
 Godot/
-├── addons/
-│   ├── schola/                  Runtime Godot plugin
-│   └── schola_training/         Training-only Godot plugin
 ├── src/
-│   ├── Schola.Core/             Engine-independent interfaces and behavior
-│   │   ├── Environments/        Environment and agent contracts
-│   │   ├── Spaces/              Observation/action spaces and point values
-│   │   └── Connector/           Step, reset, and auto-reset coordination
-│   ├── Schola.Godot/            Godot nodes and Inspector bindings
-│   ├── Schola.Grpc/             gRPC transport implementation
-│   └── Schola.Onnx/             ONNX policy implementation
+│   ├── core/
+│   │   ├── environment/          Environment and agent contracts
+│   │   ├── spaces/               Observation/action spaces and point values
+│   │   └── lifecycle/            Step, reset, and auto-reset coordination
+│   ├── bindings/                 Godot nodes and Inspector bindings
+│   ├── inference/                ONNX policy implementation
+│   └── transport/grpc/           gRPC and Protocol Buffer integration
+├── addons/
+│   ├── schola/                   Runtime add-on packaging
+│   └── schola_training/          Training-only add-on packaging
 ├── examples/
 │   └── basic_environment/       End-to-end demonstration environment
 └── tests/
@@ -26,19 +26,19 @@ Godot/
 
 ## Module boundaries
 
-### `Schola.Core`
+### `src/core`
 
 Contains the engine-independent environment interfaces, space and point types, agent state, connector loop, and transport/policy abstractions. It must not reference Godot, gRPC, or ONNX libraries.
 
-### `Schola.Godot`
+### `src/bindings`
 
 Adapts the core abstractions to Godot nodes, resources, the Inspector, and the engine lifecycle. This is the only project that may reference Godot APIs.
 
-### `Schola.Grpc`
+### `src/transport/grpc`
 
 Implements the core transport abstraction using Schola's existing Protocol Buffer and gRPC contracts. Keeping it separate prevents networking dependencies from leaking into the core or inference-only builds.
 
-### `Schola.Onnx`
+### `src/inference`
 
 Implements the core policy abstraction using ONNX Runtime. It supports local inference without a running Python process or training connection.
 
@@ -50,24 +50,24 @@ Implements the core policy abstraction using ONNX Runtime. It supports local inf
 ## Dependency direction
 
 ```text
-Schola.Godot ──→ Schola.Core ←── Schola.Grpc
-                       ↑
-                  Schola.Onnx
+bindings ──→ core ←── inference
+               ↑
+        training transport
 ```
 
-Dependencies must point toward `Schola.Core`. The core must never depend on an adapter project.
+Dependencies must point toward `core`. The core must never depend on Godot bindings, gRPC, Protocol Buffers, or ONNX Runtime. The training add-on may depend on the runtime add-on, but the runtime add-on must not depend on training code.
 
 ## User-story mapping
 
 | User story | Primary location |
 | --- | --- |
-| US1: Define an environment | `src/Schola.Core/Environments/` |
-| US2: Declare spaces | `src/Schola.Core/Spaces/` |
-| US3: Connect Python training tools | `src/Schola.Grpc/` and `addons/schola_training/` |
-| US4: Execute the episode lifecycle | `src/Schola.Core/Connector/` |
-| US5: Configure through Godot | `src/Schola.Godot/` and `examples/basic_environment/` |
+| US1: Define an environment | `src/core/environment/` |
+| US2: Declare spaces | `src/core/spaces/` |
+| US3: Connect Python training tools | `src/transport/grpc/` and `addons/schola_training/` |
+| US4: Execute the episode lifecycle | `src/core/lifecycle/` |
+| US5: Configure through Godot | `src/bindings/` and `examples/basic_environment/` |
 | US6: Export a policy to ONNX | Existing Python Schola package under `Resources/python/` |
-| US7: Run and ship an ONNX policy | `src/Schola.Onnx/` and `addons/schola/` |
+| US7: Run and ship an ONNX policy | `src/inference/` and `addons/schola/` |
 
 The detailed acceptance criteria and D1 planning scope are in [`deliverables/D1/planning.md`](../deliverables/D1/planning.md). Engineering tasks, dependencies, assignees, and progress are tracked on the team's [Trello board](https://trello.com/b/Ry0Qkx2R).
 

@@ -69,7 +69,25 @@ Dependencies must point toward `Schola.Core`. The core must never depend on an a
 | US6: Export a policy to ONNX | Existing Python Schola package under `Resources/python/` |
 | US7: Run and ship an ONNX policy | `src/Schola.Onnx/` and `addons/schola/` |
 
-The detailed acceptance criteria and current planning scope are in [`deliverables/D1/user-stories.md`](../deliverables/D1/user-stories.md). Engineering tasks, dependencies, assignees, and progress are tracked on the team's [Trello board](https://trello.com/b/Ry0Qkx2R).
+The detailed acceptance criteria and D1 planning scope are in [`deliverables/D1/planning.md`](../deliverables/D1/planning.md). Engineering tasks, dependencies, assignees, and progress are tracked on the team's [Trello board](https://trello.com/b/Ry0Qkx2R).
+
+## Code style and formatting
+
+Godot C++ code follows the conventions enforced by [`Godot/.clang-format`](.clang-format), based on the official `godot-cpp` configuration. Use clang-format 17 so every contributor and CI produce the same output. The [`Godot/.editorconfig`](.editorconfig) file configures compatible whitespace and line-ending defaults for supported editors.
+
+From the repository root, format all tracked Godot C++ files with:
+
+```sh
+git ls-files ':(glob)Godot/**/*.cpp' ':(glob)Godot/**/*.h' | xargs clang-format -i
+```
+
+Check formatting without modifying files with:
+
+```sh
+git ls-files ':(glob)Godot/**/*.cpp' ':(glob)Godot/**/*.h' | xargs clang-format --dry-run --Werror
+```
+
+Run the check before opening a pull request. Format only team-owned source files; do not reformat generated code or vendored dependencies.
 
 ## Working on a story
 

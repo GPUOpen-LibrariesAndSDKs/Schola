@@ -1,2 +1,9 @@
 Source/ThirdParty/gRPC/**/*.lib filter=lfs diff=lfs merge=lfs -text
 Source/ThirdParty/gRPC/**/*.a filter=lfs diff=lfs merge=lfs -text
+
+# Keep Godot C++ and formatting configuration consistent across platforms.
+Godot/**/*.cpp text eol=lf
+Godot/**/*.h text eol=lf
+Godot/**/*.hpp text eol=lf
+Godot/.clang-format text eol=lf
+Godot/.editorconfig text eol=lf

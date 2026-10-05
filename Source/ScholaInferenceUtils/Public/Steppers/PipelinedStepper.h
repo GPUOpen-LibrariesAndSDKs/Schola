@@ -6,6 +6,7 @@
 #include "Steppers/StepperInterface.h"
 #include "Agent/AgentInterface.h"
 #include "Common/LogSchola.h"
+#include "LogScholaInferenceUtils.h"
 #include "PipelinedStepper.generated.h"
 
 #define PIPELINE_STAGES 2
@@ -36,7 +37,7 @@ public:
      * Sets up the pipeline frames and prepares for asynchronous operation.
      * 
      * @param[in] InAgents The array of agents to manage
-     * @param[in] InPolicy The policy to use for inference (must support batched operations)
+     * @param[in] InPolicy The initialized policy to use for inference (must support batched operations)
      * @return true if initialization succeeded (agents and policy are valid), false otherwise
      */
     bool Init(const TArray<TScriptInterface<IAgent>>& InAgents, const TScriptInterface<IPolicy>& InPolicy) override
@@ -44,6 +45,8 @@ public:
         Agents = InAgents;
         Policy = InPolicy;
         TickCounter = 0;
+        bDispatchInFlight = false;
+        PendingStateResets.Reset();
 
         for (int i = 0; i < PIPELINE_STAGES; ++i)
         {
@@ -52,8 +55,43 @@ public:
             Frames[i].bActionsReady = false;
             Frames[i].bThinkInFlight = false;
         }
-        return Agents.Num() > 0 && Policy;
+        if (Agents.Num() == 0 || !Policy)
+        {
+            return false;
+        }
+        if (!CreateAgentStates(*Policy, this, Agents.Num(), CurrentStates)
+            || !CreateAgentStates(*Policy, this, Agents.Num(), NextStates))
+        {
+            UE_LOGFMT(LogScholaInferenceUtils, Error, "UPipelinedStepper::Init(): Policy failed to create initial states");
+            return false;
+        }
+        return true;
     }
+
+    /**
+     * @brief Reset every agent's policy state to the start of an episode.
+     * 
+     * If inference is in flight, the reset is applied once it completes.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Schola|Stepper")
+    void ResetStates();
+
+    /**
+     * @brief Reset one agent's policy state to the start of an episode.
+     * 
+     * If inference is in flight, the reset is applied once it completes.
+     * 
+     * @param[in] AgentIndex Index of the agent in Agents
+     */
+    UFUNCTION(BlueprintCallable, Category = "Schola|Stepper")
+    void ResetAgentState(int32 AgentIndex);
+
+    /**
+     * @brief Get each agent's current policy state.
+     * 
+     * @return One state per agent, as read by the next dispatched inference (null entries for stateless policies)
+     */
+    const TArray<TScriptInterface<IPolicyState>>& GetCurrentStates() const { return CurrentStates; }
 
     /**
      * @brief Execute one step of the pipelined agent-policy loop.
@@ -61,7 +99,7 @@ public:
      * Must be called every tick on the Game Thread. Performs:
      * - Applies actions from the previous frame (if ready)
      * - Collects observations from all agents
-     * - Dispatches asynchronous inference if policy is not busy
+     * - Dispatches asynchronous inference if the policy is not busy and the previous result has been handled
      * 
      * The inference runs on a background thread and results are applied
      * in a subsequent frame once ready.
@@ -90,6 +128,20 @@ private:
     /** Policy used for inference */
     UPROPERTY() 
     TScriptInterface<IPolicy> Policy;
+
+    /** Each agent's policy state, read by the next dispatched inference. Null entries for stateless policies. */
+    UPROPERTY()
+    TArray<TScriptInterface<IPolicyState>> CurrentStates;
+
+    /** Each agent's policy state written by the next dispatched inference, swapped with CurrentStates on success. */
+    UPROPERTY()
+    TArray<TScriptInterface<IPolicyState>> NextStates;
+
+    /** Agents whose state reset was requested while inference was in flight */
+    TSet<int32> PendingStateResets;
+
+    /** Game Thread flag set from dispatch until the result is handled, so state is never read while being written */
+    bool bDispatchInFlight = false;
 
     /**
      * @brief Frame data structure for pipeline stages.
@@ -136,5 +188,12 @@ private:
      * @param[in] FrameIndex Index of the pipeline frame to process
      */
     void DispatchThink(int32 FrameIndex);
+
+    /**
+     * @brief Handle a finished inference on the Game Thread: advance states and apply pending resets.
+     * 
+     * @param[in] bSuccess Whether the inference succeeded
+     */
+    void CompleteThink(bool bSuccess);
 
 };

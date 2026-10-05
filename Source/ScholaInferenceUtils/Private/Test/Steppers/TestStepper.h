@@ -121,10 +121,16 @@ public:
 	 * async execution.
 	 * 
 	 * @param[in] InObservations The observations to process
+	 * @param[in] InState Unused, the test policy is stateless
 	 * @param[out] OutAction The computed action (always action index 1)
+	 * @param[out] OutState Unused, the test policy is stateless
 	 * @return true if inference succeeded, false if inference was already in flight
 	 */
-	bool Think(const TInstancedStruct<FPoint>& InObservations, TInstancedStruct<FPoint>& OutAction) override;
+	bool Think(
+		const TInstancedStruct<FPoint>&		  InObservations,
+		const TScriptInterface<IPolicyState>& InState,
+		TInstancedStruct<FPoint>&			  OutAction,
+		TScriptInterface<IPolicyState>&		  OutState) override;
 
 	/**
 	 * @brief Initialize the policy with a definition of the expected observation and action spaces. 
@@ -163,4 +169,67 @@ public:
 	 */
 	static bool SawNonGameThread();
 	
+};
+
+/**
+ * @brief Test policy state counting how many steps an agent has taken.
+ */
+UCLASS()
+class UTestCounterState : public UObject, public IPolicyState
+{
+	GENERATED_BODY()
+
+public:
+	/** Number of Think calls this state has been advanced through */
+	UPROPERTY()
+	int32 Count = 0;
+
+	void Reset() override { Count = 0; }
+
+	bool CopyFrom(const IPolicyState& Other) override
+	{
+		const UTestCounterState* OtherState = Cast<UTestCounterState>(Other._getUObject());
+		if (!OtherState)
+		{
+			return false;
+		}
+		Count = OtherState->Count;
+		return true;
+	}
+};
+
+/**
+ * @brief Stateful test policy for steppers.
+ * 
+ * Writes InState's count plus one into OutState and always returns action index 1.
+ * Counts its Think calls so tests can check no state update was lost or applied twice.
+ */
+UCLASS()
+class UTestStatefulPolicy : public UObject, public IPolicy
+{
+	GENERATED_BODY()
+
+public:
+	/** Total number of successful Think calls across all agents */
+	std::atomic<int32> ThinkCount { 0 };
+
+	bool Think(
+		const TInstancedStruct<FPoint>&		  InObservations,
+		const TScriptInterface<IPolicyState>& InState,
+		TInstancedStruct<FPoint>&			  OutAction,
+		TScriptInterface<IPolicyState>&		  OutState) override;
+
+	bool CreateInitialState(UObject* InOuter, TScriptInterface<IPolicyState>& OutState) const override;
+
+	bool Init(const FInteractionDefinition& InPolicyDefinition) override { return true; }
+
+	bool IsInferenceBusy() const override { return false; }
+
+	/**
+	 * @brief Read the count from a state created by this policy.
+	 * 
+	 * @param[in] State The state to read
+	 * @return The state's count, or -1 if it is not a UTestCounterState
+	 */
+	static int32 GetCount(const TScriptInterface<IPolicyState>& State);
 };

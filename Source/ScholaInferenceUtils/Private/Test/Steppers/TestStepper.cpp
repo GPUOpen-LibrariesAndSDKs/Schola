@@ -117,7 +117,11 @@ UTestPolicy::UTestPolicy()
 {
 }
 
-bool UTestPolicy::Think(const TInstancedStruct<FPoint>& InObservations, TInstancedStruct<FPoint>& OutAction)
+bool UTestPolicy::Think(
+	const TInstancedStruct<FPoint>&		  InObservations,
+	const TScriptInterface<IPolicyState>& InState,
+	TInstancedStruct<FPoint>&			  OutAction,
+	TScriptInterface<IPolicyState>&		  OutState)
 {
 	bool Expected = false;
 	if(!bInferenceInFlight.compare_exchange_strong(Expected, true, std::memory_order_acq_rel))
@@ -177,4 +181,36 @@ TSet<uint32> UTestPolicy::GetThreadIdsCopy()
 bool UTestPolicy::SawNonGameThread()
 {
 	return GTestPolicySawNonGameThread.load(std::memory_order_relaxed);
+}
+
+bool UTestStatefulPolicy::Think(
+	const TInstancedStruct<FPoint>&		  InObservations,
+	const TScriptInterface<IPolicyState>& InState,
+	TInstancedStruct<FPoint>&			  OutAction,
+	TScriptInterface<IPolicyState>&		  OutState)
+{
+	const UTestCounterState* InCounter = Cast<UTestCounterState>(InState.GetObject());
+	UTestCounterState*		 OutCounter = Cast<UTestCounterState>(OutState.GetObject());
+	if (!InCounter || !OutCounter || InCounter == OutCounter)
+	{
+		UE_LOGFMT(LogScholaInferenceUtils, Error, "TestStatefulPolicy: Expected two distinct UTestCounterState objects");
+		return false;
+	}
+
+	OutCounter->Count = InCounter->Count + 1;
+	OutAction.InitializeAs<FMultiDiscretePoint>(TArray<int> { 1 });
+	ThinkCount.fetch_add(1, std::memory_order_relaxed);
+	return true;
+}
+
+bool UTestStatefulPolicy::CreateInitialState(UObject* InOuter, TScriptInterface<IPolicyState>& OutState) const
+{
+	OutState = NewObject<UTestCounterState>(InOuter ? InOuter : GetTransientPackage());
+	return true;
+}
+
+int32 UTestStatefulPolicy::GetCount(const TScriptInterface<IPolicyState>& State)
+{
+	const UTestCounterState* Counter = Cast<UTestCounterState>(State.GetObject());
+	return Counter ? Counter->Count : -1;
 }

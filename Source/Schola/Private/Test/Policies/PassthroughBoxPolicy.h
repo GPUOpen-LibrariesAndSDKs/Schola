@@ -9,7 +9,7 @@
 
 /**
  * Minimal policy for tests: copies FBoxPoint observations to actions.
- * Uses the default IPolicy::BatchedThink (per-element Think).
+ * Stateless, and uses the default IPolicy::BatchedThink (per-element Think).
  */
 UCLASS()
 class UPassthroughBoxPolicy : public UObject, public IPolicy
@@ -17,7 +17,11 @@ class UPassthroughBoxPolicy : public UObject, public IPolicy
 	GENERATED_BODY()
 
 public:
-	bool Think(const TInstancedStruct<FPoint>& InObservations, TInstancedStruct<FPoint>& OutAction) override;
+	bool Think(
+		const TInstancedStruct<FPoint>&		  InObservations,
+		const TScriptInterface<IPolicyState>& InState,
+		TInstancedStruct<FPoint>&			  OutAction,
+		TScriptInterface<IPolicyState>&		  OutState) override;
 	bool Init(const FInteractionDefinition& InPolicyDefinition) override;
 	bool IsInferenceBusy() const override;
 };

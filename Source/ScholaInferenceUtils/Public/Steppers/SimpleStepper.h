@@ -33,11 +33,19 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Stepper")
 	TScriptInterface<IPolicy>		 Policy;
 
+	/** Each agent's policy state, read by the next Step(). Null entries for stateless policies. */
+	UPROPERTY(BlueprintReadOnly, Category = "Stepper")
+	TArray<TScriptInterface<IPolicyState>> CurrentStates;
+
+	/** Each agent's policy state written by the next Step(), swapped with CurrentStates on success. */
+	UPROPERTY()
+	TArray<TScriptInterface<IPolicyState>> NextStates;
+
 	/**
 	 * @brief Initialize the stepper with the given agents and policy.
 	 * 
 	 * @param[in] InAgents The array of agents to manage
-	 * @param[in] InPolicy The policy to use for inference
+	 * @param[in] InPolicy The initialized policy to use for inference
 	 * @return true if initialization succeeded, false otherwise
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Schola|Stepper")
@@ -58,7 +66,45 @@ public:
 			return false;
 		}
 
+		if (!CreateAgentStates(*this->Policy, this, this->Agents.Num(), this->CurrentStates)
+			|| !CreateAgentStates(*this->Policy, this, this->Agents.Num(), this->NextStates))
+		{
+			UE_LOGFMT(LogScholaInferenceUtils, Error, "USimpleStepper::Init(): Policy failed to create initial states!");
+			return false;
+		}
+
 		return true;
+	}
+
+	/**
+	 * @brief Reset every agent's policy state to the start of an episode.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Schola|Stepper")
+	void ResetStates()
+	{
+		for (int32 i = 0; i < this->CurrentStates.Num(); i++)
+		{
+			this->ResetAgentState(i);
+		}
+	}
+
+	/**
+	 * @brief Reset one agent's policy state to the start of an episode.
+	 * 
+	 * @param[in] AgentIndex Index of the agent in Agents
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Schola|Stepper")
+	void ResetAgentState(int32 AgentIndex)
+	{
+		if (!this->CurrentStates.IsValidIndex(AgentIndex))
+		{
+			UE_LOGFMT(LogScholaInferenceUtils, Error, "USimpleStepper::ResetAgentState(): Invalid agent index {0}", AgentIndex);
+			return;
+		}
+		if (this->CurrentStates[AgentIndex])
+		{
+			this->CurrentStates[AgentIndex]->Reset();
+		}
 	}
 
 	/**
@@ -66,8 +112,8 @@ public:
 	 * 
 	 * Performs the full observation-inference-action cycle synchronously:
 	 * - Collects observations from all agents
-	 * - Calls the policy's BatchedThink method
-	 * - Applies the resulting actions to each agent
+	 * - Calls the policy's BatchedThink method with each agent's policy state
+	 * - Advances each agent's policy state and applies the resulting actions
 	 * 
 	 * This method blocks during policy inference.
 	 */
@@ -93,8 +139,9 @@ public:
 			IAgent::Execute_Observe(Agents[i].GetObject(), Observation);
 			Observations.Add(Observation);
 		}
-		if (this->Policy->BatchedThink(Observations, Actions))
+		if (this->Policy->BatchedThink(Observations, this->CurrentStates, Actions, this->NextStates))
 		{
+			Swap(this->CurrentStates, this->NextStates);
 			if (Actions.Num() == this->Agents.Num())
 			{
 				for (int i = 0; i < Agents.Num(); i++)

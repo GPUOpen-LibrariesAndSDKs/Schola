@@ -97,6 +97,12 @@ struct SCHOLANNE_API FNNEStateBuffer
 		return this->SeqDim != -1;
 	}
 
+	/** Zeroes the whole state sequence. */
+	void Reset()
+	{
+		FMemory::Memzero(StateBuffer.GetData(), StateBuffer.Num() * sizeof(float));
+	}
+
 	/** Advances recurrent state (shifts sequence) when a sequence dimension exists. */
 	void Update()
 	{

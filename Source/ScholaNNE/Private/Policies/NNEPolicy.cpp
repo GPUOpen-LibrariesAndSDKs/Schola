@@ -38,7 +38,11 @@ IRuntimeInterface* UNNEPolicy::GetRuntime(const FString& SelectedRuntimeName) co
 	return nullptr;
 }
 
-bool UNNEPolicy::Think(const TInstancedStruct<FPoint>& InObservations, TInstancedStruct<FPoint>& OutAction)
+bool UNNEPolicy::Think(
+	const TInstancedStruct<FPoint>&		  InObservations,
+	const TScriptInterface<IPolicyState>& InState,
+	TInstancedStruct<FPoint>&			  OutAction,
+	TScriptInterface<IPolicyState>&		  OutState)
 {
 	bool Expected = false;
 	if (!bInferenceInFlight.compare_exchange_weak(Expected, true, std::memory_order_acq_rel))
@@ -72,6 +76,11 @@ bool UNNEPolicy::Think(const TInstancedStruct<FPoint>& InObservations, TInstance
 		FNNEPointCreator::CreatePoint(ActionBuffer, OutAction, PolicyDefinition.ActionSpaceDefn);
 	}
 
+	if (!BindStates(InState, OutState))
+	{
+		return false;
+	}
+
 	FNNEPointToBufferConverter::ConvertPointToBuffer(InObservations, ObservationBuffer, PolicyDefinition.ObsSpaceDefn);
 
 	if ((int)ModelInstance->RunSync(InputBindings, OutputBindings) != 0)
@@ -99,30 +108,106 @@ bool UNNEPolicy::InitInputTensorShapes(TSharedPtr<IModelInstanceRunSync> InModel
 
 bool UNNEPolicy::InitStateBuffersAndBindings(TSharedPtr<IModelInstanceRunSync> InModelInstance)
 {
-	// Find all the State Tensors from the Tensor Descriptions and Create a buffer for each one
+	this->InitialStateBuffers.Reset();
+	this->StateInputBindingIndices.Reset();
+	this->StateOutputBindingIndices.Reset();
+
+	// Find all the State Tensors from the Tensor Descriptions and Create a buffer for each one.
+	// The bindings themselves point into the caller's state objects, so they are set per Think in BindStates.
 	TConstArrayView<UE::NNE::FTensorDesc> InputTensorDescs = InModelInstance->GetInputTensorDescs();
 	for (int i = 0; i < InputTensorDescs.Num(); i++)
 	{
 		if (InputTensorDescs[i].GetName().StartsWith(TEXT("state_in")))
 		{
-			UE::NNE::FTensorDesc StateDesc = InputTensorDescs[i];
-
-			FNNEStateBuffer& BufferRef = this->StateBuffer.Emplace_GetRef(StateDesc.GetShape().GetData(), this->MaxStateSequenceLength);
-			this->InputBindings[i] = BufferRef.MakeInputBinding();
+			this->InitialStateBuffers.Emplace(InputTensorDescs[i].GetShape().GetData(), this->MaxStateSequenceLength);
+			this->StateInputBindingIndices.Add(i);
 		}
 	}
-	// Go through the output tensors and find the state tensors, linking them to the state buffer for the corresponding input tensor
+	// Go through the output tensors and find the state tensors, pairing them with the input state tensors in order
 	TConstArrayView<UE::NNE::FTensorDesc> OutputTensorDescs = InModelInstance->GetOutputTensorDescs();
-	int									  StateIndex = 0;
 	for (int i = 0; i < OutputTensorDescs.Num(); i++)
 	{
 		if (OutputTensorDescs[i].GetName().StartsWith(TEXT("state_out")))
 		{
-			FNNEStateBuffer& BufferRef = this->StateBuffer[StateIndex];
-			this->OutputBindings[i] = BufferRef.MakeOutputBinding();
-			StateIndex++;
+			this->StateOutputBindingIndices.Add(i);
 		}
 	}
+
+	if (this->StateInputBindingIndices.Num() != this->StateOutputBindingIndices.Num())
+	{
+		UE_LOGFMT(LogScholaNNE, Error, "UNNEPolicy::InitStateBuffersAndBindings(): Model has {0} state_in tensors but {1} state_out tensors, expected one of each per state",
+			this->StateInputBindingIndices.Num(), this->StateOutputBindingIndices.Num());
+		return false;
+	}
+	return true;
+}
+
+bool UNNEPolicy::IsStateCompatible(const UNNEPolicyState* InState) const
+{
+	if (!InState || InState->Buffers.Num() != this->InitialStateBuffers.Num())
+	{
+		return false;
+	}
+	for (int i = 0; i < InState->Buffers.Num(); i++)
+	{
+		if (InState->Buffers[i].StateBuffer.Num() != this->InitialStateBuffers[i].StateBuffer.Num())
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+bool UNNEPolicy::BindStates(const TScriptInterface<IPolicyState>& InState, TScriptInterface<IPolicyState>& OutState)
+{
+	// Stateless models ignore any states passed in
+	if (this->InitialStateBuffers.Num() == 0)
+	{
+		return true;
+	}
+
+	const UNNEPolicyState* InNNEState = Cast<UNNEPolicyState>(InState.GetObject());
+	UNNEPolicyState*	   OutNNEState = Cast<UNNEPolicyState>(OutState.GetObject());
+	if (!IsStateCompatible(InNNEState) || !IsStateCompatible(OutNNEState))
+	{
+		UE_LOGFMT(LogScholaNNE, Error, "UNNEPolicy::Think(): InState and OutState must be UNNEPolicyState objects created by CreateInitialState for this model");
+		return false;
+	}
+	if (InNNEState == OutNNEState)
+	{
+		UE_LOGFMT(LogScholaNNE, Error, "UNNEPolicy::Think(): InState and OutState must be different objects");
+		return false;
+	}
+
+	for (int i = 0; i < this->InitialStateBuffers.Num(); i++)
+	{
+		// Start from the previous history and drop the oldest entry; the model writes the newest state into the last slot
+		FNNEStateBuffer& OutBuffer = OutNNEState->Buffers[i];
+		OutBuffer.StateBuffer = InNNEState->Buffers[i].StateBuffer;
+		OutBuffer.Update();
+
+		this->InputBindings[this->StateInputBindingIndices[i]] = InNNEState->Buffers[i].MakeInputBinding();
+		this->OutputBindings[this->StateOutputBindingIndices[i]] = OutBuffer.MakeOutputBinding();
+	}
+	return true;
+}
+
+bool UNNEPolicy::CreateInitialState(UObject* InOuter, TScriptInterface<IPolicyState>& OutState) const
+{
+	OutState = nullptr;
+	if (!bNetworkLoaded)
+	{
+		UE_LOGFMT(LogScholaNNE, Error, "UNNEPolicy::CreateInitialState(): Network not loaded, call Init first");
+		return false;
+	}
+	if (this->InitialStateBuffers.Num() == 0)
+	{
+		return true;
+	}
+
+	UNNEPolicyState* State = NewObject<UNNEPolicyState>(InOuter ? InOuter : GetTransientPackage());
+	State->Buffers = this->InitialStateBuffers;
+	OutState = State;
 	return true;
 }
 

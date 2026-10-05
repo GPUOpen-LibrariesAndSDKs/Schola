@@ -4,7 +4,11 @@
 
 #include "Points/BoxPoint.h"
 
-bool UPassthroughBoxPolicy::Think(const TInstancedStruct<FPoint>& InObservations, TInstancedStruct<FPoint>& OutAction)
+bool UPassthroughBoxPolicy::Think(
+	const TInstancedStruct<FPoint>&		  InObservations,
+	const TScriptInterface<IPolicyState>& InState,
+	TInstancedStruct<FPoint>&			  OutAction,
+	TScriptInterface<IPolicyState>&		  OutState)
 {
 	const FBoxPoint* Src = InObservations.GetPtr<FBoxPoint>();
 	if (!Src)

@@ -2,6 +2,7 @@
 
 #include "Steppers/PipelinedStepper.h"
 #include "Async/Async.h"
+#include "UObject/GarbageCollection.h"
 #include "LogScholaInferenceUtils.h"
 
 void UPipelinedStepper::Step()
@@ -56,7 +57,7 @@ void UPipelinedStepper::Step()
         Frame.Observations.Add(Obs);
     }
     
-    if (Policy->IsInferenceBusy())
+    if (Policy->IsInferenceBusy() || bDispatchInFlight)
     {
 		return;
     }
@@ -69,6 +70,9 @@ void UPipelinedStepper::DispatchThink(int32 FrameIndex)
 {
     FPipelinedStepperFrame* FramePtr = &Frames[FrameIndex];
     TArray<TInstancedStruct<FPoint>> ObservationsCopy = FramePtr->Observations;
+    TArray<TScriptInterface<IPolicyState>> InStatesCopy = CurrentStates;
+    TArray<TScriptInterface<IPolicyState>> OutStatesCopy = NextStates;
+    bDispatchInFlight = true;
 
     TWeakObjectPtr<UPipelinedStepper> WeakThis(this);
     TScriptInterface<IPolicy> PolicyLocal = Policy;
@@ -79,21 +83,26 @@ void UPipelinedStepper::DispatchThink(int32 FrameIndex)
     UE_LOGFMT(LogScholaInferenceUtils, Verbose, "PipelinedStepper::DispatchThink(): Scheduled - DispatchId={0} FrameIndex={1} ThreadId={2}",
         DispatchId, FrameIndex, FPlatformTLS::GetCurrentThreadId());
 
-    Async(EAsyncExecution::ThreadPool, [WeakThis, FrameIndex, Observations = MoveTemp(ObservationsCopy), PolicyLocal, DispatchId]() {
-        if (!WeakThis.IsValid() || !PolicyLocal)
+    Async(EAsyncExecution::ThreadPool, [WeakThis, FrameIndex, Observations = MoveTemp(ObservationsCopy), InStates = MoveTemp(InStatesCopy), OutStates = MoveTemp(OutStatesCopy), PolicyLocal, DispatchId]() mutable {
+        // The policy and state objects are only kept alive by the stepper's UPROPERTYs, so block GC while
+        // this thread uses them, and check the stepper is still alive only once GC can no longer run.
+        FGCScopeGuard GCGuard;
+        if (!WeakThis.IsValid() || WeakThis->bShuttingDown || !PolicyLocal)
             return;
 
         UE_LOGFMT(LogScholaInferenceUtils, Verbose, "PipelinedStepper::DispatchThink(): Think start - DispatchId={0} FrameIndex={1} ThreadId={2}",
             DispatchId, FrameIndex, FPlatformTLS::GetCurrentThreadId());
 
         TArray<TInstancedStruct<FPoint>> ActionsLocal;
-        const bool bSuccess = PolicyLocal->BatchedThink(const_cast<TArray<TInstancedStruct<FPoint>>&>(Observations), ActionsLocal);
+        const bool bSuccess = PolicyLocal->BatchedThink(Observations, InStates, ActionsLocal, OutStates);
 
         AsyncTask(ENamedThreads::GameThread, [WeakThis, FrameIndex, bSuccess, Actions = MoveTemp(ActionsLocal), DispatchId]() mutable {
             if (!WeakThis.IsValid())
                 return;
             if (WeakThis->bShuttingDown)
                 return;
+
+            WeakThis->CompleteThink(bSuccess);
 
             auto& Frame = WeakThis->Frames[FrameIndex];
             if (!bSuccess)
@@ -111,4 +120,47 @@ void UPipelinedStepper::DispatchThink(int32 FrameIndex)
                 DispatchId, FrameIndex, FPlatformTLS::GetCurrentThreadId());
         });
     });
+}
+
+void UPipelinedStepper::CompleteThink(bool bSuccess)
+{
+    bDispatchInFlight = false;
+
+    // On failure NextStates may be partially written, so keep CurrentStates and overwrite NextStates on the next dispatch
+    if (bSuccess)
+    {
+        Swap(CurrentStates, NextStates);
+    }
+
+    for (int32 AgentIndex : PendingStateResets)
+    {
+        ResetAgentState(AgentIndex);
+    }
+    PendingStateResets.Reset();
+}
+
+void UPipelinedStepper::ResetStates()
+{
+    for (int32 i = 0; i < CurrentStates.Num(); ++i)
+    {
+        ResetAgentState(i);
+    }
+}
+
+void UPipelinedStepper::ResetAgentState(int32 AgentIndex)
+{
+    if (!CurrentStates.IsValidIndex(AgentIndex))
+    {
+        UE_LOGFMT(LogScholaInferenceUtils, Error, "PipelinedStepper::ResetAgentState(): Invalid agent index {0}", AgentIndex);
+        return;
+    }
+    if (bDispatchInFlight)
+    {
+        PendingStateResets.Add(AgentIndex);
+        return;
+    }
+    if (CurrentStates[AgentIndex])
+    {
+        CurrentStates[AgentIndex]->Reset();
+    }
 }

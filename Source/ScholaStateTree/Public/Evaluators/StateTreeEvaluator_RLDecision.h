@@ -145,6 +145,14 @@ private:
 	TInstancedStruct<FPoint> ObservationBuffer;
 	TInstancedStruct<FPoint> ActionBuffer;
 
+	/** Policy state read by the next decision. Null for stateless policies. */
+	UPROPERTY(Transient)
+	TScriptInterface<IPolicyState> CurrentState;
+
+	/** Policy state written by the next decision, swapped with CurrentState on success. */
+	UPROPERTY(Transient)
+	TScriptInterface<IPolicyState> NextState;
+
 	bool						   InitializePolicy();
 	void						   PerformDecision();
 	int32						   ExtractBranchIndex(const TInstancedStruct<FPoint>& InActionBuffer);

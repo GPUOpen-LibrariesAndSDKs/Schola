@@ -58,6 +58,8 @@ EStateTreeRunStatus UStateTreeTask_StepInference::EnterState(FStateTreeExecution
 	CachedActor = nullptr;
 	ObservationBuffer.Reset();
 	ActionBuffer.Reset();
+	CurrentState = nullptr;
+	NextState = nullptr;
 
 	// Cache the context actor
 	AActor* ContextActor = StateTreeHelpers::GetActorFromContext(Context);
@@ -128,6 +130,8 @@ void UStateTreeTask_StepInference::ExitState(FStateTreeExecutionContext& Context
 	// Inference mode: clean up normally
 	TrainingEnvironment = nullptr;
 	CachedActor = nullptr;
+	CurrentState = nullptr;
+	NextState = nullptr;
 	bInitialized = false;
 	bTrainingMode = false;
 }
@@ -181,11 +185,12 @@ EStateTreeRunStatus UStateTreeTask_StepInference::PerformInferenceStep(float Del
 	}
 
 	// Run inference
-	if (!PolicyInterface->Think(ObservationBuffer, ActionBuffer))
+	if (!PolicyInterface->Think(ObservationBuffer, CurrentState, ActionBuffer, NextState))
 	{
 		UE_LOG(LogScholaStateTree, Error, TEXT("UStateTreeTask_StepInference::PerformInferenceStep(): Policy inference failed"));
 		return EStateTreeRunStatus::Failed;
 	}
+	Swap(CurrentState, NextState);
 
 	// Apply actions via IAgent interface
 	FInstancedStruct ActionStruct = ToUntypedInstancedStruct(ActionBuffer);
@@ -224,6 +229,12 @@ bool UStateTreeTask_StepInference::InitializePolicy()
 	if (!PolicyInterface->Init(InteractionDef))
 	{
 		UE_LOG(LogScholaStateTree, Error, TEXT("UStateTreeTask_StepInference::InitializePolicy(): Failed to initialize policy"));
+		return false;
+	}
+
+	if (!PolicyInterface->CreateInitialState(this, CurrentState) || !PolicyInterface->CreateInitialState(this, NextState))
+	{
+		UE_LOG(LogScholaStateTree, Error, TEXT("UStateTreeTask_StepInference::InitializePolicy(): Failed to create initial policy state"));
 		return false;
 	}
 
@@ -280,8 +291,12 @@ void UStateTreeTask_StepInference::Act_Implementation(const FInstancedStruct& In
 
 void UStateTreeTask_StepInference::ResetForEpisode_Implementation(AActor* ContextActor, FInstancedStruct& OutObservation)
 {
-	// Default implementation: just call Observe with the provided context
+	// Default implementation: reset policy state and call Observe with the provided context
 	// Blueprint can override to reset per-episode state
 	CachedActor = ContextActor;
+	if (CurrentState)
+	{
+		CurrentState->Reset();
+	}
 	IAgent::Execute_Observe(this, OutObservation);
 }

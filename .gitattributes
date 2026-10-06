@@ -5,5 +5,13 @@ Source/ThirdParty/gRPC/**/*.a filter=lfs diff=lfs merge=lfs -text
 Godot/**/*.cpp text eol=lf
 Godot/**/*.h text eol=lf
 Godot/**/*.hpp text eol=lf
+Godot/**/*.gd text eol=lf
+Godot/**/*.gdextension text eol=lf
+Godot/**/*.py text eol=lf
+Godot/**/*.json text eol=lf
+Godot/**/*.txt text eol=lf
+Godot/SConstruct text eol=lf
+Godot/project.godot text eol=lf
 Godot/.clang-format text eol=lf
 Godot/.editorconfig text eol=lf
+.github/workflows/*.yml text eol=lf

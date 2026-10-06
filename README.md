@@ -32,7 +32,9 @@ To run it locally, install Godot 4.7.2 with .NET support and the .NET 8 SDK, imp
 
 ## Development requirements
 
-The planned engine-side implementation targets Godot 4.7 and uses a native C++ GDExtension. The training integration will use gRPC and Protocol Buffers, while shipped-policy inference will use ONNX Runtime. The Python side will reuse Schola's Gymnasium, Stable-Baselines3, and RLlib integrations where practical. Exact setup and build commands will be added after the prototype establishes the final dependency layout.
+The engine-side implementation targets Godot 4.7 and uses native C++ GDExtensions. The shared build, dependency, testing, packaging, and module foundation is defined; user-story APIs are implemented separately by their owners. The training integration will use gRPC and Protocol Buffers, while shipped-policy inference will use ONNX Runtime. The Python side will reuse Schola's Gymnasium, Stable-Baselines3, and RLlib integrations where practical.
+
+See the [Godot development guide](Godot/README.md) for supported tools, dependency pins, build and test commands, module boundaries, and contribution workflow.
 
 ## Deployment and GitHub workflow
 

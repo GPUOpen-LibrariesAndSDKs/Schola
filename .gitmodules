@@ -1,0 +1,6 @@
+[submodule "Godot/godot-cpp"]
+	path = Godot/godot-cpp
+	url = https://github.com/godotengine/godot-cpp.git
+[submodule "Godot/catch2"]
+	path = Godot/catch2
+	url = https://github.com/catchorg/Catch2.git

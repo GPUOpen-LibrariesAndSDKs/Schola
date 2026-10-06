@@ -2,6 +2,62 @@
 
 This directory contains the Godot port of AMD Schola. The design keeps reusable reinforcement-learning logic independent from Godot, gRPC, and ONNX so that each part can be developed and tested separately.
 
+Repository workflow and contribution requirements are defined in [`CONTRIBUTING.md`](../CONTRIBUTING.md). Binding engineering rules are defined in the [`Godot development contract`](docs/development_contract.md). This guide contains the supported toolchain and executable development commands.
+
+## Supported toolchain
+
+| Component | Initial baseline |
+| --- | --- |
+| Godot | 4.7.2 |
+| `godot-cpp` | `10.0.0-stable` (`507ed9d840c01a3c5b2a39af8bb4000bfac30bf5`) |
+| C++ | C++17, matching `godot-cpp` |
+| Python | 3.12 in CI; 3.7 or newer for SCons 4.10.1 |
+| SCons | 4.10.1 |
+| Primary CI | Ubuntu 22.04, x86-64, GCC |
+| Local development | Linux/GCC, Windows/MSVC, and macOS/Apple Clang |
+
+Dependency decisions are centralized in [`dependencies.lock.json`](dependencies.lock.json). `godot-cpp` and Catch2 are pinned Git submodules, and CI verifies that their checked-out commits match the lock. ONNX Runtime 1.30.0 is recorded only as a proposal; US7 must confirm its version and complete cross-platform acquisition plan with AMD before integration. The existing gRPC and Protocol Buffers files under `Source/ThirdParty/` are an Unreal-specific reference build, not an approved Godot dependency. Their Godot acquisition and compatible versions require an isolated build spike and AMD confirmation. Feature branches must not select those versions independently. Neither gRPC nor Protocol Buffers is linked into the runtime target.
+
+Engine-independent C++ unit tests use the pinned Catch2 submodule and live under `tests/unit/`. Build and run them from the repository root with:
+
+```sh
+scons -C Godot unit_tests platform=linux target=template_debug -j"$(nproc)"
+./Godot/build/tests/schola_core_tests
+```
+
+Use the matching platform value on macOS or Windows. Godot scene and extension integration tests use pinned GdUnit4 and live under `tests/integration/`. Install and run the integration tests from the repository root:
+
+```sh
+python Godot/tools/setup_test_dependencies.py
+godot --headless --path Godot --import
+godot --headless --path Godot \
+  -s res://addons/gdUnit4/bin/GdUnitCmdTool.gd \
+  --ignoreHeadlessMode -a res://tests/integration
+```
+
+CI runs the same suite headlessly against the supported Godot version.
+
+Godot has an [upstream race](https://github.com/godotengine/godot/issues/98062) that can abort a completed headless import while editor add-ons are shutting down. If the import reaches completion and exits with status 134, rerun the import command. CI retries this step at most 3 times and still fails persistent import errors.
+
+## Build and run
+
+From a fresh checkout:
+
+```sh
+git submodule update --init --recursive
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install --require-hashes -r Godot/requirements.txt
+scons -C Godot platform=linux target=template_debug -j"$(nproc)"
+godot --editor --path Godot
+```
+
+On macOS, use `platform=macos` and replace `$(nproc)` with `$(sysctl -n hw.logicalcpu)`. On Windows, run `scons -C Godot platform=windows target=template_debug` from a developer shell; SCons selects a safe default job count when `-j` is omitted. Windows unit tests run from `Godot\build\tests\schola_core_tests.exe`. Build products are copied into the matching `Godot/addons/*/bin/<platform>/` directory and are not committed.
+
+The `schola` target contains the runtime extension. The `schola_training` target is a separate training extension and may depend on runtime/core code as transport support is added. The example project loads `examples/basic_environment/main.tscn`, which instantiates `ScholaRuntimeProbe`. The runtime and training probe nodes exist only to verify extension registration and loading; they are not production APIs for any user story.
+
+The extension entry points are stable composition roots. Runtime bindings and inference register through their own `register_types` files, and training-only bindings register through `src/training/bindings/register_types`. Feature branches add registrations only to the hook owned by their module; they do not add production classes directly to the runtime or training composition roots.
+
 ## Directory structure
 
 ```text
@@ -32,7 +88,7 @@ Contains the engine-independent environment interfaces, space and point types, a
 
 ### `src/bindings`
 
-Adapts the core abstractions to Godot nodes, resources, the Inspector, and the engine lifecycle. This is the only project that may reference Godot APIs.
+Adapts the core abstractions to user-facing Godot nodes, resources, the Inspector, and the engine lifecycle. User-facing Godot APIs belong here. The `src/runtime` and `src/training` composition roots may use the minimal Godot registration APIs needed to assemble and initialize their extensions; they must not define user-story APIs.
 
 ### `src/transport/grpc`
 
@@ -71,9 +127,17 @@ Dependencies must point toward `core`. The core must never depend on Godot bindi
 
 The detailed acceptance criteria and D1 planning scope are in [`deliverables/D1/planning.md`](../deliverables/D1/planning.md). Engineering tasks, dependencies, assignees, and progress are tracked on the team's [Trello board](https://trello.com/b/Ry0Qkx2R).
 
-## Code style and formatting
+The development contract deliberately leaves user-story interfaces to their owners.
 
-Godot C++ code follows the conventions enforced by [`Godot/.clang-format`](.clang-format), based on the official `godot-cpp` configuration. Use clang-format 17 so every contributor and CI produce the same output. The [`Godot/.editorconfig`](.editorconfig) file configures compatible whitespace and line-ending defaults for supported editors.
+## Format C++ code
+
+Use clang-format 17 with [`Godot/.clang-format`](.clang-format). The [`Godot/.editorconfig`](.editorconfig) file configures compatible whitespace and line-ending defaults for supported editors. Coding conventions that are not enforced mechanically belong in the [development contract](docs/development_contract.md#c-conventions).
+
+Install the pinned formatter package on Linux, macOS, or Windows:
+
+```sh
+python -m pip install --require-hashes -r Godot/requirements-format.txt
+```
 
 From the repository root, format all tracked Godot C++ files with:
 
@@ -87,13 +151,4 @@ Check formatting without modifying files with:
 git ls-files ':(glob)Godot/**/*.cpp' ':(glob)Godot/**/*.h' | xargs clang-format --dry-run --Werror
 ```
 
-Run the check before opening a pull request. Format only team-owned source files; do not reformat generated code or vendored dependencies.
-
-## Working on a story
-
-1. Branch from an up-to-date `main` using the branch name recorded on the Trello card.
-2. Keep changes inside the module responsible for the story. Introduce cross-module dependencies only when they follow the dependency direction above.
-3. Add unit tests for engine-independent behavior and integration tests for interactions between Godot, transport, Python, and inference.
-4. Open a pull request and link its Trello card. Do not merge until the relevant tests pass and another team member has reviewed it.
-
-Generated Godot state, build output, local models, and editor-specific files must not be committed.
+Run the check before opening a pull request. Format only team-owned source files. Repository workflow, testing expectations, generated-file rules, and review requirements are defined in [`CONTRIBUTING.md`](../CONTRIBUTING.md).

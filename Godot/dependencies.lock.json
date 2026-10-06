@@ -1,0 +1,61 @@
+{
+  "godot_cpp": {
+    "source": "git-submodule",
+    "path": "Godot/godot-cpp",
+    "tag": "10.0.0-stable",
+    "commit": "507ed9d840c01a3c5b2a39af8bb4000bfac30bf5",
+    "godot_api": "4.7"
+  },
+  "catch2": {
+    "source": "git-submodule",
+    "path": "Godot/catch2",
+    "tag": "v3.8.1",
+    "commit": "2b60af89e23d28eefc081bc930831ee9d45ea58b"
+  },
+  "gdunit4": {
+    "source": "release-archive",
+    "version": "6.2.1",
+    "url": "https://github.com/godot-gdunit-labs/gdUnit4/archive/refs/tags/v6.2.1.zip",
+    "sha256": "ffb48847c46f386bf0c7a716fd68c6dace7d67730775cf7f748adce8ef3ed794",
+    "archive_path": "gdUnit4-6.2.1/addons/gdUnit4"
+  },
+  "grpc": {
+    "status": "research-required",
+    "source": null,
+    "version": null,
+    "reference_implementation": {
+      "path": "Source/ThirdParty/gRPC",
+      "version": "1.80.0",
+      "note": "Unreal-specific bundled build; do not link it into Godot without a compatibility spike and AMD approval."
+    }
+  },
+  "protobuf": {
+    "status": "research-required",
+    "source": null,
+    "version": null,
+    "reference_implementation": {
+      "path": "Source/ThirdParty/gRPC",
+      "version": "6.31.1",
+      "note": "Bundled with the Unreal gRPC build; the Godot source and version must be selected together with gRPC."
+    }
+  },
+  "onnxruntime": {
+    "status": "proposed-pending-amd-confirmation",
+    "source": null,
+    "version": null,
+    "proposal": {
+      "version": "1.30.0",
+      "note": "Candidate only; US7 must confirm the version, supported macOS architectures, and acquisition plan with AMD before integration.",
+      "archives": {
+        "linux-x86_64": {
+          "url": "https://github.com/microsoft/onnxruntime/releases/download/v1.30.0/onnxruntime-linux-x64-1.30.0.tgz",
+          "sha256": "a5ed5a3cac51fbb2e90da632ae43d19212faaa20e76484e62bcb7c23ddb3b3fd"
+        },
+        "windows-x86_64": {
+          "url": "https://github.com/microsoft/onnxruntime/releases/download/v1.30.0/onnxruntime-win-x64-1.30.0.zip",
+          "sha256": "c6ba983baf5681af108599675d2a89c2d145512d02de28aed0bff177cd0ba949"
+        }
+      }
+    }
+  }
+}

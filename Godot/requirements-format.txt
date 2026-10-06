@@ -1,0 +1,5 @@
+clang-format==17.0.6 \
+    --hash=sha256:2c7364a50c4fdb8ce9acc4e0c21627e52f4eebee98ff2d8a19b6d4302d0be23b \
+    --hash=sha256:195014a589fde9e2bec447ee1f2efd31f8c9f773b10aa66b510beae6997e6bc5 \
+    --hash=sha256:2a1323ca5322e0dead521223155fe2ae1ba81d50abab8e20aaac28f6a94f23b9 \
+    --hash=sha256:9407f0f4cb5a26b96af38bb2261f1c4015127f4d87ce46a61bb3a3c2a3d4f3cc

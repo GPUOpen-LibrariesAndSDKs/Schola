@@ -1,0 +1,2 @@
+scons==4.10.1 \
+    --hash=sha256:bd9d1c52f908d874eba92a8c0c0a8dcf2ed9f3b88ab956d0fce1da479c4e7126

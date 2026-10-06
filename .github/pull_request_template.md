@@ -29,16 +29,18 @@
 - [ ] Ran: `python -m pytest Test --import-mode=importlib -n 0`
 - [ ] Not applicable
 
-### Unreal C++ (`Source`)
+### Godot (`Godot`)
 
-- [ ] Built / recompiled the project after Unreal Engine changes
-- [ ] Ran relevant automation tests (editor or pytest on Windows; see CONTRIBUTING.md)
+- [ ] Ran clang-format 17 on changed C++ files
+- [ ] Built the relevant GDExtension target
+- [ ] Ran relevant Catch2 and/or GdUnit4 tests
 - [ ] Not applicable
 
 ## Checklist
 
-- [ ] Code follows project style (Unreal coding standard for C++; [Black](https://black.readthedocs.io/) for Python)
+- [ ] Code follows `Godot/docs/development_contract.md` and [Black](https://black.readthedocs.io/) for Python
 - [ ] Comments / docstrings added or updated where behavior is non-obvious
-- [ ] README or Sphinx docs updated if user-facing behavior changed
+- [ ] Applicable README, development-contract, or Sphinx documentation updated
 - [ ] No unrelated changes included in this PR
-- [ ] Appropriate license headers added to new files
+- [ ] New source and build-script files include the standard AMD copyright notice
+- [ ] Generated or vendored files were not edited manually

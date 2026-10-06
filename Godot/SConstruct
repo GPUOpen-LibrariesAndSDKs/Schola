@@ -1,0 +1,76 @@
+#!/usr/bin/env python
+# Copyright (c) 2026 Advanced Micro Devices, Inc. All Rights Reserved.
+
+import sys
+from pathlib import Path
+
+
+GODOT_API_VERSION = "4.7"
+
+environment = Environment(tools=["default"], PLATFORM="")
+
+godot_cpp_dir = Path("godot-cpp")
+if not godot_cpp_dir.is_dir() or not any(godot_cpp_dir.iterdir()):
+    print("godot-cpp is missing. Run: git submodule update --init --recursive")
+    sys.exit(1)
+
+environment = SConscript(
+    "godot-cpp/SConstruct",
+    {
+        "api_version": GODOT_API_VERSION,
+        "env": environment,
+    },
+)
+environment.Append(CPPPATH=["src"])
+
+
+def sources_under(*directories):
+    sources = []
+    for directory in directories:
+        sources.extend(str(path) for path in Path(directory).rglob("*.cpp"))
+    return sorted(sources)
+
+
+def build_extension(name, source_directories, addon_directory):
+    extension_environment = environment.Clone()
+    suffix = extension_environment["suffix"].replace(".dev", "").replace(".universal", "")
+    library_filename = "{}{}{}{}".format(
+        extension_environment.subst("$SHLIBPREFIX"),
+        name,
+        suffix,
+        extension_environment.subst("$SHLIBSUFFIX"),
+    )
+    library = extension_environment.SharedLibrary(
+        f"build/{extension_environment['platform']}/{library_filename}",
+        source=sources_under(*source_directories),
+    )
+    installed_library = extension_environment.Install(
+        f"addons/{addon_directory}/bin/{extension_environment['platform']}",
+        library,
+    )
+    return [library, installed_library]
+
+
+runtime_targets = build_extension(
+    "schola",
+    ["src/core", "src/bindings", "src/inference", "src/runtime"],
+    "schola",
+)
+training_targets = build_extension(
+    "schola_training",
+    ["src/core", "src/transport", "src/training"],
+    "schola_training",
+)
+
+test_environment = environment.Clone()
+test_environment.Append(CPPPATH=["catch2/extras"])
+unit_test_program = test_environment.Program(
+    "build/tests/schola_core_tests",
+    source=(
+        sources_under("src/core", "tests/unit")
+        + ["catch2/extras/catch_amalgamated.cpp"]
+    ),
+)
+Alias("unit_tests", unit_test_program)
+
+Default(*(runtime_targets + training_targets))

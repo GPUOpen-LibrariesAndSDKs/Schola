@@ -1,0 +1,141 @@
+name: Godot
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/godot.yml"
+      - ".gitmodules"
+      - "Godot/**"
+      - "Proto/**"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/godot.yml"
+      - ".gitmodules"
+      - "Godot/**"
+      - "Proto/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: godot-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  format:
+    name: Godot / format
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install clang-format 17
+        run: python3 -m pip install --disable-pip-version-check --require-hashes -r Godot/requirements-format.txt
+
+      - name: Check formatting
+        run: |
+          git ls-files ':(glob)Godot/**/*.cpp' ':(glob)Godot/**/*.h' \
+            | xargs clang-format --dry-run --Werror
+
+  build:
+    name: Godot / build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: Godot/requirements.txt
+
+      - name: Install build tools
+        run: python -m pip install --disable-pip-version-check --require-hashes -r Godot/requirements.txt
+
+      - name: Verify dependency pins
+        run: python Godot/tools/verify_dependency_pins.py
+
+      - name: Build debug extensions
+        run: scons -C Godot platform=linux target=template_debug -j2
+
+      - name: Build and run core unit tests
+        run: |
+          scons -C Godot unit_tests platform=linux target=template_debug -j2
+          ./Godot/build/tests/schola_core_tests
+
+      - name: Upload extensions
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: godot-linux-debug
+          path: Godot/addons/*/bin/linux/*.so
+          if-no-files-found: error
+
+  smoke:
+    name: Godot / smoke
+    needs: build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download extensions
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: godot-linux-debug
+          path: Godot/addons
+
+      - name: Download Godot 4.7.2
+        run: |
+          curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
+            --output godot.zip \
+            https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip
+          echo "cadd3204e728a35d3f13adb7fd0d7902636b79f6b95c40c265eb73b6c35329e4  godot.zip" \
+            | sha256sum --check --strict
+          unzip -q godot.zip
+          chmod +x Godot_v4.7.2-stable_linux.x86_64
+
+      - name: Install Godot test dependencies
+        run: python Godot/tools/setup_test_dependencies.py
+
+      - name: Import project resources
+        run: |
+          # Godot can abort while unloading editor add-ons after a completed
+          # headless import (godotengine/godot#98062). A retry reuses the
+          # completed import cache; persistent import failures still fail CI.
+          ulimit -c 0
+          for attempt in 1 2 3; do
+            set +e
+            timeout 60s ./Godot_v4.7.2-stable_linux.x86_64 --headless --path Godot --import
+            status=$?
+            set -e
+            if [ "$status" -eq 0 ]; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              exit "$status"
+            fi
+            echo "::warning::Godot import exited with status $status; retrying ($attempt/3)"
+          done
+
+      - name: Load extension and example scene
+        run: ./Godot_v4.7.2-stable_linux.x86_64 --headless --path Godot --quit-after 1
+
+      - name: Run Godot integration tests
+        run: |
+          ./Godot_v4.7.2-stable_linux.x86_64 --headless --path Godot \
+            -s res://addons/gdUnit4/bin/GdUnitCmdTool.gd \
+            --ignoreHeadlessMode -a res://tests/integration

@@ -150,3 +150,13 @@ coverage_html_report/*
 
 # ignore .idea
 .idea
+
+# Godot and SCons generated files
+**/.godot/
+/Godot/build/
+/Godot/addons/**/bin/
+/Godot/addons/gdUnit4/
+/Godot/.sconsign.dblite
+/Godot/compile_commands.json
+/Godot/generated/proto/
+/Godot/reports/

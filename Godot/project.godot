@@ -1,0 +1,23 @@
+; Engine configuration file.
+; Edit this file through the Godot editor when possible.
+
+config_version=5
+
+[application]
+
+config/name="Schola Godot"
+run/main_scene="res://examples/basic_environment/main.tscn"
+
+[display]
+
+window/size/viewport_width=960
+window/size/viewport_height=540
+
+[native_extensions]
+
+paths=PackedStringArray("res://addons/schola/schola.gdextension", "res://addons/schola_training/schola_training.gdextension")
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"

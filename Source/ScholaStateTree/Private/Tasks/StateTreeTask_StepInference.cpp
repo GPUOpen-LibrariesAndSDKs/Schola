@@ -59,7 +59,6 @@ EStateTreeRunStatus UStateTreeTask_StepInference::EnterState(FStateTreeExecution
 	ObservationBuffer.Reset();
 	ActionBuffer.Reset();
 	CurrentState = nullptr;
-	NextState = nullptr;
 
 	// Cache the context actor
 	AActor* ContextActor = StateTreeHelpers::GetActorFromContext(Context);
@@ -131,7 +130,6 @@ void UStateTreeTask_StepInference::ExitState(FStateTreeExecutionContext& Context
 	TrainingEnvironment = nullptr;
 	CachedActor = nullptr;
 	CurrentState = nullptr;
-	NextState = nullptr;
 	bInitialized = false;
 	bTrainingMode = false;
 }
@@ -185,12 +183,11 @@ EStateTreeRunStatus UStateTreeTask_StepInference::PerformInferenceStep(float Del
 	}
 
 	// Run inference
-	if (!PolicyInterface->Think(ObservationBuffer, CurrentState, ActionBuffer, NextState))
+	if (!PolicyInterface->Think(ObservationBuffer, CurrentState, ActionBuffer))
 	{
 		UE_LOG(LogScholaStateTree, Error, TEXT("UStateTreeTask_StepInference::PerformInferenceStep(): Policy inference failed"));
 		return EStateTreeRunStatus::Failed;
 	}
-	Swap(CurrentState, NextState);
 
 	// Apply actions via IAgent interface
 	FInstancedStruct ActionStruct = ToUntypedInstancedStruct(ActionBuffer);
@@ -232,7 +229,7 @@ bool UStateTreeTask_StepInference::InitializePolicy()
 		return false;
 	}
 
-	if (!PolicyInterface->CreateInitialState(this, CurrentState) || !PolicyInterface->CreateInitialState(this, NextState))
+	if (!PolicyInterface->CreateInitialState(CurrentState))
 	{
 		UE_LOG(LogScholaStateTree, Error, TEXT("UStateTreeTask_StepInference::InitializePolicy(): Failed to create initial policy state"));
 		return false;

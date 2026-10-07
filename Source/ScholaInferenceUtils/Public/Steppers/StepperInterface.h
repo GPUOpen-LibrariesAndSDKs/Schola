@@ -52,6 +52,7 @@ public:
      * @brief Initialize the stepper with multiple agents and a policy.
      * 
      * Sets up the stepper to manage multiple agents using a single shared policy.
+     * Replaces any agents added before, as if each agent in InAgents were passed to AddAgent.
      * The policy must support batched inference for multiple agents, and must already
      * be initialized, since the stepper creates each agent's policy state from it.
      * 
@@ -61,29 +62,39 @@ public:
      */
     virtual bool Init(const TArray<TScriptInterface<IAgent>>& InAgents, const TScriptInterface<IPolicy>& InPolicy) = 0;
 
+    /**
+     * @brief Start stepping an agent with the stepper's policy.
+     *
+     * The stepper creates and owns the agent's policy state, starting from the state at the
+     * start of an episode. Must be called on the Game Thread, after Init.
+     *
+     * @param[in] InAgent The agent to add. Must not already be managed by this stepper
+     * @return true if the agent was added, false otherwise
+     */
+    virtual bool AddAgent(const TScriptInterface<IAgent>& InAgent) = 0;
+
+    /**
+     * @brief Stop stepping an agent and release its policy state.
+     *
+     * Must be called on the Game Thread.
+     *
+     * @param[in] InAgent The agent to remove
+     * @return true if the agent was managed by this stepper and has been removed, false otherwise
+     */
+    virtual bool RemoveAgent(const TScriptInterface<IAgent>& InAgent) = 0;
+
 protected:
 
     /**
-     * @brief Create one initial policy state per agent.
+     * @brief Create the policy state for a newly added agent.
      * 
-     * @param[in] InPolicy The initialized policy to create states from
-     * @param[in] InOuter The outer for the created state objects
-     * @param[in] NumAgents Number of states to create
-     * @param[out] OutStates Receives one state per agent (null entries for stateless policies)
-     * @return true if every state was created, false otherwise
+     * @param[in] InPolicy The initialized policy to create the state from
+     * @param[out] OutState Receives the agent's initial state (null for stateless policies)
+     * @return true if the state was created, false otherwise
      */
-    static bool CreateAgentStates(IPolicy& InPolicy, UObject* InOuter, int32 NumAgents, TArray<TScriptInterface<IPolicyState>>& OutStates)
+    static bool CreateAgentState(IPolicy& InPolicy, TScriptInterface<IPolicyState>& OutState)
     {
-        OutStates.SetNum(NumAgents);
-        for (int32 i = 0; i < NumAgents; ++i)
-        {
-            if (!InPolicy.CreateInitialState(InOuter, OutStates[i]))
-            {
-                OutStates.Reset();
-                return false;
-            }
-        }
-        return true;
+        return InPolicy.CreateInitialState(OutState);
     }
 
 };

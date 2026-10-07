@@ -19,9 +19,8 @@ class UPassthroughBoxPolicy : public UObject, public IPolicy
 public:
 	bool Think(
 		const TInstancedStruct<FPoint>&		  InObservations,
-		const TScriptInterface<IPolicyState>& InState,
-		TInstancedStruct<FPoint>&			  OutAction,
-		TScriptInterface<IPolicyState>&		  OutState) override;
+		const TScriptInterface<IPolicyState>& InOutState,
+		TInstancedStruct<FPoint>&			  OutAction) override;
 	bool Init(const FInteractionDefinition& InPolicyDefinition) override;
 	bool IsInferenceBusy() const override;
 };

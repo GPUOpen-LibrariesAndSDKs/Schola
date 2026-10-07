@@ -121,16 +121,14 @@ public:
 	 * async execution.
 	 * 
 	 * @param[in] InObservations The observations to process
-	 * @param[in] InState Unused, the test policy is stateless
+	 * @param[in] InOutState Unused, the test policy is stateless
 	 * @param[out] OutAction The computed action (always action index 1)
-	 * @param[out] OutState Unused, the test policy is stateless
 	 * @return true if inference succeeded, false if inference was already in flight
 	 */
 	bool Think(
 		const TInstancedStruct<FPoint>&		  InObservations,
-		const TScriptInterface<IPolicyState>& InState,
-		TInstancedStruct<FPoint>&			  OutAction,
-		TScriptInterface<IPolicyState>&		  OutState) override;
+		const TScriptInterface<IPolicyState>& InOutState,
+		TInstancedStruct<FPoint>&			  OutAction) override;
 
 	/**
 	 * @brief Initialize the policy with a definition of the expected observation and action spaces. 
@@ -201,7 +199,7 @@ public:
 /**
  * @brief Stateful test policy for steppers.
  * 
- * Writes InState's count plus one into OutState and always returns action index 1.
+ * Increments the state's count in place and always returns action index 1.
  * Counts its Think calls so tests can check no state update was lost or applied twice.
  */
 UCLASS()
@@ -215,11 +213,10 @@ public:
 
 	bool Think(
 		const TInstancedStruct<FPoint>&		  InObservations,
-		const TScriptInterface<IPolicyState>& InState,
-		TInstancedStruct<FPoint>&			  OutAction,
-		TScriptInterface<IPolicyState>&		  OutState) override;
+		const TScriptInterface<IPolicyState>& InOutState,
+		TInstancedStruct<FPoint>&			  OutAction) override;
 
-	bool CreateInitialState(UObject* InOuter, TScriptInterface<IPolicyState>& OutState) const override;
+	bool CreateInitialState(TScriptInterface<IPolicyState>& OutState) const override;
 
 	bool Init(const FInteractionDefinition& InPolicyDefinition) override { return true; }
 

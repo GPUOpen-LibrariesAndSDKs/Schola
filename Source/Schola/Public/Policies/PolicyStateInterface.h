@@ -53,6 +53,21 @@ public:
 	virtual bool CopyFrom(const IPolicyState& Other) PURE_VIRTUAL(IPolicyState::CopyFrom, return false;);
 
 	/**
+	 * @brief Notifies the state that the previous step's state should become the base of the next state.
+	 *
+	 * Policies call this in Think after computing the step's outputs from the state, and
+	 * before writing the step's new data into it. The default does nothing. Override to
+	 * control how history carries over, e.g. trimming a chat history to a window or
+	 * dropping the oldest entry of a sequence. May run off the game thread, so must not
+	 * create UObjects.
+	 *
+	 * Implementations that return false must leave the state unchanged.
+	 *
+	 * @return True if the state is ready to receive the step's new data, false otherwise.
+	 */
+	virtual bool NotifyStateUpdate() { return true; }
+
+	/**
 	 * @brief Converts this state to a string representation.
 	 *
 	 * The default returns the name of the implementing class. Override to include the state's contents.

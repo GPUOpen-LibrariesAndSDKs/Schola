@@ -49,4 +49,19 @@ public:
 		Buffers = OtherState->Buffers;
 		return true;
 	}
+
+	/**
+	 * @brief Notifies the state that a new model output is ready and drops the oldest entry of each state sequence.
+	 *
+	 * The policy then writes the model's newest state into the last slot of each buffer.
+	 * @return Always true.
+	 */
+	bool NotifyStateUpdate() override
+	{
+		for (FNNEStateBuffer& Buffer : Buffers)
+		{
+			Buffer.Update();
+		}
+		return true;
+	}
 };

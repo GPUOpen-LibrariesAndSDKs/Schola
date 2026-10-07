@@ -68,13 +68,12 @@ public:
 	/**
 	 * @brief Blueprint-callable wrapper for the Think function
 	 * @param[in] InObservations The observations to process (generic instanced struct)
-	 * @param[in] InState The recurrent state from the previous step, or null if the model is stateless
+	 * @param[in] InOutState The recurrent state, advanced in place to the next state, or null if the model is stateless
 	 * @param[out] OutAction The computed action (generic instanced struct)
-	 * @param[in] OutState Pre-created state object that receives the next state, or null if the model is stateless
 	 * @return true if inference succeeded, false otherwise
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Schola|Policy")
-	bool Think(const FInstancedStruct& InObservations, const TScriptInterface<IPolicyState>& InState, FInstancedStruct& OutAction, const TScriptInterface<IPolicyState>& OutState)
+	bool Think(const FInstancedStruct& InObservations, const TScriptInterface<IPolicyState>& InOutState, FInstancedStruct& OutAction)
 	{
 		if (!InObservations.GetScriptStruct())
 		{
@@ -94,46 +93,43 @@ public:
 			return false;
 		}
 
-		TScriptInterface<IPolicyState> OutStateRef = OutState;
-		return this->Think(ToTypedInstancedStruct<FPoint>(InObservations), InState, ToTypedInstancedStruct<FPoint>(OutAction), OutStateRef);
+		return this->Think(ToTypedInstancedStruct<FPoint>(InObservations), InOutState, ToTypedInstancedStruct<FPoint>(OutAction));
 	}
 
 	/**
-	 * @brief Runs neural network inference to compute an action and the next recurrent state
+	 * @brief Runs neural network inference to compute an action and advance the recurrent state
 	 *
-	 * For models with state tensors, InState and OutState must be distinct UNNEPolicyState
-	 * objects created by CreateInitialState. For stateless models both are ignored.
+	 * For models with state tensors, InOutState must be a UNNEPolicyState created by
+	 * CreateInitialState. For stateless models it is ignored. InOutState is only modified
+	 * if inference succeeds: then NotifyStateUpdate is called on it and the model's newest
+	 * state is written into it.
 	 *
 	 * @param[in] InObservations The observation point to process
-	 * @param[in] InState The recurrent state from the previous step
+	 * @param[in,out] InOutState The recurrent state from the previous step, advanced in place to the next state
 	 * @param[out] OutActions The computed action point
-	 * @param[out] OutState Pre-created state object that receives the next state
 	 * @return true if inference succeeded, false otherwise
 	 */
 	virtual bool Think(
 		const TInstancedStruct<FPoint>&		  InObservations,
-		const TScriptInterface<IPolicyState>& InState,
-		TInstancedStruct<FPoint>&			  OutActions,
-		TScriptInterface<IPolicyState>&		  OutState) override;
+		const TScriptInterface<IPolicyState>& InOutState,
+		TInstancedStruct<FPoint>&			  OutActions) override;
 
 	/**
 	 * @brief Creates a zeroed UNNEPolicyState matching the model's state tensors
-	 * @param[in] InOuter The outer for the created state object
 	 * @param[out] OutState Receives the new state, or null if the model has no state tensors
 	 * @return true if the state was created (or the model is stateless), false if the policy is not initialized
 	 */
-	virtual bool CreateInitialState(UObject* InOuter, TScriptInterface<IPolicyState>& OutState) const override;
+	virtual bool CreateInitialState(TScriptInterface<IPolicyState>& OutState) const override;
 
 	/**
 	 * @brief Blueprint-callable wrapper for CreateInitialState
-	 * @param[in] InOuter The outer for the created state object
 	 * @return The new state, or null if the model is stateless or the policy is not initialized
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Schola|Policy")
-	TScriptInterface<IPolicyState> CreateInitialState(UObject* InOuter) const
+	TScriptInterface<IPolicyState> CreateInitialState() const
 	{
 		TScriptInterface<IPolicyState> State;
-		this->CreateInitialState(InOuter, State);
+		this->CreateInitialState(State);
 		return State;
 	}
 
@@ -195,12 +191,11 @@ protected:
 	bool IsStateCompatible(const UNNEPolicyState* InState) const;
 
 	/**
-	 * @brief Prepares OutState from InState and points the state tensor bindings at them
-	 * @param[in] InState The recurrent state from the previous step
-	 * @param[out] OutState The state object that receives the next state
-	 * @return true if both states are valid for this model, false otherwise
+	 * @brief Points the state input bindings at InOutState and the state output bindings at StateOutputBuffers. Only valid for models with state tensors
+	 * @param[in] InOutState The recurrent state from the previous step
+	 * @return The state as a UNNEPolicyState, or null if InOutState is not valid for this model
 	 */
-	bool BindStates(const TScriptInterface<IPolicyState>& InState, TScriptInterface<IPolicyState>& OutState);
+	UNNEPolicyState* BindState(const TScriptInterface<IPolicyState>& InOutState);
 
 	/**
 	 * @brief Initializes buffers for non-state data (observations and actions)
@@ -245,6 +240,9 @@ private:
 
 	/** Output binding index of each state_out tensor, parallel to InitialStateBuffers */
 	TArray<int32> StateOutputBindingIndices;
+
+	/** Scratch buffers the state_out tensors are written to, since they must not alias the state_in tensors. Parallel to InitialStateBuffers */
+	TArray<TArray<float>> StateOutputBuffers;
 
 	/** Atomic flag preventing concurrent inference operations and buffer races */
 	std::atomic<bool> bInferenceInFlight {false};

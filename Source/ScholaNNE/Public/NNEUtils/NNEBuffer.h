@@ -103,14 +103,26 @@ struct SCHOLANNE_API FNNEStateBuffer
 		FMemory::Memzero(StateBuffer.GetData(), StateBuffer.Num() * sizeof(float));
 	}
 
-	/** Advances recurrent state (shifts sequence) when a sequence dimension exists. */
+	/** Drops the oldest state vector to make room for a new one, when a sequence dimension exists. */
 	void Update()
 	{
 		if (this->HasSequenceDimension())
 		{
-			// If there is a sequence dimension, we assume the new state is already in the last position of the buffer after shifting, so no need to copy
 			this->Shift();
 		}
+	}
+
+	/**
+	 * @brief Writes the newest state vector into the last position of the sequence
+	 *
+	 * Without a sequence dimension, NewState replaces the whole buffer. Call Update first
+	 * so the previous newest state is not overwritten.
+	 * @param[in] NewState The newest state vector, StateDimSize floats long
+	 */
+	void SetNewestState(TConstArrayView<float> NewState)
+	{
+		check(NewState.Num() == StateDimSize);
+		FMemory::Memcpy(StateBuffer.GetData() + StateBuffer.Num() - StateDimSize, NewState.GetData(), StateDimSize * sizeof(float));
 	}
 
 	/**
@@ -120,22 +132,6 @@ struct SCHOLANNE_API FNNEStateBuffer
 	UE::NNE::FTensorBindingCPU MakeInputBinding() const
 	{
 		return { (void*)(StateBuffer.GetData()), GetTotalSize(this->Shape) * sizeof(float) };
-	}
-
-	/**
-	 * @brief Creates an NNE tensor binding for the last state vector as output
-	 * @return Tensor binding pointing to the most recent state position
-	 */
-	UE::NNE::FTensorBindingCPU MakeOutputBinding() const
-	{
-		if (this->SeqDim <= 0)
-		{
-			return { (void*)(StateBuffer.GetData()), GetTotalSize(this->Shape) * sizeof(float) };
-		}
-		else
-		{
-			return { (void*)(StateBuffer.GetData() + (MaxSeqLen - 1) * StateDimSize), StateDimSize * sizeof(float) };
-		}
 	}
 };
 

@@ -48,6 +48,23 @@ bool FNNEPolicyStateCopyFromTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNNEPolicyStateNotifyStateUpdateTest, "Schola.Policies.NNE.NNEPolicyState.NotifyStateUpdate", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FNNEPolicyStateNotifyStateUpdateTest::RunTest(const FString& Parameters)
+{
+	UNNEPolicyState* State = NewObject<UNNEPolicyState>();
+	State->Buffers.Emplace(TArray<int32> { -1, -1, 2 }, 3);
+	State->Buffers.Emplace(TArray<int32> { -1, 2 });
+	State->Buffers[0].StateBuffer = { 0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f };
+	State->Buffers[1].StateBuffer = { 6.0f, 7.0f };
+
+	TestTrue(TEXT("NotifyStateUpdate succeeds"), State->NotifyStateUpdate());
+	TestEqual(TEXT("Oldest sequence entry dropped"), State->Buffers[0].StateBuffer[0], 2.0f);
+	TestEqual(TEXT("Sequence shifted one entry earlier"), State->Buffers[0].StateBuffer[3], 5.0f);
+	TestEqual(TEXT("Buffer without a sequence dimension unchanged"), State->Buffers[1].StateBuffer[1], 7.0f);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNNEPolicyCreateInitialStateRequiresInitTest, "Schola.Policies.NNE.NNEPolicy.CreateInitialState Requires Init", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
 bool FNNEPolicyCreateInitialStateRequiresInitTest::RunTest(const FString& Parameters)
@@ -56,7 +73,7 @@ bool FNNEPolicyCreateInitialStateRequiresInitTest::RunTest(const FString& Parame
 	TScriptInterface<IPolicyState> State;
 
 	AddExpectedMessage(TEXT("Network not loaded"), EAutomationExpectedMessageFlags::Contains, 1);
-	TestFalse(TEXT("CreateInitialState fails before Init"), Policy->CreateInitialState(Policy, State));
+	TestFalse(TEXT("CreateInitialState fails before Init"), Policy->CreateInitialState(State));
 	TestNull(TEXT("No state is created before Init"), State.GetObject());
 	return true;
 }

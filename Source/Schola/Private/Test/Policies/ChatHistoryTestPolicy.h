@@ -37,10 +37,9 @@ class UChatHistoryTestPolicy : public UObject, public IPolicy
 public:
 	bool Think(
 		const TInstancedStruct<FPoint>&		  InObservations,
-		const TScriptInterface<IPolicyState>& InState,
-		TInstancedStruct<FPoint>&			  OutAction,
-		TScriptInterface<IPolicyState>&		  OutState) override;
-	bool CreateInitialState(UObject* InOuter, TScriptInterface<IPolicyState>& OutState) const override;
+		const TScriptInterface<IPolicyState>& InOutState,
+		TInstancedStruct<FPoint>&			  OutAction) override;
+	bool CreateInitialState(TScriptInterface<IPolicyState>& OutState) const override;
 	bool Init(const FInteractionDefinition& InPolicyDefinition) override;
 	bool IsInferenceBusy() const override;
 };

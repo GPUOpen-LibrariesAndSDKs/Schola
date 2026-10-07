@@ -109,6 +109,34 @@ public:
 	}
 };
 
+/** Chat history state that carries only its most recent message over to the next step. */
+UCLASS()
+class UTestWindowedChatHistoryState : public UTestChatHistoryState
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY()
+	int32 NotifyStateUpdateCount = 0;
+
+	UPROPERTY()
+	bool bRejectUpdates = false;
+
+	bool NotifyStateUpdate() override
+	{
+		if (bRejectUpdates)
+		{
+			return false;
+		}
+		NotifyStateUpdateCount++;
+		if (Messages.Num() > 1)
+		{
+			Messages.RemoveAt(0, Messages.Num() - 1);
+		}
+		return true;
+	}
+};
+
 /** Concrete UBlueprintPolicy, so CreateInitialState goes through the reflected BlueprintNativeEvent. */
 UCLASS()
 class UTestReflectedStatePolicy : public UBlueprintPolicy
@@ -116,8 +144,25 @@ class UTestReflectedStatePolicy : public UBlueprintPolicy
 	GENERATED_BODY()
 
 public:
-	TScriptInterface<IPolicyState> CreateInitialState_Implementation(UObject* InOuter) const override
+	/** History length ComputeAction saw on its last call, or -1 if the state was not a chat history */
+	int32 ComputeActionSawMessages = -1;
+
+	TScriptInterface<IPolicyState> CreateInitialState_Implementation() const override
 	{
-		return NewObject<UTestDerivedChatHistoryState>(InOuter);
+		return NewObject<UTestDerivedChatHistoryState>(GetTransientPackage());
+	}
+
+	void ComputeAction_Implementation(const FInstancedStruct& InObservations, const TScriptInterface<IPolicyState>& InState, FInstancedStruct& OutAction) override
+	{
+		const UTestChatHistoryState* History = Cast<UTestChatHistoryState>(InState.GetObject());
+		ComputeActionSawMessages = History ? History->Messages.Num() : -1;
+	}
+
+	void WriteState_Implementation(const FInstancedStruct& InObservations, const TScriptInterface<IPolicyState>& InOutState) override
+	{
+		if (UTestChatHistoryState* History = Cast<UTestChatHistoryState>(InOutState.GetObject()))
+		{
+			History->Messages.Add(TEXT("new"));
+		}
 	}
 };

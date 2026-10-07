@@ -42,7 +42,8 @@ public:
      */
     bool Init(const TArray<TScriptInterface<IAgent>>& InAgents, const TScriptInterface<IPolicy>& InPolicy) override
     {
-        Agents = InAgents;
+        Agents.Reset();
+        CurrentStates.Reset();
         Policy = InPolicy;
         TickCounter = 0;
         bDispatchInFlight = false;
@@ -52,21 +53,42 @@ public:
         {
             Frames[i].Observations.Reset();
             Frames[i].Actions.Reset();
+            Frames[i].DispatchedAgents.Reset();
             Frames[i].bActionsReady = false;
             Frames[i].bThinkInFlight = false;
         }
-        if (Agents.Num() == 0 || !Policy)
+        if (InAgents.Num() == 0 || !Policy)
         {
             return false;
         }
-        if (!CreateAgentStates(*Policy, this, Agents.Num(), CurrentStates)
-            || !CreateAgentStates(*Policy, this, Agents.Num(), NextStates))
+        for (const TScriptInterface<IAgent>& Agent : InAgents)
         {
-            UE_LOGFMT(LogScholaInferenceUtils, Error, "UPipelinedStepper::Init(): Policy failed to create initial states");
-            return false;
+            if (!AddAgent(Agent))
+            {
+                Agents.Reset();
+                CurrentStates.Reset();
+                return false;
+            }
         }
         return true;
     }
+
+    /**
+     * @brief Start stepping an agent with the stepper's policy.
+     *
+     * Safe to call while inference is in flight: the agent gets its first action from the next dispatched inference.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Schola|Stepper")
+    bool AddAgent(const TScriptInterface<IAgent>& InAgent) override;
+
+    /**
+     * @brief Stop stepping an agent and release its policy state.
+     *
+     * Safe to call while inference is in flight: the agent receives no further actions, and its
+     * state is kept alive until the in-flight inference completes.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Schola|Stepper")
+    bool RemoveAgent(const TScriptInterface<IAgent>& InAgent) override;
 
     /**
      * @brief Reset every agent's policy state to the start of an episode.
@@ -88,6 +110,9 @@ public:
 
     /**
      * @brief Get each agent's current policy state.
+     *
+     * The states are updated in place on a background thread while inference is in flight,
+     * so only read their contents once the dispatched inference has completed.
      * 
      * @return One state per agent, as read by the next dispatched inference (null entries for stateless policies)
      */
@@ -129,18 +154,22 @@ private:
     UPROPERTY() 
     TScriptInterface<IPolicy> Policy;
 
-    /** Each agent's policy state, read by the next dispatched inference. Null entries for stateless policies. */
+    /** Each agent's policy state, parallel to Agents and advanced in place by each dispatched inference. Null entries for stateless policies. */
     UPROPERTY()
     TArray<TScriptInterface<IPolicyState>> CurrentStates;
 
-    /** Each agent's policy state written by the next dispatched inference, swapped with CurrentStates on success. */
+    /** States whose reset was requested while inference was in flight */
     UPROPERTY()
-    TArray<TScriptInterface<IPolicyState>> NextStates;
+    TArray<TScriptInterface<IPolicyState>> PendingStateResets;
 
-    /** Agents whose state reset was requested while inference was in flight */
-    TSet<int32> PendingStateResets;
+    /** States of agents removed while inference was in flight, kept alive until the in-flight inference has finished using them */
+    UPROPERTY()
+    TArray<TScriptInterface<IPolicyState>> RetiredStates;
 
-    /** Game Thread flag set from dispatch until the result is handled, so state is never read while being written */
+    /** Incremented whenever an agent is added or removed, so actions computed for an older set of agents are routed by agent instead of by index */
+    uint64 MembershipVersion = 0;
+
+    /** Game Thread flag set from dispatch until the result is handled, so the Game Thread never touches state while it is being written */
     bool bDispatchInFlight = false;
 
     /**
@@ -156,6 +185,12 @@ private:
         
         /** Actions computed by the policy for this frame */
         TArray<TInstancedStruct<FPoint>> Actions;
+
+        /** Agents the dispatched inference computes Actions for, in the same order */
+        TArray<TWeakObjectPtr<UObject>> DispatchedAgents;
+
+        /** MembershipVersion when this frame was dispatched */
+        uint64 DispatchedMembershipVersion = 0;
         
         /** Flag indicating actions are ready to be applied */
         std::atomic<bool> bActionsReady = false;
@@ -190,10 +225,11 @@ private:
     void DispatchThink(int32 FrameIndex);
 
     /**
-     * @brief Handle a finished inference on the Game Thread: advance states and apply pending resets.
-     * 
-     * @param[in] bSuccess Whether the inference succeeded
+     * @brief Handle a finished inference on the Game Thread: apply pending resets and release retired states.
      */
-    void CompleteThink(bool bSuccess);
+    void CompleteThink();
+
+    /** @return The index of InAgent in Agents, or INDEX_NONE if it is not managed by this stepper */
+    int32 FindAgentIndex(const UObject* InAgent) const;
 
 };

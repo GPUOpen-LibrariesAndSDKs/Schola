@@ -6,9 +6,8 @@
 
 bool UPassthroughBoxPolicy::Think(
 	const TInstancedStruct<FPoint>&		  InObservations,
-	const TScriptInterface<IPolicyState>& InState,
-	TInstancedStruct<FPoint>&			  OutAction,
-	TScriptInterface<IPolicyState>&		  OutState)
+	const TScriptInterface<IPolicyState>& InOutState,
+	TInstancedStruct<FPoint>&			  OutAction)
 {
 	const FBoxPoint* Src = InObservations.GetPtr<FBoxPoint>();
 	if (!Src)

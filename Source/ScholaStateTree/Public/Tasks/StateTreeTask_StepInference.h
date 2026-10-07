@@ -109,13 +109,9 @@ private:
 	TInstancedStruct<FPoint> ObservationBuffer;
 	TInstancedStruct<FPoint> ActionBuffer;
 
-	/** Policy state read by the next inference step. Null for stateless policies. */
+	/** Policy state, advanced in place by each inference step. Null for stateless policies. */
 	UPROPERTY(Transient)
 	TScriptInterface<IPolicyState> CurrentState;
-
-	/** Policy state written by the next inference step, swapped with CurrentState on success. */
-	UPROPERTY(Transient)
-	TScriptInterface<IPolicyState> NextState;
 
 	bool						   InitializePolicy();
 	EStateTreeRunStatus			   PerformInferenceStep(float DeltaTime);

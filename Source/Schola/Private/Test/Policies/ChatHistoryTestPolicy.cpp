@@ -27,26 +27,30 @@ FString UTestChatHistoryState::ToString() const
 
 bool UChatHistoryTestPolicy::Think(
 	const TInstancedStruct<FPoint>&		  InObservations,
-	const TScriptInterface<IPolicyState>& InState,
-	TInstancedStruct<FPoint>&			  OutAction,
-	TScriptInterface<IPolicyState>&		  OutState)
+	const TScriptInterface<IPolicyState>& InOutState,
+	TInstancedStruct<FPoint>&			  OutAction)
 {
-	const UTestChatHistoryState* InHistory = Cast<UTestChatHistoryState>(InState.GetObject());
-	UTestChatHistoryState*		 OutHistory = Cast<UTestChatHistoryState>(OutState.GetObject());
-	if (!InHistory || !OutHistory || InHistory == OutHistory || !InObservations.IsValid())
+	UTestChatHistoryState* History = Cast<UTestChatHistoryState>(InOutState.GetObject());
+	if (!History || !InObservations.IsValid())
 	{
 		return false;
 	}
 
-	OutHistory->CopyFrom(*InHistory);
-	OutHistory->Messages.Add(InObservations.Get().ToString());
-	OutAction.InitializeAs<FBoxPoint>(TArray<float> { static_cast<float>(OutHistory->Messages.Num()) });
+	const FString NewMessage = InObservations.Get().ToString();
+	OutAction.InitializeAs<FBoxPoint>(TArray<float> { static_cast<float>(History->Messages.Num() + 1) });
+
+	if (!History->NotifyStateUpdate())
+	{
+		return false;
+	}
+
+	History->Messages.Add(NewMessage);
 	return true;
 }
 
-bool UChatHistoryTestPolicy::CreateInitialState(UObject* InOuter, TScriptInterface<IPolicyState>& OutState) const
+bool UChatHistoryTestPolicy::CreateInitialState(TScriptInterface<IPolicyState>& OutState) const
 {
-	OutState = NewObject<UTestChatHistoryState>(InOuter ? InOuter : GetTransientPackage());
+	OutState = NewObject<UTestChatHistoryState>(GetTransientPackage());
 	return true;
 }
 

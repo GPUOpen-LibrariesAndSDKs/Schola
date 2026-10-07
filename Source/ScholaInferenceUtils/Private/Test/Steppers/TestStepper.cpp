@@ -119,9 +119,8 @@ UTestPolicy::UTestPolicy()
 
 bool UTestPolicy::Think(
 	const TInstancedStruct<FPoint>&		  InObservations,
-	const TScriptInterface<IPolicyState>& InState,
-	TInstancedStruct<FPoint>&			  OutAction,
-	TScriptInterface<IPolicyState>&		  OutState)
+	const TScriptInterface<IPolicyState>& InOutState,
+	TInstancedStruct<FPoint>&			  OutAction)
 {
 	bool Expected = false;
 	if(!bInferenceInFlight.compare_exchange_strong(Expected, true, std::memory_order_acq_rel))
@@ -185,27 +184,31 @@ bool UTestPolicy::SawNonGameThread()
 
 bool UTestStatefulPolicy::Think(
 	const TInstancedStruct<FPoint>&		  InObservations,
-	const TScriptInterface<IPolicyState>& InState,
-	TInstancedStruct<FPoint>&			  OutAction,
-	TScriptInterface<IPolicyState>&		  OutState)
+	const TScriptInterface<IPolicyState>& InOutState,
+	TInstancedStruct<FPoint>&			  OutAction)
 {
-	const UTestCounterState* InCounter = Cast<UTestCounterState>(InState.GetObject());
-	UTestCounterState*		 OutCounter = Cast<UTestCounterState>(OutState.GetObject());
-	if (!InCounter || !OutCounter || InCounter == OutCounter)
+	UTestCounterState* Counter = Cast<UTestCounterState>(InOutState.GetObject());
+	if (!Counter)
 	{
-		UE_LOGFMT(LogScholaInferenceUtils, Error, "TestStatefulPolicy: Expected two distinct UTestCounterState objects");
+		UE_LOGFMT(LogScholaInferenceUtils, Error, "TestStatefulPolicy: Expected a UTestCounterState");
 		return false;
 	}
 
-	OutCounter->Count = InCounter->Count + 1;
 	OutAction.InitializeAs<FMultiDiscretePoint>(TArray<int> { 1 });
+
+	if (!Counter->NotifyStateUpdate())
+	{
+		return false;
+	}
+
+	Counter->Count++;
 	ThinkCount.fetch_add(1, std::memory_order_relaxed);
 	return true;
 }
 
-bool UTestStatefulPolicy::CreateInitialState(UObject* InOuter, TScriptInterface<IPolicyState>& OutState) const
+bool UTestStatefulPolicy::CreateInitialState(TScriptInterface<IPolicyState>& OutState) const
 {
-	OutState = NewObject<UTestCounterState>(InOuter ? InOuter : GetTransientPackage());
+	OutState = NewObject<UTestCounterState>(GetTransientPackage());
 	return true;
 }
 

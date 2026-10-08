@@ -2411,7 +2411,7 @@ test-metrics = [
 [package.metadata]
 requires-dist = [
     { name = "backports-strenum", marker = "python_full_version < '3.11'" },
-    { name = "cyclopts", specifier = ">=4.0" },
+    { name = "cyclopts", specifier = ">=4.0,<5" },
     { name = "grpcio", specifier = ">=1.80.0,<2" },
     { name = "gymnasium", specifier = ">=1.1.0" },
     { name = "minari", extras = ["hdf5", "create"], marker = "extra == 'minari'", specifier = ">=0.5.2" },

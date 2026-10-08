@@ -109,6 +109,10 @@ private:
 	TInstancedStruct<FPoint> ObservationBuffer;
 	TInstancedStruct<FPoint> ActionBuffer;
 
+	/** Policy state, advanced in place by each inference step. Null for stateless policies. */
+	UPROPERTY(Transient)
+	TScriptInterface<IPolicyState> CurrentState;
+
 	bool						   InitializePolicy();
 	EStateTreeRunStatus			   PerformInferenceStep(float DeltaTime);
 	AStateTreeTrainingEnvironment* FindTrainingEnvironment(UWorld* World) const;

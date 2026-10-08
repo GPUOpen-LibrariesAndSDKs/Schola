@@ -6,6 +6,7 @@
 #include "Steppers/StepperInterface.h"
 #include "Agent/AgentInterface.h"
 #include "Common/LogSchola.h"
+#include "LogScholaInferenceUtils.h"
 #include "PipelinedStepper.generated.h"
 
 #define PIPELINE_STAGES 2
@@ -36,24 +37,86 @@ public:
      * Sets up the pipeline frames and prepares for asynchronous operation.
      * 
      * @param[in] InAgents The array of agents to manage
-     * @param[in] InPolicy The policy to use for inference (must support batched operations)
+     * @param[in] InPolicy The initialized policy to use for inference (must support batched operations)
      * @return true if initialization succeeded (agents and policy are valid), false otherwise
      */
     bool Init(const TArray<TScriptInterface<IAgent>>& InAgents, const TScriptInterface<IPolicy>& InPolicy) override
     {
-        Agents = InAgents;
+        Agents.Reset();
+        CurrentStates.Reset();
         Policy = InPolicy;
         TickCounter = 0;
+        bDispatchInFlight = false;
+        PendingStateResets.Reset();
 
         for (int i = 0; i < PIPELINE_STAGES; ++i)
         {
             Frames[i].Observations.Reset();
             Frames[i].Actions.Reset();
+            Frames[i].DispatchedAgents.Reset();
             Frames[i].bActionsReady = false;
             Frames[i].bThinkInFlight = false;
         }
-        return Agents.Num() > 0 && Policy;
+        if (InAgents.Num() == 0 || !Policy)
+        {
+            return false;
+        }
+        for (const TScriptInterface<IAgent>& Agent : InAgents)
+        {
+            if (!AddAgent(Agent))
+            {
+                Agents.Reset();
+                CurrentStates.Reset();
+                return false;
+            }
+        }
+        return true;
     }
+
+    /**
+     * @brief Start stepping an agent with the stepper's policy.
+     *
+     * Safe to call while inference is in flight: the agent gets its first action from the next dispatched inference.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Schola|Stepper")
+    bool AddAgent(const TScriptInterface<IAgent>& InAgent) override;
+
+    /**
+     * @brief Stop stepping an agent and release its policy state.
+     *
+     * Safe to call while inference is in flight: the agent receives no further actions, and its
+     * state is kept alive until the in-flight inference completes.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Schola|Stepper")
+    bool RemoveAgent(const TScriptInterface<IAgent>& InAgent) override;
+
+    /**
+     * @brief Reset every agent's policy state to the start of an episode.
+     * 
+     * If inference is in flight, the reset is applied once it completes.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Schola|Stepper")
+    void ResetStates();
+
+    /**
+     * @brief Reset one agent's policy state to the start of an episode.
+     * 
+     * If inference is in flight, the reset is applied once it completes.
+     * 
+     * @param[in] AgentIndex Index of the agent in Agents
+     */
+    UFUNCTION(BlueprintCallable, Category = "Schola|Stepper")
+    void ResetAgentState(int32 AgentIndex);
+
+    /**
+     * @brief Get each agent's current policy state.
+     *
+     * The states are updated in place on a background thread while inference is in flight,
+     * so only read their contents once the dispatched inference has completed.
+     * 
+     * @return One state per agent, as read by the next dispatched inference (null entries for stateless policies)
+     */
+    const TArray<TScriptInterface<IPolicyState>>& GetCurrentStates() const { return CurrentStates; }
 
     /**
      * @brief Execute one step of the pipelined agent-policy loop.
@@ -61,7 +124,7 @@ public:
      * Must be called every tick on the Game Thread. Performs:
      * - Applies actions from the previous frame (if ready)
      * - Collects observations from all agents
-     * - Dispatches asynchronous inference if policy is not busy
+     * - Dispatches asynchronous inference if the policy is not busy and the previous result has been handled
      * 
      * The inference runs on a background thread and results are applied
      * in a subsequent frame once ready.
@@ -91,6 +154,24 @@ private:
     UPROPERTY() 
     TScriptInterface<IPolicy> Policy;
 
+    /** Each agent's policy state, parallel to Agents and advanced in place by each dispatched inference. Null entries for stateless policies. */
+    UPROPERTY()
+    TArray<TScriptInterface<IPolicyState>> CurrentStates;
+
+    /** States whose reset was requested while inference was in flight */
+    UPROPERTY()
+    TArray<TScriptInterface<IPolicyState>> PendingStateResets;
+
+    /** States of agents removed while inference was in flight, kept alive until the in-flight inference has finished using them */
+    UPROPERTY()
+    TArray<TScriptInterface<IPolicyState>> RetiredStates;
+
+    /** Incremented whenever an agent is added or removed, so actions computed for an older set of agents are routed by agent instead of by index */
+    uint64 MembershipVersion = 0;
+
+    /** Game Thread flag set from dispatch until the result is handled, so the Game Thread never touches state while it is being written */
+    bool bDispatchInFlight = false;
+
     /**
      * @brief Frame data structure for pipeline stages.
      * 
@@ -104,6 +185,12 @@ private:
         
         /** Actions computed by the policy for this frame */
         TArray<TInstancedStruct<FPoint>> Actions;
+
+        /** Agents the dispatched inference computes Actions for, in the same order */
+        TArray<TWeakObjectPtr<UObject>> DispatchedAgents;
+
+        /** MembershipVersion when this frame was dispatched */
+        uint64 DispatchedMembershipVersion = 0;
         
         /** Flag indicating actions are ready to be applied */
         std::atomic<bool> bActionsReady = false;
@@ -136,5 +223,13 @@ private:
      * @param[in] FrameIndex Index of the pipeline frame to process
      */
     void DispatchThink(int32 FrameIndex);
+
+    /**
+     * @brief Handle a finished inference on the Game Thread: apply pending resets and release retired states.
+     */
+    void CompleteThink();
+
+    /** @return The index of InAgent in Agents, or INDEX_NONE if it is not managed by this stepper */
+    int32 FindAgentIndex(const UObject* InAgent) const;
 
 };

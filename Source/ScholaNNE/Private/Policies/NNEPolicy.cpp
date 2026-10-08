@@ -38,7 +38,10 @@ IRuntimeInterface* UNNEPolicy::GetRuntime(const FString& SelectedRuntimeName) co
 	return nullptr;
 }
 
-bool UNNEPolicy::Think(const TInstancedStruct<FPoint>& InObservations, TInstancedStruct<FPoint>& OutAction)
+bool UNNEPolicy::Think(
+	const TInstancedStruct<FPoint>&		  InObservations,
+	const TScriptInterface<IPolicyState>& InOutState,
+	TInstancedStruct<FPoint>&			  OutAction)
 {
 	bool Expected = false;
 	if (!bInferenceInFlight.compare_exchange_weak(Expected, true, std::memory_order_acq_rel))
@@ -72,6 +75,17 @@ bool UNNEPolicy::Think(const TInstancedStruct<FPoint>& InObservations, TInstance
 		FNNEPointCreator::CreatePoint(ActionBuffer, OutAction, PolicyDefinition.ActionSpaceDefn);
 	}
 
+	// Stateless models ignore any state passed in
+	UNNEPolicyState* NNEState = nullptr;
+	if (this->InitialStateBuffers.Num() > 0)
+	{
+		NNEState = BindState(InOutState);
+		if (!NNEState)
+		{
+			return false;
+		}
+	}
+
 	FNNEPointToBufferConverter::ConvertPointToBuffer(InObservations, ObservationBuffer, PolicyDefinition.ObsSpaceDefn);
 
 	if ((int)ModelInstance->RunSync(InputBindings, OutputBindings) != 0)
@@ -80,8 +94,22 @@ bool UNNEPolicy::Think(const TInstancedStruct<FPoint>& InObservations, TInstance
 		return false;
 	}
 
-	// Copy the Buffer into the pre-allocated ActionPoint
+	// Materialize all inference outputs before committing the caller-owned recurrent state.
 	FNNEPointCreator::CreatePoint(ActionBuffer, OutAction, PolicyDefinition.ActionSpaceDefn);
+
+	if (NNEState)
+	{
+		if (!NNEState->NotifyStateUpdate())
+		{
+			UE_LOGFMT(LogScholaNNE, Error, "NNEPolicy::Think(): NotifyStateUpdate failed");
+			return false;
+		}
+		for (int i = 0; i < this->StateOutputBuffers.Num(); i++)
+		{
+			NNEState->Buffers[i].SetNewestState(this->StateOutputBuffers[i]);
+		}
+	}
+
 	return true;
 }
 
@@ -99,30 +127,97 @@ bool UNNEPolicy::InitInputTensorShapes(TSharedPtr<IModelInstanceRunSync> InModel
 
 bool UNNEPolicy::InitStateBuffersAndBindings(TSharedPtr<IModelInstanceRunSync> InModelInstance)
 {
-	// Find all the State Tensors from the Tensor Descriptions and Create a buffer for each one
+	this->InitialStateBuffers.Reset();
+	this->StateInputBindingIndices.Reset();
+	this->StateOutputBindingIndices.Reset();
+	this->StateOutputBuffers.Reset();
+
+	// Find all the State Tensors from the Tensor Descriptions and Create a buffer for each one.
+	// The input bindings point into the caller's state object, so the state bindings are set per Think in BindState.
 	TConstArrayView<UE::NNE::FTensorDesc> InputTensorDescs = InModelInstance->GetInputTensorDescs();
 	for (int i = 0; i < InputTensorDescs.Num(); i++)
 	{
 		if (InputTensorDescs[i].GetName().StartsWith(TEXT("state_in")))
 		{
-			UE::NNE::FTensorDesc StateDesc = InputTensorDescs[i];
-
-			FNNEStateBuffer& BufferRef = this->StateBuffer.Emplace_GetRef(StateDesc.GetShape().GetData(), this->MaxStateSequenceLength);
-			this->InputBindings[i] = BufferRef.MakeInputBinding();
+			this->InitialStateBuffers.Emplace(InputTensorDescs[i].GetShape().GetData(), this->MaxStateSequenceLength);
+			this->StateInputBindingIndices.Add(i);
 		}
 	}
-	// Go through the output tensors and find the state tensors, linking them to the state buffer for the corresponding input tensor
+	// Go through the output tensors and find the state tensors, pairing them with the input state tensors in order
 	TConstArrayView<UE::NNE::FTensorDesc> OutputTensorDescs = InModelInstance->GetOutputTensorDescs();
-	int									  StateIndex = 0;
 	for (int i = 0; i < OutputTensorDescs.Num(); i++)
 	{
 		if (OutputTensorDescs[i].GetName().StartsWith(TEXT("state_out")))
 		{
-			FNNEStateBuffer& BufferRef = this->StateBuffer[StateIndex];
-			this->OutputBindings[i] = BufferRef.MakeOutputBinding();
-			StateIndex++;
+			this->StateOutputBindingIndices.Add(i);
 		}
 	}
+
+	if (this->StateInputBindingIndices.Num() != this->StateOutputBindingIndices.Num())
+	{
+		UE_LOGFMT(LogScholaNNE, Error, "UNNEPolicy::InitStateBuffersAndBindings(): Model has {0} state_in tensors but {1} state_out tensors, expected one of each per state",
+			this->StateInputBindingIndices.Num(), this->StateOutputBindingIndices.Num());
+		return false;
+	}
+
+	this->StateOutputBuffers.SetNum(this->InitialStateBuffers.Num());
+	for (int i = 0; i < this->InitialStateBuffers.Num(); i++)
+	{
+		this->StateOutputBuffers[i].Init(0.0f, this->InitialStateBuffers[i].StateDimSize);
+	}
+	return true;
+}
+
+bool UNNEPolicy::IsStateCompatible(const UNNEPolicyState* InState) const
+{
+	if (!InState || InState->Buffers.Num() != this->InitialStateBuffers.Num())
+	{
+		return false;
+	}
+	for (int i = 0; i < InState->Buffers.Num(); i++)
+	{
+		if (InState->Buffers[i].StateBuffer.Num() != this->InitialStateBuffers[i].StateBuffer.Num())
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+UNNEPolicyState* UNNEPolicy::BindState(const TScriptInterface<IPolicyState>& InOutState)
+{
+	UNNEPolicyState* NNEState = Cast<UNNEPolicyState>(InOutState.GetObject());
+	if (!IsStateCompatible(NNEState))
+	{
+		UE_LOGFMT(LogScholaNNE, Error, "UNNEPolicy::BindState(): InOutState must be a UNNEPolicyState created by CreateInitialState for this model, got {0}",
+			InOutState.GetObject() ? InOutState.GetObject()->GetClass()->GetName() : FString(TEXT("null")));
+		return nullptr;
+	}
+
+	for (int i = 0; i < this->InitialStateBuffers.Num(); i++)
+	{
+		this->InputBindings[this->StateInputBindingIndices[i]] = NNEState->Buffers[i].MakeInputBinding();
+		this->OutputBindings[this->StateOutputBindingIndices[i]] = { (void*)this->StateOutputBuffers[i].GetData(), this->StateOutputBuffers[i].Num() * sizeof(float) };
+	}
+	return NNEState;
+}
+
+bool UNNEPolicy::CreateInitialState(TScriptInterface<IPolicyState>& OutState) const
+{
+	OutState = nullptr;
+	if (!bNetworkLoaded)
+	{
+		UE_LOGFMT(LogScholaNNE, Error, "UNNEPolicy::CreateInitialState(): Network not loaded, call Init first");
+		return false;
+	}
+	if (this->InitialStateBuffers.Num() == 0)
+	{
+		return true;
+	}
+
+	UNNEPolicyState* State = NewObject<UNNEPolicyState>(GetTransientPackage());
+	State->Buffers = this->InitialStateBuffers;
+	OutState = State;
 	return true;
 }
 

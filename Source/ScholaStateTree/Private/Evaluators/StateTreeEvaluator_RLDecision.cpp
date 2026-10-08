@@ -172,6 +172,7 @@ void UStateTreeEvaluator_RLDecision::TreeStart(FStateTreeExecutionContext& Conte
 	Confidence = 0.0f;
 	bLastInferenceSucceeded = false;
 	TimeSinceLastEvaluation = 0.0f;
+	CurrentState = nullptr;
 
 	// Find the context actor
 	CachedActor = StateTreeHelpers::GetActorFromContext(Context);
@@ -277,6 +278,7 @@ void UStateTreeEvaluator_RLDecision::TreeStop(FStateTreeExecutionContext& Contex
 	bTrainingMode = false;
 	SelectedBranch = -1;
 	BranchScores.Empty();
+	CurrentState = nullptr;
 }
 
 void UStateTreeEvaluator_RLDecision::Tick(FStateTreeExecutionContext& Context, const float DeltaTime)
@@ -339,7 +341,7 @@ void UStateTreeEvaluator_RLDecision::PerformDecision()
 	}
 
 	// Run inference
-	if (!PolicyInterface->Think(ObservationBuffer, ActionBuffer))
+	if (!PolicyInterface->Think(ObservationBuffer, CurrentState, ActionBuffer))
 	{
 		UE_LOG(LogScholaStateTree, Error, TEXT("UStateTreeEvaluator_RLDecision::PerformDecision(): Policy inference failed"));
 		bLastInferenceSucceeded = false;
@@ -398,6 +400,12 @@ bool UStateTreeEvaluator_RLDecision::InitializePolicy()
 	if (!PolicyInterface->Init(InteractionDef))
 	{
 		UE_LOG(LogScholaStateTree, Error, TEXT("UStateTreeEvaluator_RLDecision::InitializePolicy(): Failed to initialize policy"));
+		return false;
+	}
+
+	if (!PolicyInterface->CreateInitialState(CurrentState))
+	{
+		UE_LOG(LogScholaStateTree, Error, TEXT("UStateTreeEvaluator_RLDecision::InitializePolicy(): Failed to create initial policy state"));
 		return false;
 	}
 
@@ -471,5 +479,9 @@ void UStateTreeEvaluator_RLDecision::ResetForEpisode_Implementation(AActor* Cont
 	// Blueprint can override to reset per-episode state (e.g., branch selection logic)
 	CachedActor = ContextActor;
 	SelectedBranch = -1; // Reset branch selection for new episode
+	if (CurrentState)
+	{
+		CurrentState->Reset();
+	}
 	IAgent::Execute_Observe(this, OutObservation);
 }

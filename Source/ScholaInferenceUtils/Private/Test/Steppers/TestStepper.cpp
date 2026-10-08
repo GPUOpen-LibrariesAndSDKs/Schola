@@ -117,7 +117,10 @@ UTestPolicy::UTestPolicy()
 {
 }
 
-bool UTestPolicy::Think(const TInstancedStruct<FPoint>& InObservations, TInstancedStruct<FPoint>& OutAction)
+bool UTestPolicy::Think(
+	const TInstancedStruct<FPoint>&		  InObservations,
+	const TScriptInterface<IPolicyState>& InOutState,
+	TInstancedStruct<FPoint>&			  OutAction)
 {
 	bool Expected = false;
 	if(!bInferenceInFlight.compare_exchange_strong(Expected, true, std::memory_order_acq_rel))
@@ -177,4 +180,40 @@ TSet<uint32> UTestPolicy::GetThreadIdsCopy()
 bool UTestPolicy::SawNonGameThread()
 {
 	return GTestPolicySawNonGameThread.load(std::memory_order_relaxed);
+}
+
+bool UTestStatefulPolicy::Think(
+	const TInstancedStruct<FPoint>&		  InObservations,
+	const TScriptInterface<IPolicyState>& InOutState,
+	TInstancedStruct<FPoint>&			  OutAction)
+{
+	UTestCounterState* Counter = Cast<UTestCounterState>(InOutState.GetObject());
+	if (!Counter)
+	{
+		UE_LOGFMT(LogScholaInferenceUtils, Error, "TestStatefulPolicy: Expected a UTestCounterState");
+		return false;
+	}
+
+	OutAction.InitializeAs<FMultiDiscretePoint>(TArray<int> { 1 });
+
+	if (!Counter->NotifyStateUpdate())
+	{
+		return false;
+	}
+
+	Counter->Count++;
+	ThinkCount.fetch_add(1, std::memory_order_relaxed);
+	return true;
+}
+
+bool UTestStatefulPolicy::CreateInitialState(TScriptInterface<IPolicyState>& OutState) const
+{
+	OutState = NewObject<UTestCounterState>(GetTransientPackage());
+	return true;
+}
+
+int32 UTestStatefulPolicy::GetCount(const TScriptInterface<IPolicyState>& State)
+{
+	const UTestCounterState* Counter = Cast<UTestCounterState>(State.GetObject());
+	return Counter ? Counter->Count : -1;
 }

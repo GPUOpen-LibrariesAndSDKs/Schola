@@ -76,10 +76,23 @@ bool FNNEStateBufferBasicsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Input binding size"), InputBinding.SizeInBytes, 3 * 2 * sizeof(float));
 	TestEqual(TEXT("Input binding data"), InputBinding.Data, (void*)StateBuffer.StateBuffer.GetData());
 
-	UE::NNE::FTensorBindingCPU OutputBinding = StateBuffer.MakeOutputBinding();
-	TestEqual(TEXT("Output binding size"), OutputBinding.SizeInBytes, 2 * sizeof(float));
-	void* ExpectedOutputPtr = (void*)(StateBuffer.StateBuffer.GetData() + (3 - 1) * 2);
-	TestEqual(TEXT("Output binding data points to last row"), OutputBinding.Data, ExpectedOutputPtr);
+	// Update should drop the first row, then SetNewestState writes the new state into the last row
+	StateBuffer.StateBuffer = { 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f };
+	StateBuffer.Update();
+	StateBuffer.SetNewestState(TArray<float> { 7.0f, 8.0f });
+	TestEqualExactFloat(TEXT("After update: seq0_dim0 == 3"), StateBuffer.StateBuffer[0], 3.0f);
+	TestEqualExactFloat(TEXT("After update: seq1_dim1 == 6"), StateBuffer.StateBuffer[3], 6.0f);
+	TestEqualExactFloat(TEXT("After update: seq2_dim0 == 7"), StateBuffer.StateBuffer[4], 7.0f);
+	TestEqualExactFloat(TEXT("After update: seq2_dim1 == 8"), StateBuffer.StateBuffer[5], 8.0f);
+
+	// Without a sequence dimension, Update leaves the buffer alone and SetNewestState replaces it
+	FNNEStateBuffer FlatBuffer({ -1, 2 });
+	FlatBuffer.StateBuffer = { 1.0f, 2.0f };
+	FlatBuffer.Update();
+	TestEqualExactFloat(TEXT("Flat update: unchanged"), FlatBuffer.StateBuffer[1], 2.0f);
+	FlatBuffer.SetNewestState(TArray<float> { 9.0f, 10.0f });
+	TestEqualExactFloat(TEXT("Flat set: dim0 == 9"), FlatBuffer.StateBuffer[0], 9.0f);
+	TestEqualExactFloat(TEXT("Flat set: dim1 == 10"), FlatBuffer.StateBuffer[1], 10.0f);
 
 	return true;
 }

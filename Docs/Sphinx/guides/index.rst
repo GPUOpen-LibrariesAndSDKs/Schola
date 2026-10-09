@@ -10,6 +10,7 @@ Guides
    setting_up_inference
    running_from_cli
    lerobot_evaluation
+   lerobot_export
    cli_dataclass_conventions
    tips_and_tricks
    distributed_training

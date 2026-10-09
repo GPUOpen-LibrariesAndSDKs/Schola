@@ -32,9 +32,16 @@ If you did not export to Onnx during training you will need to convert a checkpo
 
             schola rllib export --policy-checkpoint-path <CHECKPOINT_DIR> [--output-path <OUTPUT_DIR>]
 
+    .. group-tab:: LeRobot
+        .. code-block:: bash
+
+            lerobot-to-onnx <PRETRAINED_PATH> <OUTPUT.onnx> <SPACES.yaml>
+
 For SB3, ``<ALGORITHM>`` must match how the checkpoint was trained (for example ``PPO`` or ``SAC``); allowed values are the same as the export command's ``--algorithm`` choices in ``schola sb3 export --help``.
 
 For RLlib, ``<CHECKPOINT_DIR>`` is the algorithm checkpoint **directory** produced by Ray. ``--output-path`` is optional; if omitted, ONNX output is written alongside the checkpoint (see ``schola rllib export --help``).
+
+For LeRobot, ``<PRETRAINED_PATH>`` is a local pretrained directory or Hugging Face Hub id with ``config.json`` and ``model.safetensors``, and ``<SPACES.yaml>`` names ONNX tensors using LeRobot batch keys (Unreal ``Define()`` keys must match those strings). Only ACT is supported currently. See :doc:`lerobot_export`.
 
 These commands produce an ONNX model in Schola's export layout for use in the next section.
 

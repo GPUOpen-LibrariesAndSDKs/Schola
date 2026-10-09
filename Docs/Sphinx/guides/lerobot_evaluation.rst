@@ -7,7 +7,9 @@ The ``lerobot_env_schola`` plugin lets `LeRobot
 <https://github.com/huggingface/lerobot>`_ evaluate a policy in an Unreal
 environment exposed through Schola. It adapts Schola's vector environment,
 observations, continuous actions, episode metadata, rendering, and success
-information to LeRobot's evaluation contract.
+information to LeRobot's evaluation contract. To export a pretrained ACT
+policy to ONNX for in-engine inference, see :doc:`lerobot_export`.
+
 Evaluation uses one Schola simulator process, which is either launched by
 Schola or is an existing running Unreal Process. That simulator is exposed
 to LeRobot as a vectorized environment with one or more homogeneous

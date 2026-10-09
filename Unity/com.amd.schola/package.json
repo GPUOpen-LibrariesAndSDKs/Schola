@@ -1,0 +1,15 @@
+{
+  "name": "com.amd.schola",
+  "version": "0.1.0",
+  "displayName": "AMD Schola",
+  "description": "Reinforcement learning for Unity. Define agents, train them with Schola's Python tools (Gymnasium, Stable-Baselines3, RLlib), and run trained ONNX policies in your game.",
+  "unity": "6000.3",
+  "keywords": [
+    "schola",
+    "reinforcement-learning",
+    "machine-learning",
+    "onnx",
+    "inference"
+  ],
+  "license": "MIT"
+}

@@ -5,11 +5,12 @@ using UnityEngine;
 namespace AMD.Schola
 {
     /// <summary>
-    /// Scene-backed sensor that reads <see cref="Transform.position"/> into a fixed-length BoxPoint.
-    /// Stub for Phase 1 (tests red). Phase 2 implements CollectObservations / GetObservationSpace.
+    /// Scene-backed sensor that reads <see cref="Transform.position"/> into a fixed-length BoxPoint (x, y, z).
     /// </summary>
     public sealed class PositionSensor : MonoBehaviour, ISensor
     {
+        const int DimensionCount = 3;
+
         [SerializeField]
         string m_ObservationKey = "position";
 
@@ -24,19 +25,30 @@ namespace AMD.Schola
 
         public void InitSensor()
         {
-            // Phase 2: validate configuration.
+            if (string.IsNullOrEmpty(m_ObservationKey))
+            {
+                Debug.LogWarning($"{nameof(PositionSensor)} on '{name}' has an empty {nameof(ObservationKey)}.", this);
+            }
         }
 
         public Space GetObservationSpace()
         {
-            // Phase 2: return BoxSpace with 3 dimensions matching position x,y,z.
-            return new BoxSpace();
+            var space = new BoxSpace();
+            for (var i = 0; i < DimensionCount; i++)
+            {
+                space.Dimensions.Add(new BoxSpaceDimension());
+            }
+
+            return space;
         }
 
         public Point CollectObservations()
         {
-            // Phase 2: return BoxPoint from current transform.position.
-            return new BoxPoint();
+            var position = transform.position;
+            return new BoxPoint
+            {
+                Values = { position.x, position.y, position.z },
+            };
         }
     }
 }

@@ -6,8 +6,7 @@ using UnityEngine;
 namespace AMD.Schola
 {
     /// <summary>
-    /// Agent that defines observation space from sensors and aggregates Observe.
-    /// Stub for Phase 1 (tests red). Phase 2 implements Define / Observe.
+    /// Agent that defines observation space from sensors and aggregates Observe into a DictPoint.
     /// </summary>
     public sealed class ScholaAgent : MonoBehaviour
     {
@@ -26,8 +25,18 @@ namespace AMD.Schola
         /// </summary>
         public Space Define()
         {
-            // Phase 2: aggregate GetObservationSpace under each sensor ObservationKey.
-            return new DictSpace();
+            var dictSpace = new DictSpace();
+            foreach (var sensor in m_Sensors)
+            {
+                if (sensor == null)
+                {
+                    continue;
+                }
+
+                dictSpace.Spaces[sensor.ObservationKey] = sensor.GetObservationSpace();
+            }
+
+            return dictSpace;
         }
 
         /// <summary>
@@ -35,8 +44,18 @@ namespace AMD.Schola
         /// </summary>
         public Point Observe()
         {
-            // Phase 2: aggregate CollectObservations under each sensor ObservationKey.
-            return new DictPoint();
+            var dictPoint = new DictPoint();
+            foreach (var sensor in m_Sensors)
+            {
+                if (sensor == null)
+                {
+                    continue;
+                }
+
+                dictPoint.Points[sensor.ObservationKey] = sensor.CollectObservations();
+            }
+
+            return dictPoint;
         }
     }
 }

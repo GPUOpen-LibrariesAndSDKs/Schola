@@ -7,7 +7,7 @@ using UnityEngine;
 namespace AMD.Schola.Tests.Sensors
 {
     /// <summary>
-    /// US1 AC1/AC2 sensor tests (Phase 1 — expected red until Phase 2 implementation).
+    /// US1 AC1/AC2 sensor tests.
     /// T1: observation values update with the scene.
     /// T2: observation values keep a consistent format matching GetObservationSpace.
     /// </summary>

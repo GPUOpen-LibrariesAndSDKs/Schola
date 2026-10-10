@@ -7,7 +7,7 @@ using UnityEngine;
 namespace AMD.Schola.Tests.Agent
 {
     /// <summary>
-    /// US1 agent aggregation tests (Phase 1 — expected red until Phase 2 implementation).
+    /// US1 agent aggregation tests.
     /// T3: stable Dict keys; nested values update with the scene.
     /// </summary>
     public sealed class ScholaAgentObserveTests

@@ -2,23 +2,13 @@
     "name": "AMD.Schola.Tests.EditMode",
     "rootNamespace": "AMD.Schola.Tests",
     "references": [
-        "AMD.Schola.Runtime",
-        "UnityEngine.TestRunner",
-        "UnityEditor.TestRunner"
+        "AMD.Schola.Runtime"
+    ],
+    "optionalUnityReferences": [
+        "TestAssemblies"
     ],
     "includePlatforms": [
         "Editor"
     ],
-    "excludePlatforms": [],
-    "allowUnsafeCode": false,
-    "overrideReferences": true,
-    "precompiledReferences": [
-        "nunit.framework.dll"
-    ],
-    "autoReferenced": false,
-    "defineConstraints": [
-        "UNITY_INCLUDE_TESTS"
-    ],
-    "versionDefines": [],
-    "noEngineReferences": false
+    "excludePlatforms": []
 }

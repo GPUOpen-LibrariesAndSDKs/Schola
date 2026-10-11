@@ -1,0 +1,14 @@
+{
+    "name": "AMD.Schola.Tests.EditMode",
+    "rootNamespace": "AMD.Schola.Tests",
+    "references": [
+        "AMD.Schola.Runtime"
+    ],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": []
+}

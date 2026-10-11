@@ -30,7 +30,7 @@ Partners agreed on user stories in earlier meetings.
 
 The following user stories outline the requirments for the MVP. These will allow a Unity developer to create a RL environment, train through Schola's Python ecosystems, export the trained model in an ONNX policy, then run it in Unity without Python. 
 
-##### US1. Define agent inputs
+##### US1. Define agent inputs (Completed. Waiting review. Github branch: feature/us-1-define-agent-inputs)
 
 **Story:** As a Unity game developer, I want to configure what an agent observes so that it can make decisions using relevant game information.
 

@@ -11,5 +11,8 @@
     "onnx",
     "inference"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "com.unity.test-framework": "1.4.5"
+  }
 }

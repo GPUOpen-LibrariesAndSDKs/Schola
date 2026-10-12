@@ -12,7 +12,6 @@ using UnityEngine.TestTools;
 namespace AMD.Schola.Tests.Policies {
     /// <summary>
     /// US5 policy tests using a PPO CartPole model exported by Schola's SB3 exporter.
-    /// Model contract: input "obs" float32 [batch, 4], output "action" int64 [batch] (0 = left, 1 = right).
     /// </summary>
     public sealed class SentisPolicyTests {
         const string ModelPath = "Packages/com.amd.schola/Tests/EditMode/Policies/TestModels/cartpole.onnx";
@@ -96,9 +95,8 @@ namespace AMD.Schola.Tests.Policies {
                 new DictSpace { Spaces = { [ActionKey] = new DiscreteSpace(2) } });
         }
 
-        /// <summary>
-        /// CartPole observation: cart position, cart velocity, pole angle, pole angular velocity.
-        /// </summary>
+
+
         static DictPoint CartPoleObservation(float poleAngle) {
             return new DictPoint {
                 Points ={

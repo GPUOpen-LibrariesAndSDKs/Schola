@@ -2,7 +2,9 @@
     "name": "AMD.Schola.Tests.EditMode",
     "rootNamespace": "AMD.Schola.Tests",
     "references": [
-        "AMD.Schola.Runtime"
+        "AMD.Schola.Runtime",
+        "AMD.Schola.Inference",
+        "Unity.InferenceEngine"
     ],
     "optionalUnityReferences": [
         "TestAssemblies"

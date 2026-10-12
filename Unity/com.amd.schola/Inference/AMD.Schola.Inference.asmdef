@@ -1,0 +1,17 @@
+{
+    "name": "AMD.Schola.Inference",
+    "rootNamespace": "AMD.Schola",
+    "references": [
+        "AMD.Schola.Runtime",
+        "Unity.InferenceEngine"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

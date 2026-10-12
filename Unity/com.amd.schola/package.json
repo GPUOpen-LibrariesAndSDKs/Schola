@@ -13,6 +13,7 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "com.unity.ai.inference": "2.6.1",
     "com.unity.test-framework": "1.4.5"
   }
 }

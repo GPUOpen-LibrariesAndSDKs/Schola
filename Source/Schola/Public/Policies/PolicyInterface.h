@@ -7,6 +7,7 @@
 #include "Common/InteractionDefinition.h"
 #include "Common/LogSchola.h"
 #include "Policies/PolicyStateInterface.h"
+#include "Policies/StatelessPolicyState.h"
 #include "StructUtils/InstancedStruct.h"
 #include "PolicyInterface.generated.h"
 
@@ -27,7 +28,7 @@ class SCHOLA_API UPolicy : public UInterface
  * A policy maps observations and an internal state to actions and an updated state,
  * typically through a trained neural network model or other decision-making algorithm.
  * The state is owned by the caller rather than the policy, so one policy instance can
- * serve many agents, each with its own state. Stateless policies use null states.
+ * serve many agents, each with its own state. Stateless policies use UStatelessPolicyState.
  */
 class SCHOLA_API IPolicy
 {
@@ -41,8 +42,8 @@ public:
      * This is the core inference method that takes observations from the
      * environment and produces an action for the agent to execute.
      * 
-     * InOutState must have been created by CreateInitialState, or be null for a stateless
-     * policy. Implementations update it in place and must not replace it, since Think may
+     * InOutState must have been created by this policy's CreateInitialState, so it is never
+     * null. Implementations update it in place and must not replace it, since Think may
      * run off the game thread where creating UObjects is unsafe. Stateful implementations
      * read the state and compute the step's outputs, then call InOutState->NotifyStateUpdate(),
      * then write the step's new data into the state. Implementations must leave InOutState
@@ -103,16 +104,28 @@ public:
      * @brief Creates a state object holding the state at the start of an episode.
      * 
      * Must be called on the game thread after Init. Callers create one state per agent,
-     * pass it to every Think, and keep it alive through a UPROPERTY reference.
-     * Implementations create the state in the transient package. The default
-     * implementation is for stateless policies and returns a null state.
+     * pass it to every Think, and keep it alive through a UPROPERTY reference. Calls
+     * CreateInitialStateImpl and rejects a state without a native IPolicyState, e.g. None
+     * from a Blueprint override, so on success OutState is always usable by Think.
+     * Not virtual; policies override CreateInitialStateImpl instead.
      * 
-     * @param[out] OutState Receives the new state, or null if the policy is stateless.
-     * @return True if the state was created (or the policy is stateless), false otherwise.
+     * @param[out] OutState Receives the new state, or null on failure.
+     * @return True if a valid state was created, false otherwise.
      */
-    virtual bool CreateInitialState(TScriptInterface<IPolicyState>& OutState) const
+    bool CreateInitialState(TScriptInterface<IPolicyState>& OutState) const
     {
-        OutState = nullptr;
+        if (!this->CreateInitialStateImpl(OutState))
+        {
+            OutState = nullptr;
+            return false;
+        }
+        if (!OutState.GetInterface())
+        {
+            UE_LOGFMT(LogSchola, Error, "IPolicy::CreateInitialState(): Policy returned {0} as the initial state, which is not a native IPolicyState. Stateless policies must return UStatelessPolicyState::Get()",
+                GetNameSafe(OutState.GetObject()));
+            OutState = nullptr;
+            return false;
+        }
         return true;
     }
 
@@ -137,5 +150,23 @@ public:
      * @return True if inference is in progress, false otherwise.
      */
     virtual bool IsInferenceBusy() const PURE_VIRTUAL(IPolicy::IsInferenceBusy, return false; );
+
+protected:
+
+    /**
+     * @brief Creates the initial state. Override this; callers use CreateInitialState.
+     *
+     * Implementations create the state in the transient package. Stateless policies return
+     * UStatelessPolicyState::Get(), which is what the default implementation does. Never
+     * return null on success. Log the reason when returning false.
+     *
+     * @param[out] OutState Receives the new state.
+     * @return True if the state was created, false otherwise.
+     */
+    virtual bool CreateInitialStateImpl(TScriptInterface<IPolicyState>& OutState) const
+    {
+        OutState = UStatelessPolicyState::Get();
+        return true;
+    }
 
 };

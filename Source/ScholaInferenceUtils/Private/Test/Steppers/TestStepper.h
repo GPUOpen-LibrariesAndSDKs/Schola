@@ -211,17 +211,22 @@ public:
 	/** Total number of successful Think calls across all agents */
 	std::atomic<int32> ThinkCount { 0 };
 
+	/** If true, CreateInitialState returns None, like a Blueprint override that forgets to set its return value */
+	bool bReturnNoneState = false;
+
 	bool Think(
 		const TInstancedStruct<FPoint>&		  InObservations,
 		const TScriptInterface<IPolicyState>& InOutState,
 		TInstancedStruct<FPoint>&			  OutAction) override;
 
-	bool CreateInitialState(TScriptInterface<IPolicyState>& OutState) const override;
-
 	bool Init(const FInteractionDefinition& InPolicyDefinition) override { return true; }
 
 	bool IsInferenceBusy() const override { return false; }
 
+protected:
+	bool CreateInitialStateImpl(TScriptInterface<IPolicyState>& OutState) const override;
+
+public:
 	/**
 	 * @brief Read the count from a state created by this policy.
 	 * 

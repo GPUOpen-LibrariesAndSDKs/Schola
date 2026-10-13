@@ -61,7 +61,7 @@ public:
 
 		for (const TScriptInterface<IAgent>& Agent : InAgents)
 		{
-			if (!this->AddAgent(Agent))
+			if (this->AddAgent(Agent) == INDEX_NONE)
 			{
 				this->Agents.Reset();
 				this->CurrentStates.Reset();
@@ -73,43 +73,36 @@ public:
 	}
 
 	UFUNCTION(BlueprintCallable, Category = "Schola|Stepper")
-	bool AddAgent(const TScriptInterface<IAgent>& InAgent) override
+	int32 AddAgent(const TScriptInterface<IAgent>& InAgent) override
 	{
 		if (!this->Policy)
 		{
-			UE_LOGFMT(LogScholaInferenceUtils, Error, "USimpleStepper::AddAgent(): No policy, call Init first!");
-			return false;
+			UE_LOGFMT(LogScholaInferenceUtils, Error, "USimpleStepper::AddAgent(): Stepper is not initialized, call Init first!");
+			return INDEX_NONE;
 		}
 		if (!InAgent.GetObject())
 		{
 			UE_LOGFMT(LogScholaInferenceUtils, Error, "USimpleStepper::AddAgent(): Agent is null!");
-			return false;
-		}
-		if (this->FindAgentIndex(InAgent) != INDEX_NONE)
-		{
-			UE_LOGFMT(LogScholaInferenceUtils, Error, "USimpleStepper::AddAgent(): Agent {0} is already managed by this stepper!", InAgent.GetObject()->GetName());
-			return false;
+			return INDEX_NONE;
 		}
 
 		TScriptInterface<IPolicyState> State;
-		if (!CreateAgentState(*this->Policy, State))
+		if (!this->Policy->CreateInitialState(State))
 		{
 			UE_LOGFMT(LogScholaInferenceUtils, Error, "USimpleStepper::AddAgent(): Policy failed to create the initial state for agent {0}!", InAgent.GetObject()->GetName());
-			return false;
+			return INDEX_NONE;
 		}
 
-		this->Agents.Add(InAgent);
 		this->CurrentStates.Add(State);
-		return true;
+		return this->Agents.Add(InAgent);
 	}
 
 	UFUNCTION(BlueprintCallable, Category = "Schola|Stepper")
-	bool RemoveAgent(const TScriptInterface<IAgent>& InAgent) override
+	bool RemoveAgentAt(int32 AgentIndex) override
 	{
-		const int32 AgentIndex = this->FindAgentIndex(InAgent);
-		if (AgentIndex == INDEX_NONE)
+		if (!this->Agents.IsValidIndex(AgentIndex))
 		{
-			UE_LOGFMT(LogScholaInferenceUtils, Error, "USimpleStepper::RemoveAgent(): Agent is not managed by this stepper!");
+			UE_LOGFMT(LogScholaInferenceUtils, Error, "USimpleStepper::RemoveAgentAt(): Invalid agent index {0}", AgentIndex);
 			return false;
 		}
 
@@ -118,41 +111,69 @@ public:
 		return true;
 	}
 
-	/**
-	 * @brief Get each agent's current policy state, for inspection and tests.
-	 *
-	 * @return One state per agent, in the same order as Agents (null entries for stateless policies)
-	 */
-	const TArray<TScriptInterface<IPolicyState>>& GetCurrentStates() const { return CurrentStates; }
-
-	/**
-	 * @brief Reset every agent's policy state to the start of an episode.
-	 */
 	UFUNCTION(BlueprintCallable, Category = "Schola|Stepper")
-	void ResetStates()
+	int32 RemoveAgent(const TScriptInterface<IAgent>& InAgent) override
 	{
-		for (int32 i = 0; i < this->CurrentStates.Num(); i++)
+		int32 NumRemoved = 0;
+		for (int32 i = this->Agents.Num() - 1; i >= 0; i--)
 		{
-			this->ResetAgentState(i);
+			if (this->Agents[i].GetObject() == InAgent.GetObject())
+			{
+				this->RemoveAgentAt(i);
+				NumRemoved++;
+			}
 		}
+		return NumRemoved;
 	}
 
-	/**
-	 * @brief Reset one agent's policy state to the start of an episode.
-	 * 
-	 * @param[in] AgentIndex Index of the agent in Agents
-	 */
-	UFUNCTION(BlueprintCallable, Category = "Schola|Stepper")
-	void ResetAgentState(int32 AgentIndex)
+	UFUNCTION(BlueprintPure, Category = "Schola|Stepper")
+	int32 FindAgent(const TScriptInterface<IAgent>& InAgent) const override
+	{
+		return this->Agents.IndexOfByPredicate([&InAgent](const TScriptInterface<IAgent>& Agent) { return Agent.GetObject() == InAgent.GetObject(); });
+	}
+
+	UFUNCTION(BlueprintPure, Category = "Schola|Stepper")
+	int32 NumAgents() const override { return this->Agents.Num(); }
+
+	UFUNCTION(BlueprintPure, Category = "Schola|Stepper")
+	TScriptInterface<IAgent> GetAgent(int32 AgentIndex) const override
+	{
+		if (!this->Agents.IsValidIndex(AgentIndex))
+		{
+			UE_LOGFMT(LogScholaInferenceUtils, Error, "USimpleStepper::GetAgent(): Invalid agent index {0}", AgentIndex);
+			return TScriptInterface<IAgent>();
+		}
+		return this->Agents[AgentIndex];
+	}
+
+	UFUNCTION(BlueprintPure, Category = "Schola|Stepper")
+	TScriptInterface<IPolicyState> GetState(int32 AgentIndex) const override
 	{
 		if (!this->CurrentStates.IsValidIndex(AgentIndex))
 		{
-			UE_LOGFMT(LogScholaInferenceUtils, Error, "USimpleStepper::ResetAgentState(): Invalid agent index {0}", AgentIndex);
+			UE_LOGFMT(LogScholaInferenceUtils, Error, "USimpleStepper::GetState(): Invalid agent index {0}", AgentIndex);
+			return TScriptInterface<IPolicyState>();
+		}
+		return this->CurrentStates[AgentIndex];
+	}
+
+	UFUNCTION(BlueprintCallable, Category = "Schola|Stepper")
+	void ResetState(int32 AgentIndex) override
+	{
+		if (!this->CurrentStates.IsValidIndex(AgentIndex))
+		{
+			UE_LOGFMT(LogScholaInferenceUtils, Error, "USimpleStepper::ResetState(): Invalid agent index {0}", AgentIndex);
 			return;
 		}
-		if (this->CurrentStates[AgentIndex])
+		this->CurrentStates[AgentIndex]->Reset();
+	}
+
+	UFUNCTION(BlueprintCallable, Category = "Schola|Stepper")
+	void ResetStates() override
+	{
+		for (int32 i = 0; i < this->CurrentStates.Num(); i++)
 		{
-			this->CurrentStates[AgentIndex]->Reset();
+			this->ResetState(i);
 		}
 	}
 
@@ -211,13 +232,7 @@ public:
 	}
 
 private:
-	/** Each agent's policy state, parallel to Agents and advanced in place by each Step(). Null entries for stateless policies. */
+	/** Each agent's policy state, parallel to Agents and advanced in place by each Step(). Always valid, since AddAgent checks it. */
 	UPROPERTY()
 	TArray<TScriptInterface<IPolicyState>> CurrentStates;
-
-	/** @return The index of InAgent in Agents, or INDEX_NONE if it is not managed by this stepper */
-	int32 FindAgentIndex(const TScriptInterface<IAgent>& InAgent) const
-	{
-		return this->Agents.IndexOfByPredicate([&InAgent](const TScriptInterface<IAgent>& Agent) { return Agent.GetObject() == InAgent.GetObject(); });
-	}
 };

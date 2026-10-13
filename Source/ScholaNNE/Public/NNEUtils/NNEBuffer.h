@@ -17,17 +17,90 @@ inline int GetTotalSize(TConstArrayView<int> Shape)
 }
 
 /**
+ * @brief Shape of one recurrent state tensor, resolved from the model's tensor description
+ *
+ * Holds everything needed to allocate an FNNEStateBuffer without the zeroed data itself,
+ * so a policy can create new states without parsing the model again.
+ */
+USTRUCT(BlueprintType)
+struct SCHOLANNE_API FNNEStateLayout
+{
+	GENERATED_BODY()
+
+	/** Tensor shape for the state buffer (batch fixed to 1 where applicable). */
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Policy Data")
+	TArray<int> Shape = TArray<int>();
+
+	/** Maximum Length of the state sequence */
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Policy Properties")
+	int MaxSeqLen = 0;
+
+	/** Index of the sequence dimension in the shape (or -1 if no sequence dimension). */
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Policy Properties")
+	int SeqDim = -1;
+
+	/** Flat size of one state vector (product of non-sequence dimensions). */
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Policy Properties")
+	int StateDimSize = 1;
+
+	FNNEStateLayout() = default;
+
+	/**
+	 * @param[in] InShape Logical tensor shape; first dimension (batch dimension) will be set to 1, as batched state is not currently supported.
+	 * @param[in] InMaxSeqLen Maximum sequence length when a sequence dimension is present.
+	 */
+	explicit FNNEStateLayout(TConstArrayView<int32> InShape, int InMaxSeqLen = 1)
+	{
+		this->Shape = InShape;
+		this->MaxSeqLen = InMaxSeqLen;
+		this->Shape[0] = 1; // Fix batch size at 1 for now, can be extended in the future
+		this->SeqDim = this->Shape.FindLast(-1);
+		// For now we only support the sequence dimension being the first dimension or not having a sequence dimension at all, but this can be extended in the future
+		if (this->HasSequenceDimension())
+		{
+			this->Shape[SeqDim] = MaxSeqLen;
+			TConstArrayView<int> NonSequenceShapeView = TConstArrayView<int>(Shape).Slice(SeqDim + 1, Shape.Num() - (SeqDim + 1));
+			this->StateDimSize = GetTotalSize(NonSequenceShapeView);
+		}
+		else
+		{
+			this->StateDimSize = GetTotalSize(this->Shape);
+		}
+	}
+
+	/** @return True if Shape contains a sequence axis (marked as -1 in the model). */
+	bool HasSequenceDimension() const
+	{
+		return this->SeqDim != -1;
+	}
+
+	/** @return Number of floats in the whole state sequence, i.e. the state_in tensor. */
+	int GetNumElements() const
+	{
+		return GetTotalSize(this->Shape);
+	}
+
+	/** @return Number of floats in an FNNEStateBuffer: the state sequence plus one pending state vector for state_out. */
+	int GetBufferNumElements() const
+	{
+		return this->GetNumElements() + this->StateDimSize;
+	}
+};
+
+/**
  * @brief Buffer for storing recurrent neural network state across time steps
  *
  * This buffer maintains state information for sequence-based neural network models,
- * storing a sequence of state vectors that can be shifted and updated.
+ * storing a sequence of state vectors that can be shifted and updated. It holds one
+ * extra state vector after the sequence, which the model's state_out tensor writes to
+ * so it never overlaps the state_in tensor. Update moves it into the sequence.
  */
 USTRUCT(BlueprintType)
 struct SCHOLANNE_API FNNEStateBuffer
 {
 	GENERATED_BODY()
 
-	/** Buffer storing the sequence of state vectors */
+	/** Buffer storing the sequence of state vectors, followed by the pending state vector */
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Policy Data")
 	TArray<float> StateBuffer;
 
@@ -50,51 +123,33 @@ struct SCHOLANNE_API FNNEStateBuffer
 	FNNEStateBuffer() = default;
 
 	/**
-	 * @param[in] Shape Logical tensor shape; first dimension (batch dimension) will be set to 1, as batched state is not currently supported.
-	 * @param[in] InMaxSeqLen Maximum sequence length when a sequence dimension is present.
+	 * @brief Allocates a zeroed state sequence with the given layout
+	 * @param[in] Layout The shape of the state tensor
 	 */
-	FNNEStateBuffer(TConstArrayView<int32> Shape, int InMaxSeqLen = 1)
+	explicit FNNEStateBuffer(const FNNEStateLayout& Layout)
+		: Shape(Layout.Shape), MaxSeqLen(Layout.MaxSeqLen), SeqDim(Layout.SeqDim), StateDimSize(Layout.StateDimSize)
 	{
-		this->Shape = Shape;
-		this->MaxSeqLen = InMaxSeqLen;
-		this->Shape[0] = 1; // Fix batch size at 1 for now, can be extended in the future
-		this->SeqDim = this->Shape.FindLast(-1);
-		// For now we only support the sequence dimension being the first dimension or not having a sequence dimension at all, but this can be extended in the future
-		if (this->HasSequenceDimension())
-		{
-			this->Shape[SeqDim] = MaxSeqLen;
-			TConstArrayView<int> NonSequenceShapeView = TConstArrayView<int>(Shape).Slice(SeqDim + 1, Shape.Num() - (SeqDim + 1));
-			this->StateDimSize = GetTotalSize(NonSequenceShapeView);
-		}
-		else
-		{
-			this->StateDimSize = GetTotalSize(this->Shape);
-		}
-		this->StateBuffer.Init(0.0f, GetTotalSize(this->Shape));
+		this->StateBuffer.Init(0.0f, Layout.GetBufferNumElements());
 	}
 
 	/**
-	 * @brief Shifts the state sequence by removing the oldest state and making room for a new one
+	 * @param[in] InShape Logical tensor shape; first dimension (batch dimension) will be set to 1, as batched state is not currently supported.
+	 * @param[in] InMaxSeqLen Maximum sequence length when a sequence dimension is present.
+	 */
+	FNNEStateBuffer(TConstArrayView<int32> InShape, int InMaxSeqLen = 1)
+		: FNNEStateBuffer(FNNEStateLayout(InShape, InMaxSeqLen))
+	{
+	}
+
+	/**
+	 * @brief Shifts every state vector one position earlier, including the pending one
 	 *
-	 * Moves all state vectors one position earlier in the sequence, discarding the first state
-	 * and preparing the last position for a new state.
+	 * Discards the oldest state and moves the pending state into the last position of the
+	 * sequence. Without a sequence dimension, the pending state replaces the whole state.
 	 */
 	void Shift()
 	{
-		// Shift overlapping regions safely
-		for (int i = 0; i < MaxSeqLen - 1; i++)
-		{
-			FMemory::Memmove(
-				StateBuffer.GetData() + i * StateDimSize,
-				StateBuffer.GetData() + (i + 1) * StateDimSize,
-				StateDimSize * sizeof(float));
-		}
-	}
-
-	/** @return True if Shape contains a sequence axis (marked as -1 during construction). */
-	bool HasSequenceDimension() const
-	{
-		return this->SeqDim != -1;
+		FMemory::Memmove(StateBuffer.GetData(), StateBuffer.GetData() + StateDimSize, (StateBuffer.Num() - StateDimSize) * sizeof(float));
 	}
 
 	/** Zeroes the whole state sequence. */
@@ -103,35 +158,28 @@ struct SCHOLANNE_API FNNEStateBuffer
 		FMemory::Memzero(StateBuffer.GetData(), StateBuffer.Num() * sizeof(float));
 	}
 
-	/** Drops the oldest state vector to make room for a new one, when a sequence dimension exists. */
+	/** Commits the pending state written by the model, dropping the oldest state of the sequence. */
 	void Update()
 	{
-		if (this->HasSequenceDimension())
-		{
-			this->Shift();
-		}
+		this->Shift();
 	}
 
 	/**
-	 * @brief Writes the newest state vector into the last position of the sequence
-	 *
-	 * Without a sequence dimension, NewState replaces the whole buffer. Call Update first
-	 * so the previous newest state is not overwritten.
-	 * @param[in] NewState The newest state vector, StateDimSize floats long
-	 */
-	void SetNewestState(TConstArrayView<float> NewState)
-	{
-		check(NewState.Num() == StateDimSize);
-		FMemory::Memcpy(StateBuffer.GetData() + StateBuffer.Num() - StateDimSize, NewState.GetData(), StateDimSize * sizeof(float));
-	}
-
-	/**
-	 * @brief Creates an NNE tensor binding for the entire state buffer as input
-	 * @return Tensor binding containing the full state sequence
+	 * @brief Creates an NNE tensor binding for the state sequence as input
+	 * @return Tensor binding containing the full state sequence, excluding the pending state
 	 */
 	UE::NNE::FTensorBindingCPU MakeInputBinding() const
 	{
 		return { (void*)(StateBuffer.GetData()), GetTotalSize(this->Shape) * sizeof(float) };
+	}
+
+	/**
+	 * @brief Creates an NNE tensor binding for the pending state vector as output
+	 * @return Tensor binding pointing after the state sequence, so it never overlaps the input binding
+	 */
+	UE::NNE::FTensorBindingCPU MakeOutputBinding() const
+	{
+		return { (void*)(StateBuffer.GetData() + StateBuffer.Num() - StateDimSize), StateDimSize * sizeof(float) };
 	}
 };
 

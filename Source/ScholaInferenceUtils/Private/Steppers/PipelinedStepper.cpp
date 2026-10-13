@@ -26,27 +26,27 @@ void UPipelinedStepper::Step()
 
         auto& Frame = Frames[PrevFrame];
 
-        if (Frame.Actions.Num() != Frame.DispatchedAgents.Num())
+        if (Frame.Actions.Num() != Frame.DispatchedSlotIds.Num())
         {
-            UE_LOGFMT(LogScholaInferenceUtils, Error, "PipelinedStepper::Step(): Action count mismatch - {0} actions for {1} agents", Frame.Actions.Num(), Frame.DispatchedAgents.Num());
+            UE_LOGFMT(LogScholaInferenceUtils, Error, "PipelinedStepper::Step(): Action count mismatch - {0} actions for {1} agents", Frame.Actions.Num(), Frame.DispatchedSlotIds.Num());
         }
         else
         {
-            // Agents may have been added or removed since dispatch, so only act on dispatched agents that are still managed
+            // Agents may have been added or removed since dispatch, so only act on dispatched entries that are still managed
             const bool bMembershipChanged = Frame.DispatchedMembershipVersion != MembershipVersion;
-            for (int i = 0; i < Frame.DispatchedAgents.Num(); ++i)
+            for (int i = 0; i < Frame.DispatchedSlotIds.Num(); ++i)
             {
-                UObject* Agent = Frame.DispatchedAgents[i].Get();
-                if (!Agent || (bMembershipChanged && FindAgentIndex(Agent) == INDEX_NONE))
+                const int32 AgentIndex = bMembershipChanged ? SlotIds.Find(Frame.DispatchedSlotIds[i]) : i;
+                if (AgentIndex == INDEX_NONE)
                 {
                     continue;
                 }
-                IAgent::Execute_Act(Agent, Frame.Actions[i]);
+                IAgent::Execute_Act(Agents[AgentIndex].GetObject(), Frame.Actions[i]);
             }
         }
 
         Frame.Actions.Reset();
-        Frame.DispatchedAgents.Reset();
+        Frame.DispatchedSlotIds.Reset();
         Frame.bActionsReady = false;
     }
     
@@ -81,11 +81,7 @@ void UPipelinedStepper::DispatchThink(int32 FrameIndex)
     TArray<TScriptInterface<IPolicyState>> StatesCopy = CurrentStates;
     bDispatchInFlight = true;
 
-    FramePtr->DispatchedAgents.Reset(Agents.Num());
-    for (const TScriptInterface<IAgent>& Agent : Agents)
-    {
-        FramePtr->DispatchedAgents.Add(Agent.GetObject());
-    }
+    FramePtr->DispatchedSlotIds = SlotIds;
     FramePtr->DispatchedMembershipVersion = MembershipVersion;
 
     TWeakObjectPtr<UPipelinedStepper> WeakThis(this);
@@ -148,99 +144,106 @@ void UPipelinedStepper::CompleteThink()
     RetiredStates.Reset();
 }
 
-bool UPipelinedStepper::AddAgent(const TScriptInterface<IAgent>& InAgent)
+int32 UPipelinedStepper::AddAgent(const TScriptInterface<IAgent>& InAgent)
 {
     if (!Policy)
     {
-        UE_LOGFMT(LogScholaInferenceUtils, Error, "PipelinedStepper::AddAgent(): No policy, call Init first");
-        return false;
+        UE_LOGFMT(LogScholaInferenceUtils, Error, "PipelinedStepper::AddAgent(): Stepper is not initialized, call Init first");
+        return INDEX_NONE;
     }
     if (!InAgent.GetObject())
     {
         UE_LOGFMT(LogScholaInferenceUtils, Error, "PipelinedStepper::AddAgent(): Agent is null");
-        return false;
-    }
-    if (FindAgentIndex(InAgent.GetObject()) != INDEX_NONE)
-    {
-        UE_LOGFMT(LogScholaInferenceUtils, Error, "PipelinedStepper::AddAgent(): Agent {0} is already managed by this stepper", InAgent.GetObject()->GetName());
-        return false;
+        return INDEX_NONE;
     }
 
     TScriptInterface<IPolicyState> State;
-    if (!CreateAgentState(*Policy, State))
+    if (!Policy->CreateInitialState(State))
     {
         UE_LOGFMT(LogScholaInferenceUtils, Error, "PipelinedStepper::AddAgent(): Policy failed to create the initial state for agent {0}", InAgent.GetObject()->GetName());
-        return false;
+        return INDEX_NONE;
     }
 
-    Agents.Add(InAgent);
     CurrentStates.Add(State);
+    SlotIds.Add(NextSlotId++);
     ++MembershipVersion;
-    return true;
+    return Agents.Add(InAgent);
 }
 
-bool UPipelinedStepper::RemoveAgent(const TScriptInterface<IAgent>& InAgent)
+bool UPipelinedStepper::RemoveAgentAt(int32 AgentIndex)
 {
-    UObject* RemovedAgent = InAgent.GetObject();
-    const int32 AgentIndex = FindAgentIndex(RemovedAgent);
-    if (AgentIndex == INDEX_NONE)
+    if (!Agents.IsValidIndex(AgentIndex))
     {
-        UE_LOGFMT(LogScholaInferenceUtils, Error, "PipelinedStepper::RemoveAgent(): Agent is not managed by this stepper");
+        UE_LOGFMT(LogScholaInferenceUtils, Error, "PipelinedStepper::RemoveAgentAt(): Invalid agent index {0}", AgentIndex);
         return false;
     }
 
-    // Preserve frame indexing but prevent any action dispatched for this membership
-    // from reaching the same UObject if it is re-added before the action is applied.
-    for (FPipelinedStepperFrame& Frame : Frames)
-    {
-        for (TWeakObjectPtr<UObject>& DispatchedAgent : Frame.DispatchedAgents)
-        {
-            if (DispatchedAgent.Get() == RemovedAgent)
-            {
-                DispatchedAgent.Reset();
-            }
-        }
-    }
-
-    if (bDispatchInFlight && CurrentStates[AgentIndex])
+    if (bDispatchInFlight)
     {
         RetiredStates.Add(CurrentStates[AgentIndex]);
     }
     Agents.RemoveAt(AgentIndex);
     CurrentStates.RemoveAt(AgentIndex);
+    SlotIds.RemoveAt(AgentIndex);
     ++MembershipVersion;
     return true;
 }
 
-int32 UPipelinedStepper::FindAgentIndex(const UObject* InAgent) const
+int32 UPipelinedStepper::RemoveAgent(const TScriptInterface<IAgent>& InAgent)
 {
-    if (!InAgent)
+    int32 NumRemoved = 0;
+    for (int32 i = Agents.Num() - 1; i >= 0; --i)
     {
-        return INDEX_NONE;
+        if (Agents[i].GetObject() == InAgent.GetObject())
+        {
+            RemoveAgentAt(i);
+            ++NumRemoved;
+        }
     }
-    return Agents.IndexOfByPredicate([InAgent](const TScriptInterface<IAgent>& Agent) { return Agent.GetObject() == InAgent; });
+    return NumRemoved;
+}
+
+int32 UPipelinedStepper::FindAgent(const TScriptInterface<IAgent>& InAgent) const
+{
+    return Agents.IndexOfByPredicate([&InAgent](const TScriptInterface<IAgent>& Agent) { return Agent.GetObject() == InAgent.GetObject(); });
+}
+
+TScriptInterface<IAgent> UPipelinedStepper::GetAgent(int32 AgentIndex) const
+{
+    if (!Agents.IsValidIndex(AgentIndex))
+    {
+        UE_LOGFMT(LogScholaInferenceUtils, Error, "PipelinedStepper::GetAgent(): Invalid agent index {0}", AgentIndex);
+        return TScriptInterface<IAgent>();
+    }
+    return Agents[AgentIndex];
+}
+
+TScriptInterface<IPolicyState> UPipelinedStepper::GetState(int32 AgentIndex) const
+{
+    if (!CurrentStates.IsValidIndex(AgentIndex))
+    {
+        UE_LOGFMT(LogScholaInferenceUtils, Error, "PipelinedStepper::GetState(): Invalid agent index {0}", AgentIndex);
+        return TScriptInterface<IPolicyState>();
+    }
+    return CurrentStates[AgentIndex];
 }
 
 void UPipelinedStepper::ResetStates()
 {
     for (int32 i = 0; i < CurrentStates.Num(); ++i)
     {
-        ResetAgentState(i);
+        ResetState(i);
     }
 }
 
-void UPipelinedStepper::ResetAgentState(int32 AgentIndex)
+void UPipelinedStepper::ResetState(int32 AgentIndex)
 {
     if (!CurrentStates.IsValidIndex(AgentIndex))
     {
-        UE_LOGFMT(LogScholaInferenceUtils, Error, "PipelinedStepper::ResetAgentState(): Invalid agent index {0}", AgentIndex);
+        UE_LOGFMT(LogScholaInferenceUtils, Error, "PipelinedStepper::ResetState(): Invalid agent index {0}", AgentIndex);
         return;
     }
     const TScriptInterface<IPolicyState>& State = CurrentStates[AgentIndex];
-    if (!State)
-    {
-        return;
-    }
     if (bDispatchInFlight)
     {
         PendingStateResets.AddUnique(State);

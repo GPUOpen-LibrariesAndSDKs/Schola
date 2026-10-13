@@ -25,8 +25,8 @@ class SCHOLA_API UPolicyState : public UInterface
  * policy, so a single policy instance can serve many agents, each with its own state.
  *
  * State objects are created by the policy (see IPolicy::CreateInitialState) and must be
- * kept alive by the caller through a UPROPERTY reference. A null state represents a
- * stateless policy.
+ * kept alive by the caller through a UPROPERTY reference. Stateless policies use
+ * UStatelessPolicyState, so a valid policy state is never null.
  *
  * Methods are native-only because Think may run off the game thread, where Blueprint
  * events cannot be executed.

@@ -36,22 +36,24 @@ public:
 	 * @param[in] InObservations The observations from the environment.
 	 * @param[in,out] InOutState The policy state, advanced in place to the next state.
 	 * @param[out] OutAction Output parameter that receives the generated action.
-	 * @return True if inference succeeded, false if NotifyStateUpdate failed.
+	 * @return True if inference succeeded, false if the state is invalid or NotifyStateUpdate failed.
 	 */
 	bool Think(
 		const TInstancedStruct<FPoint>&		  InObservations,
 		const TScriptInterface<IPolicyState>& InOutState,
 		TInstancedStruct<FPoint>&			  OutAction) override
 	{
-		this->ComputeAction(ToUntypedInstancedStruct(InObservations), InOutState, ToUntypedInstancedStruct(OutAction));
-		if (InOutState)
+		if (!InOutState)
 		{
-			if (!InOutState->NotifyStateUpdate())
-			{
-				return false;
-			}
-			this->WriteState(ToUntypedInstancedStruct(InObservations), InOutState);
+			UE_LOGFMT(LogSchola, Error, "UBlueprintPolicy::Think(): InOutState is not a valid native IPolicyState");
+			return false;
 		}
+		this->ComputeAction(ToUntypedInstancedStruct(InObservations), InOutState, ToUntypedInstancedStruct(OutAction));
+		if (!InOutState->NotifyStateUpdate())
+		{
+			return false;
+		}
+		this->WriteState(ToUntypedInstancedStruct(InObservations), InOutState);
 		return true;
 	}
 
@@ -63,7 +65,7 @@ public:
 	 * write the current step's data in WriteState.
 	 * 
 	 * @param[in] InObservations The observations from the environment.
-	 * @param[in] InState The policy state from the previous step, or null if stateless.
+	 * @param[in] InState The policy state from the previous step, a UStatelessPolicyState if stateless.
 	 * @param[out] OutAction Output parameter that receives the generated action.
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Schola|Policy")
@@ -74,9 +76,9 @@ public:
 	/**
 	 * @brief Blueprint event for writing the current step's data into the state.
 	 *
-	 * Called after ComputeAction and IPolicyState::NotifyStateUpdate, and only for
-	 * non-null states. Update InOutState in place; do not replace it with a new
-	 * object. Stateless policies can leave this unimplemented.
+	 * Called after ComputeAction and IPolicyState::NotifyStateUpdate. Update InOutState
+	 * in place; do not replace it with a new object. Stateless policies can leave this
+	 * unimplemented.
 	 *
 	 * @param[in] InObservations The observations from the environment.
 	 * @param[in] InOutState The policy state to write into.
@@ -87,13 +89,27 @@ public:
 	virtual void WriteState_Implementation(const FInstancedStruct& InObservations, const TScriptInterface<IPolicyState>& InOutState) {}
 
 	/**
-	 * @brief Native implementation of CreateInitialState that forwards to the Blueprint event.
-	 * @param[out] OutState Receives the new state, or null if the policy is stateless.
-	 * @return True if the state was created (or the policy is stateless).
+	 * @brief Blueprint event for initializing the policy.
+	 *
+	 * Implement this event in Blueprint to set up the policy when it is
+	 * first created or when the interaction definition changes.
+	 *
+	 * @param[in] InPolicyDefinition The interaction definition specifying observation and action spaces.
+	 * @return True if initialization succeeded, false otherwise.
 	 */
-	bool CreateInitialState(TScriptInterface<IPolicyState>& OutState) const override
+	UFUNCTION(BlueprintCallable, BlueprintImplementableEvent, Category = "Schola|Policy")
+	bool Init(const FInteractionDefinition& InPolicyDefinition) override;
+
+protected:
+
+	/**
+	 * @brief Native implementation of CreateInitialStateImpl that forwards to the Blueprint event.
+	 * @param[out] OutState Receives the new state.
+	 * @return True. CreateInitialState rejects the state if the Blueprint event returned None.
+	 */
+	bool CreateInitialStateImpl(TScriptInterface<IPolicyState>& OutState) const override
 	{
-		OutState = this->CreateInitialState();
+		OutState = this->ReceiveCreateInitialState();
 		return true;
 	}
 
@@ -102,28 +118,18 @@ public:
 	 * 
 	 * Override this event in Blueprint to construct a state object (of a C++ class
 	 * implementing IPolicyState) in the transient package. The default
-	 * implementation returns null, i.e. a stateless policy.
+	 * implementation returns the shared UStatelessPolicyState, i.e. a stateless policy.
+	 * Overrides for stateless policies should return Get Stateless Policy State, never None.
+	 * Not callable from Blueprint; callers go through IPolicy::CreateInitialState.
 	 * 
-	 * @return The new state object, or null if the policy is stateless.
+	 * @return The new state object.
 	 */
-	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Schola|Policy")
-	TScriptInterface<IPolicyState> CreateInitialState() const;
+	UFUNCTION(BlueprintNativeEvent, Category = "Schola|Policy", meta = (DisplayName = "Create Initial State"))
+	TScriptInterface<IPolicyState> ReceiveCreateInitialState() const;
 
-	virtual TScriptInterface<IPolicyState> CreateInitialState_Implementation() const
+	virtual TScriptInterface<IPolicyState> ReceiveCreateInitialState_Implementation() const
 	{
-		return nullptr;
+		return UStatelessPolicyState::Get();
 	}
-
-	/**
-	 * @brief Blueprint event for initializing the policy.
-	 * 
-	 * Implement this event in Blueprint to set up the policy when it is
-	 * first created or when the interaction definition changes.
-	 * 
-	 * @param[in] InPolicyDefinition The interaction definition specifying observation and action spaces.
-	 * @return True if initialization succeeded, false otherwise.
-	 */
-	UFUNCTION(BlueprintCallable, BlueprintImplementableEvent, Category = "Schola|Policy")
-	bool Init(const FInteractionDefinition& InPolicyDefinition) override;
 
 };

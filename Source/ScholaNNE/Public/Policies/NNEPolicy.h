@@ -68,7 +68,7 @@ public:
 	/**
 	 * @brief Blueprint-callable wrapper for the Think function
 	 * @param[in] InObservations The observations to process (generic instanced struct)
-	 * @param[in] InOutState The recurrent state, advanced in place to the next state, or null if the model is stateless
+	 * @param[in] InOutState The recurrent state, advanced in place to the next state, or a UStatelessPolicyState if the model is stateless
 	 * @param[out] OutAction The computed action (generic instanced struct)
 	 * @return true if inference succeeded, false otherwise
 	 */
@@ -97,12 +97,27 @@ public:
 	}
 
 	/**
+	 * @brief Blueprint-callable wrapper for IPolicy::CreateInitialState
+	 *
+	 * Named K2_CreateInitialState so it does not hide IPolicy::CreateInitialState(OutState) in C++.
+	 * @return A new zeroed UNNEPolicyState, the shared UStatelessPolicyState if the model is stateless, or null if the policy is not initialized
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Schola|Policy", meta = (DisplayName = "Create Initial State"))
+	TScriptInterface<IPolicyState> K2_CreateInitialState() const
+	{
+		TScriptInterface<IPolicyState> State;
+		this->CreateInitialState(State);
+		return State;
+	}
+
+	/**
 	 * @brief Runs neural network inference to compute an action and advance the recurrent state
 	 *
 	 * For models with state tensors, InOutState must be a UNNEPolicyState created by
-	 * CreateInitialState. For stateless models it is ignored. InOutState is only modified
-	 * if inference succeeds: then NotifyStateUpdate is called on it and the model's newest
-	 * state is written into it.
+	 * CreateInitialState. For stateless models it is ignored. The model writes its newest
+	 * state into the pending slot of each state buffer, which is not part of the state yet.
+	 * If inference succeeds, NotifyStateUpdate moves it into the state, so the state only
+	 * changes on success.
 	 *
 	 * @param[in] InObservations The observation point to process
 	 * @param[in,out] InOutState The recurrent state from the previous step, advanced in place to the next state
@@ -113,25 +128,6 @@ public:
 		const TInstancedStruct<FPoint>&		  InObservations,
 		const TScriptInterface<IPolicyState>& InOutState,
 		TInstancedStruct<FPoint>&			  OutActions) override;
-
-	/**
-	 * @brief Creates a zeroed UNNEPolicyState matching the model's state tensors
-	 * @param[out] OutState Receives the new state, or null if the model has no state tensors
-	 * @return true if the state was created (or the model is stateless), false if the policy is not initialized
-	 */
-	virtual bool CreateInitialState(TScriptInterface<IPolicyState>& OutState) const override;
-
-	/**
-	 * @brief Blueprint-callable wrapper for CreateInitialState
-	 * @return The new state, or null if the model is stateless or the policy is not initialized
-	 */
-	UFUNCTION(BlueprintCallable, Category = "Schola|Policy")
-	TScriptInterface<IPolicyState> CreateInitialState() const
-	{
-		TScriptInterface<IPolicyState> State;
-		this->CreateInitialState(State);
-		return State;
-	}
 
 	/**
 	 * @brief Initializes the policy with the given interaction definition
@@ -149,9 +145,9 @@ public:
 	UPROPERTY(VisibleAnywhere,BlueprintReadOnly, Category="Policy Data")
 	TInstancedStruct<FNNEPointBuffer> ObservationBuffer;
 
-	/** Zeroed state buffers, one per state tensor pair in the model, that new states are copied from */
+	/** Layout of each state tensor pair in the model, read once in Init and used to allocate new states */
 	UPROPERTY(VisibleAnywhere,BlueprintReadOnly, Category="Policy Data")
-	TArray<FNNEStateBuffer> InitialStateBuffers;
+	TArray<FNNEStateLayout> StateLayouts;
 
 	/**
 	 * @brief Checks if an inference operation is currently running
@@ -161,6 +157,13 @@ public:
 	bool IsInferenceBusy() const override;
 
 protected:
+
+	/**
+	 * @brief Creates a zeroed UNNEPolicyState matching the model's state tensors
+	 * @param[out] OutState Receives the new state, or the shared UStatelessPolicyState if the model has no state tensors
+	 * @return true if the state was created, false if the policy is not initialized
+	 */
+	virtual bool CreateInitialStateImpl(TScriptInterface<IPolicyState>& OutState) const override;
 
 	/**
 	 * @brief Initializes the input tensor shapes for the model instance
@@ -177,25 +180,31 @@ protected:
 	bool AllocateBindingArrays(TSharedPtr<IModelInstanceRunSync> InModelInstance);
 
 	/**
-	 * @brief Finds the state tensors of a recurrent model and builds the initial state buffers
+	 * @brief Finds the state tensors of a recurrent model and records the layout of each one
 	 * @param[in] InModelInstance The model instance to initialize state for
 	 * @return true if initialization succeeded, false otherwise
 	 */
 	bool InitStateBuffersAndBindings(TSharedPtr<IModelInstanceRunSync> InModelInstance);
 
 	/**
+	 * @brief Converts a policy state to a UNNEPolicyState
+	 * @param[in] InState The state to convert
+	 * @return The state as a UNNEPolicyState, or null if it is not one
+	 */
+	static UNNEPolicyState* AsNNEPolicyState(const TScriptInterface<IPolicyState>& InState);
+
+	/**
 	 * @brief Checks that a state object was created by this policy for the current model
 	 * @param[in] InState The state to check
 	 * @return true if InState has one buffer of the expected size per model state tensor
 	 */
-	bool IsStateCompatible(const UNNEPolicyState* InState) const;
-
+	bool IsStateCompatible(const UNNEPolicyState& InState) const;
 	/**
-	 * @brief Points the state input bindings at InOutState and the state output bindings at StateOutputBuffers. Only valid for models with state tensors
+	 * @brief Points the state input bindings at InOutState's state sequences and the state output bindings at its pending state vectors. Only valid for models with state tensors
 	 * @param[in] InOutState The recurrent state from the previous step
-	 * @return The state as a UNNEPolicyState, or null if InOutState is not valid for this model
+	 * @return true if InOutState matches this model's state tensors and was bound, false otherwise
 	 */
-	UNNEPolicyState* BindState(const TScriptInterface<IPolicyState>& InOutState);
+	bool BindState(UNNEPolicyState& InOutState);
 
 	/**
 	 * @brief Initializes buffers for non-state data (observations and actions)
@@ -235,14 +244,11 @@ private:
 	/** Array of output tensor bindings for receiving data from the model */
 	TArray<UE::NNE::FTensorBindingCPU> OutputBindings;
 
-	/** Input binding index of each state_in tensor, parallel to InitialStateBuffers */
+	/** Input binding index of each state_in tensor, parallel to StateLayouts */
 	TArray<int32> StateInputBindingIndices;
 
-	/** Output binding index of each state_out tensor, parallel to InitialStateBuffers */
+	/** Output binding index of each state_out tensor, parallel to StateLayouts */
 	TArray<int32> StateOutputBindingIndices;
-
-	/** Scratch buffers the state_out tensors are written to, since they must not alias the state_in tensors. Parallel to InitialStateBuffers */
-	TArray<TArray<float>> StateOutputBuffers;
 
 	/** Atomic flag preventing concurrent inference operations and buffer races */
 	std::atomic<bool> bInferenceInFlight {false};

@@ -153,8 +153,12 @@ these tensors remain stateless.
 
 After ``Init()``, the stepper calls ``CreateInitialState()`` once for each agent. For a recurrent
 model this creates a zero-initialized :cpp:class:`UNNEPolicyState`; for a stateless model it returns
-null. Each inference reads that agent's previous state and, after successful inference, advances it
-in place with the corresponding ``state_out`` values.
+the shared :cpp:class:`UStatelessPolicyState`. Each inference reads that agent's previous state
+and, after successful inference, advances it in place with the corresponding ``state_out`` values.
+
+If you call ``Think`` on a ``UNNEPolicy`` directly instead of through a stepper, create one state
+per agent yourself. In Blueprint, call **Create Initial State** on the policy after ``Init`` and
+store the result in a variable that you pass to every ``Think`` call for that agent.
 
 If a state input has a dynamic sequence dimension, ``Max State Sequence Length`` controls the
 allocated history length. On each successful inference Schola drops the oldest entry and appends the
@@ -191,11 +195,15 @@ Create a :cpp:class:`USimpleStepper` to manage the observation-inference-action 
             // In your Tick function:
             Stepper->Step();
 
-The stepper creates and retains a separate policy state for every agent. Calling ``AddAgent()``
-creates a new initial state, and calling ``RemoveAgent()`` releases that agent's state when it is
-safe to do so. Call ``ResetAgentState()`` or ``ResetStates()`` at episode boundaries to return
-recurrent state to its initial value. Null states used by stateless models require no special
-handling.
+The stepper creates and retains a separate policy state for every agent. It manages agents like a
+``TArray``: ``AddAgent()`` creates a new initial state and returns the agent's index.
+``RemoveAgentAt()`` takes an index and releases that agent's state when it is safe to do so, and
+later agents shift down by one. ``RemoveAgent()`` removes every entry for an agent and returns how
+many it removed. ``FindAgent()`` returns the index of the first entry for an agent, and
+``GetAgent()`` and ``GetState()`` look up an entry by index. The same agent can be added more than
+once, with each entry getting its own state. Call ``ResetState()`` or ``ResetStates()`` at episode
+boundaries to return recurrent state to its initial value. Resetting the state of a stateless
+model does nothing.
 
 .. note::
     
@@ -215,7 +223,14 @@ each agent retains independent state.
 The policy defines the state type and creates its initial value through ``CreateInitialState()``.
 The caller owns the returned object, keeps it alive with a ``UPROPERTY`` reference, and passes the
 same object to every ``Think()`` call for that agent. ``Think()`` advances the object in place; it
-must not replace it. A null state represents a stateless policy.
+must not replace it.
+
+Stateless policies return the shared :cpp:class:`UStatelessPolicyState` from
+``UStatelessPolicyState::Get()`` (**Get Stateless Policy State** in Blueprint), which is what the
+default implementation does. A state is therefore never null. Policies implement the protected
+``CreateInitialStateImpl()``, and callers use the non-virtual ``CreateInitialState()``, which
+rejects a state without a native ``IPolicyState``, such as ``None`` from a Blueprint override. An
+agent whose policy returns ``None`` therefore fails to be added to a stepper.
 
 State implementations provide the following operations:
 
@@ -236,8 +251,7 @@ A stateful ``Think()`` follows a specific order:
 
 If ``Think()`` or ``NotifyStateUpdate()`` returns false, that agent's state must remain unchanged.
 A default ``BatchedThink()`` call processes agents in order, so states processed before a later
-failure may already have advanced. Batched callers must supply exactly one state per observation,
-including null entries for stateless policies.
+failure may already have advanced. Batched callers must supply exactly one state per observation.
 
 ``IPolicyState`` implementations must be native C++ classes; the interface cannot be implemented
 entirely in Blueprint. ``CreateInitialState()`` runs on the game thread, but ``Think()`` and
@@ -248,58 +262,77 @@ while inference is in flight.
 Implementing a Custom Stateful Policy
 -------------------------------------
 
-A custom C++ policy implements :cpp:class:`IPolicy`. For example, a policy whose state contains a
-``Messages`` array can create and advance that state as follows:
+A custom C++ policy implements :cpp:class:`IPolicy`. For example, a policy that runs its own LSTM
+keeps the hidden and cell state for each agent, and creates and advances that state as follows:
 
 .. code-block:: cpp
 
-    bool UChatPolicy::CreateInitialState(
+    bool ULSTMPolicy::CreateInitialStateImpl(
         TScriptInterface<IPolicyState>& OutState) const
     {
-        OutState = NewObject<UChatPolicyState>(GetTransientPackage());
+        ULSTMPolicyState* State = NewObject<ULSTMPolicyState>(GetTransientPackage());
+        State->Hidden.Init(0.0f, HiddenSize);
+        State->Cell.Init(0.0f, HiddenSize);
+        OutState = State;
         return true;
     }
 
-    bool UChatPolicy::Think(
+    bool ULSTMPolicy::Think(
         const TInstancedStruct<FPoint>& InObservations,
         const TScriptInterface<IPolicyState>& InOutState,
         TInstancedStruct<FPoint>& OutAction)
     {
-        UChatPolicyState* State =
-            Cast<UChatPolicyState>(InOutState.GetObject());
-        if (!State || !InObservations.IsValid())
+        ULSTMPolicyState* State =
+            Cast<ULSTMPolicyState>(InOutState.GetObject());
+        const FBoxPoint* Observation = InObservations.GetPtr<FBoxPoint>();
+        if (!State || !Observation)
         {
             return false;
         }
 
-        // Read the previous state while computing this step's action.
-        OutAction.InitializeAs<FBoxPoint>(
-            TArray<float>{static_cast<float>(State->Messages.Num() + 1)});
+        // Read the previous hidden and cell state while computing this step's action.
+        TArray<float> ActionValues;
+        TArray<float> NewHidden;
+        TArray<float> NewCell;
+        if (!RunLSTMCell(Observation->Values, State->Hidden, State->Cell,
+                ActionValues, NewHidden, NewCell))
+        {
+            return false;
+        }
+        OutAction.InitializeAs<FBoxPoint>(ActionValues);
 
-        // Let the state decide what history carries over.
+        // Let the state prepare for this step's values.
         if (!State->NotifyStateUpdate())
         {
             return false;
         }
 
         // Only mutate the state after NotifyStateUpdate succeeds.
-        State->Messages.Add(InObservations.Get().ToString());
+        State->Hidden = MoveTemp(NewHidden);
+        State->Cell = MoveTemp(NewCell);
         return true;
     }
 
-``UChatPolicyState`` implements :cpp:class:`IPolicyState` and provides ``Reset()`` and
-``CopyFrom()`` for its ``Messages`` array. It can optionally override ``NotifyStateUpdate()`` to
-limit how much history is retained.
+``RunLSTMCell`` stands in for the policy's own inference code. ``ULSTMPolicyState`` implements
+:cpp:class:`IPolicyState` with ``Hidden`` and ``Cell`` arrays: ``Reset()`` fills both with zeros, and
+``CopyFrom()`` copies both arrays from another ``ULSTMPolicyState``. The default
+``NotifyStateUpdate()`` is enough here; a state that keeps a sequence of past values would
+override it to drop the oldest entry.
+
+You only need a custom policy for models that ``UNNEPolicy`` cannot run. For ONNX models,
+``UNNEPolicy`` handles recurrent state automatically through ``state_in`` and ``state_out`` tensors,
+as described in `Recurrent ONNX Models`_.
 
 Blueprint Policies
 ^^^^^^^^^^^^^^^^^^
 
 Derive from :cpp:class:`UBlueprintPolicy` to implement policy behavior in Blueprint:
 
-1. ``CreateInitialState`` returns a native C++ object implementing ``IPolicyState``, or null for a
-   stateless policy.
+1. ``CreateInitialState`` returns a native C++ object implementing ``IPolicyState``. The default
+   returns the stateless state; an override for a stateless policy should return
+   **Get Stateless Policy State**, never ``None``.
 2. ``ComputeAction`` reads the observation and previous state to produce an action.
-3. Schola calls ``NotifyStateUpdate()`` on a non-null state.
+3. Schola calls ``NotifyStateUpdate()`` on the state.
 4. ``WriteState`` writes the current step's data into that same state object.
 
 ``IPolicyState`` cannot be implemented entirely in Blueprint because state methods may run on a

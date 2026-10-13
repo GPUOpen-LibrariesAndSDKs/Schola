@@ -188,9 +188,8 @@ bool FVerifyStatefulPipelinedStepperCommand::Update()
 	{
 		return true;
 	}
-	const TArray<TScriptInterface<IPolicyState>>& States = Context->Stepper->GetCurrentStates();
-	const int32 Count0 = UTestStatefulPolicy::GetCount(States[0]);
-	const int32 Count1 = UTestStatefulPolicy::GetCount(States[1]);
+	const int32 Count0 = UTestStatefulPolicy::GetCount(Context->Stepper->GetState(0));
+	const int32 Count1 = UTestStatefulPolicy::GetCount(Context->Stepper->GetState(1));
 	const int32 ThinkCount = Context->Policy->ThinkCount.load();
 
 	Context->Test->TestTrue(TEXT("State advanced at least once"), Count0 > 0);
@@ -220,9 +219,8 @@ bool FVerifyStatefulPipelinedStepperResetCommand::Update()
 	{
 		return true;
 	}
-	const TArray<TScriptInterface<IPolicyState>>& States = Context->Stepper->GetCurrentStates();
-	Context->Test->TestEqual(TEXT("Agent 0 reset applied after in-flight inference"), UTestStatefulPolicy::GetCount(States[0]), 0);
-	Context->Test->TestEqual(TEXT("Agent 1 reset applied after in-flight inference"), UTestStatefulPolicy::GetCount(States[1]), 0);
+	Context->Test->TestEqual(TEXT("Agent 0 reset applied after in-flight inference"), UTestStatefulPolicy::GetCount(Context->Stepper->GetState(0)), 0);
+	Context->Test->TestEqual(TEXT("Agent 1 reset applied after in-flight inference"), UTestStatefulPolicy::GetCount(Context->Stepper->GetState(1)), 0);
 	return true;
 }
 
@@ -255,8 +253,8 @@ bool FStepAndSwapAgentsPipelinedStepperCommand::Update()
 	// The first Step dispatches, so agent 0 is removed and agent 2 added while that inference is in flight
 	Context->Stepper->Step();
 	Context->Agents.Emplace(NewObject<UTestAgent>());
-	Context->Test->TestTrue(TEXT("RemoveAgent while in flight succeeds"), Context->Stepper->RemoveAgent(Context->Agents[0].Get()));
-	Context->Test->TestTrue(TEXT("AddAgent while in flight succeeds"), Context->Stepper->AddAgent(Context->Agents[2].Get()));
+	Context->Test->TestEqual(TEXT("RemoveAgent while in flight succeeds"), Context->Stepper->RemoveAgent(Context->Agents[0].Get()), 1);
+	Context->Test->TestEqual(TEXT("AddAgent while in flight succeeds"), Context->Stepper->AddAgent(Context->Agents[2].Get()), 1);
 	return true;
 }
 
@@ -267,13 +265,12 @@ bool FVerifySwappedAgentsPipelinedStepperCommand::Update()
 	{
 		return true;
 	}
-	const TArray<TScriptInterface<IPolicyState>>& States = Context->Stepper->GetCurrentStates();
-	if (!Context->Test->TestEqual(TEXT("One state per remaining agent"), States.Num(), 2))
+	if (!Context->Test->TestEqual(TEXT("Two agents remain"), Context->Stepper->NumAgents(), 2))
 	{
 		return true;
 	}
-	const int32 Count1 = UTestStatefulPolicy::GetCount(States[0]);
-	const int32 Count2 = UTestStatefulPolicy::GetCount(States[1]);
+	const int32 Count1 = UTestStatefulPolicy::GetCount(Context->Stepper->GetState(0));
+	const int32 Count2 = UTestStatefulPolicy::GetCount(Context->Stepper->GetState(1));
 	const int32 ThinkCount = Context->Policy->ThinkCount.load();
 
 	Context->Test->TestEqual(TEXT("Removed agent never receives the in-flight action"), Context->Agents[0]->GetLastActionReceived(), -1);
@@ -311,8 +308,8 @@ bool FStepAndReaddSameAgentPipelinedStepperCommand::Update()
 	}
 
 	Context->Stepper->Step();
-	Context->Test->TestTrue(TEXT("RemoveAgent while in flight succeeds"), Context->Stepper->RemoveAgent(Context->Agents[0].Get()));
-	Context->Test->TestTrue(TEXT("Re-adding the same agent while in flight succeeds"), Context->Stepper->AddAgent(Context->Agents[0].Get()));
+	Context->Test->TestEqual(TEXT("RemoveAgent while in flight succeeds"), Context->Stepper->RemoveAgent(Context->Agents[0].Get()), 1);
+	Context->Test->TestEqual(TEXT("Re-adding the same agent while in flight succeeds"), Context->Stepper->AddAgent(Context->Agents[0].Get()), 1);
 	return true;
 }
 
@@ -358,6 +355,85 @@ bool FPipelinedStepperReaddSameAgentTest::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FApplyOldMembershipActionPipelinedStepperCommand(Context));
 	ADD_LATENT_AUTOMATION_COMMAND(FWaitLatentCommand(0.5f));
 	ADD_LATENT_AUTOMATION_COMMAND(FApplyNewMembershipActionPipelinedStepperCommand(Context));
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPipelinedStepperRejectsNoneStateTest, "Schola.Steppers.PipelinedStepper Rejects None State", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FPipelinedStepperRejectsNoneStateTest::RunTest(const FString& Parameters)
+{
+	UTestStatefulPolicy* TestPolicy = NewObject<UTestStatefulPolicy>();
+	TestPolicy->bReturnNoneState = true;
+	UPipelinedStepper* Stepper = NewObject<UPipelinedStepper>();
+
+	TArray<TScriptInterface<IAgent>> Agents;
+	Agents.Add(NewObject<UTestAgent>());
+
+	AddExpectedMessage(TEXT("not a native IPolicyState"), EAutomationExpectedMessageFlags::Contains, 1);
+	AddExpectedMessage(TEXT("failed to create the initial state"), EAutomationExpectedMessageFlags::Contains, 1);
+	TestFalse(TEXT("Init fails when the policy returns a None state"), Stepper->Init(Agents, TScriptInterface<IPolicy>(TestPolicy)));
+	TestEqual(TEXT("No agent is added"), Stepper->NumAgents(), 0);
+
+	return true;
+}
+
+DEFINE_LATENT_AUTOMATION_COMMAND_ONE_PARAMETER(FCreateDuplicateAgentPipelinedStepperCommand, TSharedPtr<FPipelinedStepperStatefulTestContext>, Context);
+bool FCreateDuplicateAgentPipelinedStepperCommand::Update()
+{
+	Context->Policy = TStrongObjectPtr<UTestStatefulPolicy>(NewObject<UTestStatefulPolicy>());
+	Context->Stepper = TStrongObjectPtr<UPipelinedStepper>(NewObject<UPipelinedStepper>());
+	Context->Agents.Emplace(NewObject<UTestAgent>());
+
+	TArray<TScriptInterface<IAgent>> Agents;
+	Agents.Add(Context->Agents[0].Get());
+	Agents.Add(Context->Agents[0].Get());
+
+	Context->bInitialized = Context->Stepper->Init(Agents, TScriptInterface<IPolicy>(Context->Policy.Get()));
+	Context->Test->TestTrue(TEXT("PipelinedStepper initialized with the same agent twice"), Context->bInitialized);
+	return true;
+}
+
+DEFINE_LATENT_AUTOMATION_COMMAND_ONE_PARAMETER(FStepAndRemoveDuplicatePipelinedStepperCommand, TSharedPtr<FPipelinedStepperStatefulTestContext>, Context);
+bool FStepAndRemoveDuplicatePipelinedStepperCommand::Update()
+{
+	if (!Context->bInitialized)
+	{
+		return true;
+	}
+	// The first Step dispatches, so one of the two entries for the agent is removed while that inference is in flight
+	Context->Stepper->Step();
+	Context->Test->TestTrue(TEXT("Removing one entry of a duplicated agent succeeds"), Context->Stepper->RemoveAgentAt(0));
+	return true;
+}
+
+DEFINE_LATENT_AUTOMATION_COMMAND_ONE_PARAMETER(FVerifyRemainingDuplicatePipelinedStepperCommand, TSharedPtr<FPipelinedStepperStatefulTestContext>, Context);
+bool FVerifyRemainingDuplicatePipelinedStepperCommand::Update()
+{
+	if (!Context->bInitialized)
+	{
+		return true;
+	}
+	Context->Stepper->Step();
+	Context->Test->TestEqual(TEXT("The remaining entry is still managed"), Context->Stepper->FindAgent(Context->Agents[0].Get()), 0);
+	Context->Test->TestEqual(TEXT("The remaining entry receives its in-flight action"), Context->Agents[0]->GetLastActionReceived(), 1);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FPipelinedStepperDuplicateAgentTest,
+	"Schola.Steppers.PipelinedStepper Remove Duplicate Agent In Flight",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FPipelinedStepperDuplicateAgentTest::RunTest(const FString& Parameters)
+{
+	TSharedPtr<FPipelinedStepperStatefulTestContext> Context = MakeShared<FPipelinedStepperStatefulTestContext>();
+	Context->Test = this;
+
+	ADD_LATENT_AUTOMATION_COMMAND(FCreateDuplicateAgentPipelinedStepperCommand(Context));
+	ADD_LATENT_AUTOMATION_COMMAND(FStepAndRemoveDuplicatePipelinedStepperCommand(Context));
+	ADD_LATENT_AUTOMATION_COMMAND(FWaitLatentCommand(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FVerifyRemainingDuplicatePipelinedStepperCommand(Context));
 
 	return true;
 }

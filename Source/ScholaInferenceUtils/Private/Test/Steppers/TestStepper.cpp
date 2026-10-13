@@ -7,6 +7,7 @@
 #include "Spaces/MultiDiscreteSpace.h"
 #include "Points/Point.h"
 #include "Misc/ScopeExit.h"
+#include "UObject/Package.h"
 
 // Static tracking variables (internal linkage)
 static TSet<uint32> GTestPolicyThreadIds; // threads that executed Think
@@ -206,9 +207,9 @@ bool UTestStatefulPolicy::Think(
 	return true;
 }
 
-bool UTestStatefulPolicy::CreateInitialState(TScriptInterface<IPolicyState>& OutState) const
+bool UTestStatefulPolicy::CreateInitialStateImpl(TScriptInterface<IPolicyState>& OutState) const
 {
-	OutState = NewObject<UTestCounterState>(GetTransientPackage());
+	OutState = bReturnNoneState ? nullptr : NewObject<UTestCounterState>(GetTransientPackage());
 	return true;
 }
 

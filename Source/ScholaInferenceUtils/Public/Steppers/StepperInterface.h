@@ -53,8 +53,8 @@ public:
      * 
      * Sets up the stepper to manage multiple agents using a single shared policy.
      * Replaces any agents added before, as if each agent in InAgents were passed to AddAgent.
-     * The policy must support batched inference for multiple agents, and must already
-     * be initialized, since the stepper creates each agent's policy state from it.
+     * Any policy works, since IPolicy::BatchedThink defaults to calling Think once per agent.
+     * The policy must already be initialized, since the stepper creates each agent's policy state from it.
      * 
      * @param[in] InAgents Array of agents to manage
      * @param[in] InPolicy The policy to use for inference
@@ -62,40 +62,72 @@ public:
      */
     virtual bool Init(const TArray<TScriptInterface<IAgent>>& InAgents, const TScriptInterface<IPolicy>& InPolicy) = 0;
 
+    /*
+     * The stepper manages its agents like a TArray: each agent is identified by its index, agents
+     * keep the order they were added in, and removing an agent shifts every later agent down by one.
+     * The same agent object can be added more than once, and each entry gets its own policy state.
+     * All of these functions must be called on the Game Thread.
+     */
+
     /**
-     * @brief Start stepping an agent with the stepper's policy.
+     * @brief Start stepping an agent with the stepper's policy, like TArray::Add.
      *
      * The stepper creates and owns the agent's policy state, starting from the state at the
-     * start of an episode. Must be called on the Game Thread, after Init.
+     * start of an episode. Must be called after Init.
      *
-     * @param[in] InAgent The agent to add. Must not already be managed by this stepper
-     * @return true if the agent was added, false otherwise
+     * @param[in] InAgent The agent to add. Can already be managed by this stepper
+     * @return The index of the added agent, or INDEX_NONE if it could not be added
      */
-    virtual bool AddAgent(const TScriptInterface<IAgent>& InAgent) = 0;
+    virtual int32 AddAgent(const TScriptInterface<IAgent>& InAgent) = 0;
 
     /**
-     * @brief Stop stepping an agent and release its policy state.
+     * @brief Stop stepping an agent and release its policy state, like TArray::RemoveAt.
      *
-     * Must be called on the Game Thread.
+     * @param[in] AgentIndex Index of the agent to remove
+     * @return true if the index was valid and the agent has been removed, false otherwise
+     */
+    virtual bool RemoveAgentAt(int32 AgentIndex) = 0;
+
+    /**
+     * @brief Stop stepping every entry for an agent and release their policy states, like TArray::Remove.
      *
      * @param[in] InAgent The agent to remove
-     * @return true if the agent was managed by this stepper and has been removed, false otherwise
+     * @return The number of entries removed
      */
-    virtual bool RemoveAgent(const TScriptInterface<IAgent>& InAgent) = 0;
-
-protected:
+    virtual int32 RemoveAgent(const TScriptInterface<IAgent>& InAgent) = 0;
 
     /**
-     * @brief Create the policy state for a newly added agent.
-     * 
-     * @param[in] InPolicy The initialized policy to create the state from
-     * @param[out] OutState Receives the agent's initial state (null for stateless policies)
-     * @return true if the state was created, false otherwise
+     * @brief Find an agent, like TArray::Find.
+     *
+     * @param[in] InAgent The agent to look for
+     * @return The index of the first entry for InAgent, or INDEX_NONE if it is not managed by this stepper
      */
-    static bool CreateAgentState(IPolicy& InPolicy, TScriptInterface<IPolicyState>& OutState)
-    {
-        return InPolicy.CreateInitialState(OutState);
-    }
+    virtual int32 FindAgent(const TScriptInterface<IAgent>& InAgent) const = 0;
+
+    /** @return The number of agents managed by this stepper, like TArray::Num */
+    virtual int32 NumAgents() const = 0;
+
+    /**
+     * @param[in] AgentIndex Index of the agent
+     * @return The agent at AgentIndex, or null if the index is invalid
+     */
+    virtual TScriptInterface<IAgent> GetAgent(int32 AgentIndex) const = 0;
+
+    /**
+     * @param[in] AgentIndex Index of the agent
+     * @return The policy state of the agent at AgentIndex, or null if the index is invalid
+     */
+    virtual TScriptInterface<IPolicyState> GetState(int32 AgentIndex) const = 0;
+
+    /**
+     * @brief Reset one agent's policy state to the start of an episode.
+     *
+     * @param[in] AgentIndex Index of the agent
+     */
+    virtual void ResetState(int32 AgentIndex) = 0;
+
+    /** @brief Reset every agent's policy state to the start of an episode. */
+    virtual void ResetStates() = 0;
 
 };
 

@@ -26,7 +26,7 @@ bool FNNEPolicyStateResetTest::RunTest(const FString& Parameters)
 			TestEqual(*FString::Printf(TEXT("Buffer %d is zeroed"), i), Value, 0.0f);
 		}
 	}
-	TestEqual(TEXT("Reset keeps buffer sizes"), State->Buffers[0].StateBuffer.Num(), 6);
+	TestEqual(TEXT("Reset keeps buffer sizes"), State->Buffers[0].StateBuffer.Num(), 8);
 	return true;
 }
 
@@ -55,13 +55,15 @@ bool FNNEPolicyStateNotifyStateUpdateTest::RunTest(const FString& Parameters)
 	UNNEPolicyState* State = NewObject<UNNEPolicyState>();
 	State->Buffers.Emplace(TArray<int32> { -1, -1, 2 }, 3);
 	State->Buffers.Emplace(TArray<int32> { -1, 2 });
-	State->Buffers[0].StateBuffer = { 0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f };
-	State->Buffers[1].StateBuffer = { 6.0f, 7.0f };
+	// The last two floats of each buffer are the pending state the model wrote
+	State->Buffers[0].StateBuffer = { 0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f };
+	State->Buffers[1].StateBuffer = { 6.0f, 7.0f, 8.0f, 9.0f };
 
 	TestTrue(TEXT("NotifyStateUpdate succeeds"), State->NotifyStateUpdate());
 	TestEqual(TEXT("Oldest sequence entry dropped"), State->Buffers[0].StateBuffer[0], 2.0f);
 	TestEqual(TEXT("Sequence shifted one entry earlier"), State->Buffers[0].StateBuffer[3], 5.0f);
-	TestEqual(TEXT("Buffer without a sequence dimension unchanged"), State->Buffers[1].StateBuffer[1], 7.0f);
+	TestEqual(TEXT("Pending state committed as newest"), State->Buffers[0].StateBuffer[5], 7.0f);
+	TestEqual(TEXT("Buffer without a sequence dimension takes the pending state"), State->Buffers[1].StateBuffer[1], 9.0f);
 	return true;
 }
 
@@ -75,6 +77,17 @@ bool FNNEPolicyCreateInitialStateRequiresInitTest::RunTest(const FString& Parame
 	AddExpectedMessage(TEXT("Network not loaded"), EAutomationExpectedMessageFlags::Contains, 1);
 	TestFalse(TEXT("CreateInitialState fails before Init"), Policy->CreateInitialState(State));
 	TestNull(TEXT("No state is created before Init"), State.GetObject());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNNEPolicyBlueprintCreateInitialStateRequiresInitTest, "Schola.Policies.NNE.NNEPolicy.Blueprint CreateInitialState Requires Init", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FNNEPolicyBlueprintCreateInitialStateRequiresInitTest::RunTest(const FString& Parameters)
+{
+	UNNEPolicy* Policy = NewObject<UNNEPolicy>();
+
+	AddExpectedMessage(TEXT("Network not loaded"), EAutomationExpectedMessageFlags::Contains, 1);
+	TestNull(TEXT("Blueprint wrapper returns null before Init"), Policy->K2_CreateInitialState().GetObject());
 	return true;
 }
 

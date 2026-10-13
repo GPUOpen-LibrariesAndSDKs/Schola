@@ -145,7 +145,7 @@ private:
 	TInstancedStruct<FPoint> ObservationBuffer;
 	TInstancedStruct<FPoint> ActionBuffer;
 
-	/** Policy state, advanced in place by each decision. Null for stateless policies. */
+	/** Policy state, advanced in place by each decision. Null until the policy is initialized. */
 	UPROPERTY(Transient)
 	TScriptInterface<IPolicyState> CurrentState;
 

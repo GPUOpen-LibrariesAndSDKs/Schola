@@ -3,9 +3,11 @@
 #include "Misc/AutomationTest.h"
 
 #include "Test/Policies/PassthroughBoxPolicy.h"
+#include "Test/Policies/PolicyStateInheritanceTestTypes.h"
 
 #include "Points/BoxPoint.h"
 #include "Policies/PolicyInterface.h"
+#include "Policies/PolicyStateInterface.h"
 
 #if WITH_AUTOMATION_TESTS
 
@@ -48,10 +50,28 @@ namespace ScholaPolicyBatchedThinkTestPrivate
 	static TArray<TScriptInterface<IPolicyState>> MakeStatelessStates(int32 Num)
 	{
 		TArray<TScriptInterface<IPolicyState>> States;
-		States.SetNum(Num);
+		States.Init(UStatelessPolicyState::Get(), Num);
 		return States;
 	}
 } // namespace ScholaPolicyBatchedThinkTestPrivate
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FPolicyStatelessCreatesStatelessStateTest,
+	"Schola.Policies.IPolicy.Stateless Policy Creates Stateless State",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FPolicyStatelessCreatesStatelessStateTest::RunTest(const FString& Parameters)
+{
+	UPassthroughBoxPolicy* PolicyObj = NewObject<UPassthroughBoxPolicy>();
+	IPolicy* Policy = Cast<IPolicy>(PolicyObj);
+
+	TScriptInterface<IPolicyState> State = NewObject<UTestMultiInterfaceState>();
+	TestTrue(TEXT("CreateInitialState succeeds"), Policy->CreateInitialState(State));
+	TestNotNull(TEXT("State has a native interface"), State.GetInterface());
+	TestTrue(TEXT("Stateless policy returns the shared stateless state"), State.GetObject() == UStatelessPolicyState::Get().GetObject());
+
+	return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FPolicyBatchedThinkEmptyBatchTest,

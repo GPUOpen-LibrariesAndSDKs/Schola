@@ -51,9 +51,10 @@ public:
 	}
 
 	/**
-	 * @brief Notifies the state that a new model output is ready and drops the oldest entry of each state sequence.
+	 * @brief Commits the model's newest state, which it wrote into the pending slot of each buffer.
 	 *
-	 * The policy then writes the model's newest state into the last slot of each buffer.
+	 * Drops the oldest entry of each state sequence and moves the pending state into the
+	 * last position. Without a sequence dimension, the pending state replaces the state.
 	 * @return Always true.
 	 */
 	bool NotifyStateUpdate() override

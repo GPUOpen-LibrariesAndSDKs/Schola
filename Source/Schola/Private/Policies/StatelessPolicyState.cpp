@@ -8,14 +8,7 @@ bool UStatelessPolicyState::CopyFrom(const IPolicyState& Other)
 	return Other._getUObject()->IsA<UStatelessPolicyState>();
 }
 
-TScriptInterface<IPolicyState> UStatelessPolicyState::Get()
+TScriptInterface<IPolicyState> UStatelessPolicyState::Create()
 {
-	check(IsInGameThread());
-	static UStatelessPolicyState* Instance = nullptr;
-	if (!Instance)
-	{
-		Instance = NewObject<UStatelessPolicyState>(GetTransientPackage(), TEXT("SharedStatelessPolicyState"));
-		Instance->AddToRoot();
-	}
-	return Instance;
+	return NewObject<UStatelessPolicyState>(GetTransientPackage());
 }

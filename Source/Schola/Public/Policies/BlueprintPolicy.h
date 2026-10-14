@@ -100,26 +100,33 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintImplementableEvent, Category = "Schola|Policy")
 	bool Init(const FInteractionDefinition& InPolicyDefinition) override;
 
-protected:
-
 	/**
-	 * @brief Native implementation of CreateInitialStateImpl that forwards to the Blueprint event.
+	 * @brief Creates the initial state through the Blueprint event.
 	 * @param[out] OutState Receives the new state.
-	 * @return True. CreateInitialState rejects the state if the Blueprint event returned None.
+	 * @return True if the Blueprint event returned a valid native IPolicyState.
 	 */
-	bool CreateInitialStateImpl(TScriptInterface<IPolicyState>& OutState) const override
+	bool CreateInitialState(TScriptInterface<IPolicyState>& OutState) const override
 	{
 		OutState = this->ReceiveCreateInitialState();
+		if (!OutState.GetInterface())
+		{
+			UE_LOGFMT(LogSchola, Error, "UBlueprintPolicy::CreateInitialState(): {0} returned {1} as the initial state, which is not a native IPolicyState. Stateless policies must return Create Stateless Policy State",
+				GetName(), GetNameSafe(OutState.GetObject()));
+			OutState = nullptr;
+			return false;
+		}
 		return true;
 	}
+
+protected:
 
 	/**
 	 * @brief Blueprint event for creating the state at the start of an episode.
 	 * 
 	 * Override this event in Blueprint to construct a state object (of a C++ class
 	 * implementing IPolicyState) in the transient package. The default
-	 * implementation returns the shared UStatelessPolicyState, i.e. a stateless policy.
-	 * Overrides for stateless policies should return Get Stateless Policy State, never None.
+	 * implementation returns a new UStatelessPolicyState, i.e. a stateless policy.
+	 * Overrides for stateless policies should return Create Stateless Policy State, never None.
 	 * Not callable from Blueprint; callers go through IPolicy::CreateInitialState.
 	 * 
 	 * @return The new state object.
@@ -129,7 +136,7 @@ protected:
 
 	virtual TScriptInterface<IPolicyState> ReceiveCreateInitialState_Implementation() const
 	{
-		return UStatelessPolicyState::Get();
+		return UStatelessPolicyState::Create();
 	}
 
 };

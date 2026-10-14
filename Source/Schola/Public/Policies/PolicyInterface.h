@@ -104,28 +104,17 @@ public:
      * @brief Creates a state object holding the state at the start of an episode.
      * 
      * Must be called on the game thread after Init. Callers create one state per agent,
-     * pass it to every Think, and keep it alive through a UPROPERTY reference. Calls
-     * CreateInitialStateImpl and rejects a state without a native IPolicyState, e.g. None
-     * from a Blueprint override, so on success OutState is always usable by Think.
-     * Not virtual; policies override CreateInitialStateImpl instead.
+     * pass it to every Think, and keep it alive through a UPROPERTY reference.
+     * Stateless policies return UStatelessPolicyState::Create(), which is what the default
+     * implementation does. Overrides create the state in the transient package, must
+     * return a native IPolicyState on success, and should log the reason on failure.
      * 
      * @param[out] OutState Receives the new state, or null on failure.
      * @return True if a valid state was created, false otherwise.
      */
-    bool CreateInitialState(TScriptInterface<IPolicyState>& OutState) const
+    virtual bool CreateInitialState(TScriptInterface<IPolicyState>& OutState) const
     {
-        if (!this->CreateInitialStateImpl(OutState))
-        {
-            OutState = nullptr;
-            return false;
-        }
-        if (!OutState.GetInterface())
-        {
-            UE_LOGFMT(LogSchola, Error, "IPolicy::CreateInitialState(): Policy returned {0} as the initial state, which is not a native IPolicyState. Stateless policies must return UStatelessPolicyState::Get()",
-                GetNameSafe(OutState.GetObject()));
-            OutState = nullptr;
-            return false;
-        }
+        OutState = UStatelessPolicyState::Create();
         return true;
     }
 
@@ -150,23 +139,5 @@ public:
      * @return True if inference is in progress, false otherwise.
      */
     virtual bool IsInferenceBusy() const PURE_VIRTUAL(IPolicy::IsInferenceBusy, return false; );
-
-protected:
-
-    /**
-     * @brief Creates the initial state. Override this; callers use CreateInitialState.
-     *
-     * Implementations create the state in the transient package. Stateless policies return
-     * UStatelessPolicyState::Get(), which is what the default implementation does. Never
-     * return null on success. Log the reason when returning false.
-     *
-     * @param[out] OutState Receives the new state.
-     * @return True if the state was created, false otherwise.
-     */
-    virtual bool CreateInitialStateImpl(TScriptInterface<IPolicyState>& OutState) const
-    {
-        OutState = UStatelessPolicyState::Get();
-        return true;
-    }
 
 };

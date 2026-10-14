@@ -370,7 +370,6 @@ bool FPipelinedStepperRejectsNoneStateTest::RunTest(const FString& Parameters)
 	TArray<TScriptInterface<IAgent>> Agents;
 	Agents.Add(NewObject<UTestAgent>());
 
-	AddExpectedMessage(TEXT("not a native IPolicyState"), EAutomationExpectedMessageFlags::Contains, 1);
 	AddExpectedMessage(TEXT("failed to create the initial state"), EAutomationExpectedMessageFlags::Contains, 1);
 	TestFalse(TEXT("Init fails when the policy returns a None state"), Stepper->Init(Agents, TScriptInterface<IPolicy>(TestPolicy)));
 	TestEqual(TEXT("No agent is added"), Stepper->NumAgents(), 0);

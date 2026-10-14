@@ -11,20 +11,20 @@
 #if WITH_AUTOMATION_TESTS
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FStatelessPolicyStateSharedInstanceTest,
-	"Schola.Policies.UStatelessPolicyState.Shared Instance",
+	FStatelessPolicyStateCreateTest,
+	"Schola.Policies.UStatelessPolicyState.Create",
 	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
 
-bool FStatelessPolicyStateSharedInstanceTest::RunTest(const FString& Parameters)
+bool FStatelessPolicyStateCreateTest::RunTest(const FString& Parameters)
 {
-	TScriptInterface<IPolicyState> State = UStatelessPolicyState::Get();
-	TestNotNull(TEXT("Shared instance has a native interface"), State.GetInterface());
-	TestTrue(TEXT("Get returns the same instance every time"), State.GetObject() == UStatelessPolicyState::Get().GetObject());
-	TestTrue(TEXT("Shared instance is rooted"), State.GetObject() && State.GetObject()->IsRooted());
+	TScriptInterface<IPolicyState> State = UStatelessPolicyState::Create();
+	TScriptInterface<IPolicyState> Other = UStatelessPolicyState::Create();
+	TestNotNull(TEXT("Created state has a native interface"), State.GetInterface());
+	TestTrue(TEXT("Create returns a new instance every time"), State.GetObject() != Other.GetObject());
 
 	State->Reset();
 	TestTrue(TEXT("NotifyStateUpdate succeeds"), State->NotifyStateUpdate());
-	TestTrue(TEXT("CopyFrom another stateless state succeeds"), State->CopyFrom(*NewObject<UStatelessPolicyState>()));
+	TestTrue(TEXT("CopyFrom another stateless state succeeds"), State->CopyFrom(*Other));
 
 	return true;
 }
@@ -43,7 +43,7 @@ bool FStatelessPolicyStateBlueprintDefaultTest::RunTest(const FString& Parameter
 	TScriptInterface<IPolicyState> State;
 	TestTrue(TEXT("CreateInitialState succeeds"), Policy->CreateInitialState(State));
 	TestNotNull(TEXT("Interface pointer survives the reflection round trip"), State.GetInterface());
-	TestTrue(TEXT("Default is the shared stateless state"), State.GetObject() == UStatelessPolicyState::Get().GetObject());
+	TestTrue(TEXT("Default is a stateless state"), State.GetObject() && State.GetObject()->IsA<UStatelessPolicyState>());
 
 	TInstancedStruct<FPoint> Observation = TInstancedStruct<FPoint>::Make<FBoxPoint>(TArray<float> { 1.0f });
 	TInstancedStruct<FPoint> Action;

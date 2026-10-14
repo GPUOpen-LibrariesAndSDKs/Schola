@@ -141,7 +141,6 @@ bool FSimpleStepperRejectsNoneStateTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("SimpleStepper initialized"), SimpleStepper->Init(Agents, TScriptInterface<IPolicy>(TestPolicy)));
 
 	TestPolicy->bReturnNoneState = true;
-	AddExpectedMessage(TEXT("not a native IPolicyState"), EAutomationExpectedMessageFlags::Contains, 1);
 	AddExpectedMessage(TEXT("failed to create the initial state"), EAutomationExpectedMessageFlags::Contains, 1);
 	TestEqual(TEXT("AddAgent fails when the policy returns a None state"), SimpleStepper->AddAgent(NewObject<UTestAgent>()), INDEX_NONE);
 	TestEqual(TEXT("The rejected agent is not added"), SimpleStepper->NumAgents(), 1);

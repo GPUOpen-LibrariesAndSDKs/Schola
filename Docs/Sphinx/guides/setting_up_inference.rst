@@ -152,8 +152,9 @@ inputs and outputs in model order, so the model must expose the same number of e
 these tensors remain stateless.
 
 After ``Init()``, the stepper calls ``CreateInitialState()`` once for each agent. For a recurrent
-model this creates a zero-initialized :cpp:class:`UNNEPolicyState`; for a stateless model it returns
-the shared :cpp:class:`UStatelessPolicyState`. Each inference reads that agent's previous state
+model this creates a zero-initialized :cpp:class:`UNNEPolicyState`; for a stateless model it creates
+a :cpp:class:`UNNEPolicyState` with no buffers. ``UNNEPolicy`` only accepts states it created, so
+passing a :cpp:class:`UStatelessPolicyState` to it fails. Each inference reads that agent's previous state
 and, after successful inference, advances it in place with the corresponding ``state_out`` values.
 
 If you call ``Think`` on a ``UNNEPolicy`` directly instead of through a stepper, create one state
@@ -225,12 +226,12 @@ The caller owns the returned object, keeps it alive with a ``UPROPERTY`` referen
 same object to every ``Think()`` call for that agent. ``Think()`` advances the object in place; it
 must not replace it.
 
-Stateless policies return the shared :cpp:class:`UStatelessPolicyState` from
-``UStatelessPolicyState::Get()`` (**Get Stateless Policy State** in Blueprint), which is what the
-default implementation does. A state is therefore never null. Policies implement the protected
-``CreateInitialStateImpl()``, and callers use the non-virtual ``CreateInitialState()``, which
-rejects a state without a native ``IPolicyState``, such as ``None`` from a Blueprint override. An
-agent whose policy returns ``None`` therefore fails to be added to a stepper.
+Stateless policies return a new :cpp:class:`UStatelessPolicyState` from
+``UStatelessPolicyState::Create()`` (**Create Stateless Policy State** in Blueprint), which is what
+the default implementation does. A state is therefore never null. An override of
+``CreateInitialState()`` must return a native ``IPolicyState`` when it succeeds, and return false
+otherwise. :cpp:class:`UBlueprintPolicy` returns false when its Blueprint event returns ``None``, so
+an agent whose Blueprint policy returns ``None`` fails to be added to a stepper.
 
 State implementations provide the following operations:
 
@@ -267,7 +268,7 @@ keeps the hidden and cell state for each agent, and creates and advances that st
 
 .. code-block:: cpp
 
-    bool ULSTMPolicy::CreateInitialStateImpl(
+    bool ULSTMPolicy::CreateInitialState(
         TScriptInterface<IPolicyState>& OutState) const
     {
         ULSTMPolicyState* State = NewObject<ULSTMPolicyState>(GetTransientPackage());
@@ -329,8 +330,8 @@ Blueprint Policies
 Derive from :cpp:class:`UBlueprintPolicy` to implement policy behavior in Blueprint:
 
 1. ``CreateInitialState`` returns a native C++ object implementing ``IPolicyState``. The default
-   returns the stateless state; an override for a stateless policy should return
-   **Get Stateless Policy State**, never ``None``.
+   returns a new stateless state; an override for a stateless policy should return
+   **Create Stateless Policy State**, never ``None``.
 2. ``ComputeAction`` reads the observation and previous state to produce an action.
 3. Schola calls ``NotifyStateUpdate()`` on the state.
 4. ``WriteState`` writes the current step's data into that same state object.

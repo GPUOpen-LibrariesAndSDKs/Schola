@@ -12,8 +12,8 @@
  * @brief The state of a policy that carries nothing between Think calls.
  *
  * Stateless policies return this from CreateInitialState instead of null, so that a null
- * or non-native state always indicates an error. It holds no data, so every agent of every
- * stateless policy can share the instance returned by Get().
+ * or non-native state always indicates an error. Like any other state, each agent gets its
+ * own instance from Create().
  */
 UCLASS(NotBlueprintable)
 class SCHOLA_API UStatelessPolicyState : public UObject, public IPolicyState
@@ -26,12 +26,12 @@ public:
 	bool CopyFrom(const IPolicyState& Other) override;
 
 	/**
-	 * @brief Gets the shared stateless policy state.
+	 * @brief Creates a new stateless policy state in the transient package.
 	 *
 	 * Must be called on the game thread, e.g. from CreateInitialState.
 	 *
-	 * @return The shared instance, kept alive for the lifetime of the program.
+	 * @return The new state. The caller keeps it alive through a UPROPERTY reference.
 	 */
-	UFUNCTION(BlueprintPure, Category = "Schola|Policy", meta = (DisplayName = "Get Stateless Policy State"))
-	static TScriptInterface<IPolicyState> Get();
+	UFUNCTION(BlueprintCallable, Category = "Schola|Policy", meta = (DisplayName = "Create Stateless Policy State"))
+	static TScriptInterface<IPolicyState> Create();
 };

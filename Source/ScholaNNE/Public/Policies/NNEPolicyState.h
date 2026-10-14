@@ -35,18 +35,30 @@ public:
 	}
 
 	/**
-	 * @brief Copies the buffers of another UNNEPolicyState into this one.
+	 * @brief Copies the buffers of another UNNEPolicyState into this one in place.
+	 *
+	 * The buffers are never reallocated, since UNNEPolicy binds the model tensors to them.
 	 * @param[in] Other The state to copy from.
-	 * @return True if Other is a UNNEPolicyState, false otherwise.
+	 * @return True if Other is a UNNEPolicyState with the same buffer sizes, false otherwise.
 	 */
 	bool CopyFrom(const IPolicyState& Other) override
 	{
 		const UNNEPolicyState* OtherState = Cast<UNNEPolicyState>(Other._getUObject());
-		if (!OtherState)
+		if (!OtherState || OtherState->Buffers.Num() != Buffers.Num())
 		{
 			return false;
 		}
-		Buffers = OtherState->Buffers;
+		for (int i = 0; i < Buffers.Num(); i++)
+		{
+			if (OtherState->Buffers[i].StateBuffer.Num() != Buffers[i].StateBuffer.Num())
+			{
+				return false;
+			}
+		}
+		for (int i = 0; i < Buffers.Num(); i++)
+		{
+			FMemory::Memcpy(Buffers[i].StateBuffer.GetData(), OtherState->Buffers[i].StateBuffer.GetData(), Buffers[i].StateBuffer.Num() * sizeof(float));
+		}
 		return true;
 	}
 

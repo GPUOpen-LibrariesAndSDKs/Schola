@@ -76,15 +76,10 @@ bool UNNEPolicy::Think(
 		FNNEPointCreator::CreatePoint(ActionBuffer, OutAction, PolicyDefinition.ActionSpaceDefn);
 	}
 
-	// Stateless models ignore any state passed in
-	UNNEPolicyState* NNEState = nullptr;
-	if (this->StateLayouts.Num() > 0)
+	UNNEPolicyState* NNEState = AsNNEPolicyState(InOutState);
+	if (!NNEState || !BindState(*NNEState))
 	{
-		NNEState = AsNNEPolicyState(InOutState);
-		if (!NNEState || !BindState(*NNEState))
-		{
-			return false;
-		}
+		return false;
 	}
 
 	FNNEPointToBufferConverter::ConvertPointToBuffer(InObservations, ObservationBuffer, PolicyDefinition.ObsSpaceDefn);
@@ -99,7 +94,7 @@ bool UNNEPolicy::Think(
 	FNNEPointCreator::CreatePoint(ActionBuffer, OutAction, PolicyDefinition.ActionSpaceDefn);
 
 	// The model wrote its new state into each buffer's pending slot; this moves it into the sequence.
-	if (NNEState && !NNEState->NotifyStateUpdate())
+	if (!NNEState->NotifyStateUpdate())
 	{
 		UE_LOGFMT(LogScholaNNE, Error, "NNEPolicy::Think(): NotifyStateUpdate failed");
 		return false;
@@ -125,6 +120,7 @@ bool UNNEPolicy::InitStateBuffersAndBindings(TSharedPtr<IModelInstanceRunSync> I
 	this->StateLayouts.Reset();
 	this->StateInputBindingIndices.Reset();
 	this->StateOutputBindingIndices.Reset();
+	this->BoundState.Reset();
 
 	// Find all the State Tensors from the Tensor Descriptions and record the layout of each one.
 	// The state bindings point into the caller's state object, so they are set per Think in BindState.
@@ -175,7 +171,11 @@ bool UNNEPolicy::IsStateCompatible(const UNNEPolicyState& InState) const
 	}
 	for (int i = 0; i < InState.Buffers.Num(); i++)
 	{
-		if (InState.Buffers[i].StateBuffer.Num() != this->StateLayouts[i].GetBufferNumElements())
+		const FNNEStateBuffer& Buffer = InState.Buffers[i];
+		const FNNEStateLayout& Layout = this->StateLayouts[i];
+		if (Buffer.Shape != Layout.Shape
+			|| Buffer.StateDimSize != Layout.StateDimSize
+			|| Buffer.StateBuffer.Num() != Layout.GetBufferNumElements())
 		{
 			return false;
 		}
@@ -193,12 +193,7 @@ bool UNNEPolicy::BindState(UNNEPolicyState& InOutState)
 	}
 
 	// Bindings are left in place after Think, so reusing the same state skips rebinding
-	bool bAlreadyBound = true;
-	for (int i = 0; i < this->StateLayouts.Num() && bAlreadyBound; i++)
-	{
-		bAlreadyBound = this->InputBindings[this->StateInputBindingIndices[i]].Data == InOutState.Buffers[i].StateBuffer.GetData();
-	}
-	if (bAlreadyBound)
+	if (this->BoundState.Get() == &InOutState)
 	{
 		return true;
 	}
@@ -208,10 +203,11 @@ bool UNNEPolicy::BindState(UNNEPolicyState& InOutState)
 		this->InputBindings[this->StateInputBindingIndices[i]] = InOutState.Buffers[i].MakeInputBinding();
 		this->OutputBindings[this->StateOutputBindingIndices[i]] = InOutState.Buffers[i].MakeOutputBinding();
 	}
+	this->BoundState = &InOutState;
 	return true;
 }
 
-bool UNNEPolicy::CreateInitialStateImpl(TScriptInterface<IPolicyState>& OutState) const
+bool UNNEPolicy::CreateInitialState(TScriptInterface<IPolicyState>& OutState) const
 {
 	OutState = nullptr;
 	if (!bNetworkLoaded)
@@ -219,12 +215,6 @@ bool UNNEPolicy::CreateInitialStateImpl(TScriptInterface<IPolicyState>& OutState
 		UE_LOGFMT(LogScholaNNE, Error, "UNNEPolicy::CreateInitialState(): Network not loaded, call Init first");
 		return false;
 	}
-	if (this->StateLayouts.Num() == 0)
-	{
-		OutState = UStatelessPolicyState::Get();
-		return true;
-	}
-
 	UNNEPolicyState* State = NewObject<UNNEPolicyState>(GetTransientPackage());
 	State->Buffers.Reserve(this->StateLayouts.Num());
 	for (const FNNEStateLayout& Layout : this->StateLayouts)

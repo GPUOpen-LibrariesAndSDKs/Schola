@@ -68,7 +68,7 @@ public:
 	/**
 	 * @brief Blueprint-callable wrapper for the Think function
 	 * @param[in] InObservations The observations to process (generic instanced struct)
-	 * @param[in] InOutState The recurrent state, advanced in place to the next state, or a UStatelessPolicyState if the model is stateless
+	 * @param[in] InOutState The model state, advanced in place to the next state for recurrent models
 	 * @param[out] OutAction The computed action (generic instanced struct)
 	 * @return true if inference succeeded, false otherwise
 	 */
@@ -97,10 +97,17 @@ public:
 	}
 
 	/**
+	 * @brief Creates a zeroed UNNEPolicyState matching the model's state tensors
+	 * @param[out] OutState Receives the new state, with no buffers if the model is stateless
+	 * @return true if the state was created, false if the policy is not initialized
+	 */
+	virtual bool CreateInitialState(TScriptInterface<IPolicyState>& OutState) const override;
+
+	/**
 	 * @brief Blueprint-callable wrapper for IPolicy::CreateInitialState
 	 *
-	 * Named K2_CreateInitialState so it does not hide IPolicy::CreateInitialState(OutState) in C++.
-	 * @return A new zeroed UNNEPolicyState, the shared UStatelessPolicyState if the model is stateless, or null if the policy is not initialized
+	 * Named K2_CreateInitialState to expose the output as a Blueprint return value.
+	 * @return A new zeroed UNNEPolicyState, or null if the policy is not initialized
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Schola|Policy", meta = (DisplayName = "Create Initial State"))
 	TScriptInterface<IPolicyState> K2_CreateInitialState() const
@@ -113,11 +120,11 @@ public:
 	/**
 	 * @brief Runs neural network inference to compute an action and advance the recurrent state
 	 *
-	 * For models with state tensors, InOutState must be a UNNEPolicyState created by
-	 * CreateInitialState. For stateless models it is ignored. The model writes its newest
-	 * state into the pending slot of each state buffer, which is not part of the state yet.
-	 * If inference succeeds, NotifyStateUpdate moves it into the state, so the state only
-	 * changes on success.
+	 * InOutState must be a UNNEPolicyState created by CreateInitialState. For recurrent
+	 * models, the model writes its newest state into the pending slot of each state buffer,
+	 * which is not part of the state yet. If inference succeeds, NotifyStateUpdate moves it
+	 * into the state, so the state only changes on success. Stateless models use a
+	 * UNNEPolicyState with no buffers.
 	 *
 	 * @param[in] InObservations The observation point to process
 	 * @param[in,out] InOutState The recurrent state from the previous step, advanced in place to the next state
@@ -159,13 +166,6 @@ public:
 protected:
 
 	/**
-	 * @brief Creates a zeroed UNNEPolicyState matching the model's state tensors
-	 * @param[out] OutState Receives the new state, or the shared UStatelessPolicyState if the model has no state tensors
-	 * @return true if the state was created, false if the policy is not initialized
-	 */
-	virtual bool CreateInitialStateImpl(TScriptInterface<IPolicyState>& OutState) const override;
-
-	/**
 	 * @brief Initializes the input tensor shapes for the model instance
 	 * @param[in] InModelInstance The model instance to configure
 	 * @return true if initialization succeeded, false otherwise
@@ -196,11 +196,11 @@ protected:
 	/**
 	 * @brief Checks that a state object was created by this policy for the current model
 	 * @param[in] InState The state to check
-	 * @return true if InState has one buffer of the expected size per model state tensor
+	 * @return true if InState has one buffer per model state tensor, with the same shape, state size and buffer size
 	 */
 	bool IsStateCompatible(const UNNEPolicyState& InState) const;
 	/**
-	 * @brief Points the state input bindings at InOutState's state sequences and the state output bindings at its pending state vectors. Only valid for models with state tensors
+	 * @brief Points the state input bindings at InOutState's state sequences and the state output bindings at its pending state vectors
 	 * @param[in] InOutState The recurrent state from the previous step
 	 * @return true if InOutState matches this model's state tensors and was bound, false otherwise
 	 */
@@ -249,6 +249,9 @@ private:
 
 	/** Output binding index of each state_out tensor, parallel to StateLayouts */
 	TArray<int32> StateOutputBindingIndices;
+
+	/** State object currently referenced by the state tensor bindings */
+	TWeakObjectPtr<UNNEPolicyState> BoundState;
 
 	/** Atomic flag preventing concurrent inference operations and buffer races */
 	std::atomic<bool> bInferenceInFlight {false};

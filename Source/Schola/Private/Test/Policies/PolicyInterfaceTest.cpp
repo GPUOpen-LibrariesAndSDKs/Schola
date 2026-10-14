@@ -50,7 +50,10 @@ namespace ScholaPolicyBatchedThinkTestPrivate
 	static TArray<TScriptInterface<IPolicyState>> MakeStatelessStates(int32 Num)
 	{
 		TArray<TScriptInterface<IPolicyState>> States;
-		States.Init(UStatelessPolicyState::Get(), Num);
+		for (int32 i = 0; i < Num; i++)
+		{
+			States.Add(UStatelessPolicyState::Create());
+		}
 		return States;
 	}
 } // namespace ScholaPolicyBatchedThinkTestPrivate
@@ -68,7 +71,7 @@ bool FPolicyStatelessCreatesStatelessStateTest::RunTest(const FString& Parameter
 	TScriptInterface<IPolicyState> State = NewObject<UTestMultiInterfaceState>();
 	TestTrue(TEXT("CreateInitialState succeeds"), Policy->CreateInitialState(State));
 	TestNotNull(TEXT("State has a native interface"), State.GetInterface());
-	TestTrue(TEXT("Stateless policy returns the shared stateless state"), State.GetObject() == UStatelessPolicyState::Get().GetObject());
+	TestTrue(TEXT("Stateless policy returns a stateless state"), State.GetObject() && State.GetObject()->IsA<UStatelessPolicyState>());
 
 	return true;
 }

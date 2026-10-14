@@ -37,14 +37,20 @@ bool FNNEPolicyStateCopyFromTest::RunTest(const FString& Parameters)
 	UNNEPolicyState* Source = NewObject<UNNEPolicyState>();
 	UNNEPolicyState* Target = NewObject<UNNEPolicyState>();
 	Source->Buffers.Emplace(TArray<int32> { -1, 2 });
-	Source->Buffers[0].StateBuffer = { 3.0f, 4.0f };
+	Source->Buffers[0].StateBuffer[0] = 3.0f;
+	Source->Buffers[0].StateBuffer[1] = 4.0f;
+	Target->Buffers.Emplace(TArray<int32> { -1, 2 });
+	const float* TargetData = Target->Buffers[0].StateBuffer.GetData();
 
 	TestTrue(TEXT("CopyFrom succeeds for another UNNEPolicyState"), Target->CopyFrom(*Source));
-	TestEqual(TEXT("Buffer count copied"), Target->Buffers.Num(), 1);
 	TestEqual(TEXT("Values copied"), Target->Buffers[0].StateBuffer[1], 4.0f);
+	TestTrue(TEXT("Buffer is copied in place"), Target->Buffers[0].StateBuffer.GetData() == TargetData);
 
 	Source->Buffers[0].StateBuffer[1] = 5.0f;
 	TestEqual(TEXT("Copy is independent of the source"), Target->Buffers[0].StateBuffer[1], 4.0f);
+
+	UNNEPolicyState* Empty = NewObject<UNNEPolicyState>();
+	TestFalse(TEXT("CopyFrom rejects a state with different buffers"), Empty->CopyFrom(*Source));
 	return true;
 }
 

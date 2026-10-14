@@ -223,10 +223,8 @@ public:
 
 	bool IsInferenceBusy() const override { return false; }
 
-protected:
-	bool CreateInitialStateImpl(TScriptInterface<IPolicyState>& OutState) const override;
+	bool CreateInitialState(TScriptInterface<IPolicyState>& OutState) const override;
 
-public:
 	/**
 	 * @brief Read the count from a state created by this policy.
 	 * 

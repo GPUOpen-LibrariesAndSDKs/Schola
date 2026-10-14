@@ -207,10 +207,10 @@ bool UTestStatefulPolicy::Think(
 	return true;
 }
 
-bool UTestStatefulPolicy::CreateInitialStateImpl(TScriptInterface<IPolicyState>& OutState) const
+bool UTestStatefulPolicy::CreateInitialState(TScriptInterface<IPolicyState>& OutState) const
 {
 	OutState = bReturnNoneState ? nullptr : NewObject<UTestCounterState>(GetTransientPackage());
-	return true;
+	return OutState.GetInterface() != nullptr;
 }
 
 int32 UTestStatefulPolicy::GetCount(const TScriptInterface<IPolicyState>& State)

@@ -108,7 +108,7 @@ If you change `.proto` definitions, regenerate the existing upstream bindings fr
 schola compile-proto
 ```
 
-The current command does not generate Godot bindings. Godot generation remains deferred until the US3 compatibility work selects compatible gRPC, Protocol Buffers, and generator versions. Do not hand-edit generated Python modules or generated Godot C++ bindings. The repository-level `Proto/` directory is the authoritative wire contract; do not create a Godot-specific copy. Godot generation rules and paths are defined in the [development contract](Godot/docs/development_contract.md#protocol-buffer-generation).
+The current command does not generate Godot bindings. Godot generation remains deferred until the gRPC, Protocol Buffers, and generator versions are selected and reviewed. Do not hand-edit generated Python modules or generated Godot C++ bindings. The repository-level `Proto/` directory is the authoritative wire contract; do not create a Godot-specific copy. Godot generation rules and paths are defined in the [development contract](Godot/docs/development_contract.md#protocol-buffer-generation).
 
 ## Testing
 

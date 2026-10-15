@@ -40,7 +40,7 @@ These rules define where work may execute, not the queue type, lifecycle sequenc
 - Diagnostics must say what failed and provide enough context for a developer to correct it. They must not expose secrets or emit the same failure repeatedly on every frame.
 - Cleanup and shutdown paths must remain safe after partial initialization and must not discard failures that require developer action.
 
-This contract does not select a shared `Status`, `Result<T>`, error enum, exception wrapper, or logging class. A concrete type becomes shared only through a separately reviewed change involving every user story that would consume it.
+Engine-independent modules use the shared `schola::Status` and `StatusCode` declarations in `src/core/common/status.h` for recoverable cross-module failures. A module-specific result type may carry domain data, but it must not introduce a competing project-wide error channel without a separately reviewed contract change.
 
 ## Protocol Buffer generation
 
@@ -48,7 +48,7 @@ This contract does not select a shared `Status`, `Result<T>`, error enum, except
 - Engine-specific generated bindings remain separate: Unreal's generated C++ is under `Source/ScholaProtobuf/`, Python's generated bindings are under `Resources/python/schola/generated/`, and Godot's generated C++ uses the path below.
 - `Godot/generated/proto/` is reserved for generated Godot C++ Protocol Buffer and gRPC sources. Generated output is build state, is ignored by Git, and must not be edited manually.
 - Handwritten conversion and transport code belongs under `src/transport/grpc/`, outside the generated directory.
-- The US3 compatibility spike will select compatible gRPC, Protocol Buffers, and generator versions together. Until that decision is reviewed, feature branches must not add their own generator or dependency versions.
+- A focused compatibility spike will select compatible gRPC, Protocol Buffers, and generator versions together. Until that decision is reviewed, feature branches must not add their own generator or dependency versions.
 - Once selected, generation must be deterministic and exposed through the shared build rather than requiring developers to run undocumented commands.
 
 These rules assign ownership and paths without choosing the transport API or resolving the versions that remain under investigation with AMD.

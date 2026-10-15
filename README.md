@@ -1,6 +1,6 @@
 # Schola for Godot - Team 20, The Hard Workers
 
-Schola for Godot is a CSC301 project developed by our 7-person student team in partnership with AMD. The project is currently in its planning and prototyping stage.
+Schola for Godot is a CSC301 project developed by our 7-person student team in partnership with AMD. The project is in active implementation: the shared native foundation and the US1-US5 and US7 API contracts are merged, while their concrete transport, lifecycle, binding, and inference behavior remains under development.
 
 ## Partner introduction
 
@@ -32,7 +32,7 @@ To run it locally, install Godot 4.7.2 with .NET support and the .NET 8 SDK, imp
 
 ## Development requirements
 
-The engine-side implementation targets Godot 4.7 and uses native C++ GDExtensions. The shared build, dependency, testing, packaging, and module foundation is defined; user-story APIs are implemented separately by their owners. The training integration will use gRPC and Protocol Buffers, while shipped-policy inference will use ONNX Runtime. The Python side will reuse Schola's Gymnasium, Stable-Baselines3, and RLlib integrations where practical.
+The engine-side implementation targets Godot 4.7 and uses native C++ GDExtensions. The shared build, dependency, testing, packaging, and module foundation is defined, and the merged user-story contracts establish the environment, space, connector, lifecycle, Godot binding, policy, and inference boundaries. The training integration will use gRPC and Protocol Buffers, while shipped-policy inference will use ONNX Runtime. The Python side will reuse Schola's Gymnasium, Stable-Baselines3, and RLlib integrations where practical.
 
 See the [Godot development guide](Godot/README.md) for supported tools, dependency pins, build and test commands, module boundaries, and contribution workflow.
 
@@ -68,4 +68,4 @@ The D1 prototype is available as a local Godot project under [`Godot/demo`](Godo
 
 ## D3 improvement highlight
 
-Not applicable for D1. This section will summarize the changes made between D2 and D3.
+The D3 product-evolution report template is in [`deliverables/D3/product-evolution.md`](deliverables/D3/product-evolution.md).

@@ -12,11 +12,10 @@
 /**
  * Runs a training session for the Godot scene.
  *
- * Created in code by ScholaTrainingHost (proposed for US4 in
- * Godot/docs/api_overview.md, section 4.5) when training is requested. It is
- * never placed in a scene, so its settings come from project settings rather
- * than the Inspector. _ready() starts the session; each physics frame runs one
- * Python update.
+ * Created in code by the US4-owned ScholaTrainingHost when training is
+ * requested. It is never placed in a scene, so its settings come from project
+ * settings rather than the Inspector. _ready() starts the session; each
+ * physics frame runs one Python update.
  *
  * Headless games block each frame until Python's next message. Windowed
  * games poll instead and pause the scene tree while waiting, so the window

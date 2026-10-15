@@ -3,9 +3,11 @@
 #include "Misc/AutomationTest.h"
 
 #include "Test/Policies/PassthroughBoxPolicy.h"
+#include "Test/Policies/PolicyStateInheritanceTestTypes.h"
 
 #include "Points/BoxPoint.h"
 #include "Policies/PolicyInterface.h"
+#include "Policies/PolicyStateInterface.h"
 
 #if WITH_AUTOMATION_TESTS
 
@@ -44,7 +46,35 @@ namespace ScholaPolicyBatchedThinkTestPrivate
 		}
 		return BoxPointsNearlyEqual(*ObsBox, *ActBox);
 	}
+
+	static TArray<TScriptInterface<IPolicyState>> MakeStatelessStates(int32 Num)
+	{
+		TArray<TScriptInterface<IPolicyState>> States;
+		for (int32 i = 0; i < Num; i++)
+		{
+			States.Add(UStatelessPolicyState::Create());
+		}
+		return States;
+	}
 } // namespace ScholaPolicyBatchedThinkTestPrivate
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FPolicyStatelessCreatesStatelessStateTest,
+	"Schola.Policies.IPolicy.Stateless Policy Creates Stateless State",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FPolicyStatelessCreatesStatelessStateTest::RunTest(const FString& Parameters)
+{
+	UPassthroughBoxPolicy* PolicyObj = NewObject<UPassthroughBoxPolicy>();
+	IPolicy* Policy = Cast<IPolicy>(PolicyObj);
+
+	TScriptInterface<IPolicyState> State = NewObject<UTestMultiInterfaceState>();
+	TestTrue(TEXT("CreateInitialState succeeds"), Policy->CreateInitialState(State));
+	TestNotNull(TEXT("State has a native interface"), State.GetInterface());
+	TestTrue(TEXT("Stateless policy returns a stateless state"), State.GetObject() && State.GetObject()->IsA<UStatelessPolicyState>());
+
+	return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FPolicyBatchedThinkEmptyBatchTest,
@@ -61,8 +91,9 @@ bool FPolicyBatchedThinkEmptyBatchTest::RunTest(const FString& Parameters)
 	TArray<TInstancedStruct<FPoint>> Observations;
 	TArray<TInstancedStruct<FPoint>> Actions;
 	Actions.Add(TInstancedStruct<FPoint>::Make<FBoxPoint>(TArray<float> { 99.0f }));
+	TArray<TScriptInterface<IPolicyState>> States;
 
-	const bool bOk = Policy->BatchedThink(Observations, Actions);
+	const bool bOk = Policy->BatchedThink(Observations, States, Actions);
 	TestTrue(TEXT("BatchedThink succeeds on empty observations"), bOk);
 	TestEqual(TEXT("OutActions overwritten with empty actions"), Actions.Num(), 0);
 
@@ -84,7 +115,8 @@ bool FPolicyBatchedThinkSingleObservationTest::RunTest(const FString& Parameters
 	Observations.Add(TInstancedStruct<FPoint>::Make<FBoxPoint>(Values));
 
 	TArray<TInstancedStruct<FPoint>> Actions;
-	const bool bOk = Policy->BatchedThink(Observations, Actions);
+	TArray<TScriptInterface<IPolicyState>> States = ScholaPolicyBatchedThinkTestPrivate::MakeStatelessStates(Observations.Num());
+	const bool bOk = Policy->BatchedThink(Observations, States, Actions);
 	TestTrue(TEXT("BatchedThink succeeds"), bOk);
 	TestEqual(TEXT("One action per observation"), Actions.Num(), 1);
 	TestTrue(
@@ -112,8 +144,9 @@ bool FPolicyBatchedThinkMultipleObservationsTest::RunTest(const FString& Paramet
 	TArray<TInstancedStruct<FPoint>> Actions;
 	Actions.Reserve(10);
 	Actions.Add(TInstancedStruct<FPoint>::Make<FBoxPoint>(TArray<float> { 123.0f }));
+	TArray<TScriptInterface<IPolicyState>> States = ScholaPolicyBatchedThinkTestPrivate::MakeStatelessStates(Observations.Num());
 
-	const bool bOk = Policy->BatchedThink(Observations, Actions);
+	const bool bOk = Policy->BatchedThink(Observations, States, Actions);
 	TestTrue(TEXT("BatchedThink succeeds"), bOk);
 	TestEqual(TEXT("Actions resized to batch"), Actions.Num(), Observations.Num());
 
@@ -122,6 +155,30 @@ bool FPolicyBatchedThinkMultipleObservationsTest::RunTest(const FString& Paramet
 		const FString Label = FString::Printf(TEXT("Observation %d matches action"), i);
 		TestTrue(*Label, ScholaPolicyBatchedThinkTestPrivate::ObservationMatchesAction(Observations[i], Actions[i]));
 	}
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FPolicyBatchedThinkStateCountMismatchTest,
+	"Schola.Policies.IPolicy.BatchedThink State Count Mismatch",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FPolicyBatchedThinkStateCountMismatchTest::RunTest(const FString& Parameters)
+{
+	UPassthroughBoxPolicy* PolicyObj = NewObject<UPassthroughBoxPolicy>();
+	IPolicy* Policy = Cast<IPolicy>(PolicyObj);
+
+	TArray<TInstancedStruct<FPoint>> Observations;
+	Observations.Add(TInstancedStruct<FPoint>::Make<FBoxPoint>(TArray<float> { 1.0f }));
+	Observations.Add(TInstancedStruct<FPoint>::Make<FBoxPoint>(TArray<float> { 2.0f }));
+
+	TArray<TInstancedStruct<FPoint>> Actions;
+	TArray<TScriptInterface<IPolicyState>> States = ScholaPolicyBatchedThinkTestPrivate::MakeStatelessStates(1);
+
+	AddExpectedMessage(TEXT("expected one state per observation"), EAutomationExpectedMessageFlags::Contains, 1);
+	const bool bOk = Policy->BatchedThink(Observations, States, Actions);
+	TestFalse(TEXT("BatchedThink fails when state count does not match observation count"), bOk);
 
 	return true;
 }

@@ -93,7 +93,7 @@ bool FNNEPolicyBlueprintCreateInitialStateRequiresInitTest::RunTest(const FStrin
 	UNNEPolicy* Policy = NewObject<UNNEPolicy>();
 
 	AddExpectedMessage(TEXT("Network not loaded"), EAutomationExpectedMessageFlags::Contains, 1);
-	TestNull(TEXT("Blueprint wrapper returns null before Init"), Policy->K2_CreateInitialState().GetObject());
+	TestNull(TEXT("Blueprint wrapper returns null before Init"), Policy->CreateInitialState().GetObject());
 	return true;
 }
 

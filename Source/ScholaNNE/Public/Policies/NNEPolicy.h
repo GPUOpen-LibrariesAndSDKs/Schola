@@ -104,13 +104,11 @@ public:
 	virtual bool CreateInitialState(TScriptInterface<IPolicyState>& OutState) const override;
 
 	/**
-	 * @brief Blueprint-callable wrapper for IPolicy::CreateInitialState
-	 *
-	 * Named K2_CreateInitialState to expose the output as a Blueprint return value.
+	 * @brief Blueprint-callable wrapper for CreateInitialState
 	 * @return A new zeroed UNNEPolicyState, or null if the policy is not initialized
 	 */
-	UFUNCTION(BlueprintCallable, Category = "Schola|Policy", meta = (DisplayName = "Create Initial State"))
-	TScriptInterface<IPolicyState> K2_CreateInitialState() const
+	UFUNCTION(BlueprintCallable, Category = "Schola|Policy")
+	TScriptInterface<IPolicyState> CreateInitialState() const
 	{
 		TScriptInterface<IPolicyState> State;
 		this->CreateInitialState(State);

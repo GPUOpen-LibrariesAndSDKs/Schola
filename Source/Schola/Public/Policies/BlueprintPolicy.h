@@ -50,6 +50,71 @@ public:
 	UFUNCTION(BlueprintCallable,BlueprintImplementableEvent, Category = "Schola|Policy")
 	void Think(const FInstancedStruct& InObservations, FInstancedStruct& OutAction);
 
+	/** Native IPolicy bridge. Failed batches preserve the caller's actions. */
+	bool BatchedThink(const TArray<TInstancedStruct<FPoint>>& InObservations,
+		TArray<TInstancedStruct<FPoint>>& OutActions) override
+	{
+		TArray<FInstancedStruct> Observations;
+		for (const auto& Observation : InObservations)
+		{
+			if (!Observation.IsValid() || !Observation.GetScriptStruct()->IsChildOf(FPoint::StaticStruct()))
+			{
+				return false;
+			}
+			Observations.Add(ToUntypedInstancedStruct(Observation));
+		}
+		TArray<FInstancedStruct> Actions;
+		if (!this->BatchedThink(Observations, Actions) || Actions.Num() != InObservations.Num())
+		{
+			return false;
+		}
+		TArray<TInstancedStruct<FPoint>> Results;
+		for (const auto& Action : Actions)
+		{
+			if (!Action.IsValid() || !Action.GetScriptStruct()->IsChildOf(FPoint::StaticStruct()))
+			{
+				return false;
+			}
+			Results.Add(ToTypedInstancedStruct<FPoint>(Action));
+		}
+		OutActions = MoveTemp(Results);
+		return true;
+	}
+
+	/** Override to process a batch together. Defaults to the existing per-observation Think event. */
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Schola|Policy")
+	bool BatchedThink(const TArray<FInstancedStruct>& InObservations, TArray<FInstancedStruct>& OutActions);
+
+	virtual bool BatchedThink_Implementation(const TArray<FInstancedStruct>& InObservations,
+		TArray<FInstancedStruct>& OutActions)
+	{
+		for (const auto& Observation : InObservations)
+		{
+			if (!Observation.IsValid() || !Observation.GetScriptStruct()->IsChildOf(FPoint::StaticStruct()))
+			{
+				return false;
+			}
+		}
+		TArray<FInstancedStruct> Results;
+		for (const auto& Observation : InObservations)
+		{
+			FInstancedStruct Action;
+			this->Think(Observation, Action);
+			if (!Action.IsValid() || !Action.GetScriptStruct()->IsChildOf(FPoint::StaticStruct()))
+			{
+				return false;
+			}
+			Results.Add(MoveTemp(Action));
+		}
+		OutActions = MoveTemp(Results);
+		return true;
+	}
+
+	/** Override when a Blueprint policy runs asynchronous work; synchronous default is false. */
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Schola|Policy")
+	bool IsInferenceBusy() const override;
+
+	virtual bool IsInferenceBusy_Implementation() const { return false; }
 
 
 	/**

@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1640" height="1250" viewBox="0 0 1640 1250" role="img" aria-labelledby="title description">
+<title id="title">Schola inference API — before and after</title>
+<desc id="description">Before: existing steppers call IPolicy implemented by NNE or Blueprint policies. After: the same interface also accepts a new configurable mock policy with adaptive, event based, background, shared policy, and advanced strategy paradigms. Training gRPC endpoints remain unchanged.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker></defs>
+<style>text { font-family: 'DejaVu Sans', sans-serif; } .title { font-size:34px;font-weight:700;fill:#0f172a; } .subtitle {font-size:19px;fill:#475569;} .panel-title {font-size:25px;font-weight:700;fill:#0f172a;} .label {font-size:21px;font-weight:700;fill:#0f172a;} .body {font-size:18px;fill:#334155;} .small {font-size:16px;fill:#475569;} .code {font-family:'DejaVu Sans Mono',monospace;font-size:17px;fill:#334155;}</style>
+<rect width="1640" height="1250" fill="#f8fafc"/>
+
+<text x="40" y="55" class="title" text-anchor="start">Schola inference API: before / after</text>
+<text x="40" y="91" class="subtitle" text-anchor="start">Unreal runtime policy interface • API only • new behavior uses deterministic mock implementations</text>
+<rect x="32" y="125" width="540" height="1060" rx="14" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<rect x="596" y="125" width="1012" height="1060" rx="14" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="60" y="170" class="panel-title" text-anchor="start">BEFORE</text>
+<text x="624" y="170" class="panel-title" text-anchor="start">AFTER</text>
+<text x="1558" y="170" class="small" text-anchor="end">Added API</text>
+<rect x="1433" y="149" width="18" height="18" rx="4" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<rect x="60" y="197" width="484" height="85" rx="14" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="302.0" y="230" class="label" text-anchor="middle">Existing inference callers</text>
+<text x="302.0" y="259" class="small" text-anchor="middle">USimpleStepper • UPipelinedStepper • IPolicy</text>
+<path d="M 302.0 282 V 309" fill="none" stroke="#64748b" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="60" y="317" width="484" height="101" rx="14" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5"/>
+<text x="302.0" y="350" class="label" text-anchor="middle">IPolicy</text>
+<text x="302.0" y="381" class="code" text-anchor="middle">Init • Think • BatchedThink • IsInferenceBusy</text>
+<rect x="624" y="197" width="956" height="85" rx="14" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="1102.0" y="230" class="label" text-anchor="middle">Existing inference callers</text>
+<text x="1102.0" y="259" class="small" text-anchor="middle">USimpleStepper • UPipelinedStepper • IPolicy</text>
+<path d="M 1102.0 282 V 309" fill="none" stroke="#64748b" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="624" y="317" width="956" height="101" rx="14" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5"/>
+<text x="1102.0" y="350" class="label" text-anchor="middle">IPolicy</text>
+<text x="1102.0" y="381" class="code" text-anchor="middle">Init • Think • BatchedThink • IsInferenceBusy</text>
+<path d="M 302 418 V 450 H 178 V 472" fill="none" stroke="#64748b" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M 302 450 H 429 V 472" fill="none" stroke="#64748b" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="60" y="480" width="236" height="110" rx="14" fill="#fff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="178" y="515" class="label" text-anchor="middle">UNNEPolicy</text>
+<text x="178" y="546" class="small" text-anchor="middle">Model-backed inference</text>
+<rect x="312" y="480" width="232" height="110" rx="14" fill="#fff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="428" y="515" class="label" text-anchor="middle">UBlueprintPolicy</text>
+<text x="428" y="546" class="small" text-anchor="middle">Think / Init events</text>
+<text x="428" y="572" class="small" text-anchor="middle">No batch / busy hooks</text>
+<text x="302" y="628" class="small" text-anchor="middle">Implements the existing IPolicy contract</text>
+<rect x="60" y="702" width="484" height="251" rx="14" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="84" y="739" class="label" text-anchor="start">Existing extension points</text>
+<text x="84" y="777" class="body" text-anchor="start">• Single-observation inference</text>
+<text x="84" y="809" class="body" text-anchor="start">• Batched inference</text>
+<text x="84" y="841" class="body" text-anchor="start">• Initialization and busy-state checks</text>
+<text x="84" y="873" class="body" text-anchor="start">• Simple and pipelined stepping</text>
+<text x="84" y="923" class="small" text-anchor="start">No built-in selection API for these five paradigms.</text>
+<path d="M 1102 418 V 437 H 790 V 451" fill="none" stroke="#64748b" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M 1102 437 H 1264 V 451" fill="none" stroke="#64748b" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="624" y="459" width="332" height="100" rx="14" fill="#fff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="790" y="492" class="label" text-anchor="middle">Existing policies</text>
+<text x="790" y="518" class="small" text-anchor="middle">UNNEPolicy • UBlueprintPolicy</text>
+<text x="790" y="545" class="small" text-anchor="middle">Blueprint: batch + busy hooks</text>
+<rect x="980" y="459" width="600" height="100" rx="14" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="1280" y="492" class="label" text-anchor="middle">UNPCInferencePolicy</text>
+<text x="1280" y="521" class="code" text-anchor="middle">Configure(FNPCInferenceConfig) → Init(...)</text>
+<text x="1280" y="545" class="small" text-anchor="middle">BlueprintType • Blueprint-callable methods</text>
+<text x="696" y="597" class="small" text-anchor="start">FNPCInferenceConfig.Paradigm : ENPCInferenceParadigm</text>
+<path d="M 1280 559 V 579 H 659 V 1125" fill="none" stroke="#64748b" stroke-width="2" stroke-linejoin="round"/>
+<path d="M 659 662 H 688" fill="none" stroke="#64748b" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="696" y="619" width="884" height="88" rx="14" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="1.5"/>
+<text x="716" y="651" class="label" text-anchor="start">Adaptive</text>
+<text x="716" y="669" class="code" text-anchor="start">SubmitFeedback → Think / BatchedThink</text>
+<text x="716" y="693" class="small" text-anchor="start">Replay a preferred action for matching player behavior.</text>
+<path d="M 659 766 H 688" fill="none" stroke="#64748b" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="696" y="723" width="884" height="88" rx="14" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="1.5"/>
+<text x="716" y="755" class="label" text-anchor="start">EventBased</text>
+<text x="716" y="773" class="code" text-anchor="start">Config.Events + NotifyEvent → inference permit</text>
+<text x="716" y="797" class="small" text-anchor="start">Any subscribed event allows one successful inference call.</text>
+<path d="M 659 870 H 688" fill="none" stroke="#64748b" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="696" y="827" width="884" height="88" rx="14" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="1.5"/>
+<text x="716" y="859" class="label" text-anchor="start">Background</text>
+<text x="716" y="877" class="code" text-anchor="start">BatchedThink / ThinkEntities + batch / fan-out config</text>
+<text x="716" y="901" class="small" text-anchor="start">Mock chunks, worker lanes, and stable Mass entity ID mapping.</text>
+<path d="M 659 974 H 688" fill="none" stroke="#64748b" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="696" y="931" width="884" height="88" rx="14" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="1.5"/>
+<text x="716" y="963" class="label" text-anchor="start">SharedPolicy</text>
+<text x="716" y="981" class="code" text-anchor="start">RegisterHead + ThinkShared(observation, heads)</text>
+<text x="716" y="1005" class="small" text-anchor="start">One mock trunk evaluation, then specialized head outputs.</text>
+<path d="M 659 1078 H 688" fill="none" stroke="#64748b" stroke-width="2" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="696" y="1035" width="884" height="88" rx="14" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="1.5"/>
+<text x="716" y="1067" class="label" text-anchor="start">AdvancedStrategy</text>
+<text x="716" y="1085" class="code" text-anchor="start">SetSearchCandidates + SearchStrategy / SearchBudget</text>
+<text x="716" y="1109" class="small" text-anchor="start">Mock MCTS: mean rollout score. Minimax: worst-reply score.</text>
+<text x="696" y="1161" class="small" text-anchor="start">GetConfig → FNPCInferenceConfig • GetStats → FNPCInferenceStats</text>
+<text x="40" y="1214" class="small" text-anchor="start">Scope: Unreal inference API, including Blueprint calls. Training gRPC endpoints unchanged. All new behavior remains mocked; no UI added.</text>
+</svg>

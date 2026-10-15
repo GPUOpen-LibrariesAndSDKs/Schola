@@ -86,6 +86,8 @@ Godot/
 
 Contains the engine-independent environment interfaces, space and point types, agent state, connector loop, and transport/policy abstractions. It must not reference Godot, gRPC, or ONNX libraries.
 
+`src/core/spaces/` defines `schola::Space` (Box, Discrete, MultiDiscrete, MultiBinary, and Dict definitions) and `schola::Point` (values in those spaces). Spaces report malformed definitions (`INVALID_DATA`) and invalid points (`INVALID_ARGUMENT`) through the shared `schola::Status` in `src/core/common/`. Dict entries are ordered, and that order fixes the flattened layout exchanged with Python.
+
 ### `src/bindings`
 
 Adapts the core abstractions to user-facing Godot nodes, resources, the Inspector, and the engine lifecycle. User-facing Godot APIs belong here. The `src/runtime` and `src/training` composition roots may use the minimal Godot registration APIs needed to assemble and initialize their extensions; they must not define user-story APIs.

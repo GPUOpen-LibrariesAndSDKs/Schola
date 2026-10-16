@@ -51,36 +51,60 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNNEStateBufferBasicsTest, "Schola.Policies.NNE
 
 bool FNNEStateBufferBasicsTest::RunTest(const FString& Parameters)
 {
-	// 3 sequences, dim=2
+	// 3 sequences, dim=2, plus one pending row
 	FNNEStateBuffer StateBuffer({ -1, -1, 2 }, 3);
+	TestEqual(TEXT("Sequence plus pending row"), StateBuffer.StateBuffer.Num(), 8);
 
-	// Fill with rows: [1,2] [3,4] [5,6]
-	StateBuffer.StateBuffer[0] = 1.0f;
-	StateBuffer.StateBuffer[1] = 2.0f;
-	StateBuffer.StateBuffer[2] = 3.0f;
-	StateBuffer.StateBuffer[3] = 4.0f;
-	StateBuffer.StateBuffer[4] = 5.0f;
-	StateBuffer.StateBuffer[5] = 6.0f;
-
-	// Shift should drop first row and repeat last row
-	StateBuffer.Shift();
-	TestEqualExactFloat(TEXT("After shift: seq0_dim0 == 3"), StateBuffer.StateBuffer[0], 3.0f);
-	TestEqualExactFloat(TEXT("After shift: seq0_dim1 == 4"), StateBuffer.StateBuffer[1], 4.0f);
-	TestEqualExactFloat(TEXT("After shift: seq1_dim0 == 5"), StateBuffer.StateBuffer[2], 5.0f);
-	TestEqualExactFloat(TEXT("After shift: seq1_dim1 == 6"), StateBuffer.StateBuffer[3], 6.0f);
-	TestEqualExactFloat(TEXT("After shift: seq2_dim0 unchanged == 5"), StateBuffer.StateBuffer[4], 5.0f);
-	TestEqualExactFloat(TEXT("After shift: seq2_dim1 unchanged == 6"), StateBuffer.StateBuffer[5], 6.0f);
-
-	// Bindings
+	// The input binding covers the sequence and the output binding covers only the pending row
 	UE::NNE::FTensorBindingCPU InputBinding = StateBuffer.MakeInputBinding();
 	TestEqual(TEXT("Input binding size"), InputBinding.SizeInBytes, 3 * 2 * sizeof(float));
 	TestEqual(TEXT("Input binding data"), InputBinding.Data, (void*)StateBuffer.StateBuffer.GetData());
-
 	UE::NNE::FTensorBindingCPU OutputBinding = StateBuffer.MakeOutputBinding();
 	TestEqual(TEXT("Output binding size"), OutputBinding.SizeInBytes, 2 * sizeof(float));
-	void* ExpectedOutputPtr = (void*)(StateBuffer.StateBuffer.GetData() + (3 - 1) * 2);
-	TestEqual(TEXT("Output binding data points to last row"), OutputBinding.Data, ExpectedOutputPtr);
+	TestEqual(TEXT("Output binding starts after the input"), OutputBinding.Data, (void*)(StateBuffer.StateBuffer.GetData() + 6));
 
+	// Rows [1,2] [3,4] [5,6], pending [7,8]. Update drops the first row and commits the pending row
+	StateBuffer.StateBuffer = { 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f };
+	StateBuffer.Update();
+	TestEqualExactFloat(TEXT("After update: seq0_dim0 == 3"), StateBuffer.StateBuffer[0], 3.0f);
+	TestEqualExactFloat(TEXT("After update: seq1_dim1 == 6"), StateBuffer.StateBuffer[3], 6.0f);
+	TestEqualExactFloat(TEXT("After update: seq2_dim0 == 7"), StateBuffer.StateBuffer[4], 7.0f);
+	TestEqualExactFloat(TEXT("After update: seq2_dim1 == 8"), StateBuffer.StateBuffer[5], 8.0f);
+
+	// Without a sequence dimension, Update replaces the state with the pending one
+	FNNEStateBuffer FlatBuffer({ -1, 2 });
+	TestEqual(TEXT("Flat state plus pending state"), FlatBuffer.StateBuffer.Num(), 4);
+	FlatBuffer.StateBuffer = { 1.0f, 2.0f, 9.0f, 10.0f };
+	FlatBuffer.Update();
+	TestEqualExactFloat(TEXT("Flat update: dim0 == 9"), FlatBuffer.StateBuffer[0], 9.0f);
+	TestEqualExactFloat(TEXT("Flat update: dim1 == 10"), FlatBuffer.StateBuffer[1], 10.0f);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNNEStateLayoutBasicsTest, "Schola.Policies.NNE.NNEBuffer.StateLayout Basics", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FNNEStateLayoutBasicsTest::RunTest(const FString& Parameters)
+{
+	// Batch -1 and sequence -1, max sequence length 3, state vector of 2
+	FNNEStateLayout Layout(TArray<int32> { -1, -1, 2 }, 3);
+	TestEqual(TEXT("Batch fixed to 1 and sequence set to max length"), Layout.Shape, TArray<int> { 1, 3, 2 });
+	TestEqual(TEXT("SeqDim"), Layout.SeqDim, 1);
+	TestEqual(TEXT("StateDimSize"), Layout.StateDimSize, 2);
+	TestEqual(TEXT("NumElements"), Layout.GetNumElements(), 6);
+	TestEqual(TEXT("BufferNumElements includes the pending state"), Layout.GetBufferNumElements(), 8);
+
+	FNNEStateBuffer Buffer(Layout);
+	TestEqual(TEXT("Buffer allocated from layout"), Buffer.StateBuffer.Num(), 8);
+	TestEqual(TEXT("Buffer copies the layout's StateDimSize"), Buffer.StateDimSize, 2);
+	for (float Value : Buffer.StateBuffer)
+	{
+		TestEqual(TEXT("Buffer is zeroed"), Value, 0.0f);
+	}
+
+	FNNEStateLayout FlatLayout(TArray<int32> { -1, 4 });
+	TestFalse(TEXT("No sequence dimension"), FlatLayout.HasSequenceDimension());
+	TestEqual(TEXT("Flat StateDimSize is the whole tensor"), FlatLayout.StateDimSize, 4);
 	return true;
 }
 

@@ -69,12 +69,13 @@ Godot/
 │   │   ├── environment/          Environment and agent contracts
 │   │   ├── spaces/               Observation/action spaces and point values
 │   │   ├── lifecycle/            Step, reset, and auto-reset coordination
-│   │   └── policy/               Engine-independent policy and stepping contracts
+│   │   ├── policy/               Engine-independent policy and policy state contracts
+│   │   └── stepper/              Engine-independent observe, think, and act loop
 │   ├── bindings/
 │   │   ├── environment/          Godot environment and agent nodes
 │   │   ├── inference/            Godot-facing policy and inference APIs
 │   │   └── spaces/               Inspector space resources
-│   ├── inference/                ONNX inference module
+│   ├── inference/                ONNX Runtime policy module
 │   ├── interop/                  Godot Variant and core value conversion
 │   ├── runtime/                  Runtime extension composition root
 │   ├── training/
@@ -108,7 +109,9 @@ Contains the gRPC adapter boundary for Schola's existing Protocol Buffer contrac
 
 ### `src/inference`
 
-Contains ONNX Runtime policy integration for local inference without a running Python process or training connection. The public policy, stepper, and Godot-facing inference APIs are merged; ONNX Runtime integration and concrete execution behavior remain implementation work. Inference remains independent from the training extension so exported games can exclude training dependencies.
+Contains ONNX Runtime policy integration for local inference without a running Python process or training connection. It is the only module that includes ONNX Runtime headers; the policy and stepper contracts it implements live in `src/core/policy/` and `src/core/stepper/`. The public policy, stepper, and Godot-facing inference APIs are merged; ONNX Runtime integration and concrete execution behavior remain implementation work. Inference remains independent from the training extension so exported games can exclude training dependencies.
+
+The inference API follows the policy state design of Unreal Schola. A policy holds no per-agent data. Each agent's memory, such as the hidden tensors of a recurrent model, is a `schola::PolicyState` created by `Policy::create_initial_state()` and owned by the caller, so one loaded model can serve many agents. Policies without memory use `EmptyPolicyState` (Unreal: `UStatelessPolicyState`), so a state is never null. `SimpleStepper` owns one state per entry, keeps entries in add order like an array, and allows the same agent to be added more than once with a separate state for each entry. Differences from Unreal follow the project contract and Godot conventions: core functions return `schola::Status` instead of logging, `add_agent()` reports its index through an output parameter, and the Godot-facing `ScholaInferenceStepper` takes agent nodes instead of indices and returns `Error`.
 
 ### `src/interop`
 
@@ -142,7 +145,7 @@ Dependencies must point toward `core`. The core must never depend on Godot bindi
 | US3: Connect Python training tools | `src/core/connector/`, `src/transport/grpc/`, `src/training/bindings/`, and `addons/schola_training/` |
 | US4: Execute the episode lifecycle | `src/core/lifecycle/` and the Godot-facing training host |
 | US5: Configure through Godot | `src/bindings/` and `examples/basic_environment/` |
-| US7: Run and ship an ONNX policy | `src/core/policy/`, `src/inference/`, `src/bindings/inference/`, and `addons/schola/` |
+| US7: Run and ship an ONNX policy | `src/core/policy/`, `src/core/stepper/`, `src/inference/`, `src/bindings/inference/`, and `addons/schola/` |
 
 The detailed acceptance criteria and D1 planning scope are in [`deliverables/D1/planning.md`](../deliverables/D1/planning.md). Engineering tasks, dependencies, assignees, and progress are tracked on the team's [Trello board](https://trello.com/b/Ry0Qkx2R).
 

@@ -2,13 +2,13 @@
 
 #pragma once
 
+#include "bindings/inference/schola_policy_state.h"
+
+#include <godot_cpp/classes/ref.hpp>
 #include <godot_cpp/classes/resource.hpp>
 #include <godot_cpp/variant/packed_string_array.hpp>
 #include <godot_cpp/variant/string.hpp>
 #include <godot_cpp/variant/variant.hpp>
-
-#include <cstdint>
-#include <memory>
 
 namespace schola {
 class OnnxPolicy;
@@ -27,13 +27,12 @@ public:
 	godot::String get_last_error() const;
 	godot::PackedStringArray get_input_names() const;
 	godot::PackedStringArray get_output_names() const;
-	// One inference on a GDScript value; p_agent selects whose memory is used.
-	godot::Variant infer(const godot::Variant &p_observation, int32_t p_agent = 0);
-	void reset_memory(int32_t p_agent); // Clears one agent's memory used by infer().
-	void reset_all_memory(); // Clears every agent's memory used by infer().
 
-	// New policy with its own memory; shares the loaded model.
-	std::unique_ptr<schola::OnnxPolicy> instantiate() const;
+	godot::Ref<ScholaPolicyState> create_state() const;
+	// One inference on a GDScript value. p_state is advanced in place; required for recurrent models.
+	godot::Variant infer(const godot::Variant &p_observation, const godot::Ref<ScholaPolicyState> &p_state = godot::Ref<ScholaPolicyState>());
+
+	schola::OnnxPolicy *get_policy() const; // Shared by every stepper using this resource.
 
 protected:
 	static void _bind_methods();

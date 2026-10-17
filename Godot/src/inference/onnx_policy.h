@@ -6,23 +6,23 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
 namespace schola {
 
-// Runs a Schola-exported ONNX model with ONNX Runtime.
 class OnnxPolicy final : public Policy {
 public:
 	// INVALID_DATA if the file is corrupt; INCOMPATIBLE if its recurrent state is invalid.
 	Status load_model(const uint8_t *p_data, size_t p_size, const std::string &p_model_name);
 
-	Status init(const InteractionDefinition &p_definition, int32_t p_agent_count) override;
-	Status think(int32_t p_agent, const Point &p_observation, Point &r_action) override;
-	// One model run for all agents, including their memory.
-	Status batched_think(const std::vector<const Point *> &p_observations, const std::vector<Point *> &r_actions) override;
-	void reset(int32_t p_agent) override; // Zeros the agent's memory.
-	void reset_all() override;
+	Status init(const InteractionDefinition &p_definition) override;
+	// OnnxPolicyState for recurrent models, EmptyPolicyState otherwise.
+	Status create_initial_state(std::unique_ptr<PolicyState> &r_state) const override;
+	// INVALID_ARGUMENT if p_state was not created by this policy.
+	Status think(const Point &p_observation, PolicyState &p_state, Point &r_action) override;
+	Status batched_think(const std::vector<const Point *> &p_observations, const std::vector<PolicyState *> &p_states, const std::vector<Point *> &r_actions) override;
 	bool is_recurrent() const override; // Model has state_in/state_out tensors.
 
 	bool is_ready() const; // load_model() and init() succeeded.

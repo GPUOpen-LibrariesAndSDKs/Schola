@@ -4,9 +4,9 @@
 
 #include "core/common/status.h"
 #include "core/policy/policy.h"
+#include "core/policy/policy_state.h"
 #include "core/spaces/point.h"
 
-#include <cstdint>
 #include <vector>
 
 namespace schola::testing {
@@ -15,15 +15,12 @@ namespace schola::testing {
 class FakePolicy final : public Policy {
 public:
 	Point action; // Copied into r_action by every think().
-	std::vector<int32_t> agents; // Agent index of every observation received, in order.
 	std::vector<Point> observations; // Every observation received, in order.
-	std::vector<int32_t> resets; // Agent index of every reset() call; reset_all() records -1.
+	std::vector<const PolicyState *> states; // State of every think() call, in order.
 	Status next_error = Status::ok(); // Returned once by the next call, to test error paths.
 
-	Status init(const InteractionDefinition &p_definition, int32_t p_agent_count) override;
-	Status think(int32_t p_agent, const Point &p_observation, Point &r_action) override;
-	void reset(int32_t p_agent) override;
-	void reset_all() override;
+	Status init(const InteractionDefinition &p_definition) override;
+	Status think(const Point &p_observation, PolicyState &p_state, Point &r_action) override;
 };
 
 } // namespace schola::testing

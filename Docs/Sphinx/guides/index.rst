@@ -9,6 +9,7 @@ Guides
    running_schola
    setting_up_inference
    mock_inference_paradigms
+   adaptive_online_learning_contract
    running_from_cli
    lerobot_evaluation
    cli_dataclass_conventions

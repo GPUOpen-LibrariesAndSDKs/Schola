@@ -18,7 +18,7 @@ enum class EAdaptiveSessionState : uint8
     Stopped
 };
 
-/** A future request/result API can distinguish missing work from work still in progress. */
+/** Only Ready can release an action. Expired means the local action age limit was reached. */
 UENUM(BlueprintType)
 enum class EAdaptiveRequestStatus : uint8
 {
@@ -26,7 +26,30 @@ enum class EAdaptiveRequestStatus : uint8
     Pending,
     Ready,
     Failed,
-    Cancelled
+    Cancelled,
+    Expired
+};
+
+/** Copied input for one decision. The bridge assigns its identity; this is not a wire format. */
+USTRUCT(BlueprintType)
+struct SCHOLAINFERENCEUTILS_API FAdaptiveDecisionRequest
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Schola|Adaptive")
+    FGuid SessionId;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Schola|Adaptive")
+    int64 AgentId = INDEX_NONE;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Schola|Adaptive")
+    int64 EpisodeId = INDEX_NONE;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Schola|Adaptive")
+    int64 DecisionId = INDEX_NONE;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Schola|Adaptive")
+    TInstancedStruct<FPoint> Observation;
 };
 
 /**

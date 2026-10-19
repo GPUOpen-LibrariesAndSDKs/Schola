@@ -6,8 +6,10 @@ Unreal data records and validation of the NPC's input/output definitions. The
 complete gameplay-to-learning loop remains the proposed design in
 :doc:`adaptive_online_learning_contract`.
 
-The policy does not yet send requests, receive actions, or train a model. The
-existing ``UNPCInferencePolicy`` mock and its five paradigms are unchanged.
+The policy's nonblocking ticket lifecycle is described in
+:doc:`adaptive_decision_lifecycle`. It can be exercised with controlled native
+test responses; no Python connection or model training is implemented yet.
+The existing ``UNPCInferencePolicy`` mock and its five paradigms are unchanged.
 
 What each type represents
 --------------------------------------------------
@@ -21,6 +23,9 @@ What each type represents
    * - ``FAdaptiveDecision``
      - An action and the session, NPC, encounter, request, and policy-version
        identifiers needed to match it to its origin.
+   * - ``FAdaptiveDecisionRequest``
+     - A copied observation and the session, NPC, encounter and ticket identity
+       assigned by the bridge when it dispatches a decision request.
    * - ``FAdaptiveExperience``
      - A completed outcome: those identifiers, the originating observation,
        command actually executed, reward, next observation, and separate
@@ -28,8 +33,7 @@ What each type represents
    * - ``EAdaptiveSessionState``
      - Labels for local initialization and eventual remote connection state.
    * - ``EAdaptiveRequestStatus``
-     - Labels for eventual request results: Unknown, Pending, Ready, Failed,
-       and Cancelled. No request operations are implemented yet.
+     - Request results: Unknown, Pending, Ready, Failed, Cancelled, and Expired.
    * - ``UAdaptiveNPCPolicy``
      - An Unreal policy object that validates and copies the declared
        observation/action spaces. It implements ``IPolicy`` while immediate
@@ -85,8 +89,9 @@ and action scaling with B and D.
 
 Schola's existing ``FSpace::Validate`` / ``Contains`` methods check actual point
 values against a space. They do not validate the space definition itself. This
-policy checks definitions; point validation belongs to the later request and
-experience operations.
+policy checks definitions; decision requests and results also reuse existing
+point validation, with additional checks for finite values and explicit shapes.
+Experience submission remains a later step.
 
 Initialize and inspect the policy
 --------------------------------------------------
@@ -137,11 +142,13 @@ previous valid definition and initialized state. A later valid initialization
 can replace it. Always check ``Init``'s return value when changing definitions;
 ``IsInitialized`` reports whether an accepted definition still exists.
 
-``Connecting``, ``Ready``, and ``Stopped`` are reserved session states for the
-later connection lifecycle. Local initialization never reports ``Ready``.
-``IsInferenceBusy`` returns false because no work is dispatched. ``Think`` and
-``BatchedThink`` return false promptly, explain that inference is unavailable,
-and preserve the action or whole action array supplied by the caller.
+Local initialization never reports ``Ready``. A native integration hook can
+confirm a session after a handshake; the base policy has no Python client.
+``Connecting`` remains reserved for that integration. ``Shutdown`` reports
+``Stopped``. ``IsInferenceBusy`` reports pending, unexpired inference only.
+``Think`` and ``BatchedThink`` return false promptly, direct callers to the
+request/result API, and preserve the action or whole action array supplied by
+the caller. See :doc:`adaptive_decision_lifecycle` for the implemented rules.
 
 Verification
 ------------

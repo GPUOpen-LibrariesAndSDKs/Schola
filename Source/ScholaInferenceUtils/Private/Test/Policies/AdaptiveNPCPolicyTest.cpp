@@ -169,7 +169,7 @@ bool FAdaptivePolicyUnavailableInferenceTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Unavailable inference preserves action"), Action == AdaptivePoint(9.0f));
     TestFalse(TEXT("Default mutating batch fallback is not used"), Interface->BatchedThink({AdaptivePoint(1.0f), AdaptivePoint(2.0f)}, Actions));
     TestTrue(TEXT("Entire batch output preserved"), Actions.Num() == 1 && Actions[0] == AdaptivePoint(9.0f));
-    TestTrue(TEXT("Unavailable inference explains the missing connection"), Policy->GetLastError().Contains(TEXT("learner connection")));
+    TestTrue(TEXT("Unavailable inference directs callers to nonblocking requests"), Policy->GetLastError().Contains(TEXT("RequestDecision")));
     TestTrue(TEXT("Unavailable inference preserves local setup"), Policy->GetSessionState() == EAdaptiveSessionState::Initialized);
     TestFalse(TEXT("No work is in flight"), Interface->IsInferenceBusy());
     return true;

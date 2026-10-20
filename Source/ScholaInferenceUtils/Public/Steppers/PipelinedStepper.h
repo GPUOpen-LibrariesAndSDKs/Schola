@@ -44,6 +44,9 @@ public:
         Agents = InAgents;
         Policy = InPolicy;
         TickCounter = 0;
+        // Completions dispatched before this call belong to an older generation and are discarded.
+        ++Generation;
+        LastAppliedDispatchId = 0;
 
         for (int i = 0; i < PIPELINE_STAGES; ++i)
         {
@@ -51,6 +54,7 @@ public:
             Frames[i].Actions.Reset();
             Frames[i].bActionsReady = false;
             Frames[i].bThinkInFlight = false;
+            Frames[i].DebugDispatchId = 0;
         }
         return Agents.Num() > 0 && Policy;
     }
@@ -59,9 +63,9 @@ public:
      * @brief Execute one step of the pipelined agent-policy loop.
      * 
      * Must be called every tick on the Game Thread. Performs:
-     * - Applies actions from the previous frame (if ready)
-     * - Collects observations from all agents
-     * - Dispatches asynchronous inference if policy is not busy
+     * - Applies the newest completed actions (older completions are discarded)
+     * - Collects observations and dispatches asynchronous inference, if the
+     *   current frame slot is idle and the policy is not busy
      * 
      * The inference runs on a background thread and results are applied
      * in a subsequent frame once ready.
@@ -120,6 +124,12 @@ private:
     
     /** Current tick counter for frame indexing */
     uint64 TickCounter = 0;
+
+    /** Incremented by Init; completions from an older generation are ignored. */
+    uint64 Generation = 0;
+
+    /** Dispatch ID of the most recently applied actions; older results are never applied. */
+    uint64 LastAppliedDispatchId = 0;
     
     /** Flag indicating the stepper is being destroyed */
     std::atomic<bool> bShuttingDown = false;

@@ -1,5 +1,5 @@
-Mock NPC Inference Paradigms
-===========================
+NPC Inference Paradigms
+======================
 
 ``ScholaInferenceUtils`` exposes ``UNPCInferencePolicy`` in
 ``Policies/NPCInferencePolicy.h``. Select one of five paradigms with
@@ -7,11 +7,9 @@ Mock NPC Inference Paradigms
 interface, so callers can use ``Think``, ``BatchedThink``, and existing steppers.
 The same methods are Blueprint-callable; they do not add a UI or training gRPC endpoints.
 
-All backends are deterministic mocks. No neural network, online optimizer,
-background worker, Mass subsystem, or game-tree simulator is loaded. Copied
-points stand in for actions, so prototypes should use compatible point shapes.
-``Init`` accepts an interaction definition but does not enforce action-space
-compatibility. ``UNNEPolicy`` is unchanged. ``UBlueprintPolicy`` gains batch and busy-state events.
+Background inference uses bounded batching and dedicated workers with an NNE CPU
+provider. The other four paradigms remain deterministic prototypes. Their copied
+points stand in for actions. ``UNNEPolicy`` is unchanged.
 
 Construction and selection
 -------------------------
@@ -42,7 +40,8 @@ notifications, registered heads, search candidates, and diagnostics. Call ``Init
 again after changing configuration. Invalid configuration leaves previous state
 intact. Check boolean return values before applying output actions. Inference
 failures leave caller outputs intact. Empty batches and invalid points fail.
-All API calls must be serialized; this mock does not provide concurrent access.
+Configure, Init, and destruction run on the game thread. Background inference
+methods support concurrent callers. Serialize calls to the other four paradigms.
 
 Adaptive NPCs
 -------------
@@ -85,30 +84,107 @@ without implementing an event bus. No action is produced between events.
 Background NPCs
 ---------------
 
-``BatchedThink`` simulates dispatch in chunks of ``MaxBatchSize``. ``WorkerCount``
-and ``FanOut`` select mock worker lanes: ``Contiguous`` assigns each chunk to
-one lane, ``RoundRobin`` assigns successive rows to successive lanes, and
-``MassEntity`` maps an entity ID modulo worker count. Execution is synchronous;
-chunk dispatch counts and lanes are observable in ``GetStats``. Outputs always
-match input order, including a partial final chunk.
+.. figure:: ../../Diagrams/background-npc-architecture.svg
+   :alt: Blueprint/C++, Actor and Mass integrations on the game thread submit
+         observation rows to a per-world bucket. Each bucket's scheduler admits,
+         batches and dispatches rows to worker threads, each owning one NNE or
+         passthrough backend context. Results are drained, validated and applied
+         on a later frame, so the game thread never waits on inference.
+   :width: 100%
+
+Set ``BackgroundProvider`` to an ``UNNEBatchBackendProvider`` from ``ScholaNNE``.
+ORT CPU accepts Schola's stateless ONNX exports; BasicCpu accepts ``.ubnne``
+assets with one float input and output. Text, nested Dict spaces, recurrent
+state tensors, and dynamic non-batch dimensions are rejected. Discrete rows
+carry indices, not one-hot vectors. Dict entries bind in model tensor order.
 
 .. code-block:: cpp
 
-   Config.Paradigm = ENPCInferenceParadigm::Background;
-   Config.MaxBatchSize = 32;
-   Config.WorkerCount = 4;
-   Config.FanOut = ENPCInferenceFanOut::RoundRobin;
-   Policy->Configure(Config);
-   Policy->Init(InteractionDefinition);
-   TArray<TInstancedStruct<FPoint>> Observations = {Behavior, Behavior};
-   TArray<TInstancedStruct<FPoint>> Actions;
-   Policy->BatchedThink(Observations, Actions);
+   #include "Inference/NNEBatchBackendProvider.h"
+   #include "Steppers/BackgroundStepper.h"
 
-For the mock Mass adapter, select ``MassEntity`` and call
-``ThinkEntities(EntityIds, Observations, Actions)``. IDs must be unique,
-nonnegative, and have the same count as observations. Diagnostics retain IDs in
-row order; no actual Mass entities or processors are created. Plain
-``BatchedThink`` in this mode has no IDs and uses contiguous lanes.
+   auto* Provider = NewObject<UNNEBatchBackendProvider>(Owner);
+   Provider->ModelData = ModelAsset;
+   Config.Paradigm = ENPCInferenceParadigm::Background;
+   Config.BackgroundProvider = Provider;
+   Config.WorkerCount = 2;
+   Config.MaxBatchSize = 64;
+   Config.FanOut = ENPCInferenceFanOut::SharedQueue;
+   if (!Policy->Configure(Config) || !Policy->Init(InteractionDefinition)) return;
+
+   // Hold Stepper in a UPROPERTY. Rates correspond to Agents in the same order.
+   Stepper = NewObject<UBackgroundStepper>(Owner);
+   if (!Stepper->Init(Policy, Agents, DecisionHz)) return;
+   // Or set bAutoTick=true before Init to register with the world subsystem.
+   Stepper->Step(FPlatformTime::Seconds()); // Call each frame; never waits.
+
+Compatible policies in the same world share one reference-counted bucket.
+The key includes model identity, schema, runtime, and scheduler settings.
+``WorkerCount`` and ``MaxBatchSize`` are taken from their legacy config fields;
+other limits come from ``BackgroundSettings``. Workers default to BelowNormal.
+``Think`` and ``BatchedThink`` are synchronous compatibility methods and block
+the calling thread. A model-backed game-thread call logs one warning per policy.
+StateTree's existing synchronous task/evaluator accept this policy too.
+
+Blueprint users can call ``SubmitBackground(Observations, Keys, Request)``,
+poll ``GetBackgroundStatus(Request)`` on later frames, and call
+``ConsumeBackground(Request, Actions)`` once terminal. ``Pending`` and every
+non-Completed outcome preserve Actions. Requests belong to the policy instance that issued them.
+Consumption retires the handle;
+subsequent access returns Invalid. ``CancelBackground`` exposes Cancelled until
+consumed. Configure invalidates outstanding policy handles. Check
+``GetBackgroundStats`` for real model invocations, row counts, capacity,
+latency, padding, and reshape cost.
+
+``UBackgroundStepper`` phases agents by decision period. Busy agents stay due;
+oldest due times are retried first, within ``MaxRowsPerFrame``. A result is
+applied only when generation, slot lifetime, newest request serial, and age pass.
+``MaxActionAgeMs`` defaults to 100 ms. With no valid result, the previous action
+stays in effect. ``bReapplyHeldAction`` optionally calls Act on intervening frames.
+``RemoveAgent`` invalidates a slot before reuse. ``RequestDecisionNow`` makes a
+slot due on the next Step. Reset cancels this stepper's pending work.
+Agent callbacks may call ``Reset`` or ``RemoveAgent``: delivery stops immediately
+for invalidated work, while storage cleanup waits until the active Step returns.
+The stepper and callback parameters remain alive across callback-triggered garbage
+collection. Nested ``Step`` calls are ignored. Call ``AddAgent`` and ``Init``
+outside Step; an attempted callback Init returns false and requests a reset.
+The game-thread C++ diagnostic ``GetNextDecisionTime(slot)`` exposes the scheduled
+deadline, including Busy deferral, for freshness measurements.
+
+C++ agents may implement ``INPCBackgroundRowAgent`` to write and apply float
+rows directly. This avoids point conversion on the hot path. The existing
+``IAgent::Observe/Act`` path remains available.
+
+Without a provider, a private passthrough scheduler transports point indices
+and returns copies of the source observations for prototypes. Configure/Init
+recreates this private scheduler. Legacy Contiguous, RoundRobin, and MassEntity
+fan-out retain their lane meanings. With ``FanOut=MassEntity``, ThinkEntities routes unique nonnegative
+IDs through KeyAffinity; the actual Mass integration is described below.
+
+Mass integration
+~~~~~~~~~~~~~~~~
+
+Add ``ScholaMass`` to module dependencies. This module uses engine Mass runtime
+modules and does not require the MassGameplay plugin. Derive a gather processor
+from ``UScholaMassGatherProcessor`` and supply observation requirements plus
+``WriteObservations``. Derive an apply processor from
+``UScholaMassApplyProcessor`` and supply action requirements plus ``ApplyActions``.
+The chunk callback receives entity indices and packed rows in matching order.
+Set your movement/behavior processor groups after ``ScholaInference.Apply``.
+Choose observation/action requirements that select the population owned by each
+processor. Matching gather processors share the same due-time fragments.
+Callbacks must not perform immediate structural changes. Parallel gather uses
+Mass's per-job command buffers and disjoint row ranges.
+
+Entities need ``FScholaInferenceScheduleFragment``,
+``FScholaInferenceStateFragment``, and the const shared
+``FScholaInferenceBucketFragment``. Acquire the bucket on the game thread via
+``UScholaMassInferenceSubsystem::AcquireBucket``. The observer allocates dense
+slots; removal invalidates them. Handles are checked using index and serial;
+fragment migration preserves delivery, while bucket changes invalidate old work.
+An optional ``ActionReadySignal`` can notify MassStateTree consumers after apply.
+Schola does not yet ship a MassStateTree task or a trait/LOD rate bridge;
+consume the signal from your own processor or StateTree task.
 
 Shared Policy NPCs
 -----------------

@@ -3,6 +3,7 @@
 
 #include "CoreMinimal.h"
 #include "Policies/PolicyInterface.h"
+#include "Inference/NPCBackgroundInferenceSubsystem.h"
 #include "NPCInferencePolicy.generated.h"
 
 /** Selection for the mock inference API. Existing IPolicy implementations are unchanged. */
@@ -21,7 +22,11 @@ enum class ENPCInferenceFanOut : uint8
 {
     Contiguous,
     RoundRobin,
-    MassEntity
+    MassEntity,
+    SharedQueue,
+    BatchRoundRobin,
+    WorkStealing,
+    LeastLoaded
 };
 
 UENUM(BlueprintType)
@@ -31,7 +36,7 @@ enum class ENPCSearchStrategy : uint8
     Minimax
 };
 
-/** All execution is synchronous and deterministic; no training, workers or Mass runtime is used. */
+/** Background uses dedicated workers; the other paradigms are deterministic prototypes. */
 USTRUCT(BlueprintType)
 struct SCHOLAINFERENCEUTILS_API FNPCInferenceConfig
 {
@@ -40,9 +45,16 @@ struct SCHOLAINFERENCEUTILS_API FNPCInferenceConfig
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Schola|Inference") ENPCInferenceParadigm Paradigm = ENPCInferenceParadigm::Adaptive;
     /** Any subscribed event authorizes one successful batch (or one Think call). */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Schola|Inference") TArray<FName> Events;
+    /** Background: overrides BackgroundSettings.MaxBatchSize. */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Schola|Inference") int32 MaxBatchSize = 32;
+    /** Background: overrides BackgroundSettings.WorkerCount. */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Schola|Inference") int32 WorkerCount = 1;
+    /** Background: overrides BackgroundSettings.Dispatch. */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Schola|Inference") ENPCInferenceFanOut FanOut = ENPCInferenceFanOut::Contiguous;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced, Category = "Schola|Inference") TObjectPtr<UNPCBackgroundBackendProvider> BackgroundProvider;
+    /** WorkerCount, MaxBatchSize, and Dispatch here are ignored: the fields above take precedence (a warning is logged on conflict). */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Schola|Inference") FNPCBackgroundSchedulerSettings BackgroundSettings;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Schola|Inference") bool bShareBackgroundBucket = true;
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Schola|Inference") FName Head = NAME_None;
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Schola|Inference") ENPCSearchStrategy SearchStrategy = ENPCSearchStrategy::MonteCarloTreeSearch;
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Schola|Inference") int32 SearchBudget = 64;
@@ -82,11 +94,19 @@ struct SCHOLAINFERENCEUTILS_API FNPCInferenceStats
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Schola|Inference") TArray<int64> EntityIds;
 };
 
-/**
- * API-only mock for all five NPC paradigms, compatible with IPolicy and existing steppers.
- * Outputs are copied points and may not fit a game's action space. Use only for prototypes.
- * All methods must be called serially, including when using a pipelined stepper.
- * Failed calls preserve outputs and do not consume event permits.
+/** Stored payload for the private passthrough transport; reflected for GC. */
+USTRUCT()
+struct FNPCBackgroundPointRequest
+{
+    GENERATED_BODY()
+    UPROPERTY() FNPCBackgroundRequest BackendRequest;
+    UPROPERTY() TArray<TInstancedStruct<FPoint>> Observations;
+    int32 Rows = 0;
+    bool bCancelled = false;
+};
+
+/** Background inference facade; other paradigms retain their prototype behavior.
+ * Background calls are thread-safe. Configure/Init/teardown run on the game thread.
  */
 UCLASS(BlueprintType, Blueprintable, EditInlineNew, DefaultToInstanced)
 class SCHOLAINFERENCEUTILS_API UNPCInferencePolicy : public UObject, public IPolicy
@@ -104,7 +124,17 @@ public:
     bool BatchedThink(const TArray<TInstancedStruct<FPoint>>& Observations,
                       TArray<TInstancedStruct<FPoint>>& Actions) override;
     UFUNCTION(BlueprintPure, Category = "Schola|Inference")
-    bool IsInferenceBusy() const override { return false; }
+    bool IsInferenceBusy() const override;
+
+    UFUNCTION(BlueprintCallable, Category="Schola|Inference")
+    ENPCBackgroundStatus SubmitBackground(const TArray<TInstancedStruct<FPoint>>& Observations, const TArray<int64>& Keys, FNPCBackgroundRequest& OutRequest);
+    UFUNCTION(BlueprintPure, Category="Schola|Inference") ENPCBackgroundStatus GetBackgroundStatus(FNPCBackgroundRequest Request) const;
+    UFUNCTION(BlueprintCallable, Category="Schola|Inference") ENPCBackgroundStatus ConsumeBackground(FNPCBackgroundRequest Request, TArray<TInstancedStruct<FPoint>>& Actions);
+    UFUNCTION(BlueprintCallable, Category="Schola|Inference") bool CancelBackground(FNPCBackgroundRequest Request);
+    UFUNCTION(BlueprintPure, Category="Schola|Inference") FNPCBackgroundStats GetBackgroundStats() const;
+    bool GetBackgroundBinding(TSharedPtr<FNPCBackgroundScheduler, ESPMode::ThreadSafe>& Scheduler, TSharedPtr<const FNPCRowCodec, ESPMode::ThreadSafe>& Codec, uint32& Generation) const;
+    TSharedPtr<FNPCCohortScheduler> GetBackgroundCohorts() const;
+    virtual void BeginDestroy() override;
 
     UFUNCTION(BlueprintCallable, Category = "Schola|Inference")
     bool SubmitFeedback(const FPlayerBehaviorFeedback& Feedback);
@@ -126,11 +156,32 @@ public:
                        const TArray<TInstancedStruct<FPoint>>& Observations,
                        TArray<TInstancedStruct<FPoint>>& Actions);
     UFUNCTION(BlueprintPure, Category = "Schola|Inference")
-    FNPCInferenceConfig GetConfig() const { return Config; }
+    FNPCInferenceConfig GetConfig() const;
     UFUNCTION(BlueprintPure, Category = "Schola|Inference")
-    FNPCInferenceStats GetStats() const { return Stats; }
+    FNPCInferenceStats GetStats() const;
 
 private:
+    void ReleaseBackground();
+    ENPCBackgroundStatus SubmitBackgroundLocked(const TArray<TInstancedStruct<FPoint>>& Observations, const TArray<int64>& Keys, FNPCBackgroundRequest& OutRequest);
+    ENPCBackgroundStatus ConsumeBackgroundLocked(FNPCBackgroundRequest Request, TArray<TInstancedStruct<FPoint>>& Actions);
+    bool ThinkBackground(const TArray<TInstancedStruct<FPoint>>& Observations, const TArray<int64>& Keys, TArray<TInstancedStruct<FPoint>>& Actions);
+    TSharedPtr<FNPCCohortScheduler> BackgroundCohorts;
+    mutable FCriticalSection BackgroundMutex;
+    TSharedPtr<FNPCBackgroundScheduler, ESPMode::ThreadSafe> BackgroundScheduler;
+    TSharedPtr<const FNPCRowCodec, ESPMode::ThreadSafe> BackgroundCodec;
+    TWeakObjectPtr<UNPCBackgroundInferenceSubsystem> BackgroundSubsystem;
+    FNPCBackgroundBucketHandle BackgroundBucket;
+    uint32 BackgroundGeneration = 0;
+    int64 NextRequestId = 1;
+    int64 RecordedBackendCalls = 0;
+    void RecordBackgroundCallsLocked();
+    int32 LastSubmissionRows = 1;
+    /** Rows of BackgroundRequests entries, including cancelled ones not yet consumed. */
+    int32 HeldBackgroundRows = 0;
+    void RemoveBackgroundRequestLocked(int64 Id);
+    bool IsBackgroundFullLocked(int32 Rows) const;
+    bool bWarnedSynchronous = false;
+    UPROPERTY() TMap<int64, FNPCBackgroundPointRequest> BackgroundRequests;
     bool ValidateReady(const TArray<TInstancedStruct<FPoint>>& Observations) const;
     TInstancedStruct<FPoint> InferMock(const TInstancedStruct<FPoint>& Observation);
     UPROPERTY() FNPCInferenceConfig Config;

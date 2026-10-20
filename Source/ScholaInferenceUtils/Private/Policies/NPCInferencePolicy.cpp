@@ -1,8 +1,35 @@
 // Copyright (c) 2026 Advanced Micro Devices, Inc. All Rights Reserved.
 #include "Policies/NPCInferencePolicy.h"
+#include "Misc/ScopeLock.h"
+#include "LogScholaInferenceUtils.h"
+#include "Engine/World.h"
+#include "UObject/GarbageCollection.h"
+#include "UObject/StrongObjectPtr.h"
+#include <atomic>
 
 namespace
 {
+// Protect reflected point/map mutations from GC on compatibility worker threads.
+// Guards cover only encoding/publication; no guard or policy lock spans inference.
+class FNPCPolicyGCGuard
+{
+    TOptional<FGCScopeGuard> Guard;
+public:
+    FNPCPolicyGCGuard() { if(!IsInGameThread())Guard.Emplace(); }
+};
+// Legacy config fields win; warn (once per process) when a non-default BackgroundSettings value is overridden.
+void WarnOverriddenBackgroundSettings(const FNPCBackgroundSchedulerSettings& Requested, const FNPCBackgroundSchedulerSettings& Effective)
+{
+    static std::atomic<bool> bWarned{false};
+    const FNPCBackgroundSchedulerSettings Defaults;
+    TArray<FString> Fields;
+    if (Requested.WorkerCount != Defaults.WorkerCount && Requested.WorkerCount != Effective.WorkerCount) Fields.Add(TEXT("WorkerCount"));
+    if (Requested.MaxBatchSize != Defaults.MaxBatchSize && Requested.MaxBatchSize != Effective.MaxBatchSize) Fields.Add(TEXT("MaxBatchSize"));
+    if (Requested.Dispatch != Defaults.Dispatch && Requested.Dispatch != Effective.Dispatch) Fields.Add(TEXT("Dispatch"));
+    if (Fields.IsEmpty() || bWarned.exchange(true)) return;
+    UE_LOG(LogScholaInferenceUtils, Warning, TEXT("BackgroundSettings.%s ignored: FNPCInferenceConfig WorkerCount/MaxBatchSize/FanOut take precedence"),
+        *FString::Join(Fields, TEXT(", BackgroundSettings.")));
+}
 // Blueprint instanced-struct pins can carry unrelated structs; validate in every entry point.
 bool IsPoint(const TInstancedStruct<FPoint>& Point)
 {
@@ -28,6 +55,8 @@ bool UNPCInferencePolicy::Configure(const FNPCInferenceConfig& InConfig)
     {
         return false;
     }
+    FScopeLock Lock(&BackgroundMutex);
+    ReleaseBackground();
     Config = InConfig;
     Stats = FNPCInferenceStats();
     FeedbackSamples.Reset();
@@ -40,7 +69,55 @@ bool UNPCInferencePolicy::Configure(const FNPCInferenceConfig& InConfig)
 
 bool UNPCInferencePolicy::Init(const FInteractionDefinition& InDefinition)
 {
-    // Mock points are not validated against model shapes; no model is loaded.
+    FScopeLock Lock(&BackgroundMutex);
+    ReleaseBackground();
+    if (Config.Paradigm == ENPCInferenceParadigm::Background)
+    {
+        auto* Provider = Config.BackgroundProvider.Get();
+        if (!Provider) Provider = GetMutableDefault<UNPCPassthroughBackendProvider>();
+        auto Settings = Config.BackgroundSettings;
+        Settings.WorkerCount = Config.WorkerCount;
+        Settings.MaxBatchSize = Config.MaxBatchSize;
+        switch (Config.FanOut)
+        {
+        case ENPCInferenceFanOut::Contiguous: Settings.Dispatch = ENPCBackgroundDispatch::Contiguous; break;
+        case ENPCInferenceFanOut::RoundRobin: Settings.Dispatch = ENPCBackgroundDispatch::RowRoundRobin; break;
+        case ENPCInferenceFanOut::MassEntity: Settings.Dispatch = ENPCBackgroundDispatch::KeyAffinity; break;
+        case ENPCInferenceFanOut::SharedQueue: Settings.Dispatch = ENPCBackgroundDispatch::SharedQueue; break;
+        case ENPCInferenceFanOut::BatchRoundRobin: Settings.Dispatch = ENPCBackgroundDispatch::BatchRoundRobin; break;
+        case ENPCInferenceFanOut::WorkStealing: Settings.Dispatch = ENPCBackgroundDispatch::WorkStealing; break;
+        case ENPCInferenceFanOut::LeastLoaded: Settings.Dispatch = ENPCBackgroundDispatch::LeastLoaded; break;
+        }
+        WarnOverriddenBackgroundSettings(Config.BackgroundSettings, Settings);
+        FString Error;
+        if (GetWorld() && Config.bShareBackgroundBucket && !Provider->IsA<UNPCPassthroughBackendProvider>())
+        {
+            auto* Subsystem = GetWorld()->GetSubsystem<UNPCBackgroundInferenceSubsystem>();
+            BackgroundBucket = Subsystem->AcquireBucket(*Provider, InDefinition, Settings, Error);
+            BackgroundSubsystem = Subsystem;
+            BackgroundScheduler = Subsystem->ShareScheduler(BackgroundBucket);
+            BackgroundCodec = Subsystem->ShareCodec(BackgroundBucket);
+            // BackgroundGeneration is policy-local. Reacquiring a still-shared bucket
+            // must not restore the epoch held by a pre-Configure stepper.
+            BackgroundCohorts = Subsystem->ShareCohorts(BackgroundBucket);
+        }
+        else
+        {
+            BackgroundCohorts = MakeShared<FNPCCohortScheduler>();
+            FNPCRowLayout Layout;
+            auto Backend = Provider->CreateBackend(InDefinition, Layout, Error);
+            if (Backend && !Provider->IsA<UNPCPassthroughBackendProvider>())
+            {
+                auto Codec = FNPCRowCodec::Create(InDefinition, Layout, Error);
+                if (!Codec) return false;
+                BackgroundCodec = MakeShared<FNPCRowCodec, ESPMode::ThreadSafe>(MoveTemp(Codec.GetValue()));
+            }
+            if (Backend) BackgroundScheduler = FNPCBackgroundScheduler::Create(Settings, Backend.ToSharedRef(), &Error);
+        }
+        if (!BackgroundScheduler)
+        { UE_LOG(LogScholaInferenceUtils, Error, TEXT("Background initialization failed: %s"), *Error); return false; }
+    }
+    RecordedBackendCalls = BackgroundScheduler ? BackgroundScheduler->GetBackendCallCount() : 0;
     bInitialized = true;
     return true;
 }
@@ -194,26 +271,18 @@ bool UNPCInferencePolicy::Think(const TInstancedStruct<FPoint>& Observation, TIn
 bool UNPCInferencePolicy::BatchedThink(const TArray<TInstancedStruct<FPoint>>& Observations,
     TArray<TInstancedStruct<FPoint>>& Actions)
 {
-    if (!ValidateReady(Observations)) { return false; }
+    TStrongObjectPtr<UNPCInferencePolicy> KeepAlive;
+    bool bBackground;
+    {
+        FNPCPolicyGCGuard GCGuard;
+        bBackground=GetConfig().Paradigm==ENPCInferenceParadigm::Background;
+        if(bBackground)KeepAlive.Reset(this);
+    }
+    if (bBackground) return ThinkBackground(Observations, {}, Actions);
+    if (!ValidateReady(Observations)) return false;
     TArray<TInstancedStruct<FPoint>> Results;
     Results.Reserve(Observations.Num());
-    if (Config.Paradigm == ENPCInferenceParadigm::Background)
-    {
-        Stats.WorkerLanes.Reset();
-        Stats.EntityIds.Reset();
-        for (int32 Index = 0; Index < Observations.Num(); ++Index)
-        {
-            const int32 Batch = Index / Config.MaxBatchSize;
-            if (Index % Config.MaxBatchSize == 0) { ++Stats.BatchDispatches; }
-            Stats.WorkerLanes.Add(Config.FanOut == ENPCInferenceFanOut::RoundRobin
-                ? Index % Config.WorkerCount : Batch % Config.WorkerCount);
-            Results.Add(InferMock(Observations[Index]));
-        }
-    }
-    else
-    {
-        for (const auto& Observation : Observations) { Results.Add(InferMock(Observation)); }
-    }
+    for (const auto& Observation : Observations) Results.Add(InferMock(Observation));
     if (Config.Paradigm == ENPCInferenceParadigm::EventBased) { bEventPending = false; }
     Actions = MoveTemp(Results);
     return true;
@@ -222,7 +291,10 @@ bool UNPCInferencePolicy::BatchedThink(const TArray<TInstancedStruct<FPoint>>& O
 bool UNPCInferencePolicy::ThinkEntities(const TArray<int64>& EntityIds,
     const TArray<TInstancedStruct<FPoint>>& Observations, TArray<TInstancedStruct<FPoint>>& Actions)
 {
-    if (Config.Paradigm != ENPCInferenceParadigm::Background || Config.FanOut != ENPCInferenceFanOut::MassEntity
+    TStrongObjectPtr<UNPCInferencePolicy> KeepAlive;
+    FNPCInferenceConfig CurrentConfig;
+    { FNPCPolicyGCGuard GCGuard; KeepAlive.Reset(this); CurrentConfig=GetConfig(); }
+    if (CurrentConfig.Paradigm != ENPCInferenceParadigm::Background || CurrentConfig.FanOut != ENPCInferenceFanOut::MassEntity
         || EntityIds.Num() != Observations.Num()) { return false; }
     TSet<int64> Seen;
     for (int64 Id : EntityIds)
@@ -230,11 +302,192 @@ bool UNPCInferencePolicy::ThinkEntities(const TArray<int64>& EntityIds,
         if (Id < 0 || Seen.Contains(Id)) { return false; }
         Seen.Add(Id);
     }
-    if (!BatchedThink(Observations, Actions)) { return false; }
-    Stats.EntityIds = EntityIds;
-    for (int32 Index = 0; Index < EntityIds.Num(); ++Index)
+    return ThinkBackground(Observations, EntityIds, Actions);
+}
+
+void UNPCInferencePolicy::ReleaseBackground()
+{
+    bInitialized = false;
+    for (const auto& Pair : BackgroundRequests)
+        if (BackgroundScheduler) BackgroundScheduler->Cancel(Pair.Value.BackendRequest);
+    BackgroundRequests.Empty();
+    HeldBackgroundRows = 0;
+    if (auto* Subsystem = BackgroundSubsystem.Get()) Subsystem->ReleaseBucket(BackgroundBucket);
+    else if (BackgroundScheduler) BackgroundScheduler->Shutdown();
+    RecordBackgroundCallsLocked();
+    BackgroundScheduler.Reset(); BackgroundCodec.Reset(); BackgroundCohorts.Reset(); BackgroundSubsystem.Reset(); BackgroundBucket = {};
+    ++BackgroundGeneration;
+}
+void UNPCInferencePolicy::BeginDestroy()
+{
+    { FScopeLock Lock(&BackgroundMutex); ReleaseBackground(); }
+    Super::BeginDestroy();
+}
+FNPCInferenceConfig UNPCInferencePolicy::GetConfig() const
+{ FScopeLock Lock(&BackgroundMutex); return Config; }
+FNPCInferenceStats UNPCInferencePolicy::GetStats() const
+{
+    FScopeLock Lock(&BackgroundMutex);
+    auto Out=Stats;
+    if(BackgroundScheduler) Out.BatchDispatches+=int32(FMath::Max(int64(0),BackgroundScheduler->GetBackendCallCount()-RecordedBackendCalls));
+    return Out;
+}
+void UNPCInferencePolicy::RecordBackgroundCallsLocked()
+{
+    if(!BackgroundScheduler)return;
+    const int64 Calls=BackgroundScheduler->GetBackendCallCount();
+    Stats.BatchDispatches+=int32(FMath::Max(int64(0),Calls-RecordedBackendCalls));
+    RecordedBackendCalls=Calls;
+}
+bool UNPCInferencePolicy::IsInferenceBusy() const
+{
+    FScopeLock Lock(&BackgroundMutex);
+    return Config.Paradigm == ENPCInferenceParadigm::Background &&
+        (!BackgroundScheduler || IsBackgroundFullLocked(LastSubmissionRows));
+}
+bool UNPCInferencePolicy::IsBackgroundFullLocked(int32 Rows) const
+{
+    return HeldBackgroundRows + Rows > Config.BackgroundSettings.MaxPendingRows || !BackgroundScheduler->CanAccept(Rows);
+}
+void UNPCInferencePolicy::RemoveBackgroundRequestLocked(int64 Id)
+{
+    FNPCBackgroundPointRequest Removed;
+    if (BackgroundRequests.RemoveAndCopyValue(Id, Removed)) HeldBackgroundRows -= Removed.Rows;
+}
+FNPCBackgroundStats UNPCInferencePolicy::GetBackgroundStats() const
+{ FScopeLock Lock(&BackgroundMutex); return BackgroundScheduler ? BackgroundScheduler->GetStats() : FNPCBackgroundStats{}; }
+bool UNPCInferencePolicy::GetBackgroundBinding(TSharedPtr<FNPCBackgroundScheduler, ESPMode::ThreadSafe>& Scheduler,
+    TSharedPtr<const FNPCRowCodec, ESPMode::ThreadSafe>& Codec, uint32& Generation) const
+{
+    FScopeLock Lock(&BackgroundMutex);
+    Scheduler = BackgroundScheduler; Codec = BackgroundCodec; Generation = BackgroundGeneration;
+    return bInitialized && Scheduler.IsValid() && !Scheduler->IsShuttingDown();
+}
+
+ENPCBackgroundStatus UNPCInferencePolicy::SubmitBackgroundLocked(const TArray<TInstancedStruct<FPoint>>& Observations,
+    const TArray<int64>& Keys, FNPCBackgroundRequest& OutRequest)
+{
+    OutRequest = {};
+    if (Config.Paradigm != ENPCInferenceParadigm::Background || !BackgroundScheduler ||
+        !ValidateReady(Observations) || (!Keys.IsEmpty() && Keys.Num() != Observations.Num())) return ENPCBackgroundStatus::Invalid;
+    LastSubmissionRows = Observations.Num();
+    if (IsBackgroundFullLocked(LastSubmissionRows)) return ENPCBackgroundStatus::Busy;
+    TArray<float> Rows;
+    Rows.SetNumUninitialized(Observations.Num() * BackgroundScheduler->GetObservationSize());
+    if (BackgroundCodec)
     {
-        Stats.WorkerLanes[Index] = static_cast<int32>(EntityIds[Index] % Config.WorkerCount);
+        const int32 Width = BackgroundScheduler->GetObservationSize();
+        for (int32 I = 0; I < Observations.Num(); ++I)
+            if (!BackgroundCodec->Encode(Observations[I], MakeArrayView(Rows).Slice(I * Width, Width))) return ENPCBackgroundStatus::Invalid;
     }
+    else
+    {
+        if (Observations.Num() > 16777216) return ENPCBackgroundStatus::Invalid;
+        for (int32 I = 0; I < Observations.Num(); ++I) Rows[I] = float(I);
+    }
+    TArray<int64> DefaultKeys;
+    if (Keys.IsEmpty() && Config.FanOut == ENPCInferenceFanOut::MassEntity)
+        for (int32 I = 0; I < Observations.Num(); ++I) DefaultKeys.Add(I / Config.MaxBatchSize);
+    FNPCBackgroundSubmitOptions Options;
+    Options.Keys = Keys.IsEmpty() ? TConstArrayView<int64>(DefaultKeys) : TConstArrayView<int64>(Keys);
+    Options.UserTag = uint64(BackgroundGeneration) << 32;
+    FNPCBackgroundPointRequest Stored;
+    auto Status = BackgroundScheduler->Submit(Rows, Options, Stored.BackendRequest);
+    if (Status != ENPCBackgroundStatus::Pending) return Status;
+    if (!BackgroundCodec) Stored.Observations = Observations;
+    Stored.Rows = Observations.Num();
+    HeldBackgroundRows += Stored.Rows;
+    OutRequest.Id = NextRequestId++;
+    BackgroundRequests.Add(OutRequest.Id, MoveTemp(Stored));
+    return Status;
+}
+ENPCBackgroundStatus UNPCInferencePolicy::SubmitBackground(const TArray<TInstancedStruct<FPoint>>& Observations,
+    const TArray<int64>& Keys, FNPCBackgroundRequest& OutRequest)
+{ FNPCPolicyGCGuard GCGuard; FScopeLock Lock(&BackgroundMutex); return SubmitBackgroundLocked(Observations, Keys, OutRequest); }
+ENPCBackgroundStatus UNPCInferencePolicy::GetBackgroundStatus(FNPCBackgroundRequest Request) const
+{
+    FScopeLock Lock(&BackgroundMutex);
+    const auto* Stored = BackgroundRequests.Find(Request.Id);
+    if (!Stored || !BackgroundScheduler) return ENPCBackgroundStatus::Invalid;
+    return (Stored->bCancelled || BackgroundScheduler->IsShuttingDown()) ? ENPCBackgroundStatus::Cancelled : BackgroundScheduler->GetStatus(Stored->BackendRequest);
+}
+bool UNPCInferencePolicy::CancelBackground(FNPCBackgroundRequest Request)
+{
+    FNPCPolicyGCGuard GCGuard;
+    FScopeLock Lock(&BackgroundMutex);
+    auto* Stored = BackgroundRequests.Find(Request.Id);
+    if (!Stored || !BackgroundScheduler || Stored->bCancelled) return false;
+    if (!BackgroundScheduler->Cancel(Stored->BackendRequest)) return false;
+    Stored->bCancelled = true;
+    Stored->Observations.Empty();
     return true;
 }
+ENPCBackgroundStatus UNPCInferencePolicy::ConsumeBackgroundLocked(FNPCBackgroundRequest Request,
+    TArray<TInstancedStruct<FPoint>>& Actions)
+{
+    auto* Stored = BackgroundRequests.Find(Request.Id);
+    if (!Stored || !BackgroundScheduler) return ENPCBackgroundStatus::Invalid;
+    if (Stored->bCancelled) { RemoveBackgroundRequestLocked(Request.Id); return ENPCBackgroundStatus::Cancelled; }
+    FNPCBackgroundResult Result;
+    const auto Status = BackgroundScheduler->Consume(Stored->BackendRequest, Result);
+    RecordBackgroundCallsLocked();
+    if (Status == ENPCBackgroundStatus::Pending) return Status;
+    TArray<TInstancedStruct<FPoint>> Decoded;
+    const bool bStopping = BackgroundScheduler->IsShuttingDown();
+    bool bValid = !bStopping && Status == ENPCBackgroundStatus::Completed && uint32(Result.UserTag >> 32) == BackgroundGeneration;
+    if (bValid)
+    {
+        Decoded.SetNum(Result.Rows);
+        for (int32 I = 0; I < Result.Rows && bValid; ++I)
+        {
+            if (BackgroundCodec)
+                bValid = BackgroundCodec->Decode(MakeArrayView(Result.Actions).Slice(I * Result.ActionSize, Result.ActionSize), Decoded[I]);
+            else
+            {
+                const float Index = Result.Actions[I];
+                bValid = FMath::IsFinite(Index) && Index >= 0 && Index < Stored->Observations.Num() && FMath::FloorToFloat(Index) == Index;
+                if (bValid) Decoded[I] = Stored->Observations[int32(Index)];
+            }
+        }
+    }
+    if (bValid)
+    {
+        Stats.WorkerLanes = Result.RowWorkers;
+        Stats.EntityIds = Result.Keys;
+        Actions = MoveTemp(Decoded);
+    }
+    RemoveBackgroundRequestLocked(Request.Id);
+    return bStopping ? ENPCBackgroundStatus::Cancelled : Status == ENPCBackgroundStatus::Completed && !bValid ? ENPCBackgroundStatus::Failed : Status;
+}
+ENPCBackgroundStatus UNPCInferencePolicy::ConsumeBackground(FNPCBackgroundRequest Request,
+    TArray<TInstancedStruct<FPoint>>& Actions)
+{ FNPCPolicyGCGuard GCGuard; FScopeLock Lock(&BackgroundMutex); return ConsumeBackgroundLocked(Request, Actions); }
+bool UNPCInferencePolicy::ThinkBackground(const TArray<TInstancedStruct<FPoint>>& Observations,
+    const TArray<int64>& Keys, TArray<TInstancedStruct<FPoint>>& Actions)
+{
+    TSharedPtr<FNPCBackgroundScheduler,ESPMode::ThreadSafe> Scheduler;
+    FNPCBackgroundRequest Request,BackendRequest;
+    uint32 Generation;
+    {
+        FNPCPolicyGCGuard GCGuard;
+        FScopeLock Lock(&BackgroundMutex);
+        if (IsInGameThread() && BackgroundCodec && !bWarnedSynchronous)
+        {
+            UE_LOG(LogScholaInferenceUtils, Warning, TEXT("Synchronous Background inference blocks the game thread; use SubmitBackground or BackgroundStepper for deferred delivery"));
+            bWarnedSynchronous = true;
+        }
+        if (SubmitBackgroundLocked(Observations,Keys,Request)!=ENPCBackgroundStatus::Pending)return false;
+        Scheduler=BackgroundScheduler;Generation=BackgroundGeneration;
+        BackendRequest=BackgroundRequests.FindChecked(Request.Id).BackendRequest;
+    }
+    Scheduler->Wait(BackendRequest);
+    FNPCPolicyGCGuard GCGuard;
+    FScopeLock Lock(&BackgroundMutex);
+    if(Scheduler!=BackgroundScheduler || Generation!=BackgroundGeneration)return false;
+    const auto Status=ConsumeBackgroundLocked(Request,Actions);
+    if(Keys.IsEmpty())Stats.EntityIds.Empty();
+    return Status==ENPCBackgroundStatus::Completed;
+}
+
+TSharedPtr<FNPCCohortScheduler> UNPCInferencePolicy::GetBackgroundCohorts() const
+{ FScopeLock Lock(&BackgroundMutex); return BackgroundCohorts; }

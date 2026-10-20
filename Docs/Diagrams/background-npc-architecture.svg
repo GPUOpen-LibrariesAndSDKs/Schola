@@ -1,0 +1,168 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1030" viewBox="0 0 1600 1030" style="max-width:100%;height:auto" role="img" aria-labelledby="title description" font-family="Inter, 'Noto Sans', 'DejaVu Sans', sans-serif">
+  <title id="title">Background NPC inference architecture</title>
+  <desc id="description">On the game thread, Blueprint/C++, Actor (UBackgroundStepper) and Mass integrations submit observation rows through UNPCInferencePolicy or the Mass slot subsystem to a per-world bucket subsystem. Each bucket has a scheduler that admits rows (Busy when full), batches them and dispatches batches to worker threads, each owning one backend context (NNE ORT CPU, NNE BasicCpu, or passthrough). Completed rows wait in a completion queue and are drained, validated and applied on a later frame.</desc>
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3d4a5c"/>
+    </marker>
+    <marker id="ahr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#c2364a"/>
+    </marker>
+    <filter id="sh" x="-5%" y="-5%" width="110%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#1b2a41" flood-opacity="0.12"/>
+    </filter>
+    <style>
+      .band-label { font-size: 15px; font-weight: 700; letter-spacing: 1.2px; }
+      .band-sub { font-size: 13px; fill: #5b6778; }
+      .t { font-size: 17px; font-weight: 700; fill: #14213d; }
+      .s { font-size: 13.5px; fill: #3d4a5c; }
+      .m { font-size: 12.5px; fill: #5b6778; font-family: 'JetBrains Mono', 'DejaVu Sans Mono', monospace; }
+      .lbl { font-size: 13px; fill: #3d4a5c; font-weight: 600; }
+      .edge { stroke: #3d4a5c; stroke-width: 2; fill: none; marker-end: url(#ah); }
+      .ret { stroke: #c2364a; stroke-width: 2.5; fill: none; marker-end: url(#ahr); stroke-dasharray: 7 5; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1030" fill="#ffffff"/>
+
+  <!-- ============ Band A: game thread ============ -->
+  <rect x="20" y="20" width="1560" height="420" rx="18" fill="#f4f8fe" stroke="#b7cff0" stroke-width="1.5"/>
+  <text x="44" y="50" class="band-label" fill="#2f66b3">GAME THREAD</text>
+  <text x="170" y="50" class="band-sub">integrations and shared services · never waits on inference</text>
+
+  <!-- integration cards -->
+  <g filter="url(#sh)">
+    <rect x="100" y="72" width="400" height="104" rx="12" fill="#ffffff" stroke="#3b7dd8" stroke-width="1.6"/>
+    <rect x="600" y="72" width="400" height="104" rx="12" fill="#ffffff" stroke="#3b7dd8" stroke-width="1.6"/>
+    <rect x="1100" y="72" width="400" height="104" rx="12" fill="#ffffff" stroke="#3b7dd8" stroke-width="1.6"/>
+  </g>
+  <rect x="100" y="72" width="8" height="104" rx="4" fill="#3b7dd8"/>
+  <rect x="600" y="72" width="8" height="104" rx="4" fill="#3b7dd8"/>
+  <rect x="1100" y="72" width="8" height="104" rx="4" fill="#3b7dd8"/>
+
+  <text x="300" y="104" text-anchor="middle" class="t">Blueprint / C++</text>
+  <text x="300" y="128" text-anchor="middle" class="m">SubmitBackground · ConsumeBackground</text>
+  <text x="300" y="152" text-anchor="middle" class="s">async API on the policy</text>
+
+  <text x="800" y="104" text-anchor="middle" class="t">Actors</text>
+  <text x="800" y="128" text-anchor="middle" class="m">UBackgroundStepper</text>
+  <text x="800" y="152" text-anchor="middle" class="s">due-time cohorts · gather only due NPCs · apply</text>
+
+  <text x="1300" y="104" text-anchor="middle" class="t">Mass Entity</text>
+  <text x="1300" y="128" text-anchor="middle" class="m">ScholaMass gather / apply processors</text>
+  <text x="1300" y="152" text-anchor="middle" class="s">parallel chunk gather · ScholaDecideNow</text>
+
+  <!-- shared services -->
+  <g filter="url(#sh)">
+    <rect x="100" y="222" width="900" height="76" rx="12" fill="#e8f1fb" stroke="#3b7dd8" stroke-width="1.6"/>
+    <rect x="1100" y="222" width="400" height="76" rx="12" fill="#e8f1fb" stroke="#3b7dd8" stroke-width="1.6"/>
+    <rect x="450" y="340" width="700" height="76" rx="12" fill="#e8f1fb" stroke="#3b7dd8" stroke-width="1.6"/>
+  </g>
+  <text x="550" y="252" text-anchor="middle" class="t">UNPCInferencePolicy <tspan class="s" font-weight="400">· Background paradigm</tspan></text>
+  <text x="550" y="278" text-anchor="middle" class="s">FNPCRowCodec: points ↔ float rows in model tensor order</text>
+
+  <text x="1300" y="252" text-anchor="middle" class="t">UScholaMassInferenceSubsystem</text>
+  <text x="1300" y="278" text-anchor="middle" class="s">dense slot tables · index + serial handles</text>
+
+  <text x="800" y="370" text-anchor="middle" class="t">UNPCBackgroundInferenceSubsystem</text>
+  <text x="800" y="396" text-anchor="middle" class="s">per-world buckets keyed by model + row layout + settings (ref-counted)</text>
+
+  <!-- game-thread edges -->
+  <path class="edge" d="M300,176 L300,220"/>
+  <path class="edge" d="M800,176 L800,220"/>
+  <path class="edge" d="M1300,176 L1300,220"/>
+  <path class="edge" d="M640,298 L640,338"/>
+  <path class="edge" d="M1300,298 L1300,320 Q1300,330 1290,330 L1000,330 Q990,330 990,338"/>
+
+  <!-- ============ Band B: scheduler ============ -->
+  <rect x="20" y="470" width="1560" height="178" rx="18" fill="#fff8ec" stroke="#f1c98a" stroke-width="1.5"/>
+  <text x="44" y="636" class="band-label" fill="#b86e00">SCHEDULER</text>
+  <text x="152" y="636" class="band-sub">FNPCBackgroundScheduler · one per bucket · thread-safe</text>
+
+  <g filter="url(#sh)">
+    <rect x="100" y="494" width="250" height="92" rx="12" fill="#ffffff" stroke="#e08a00" stroke-width="1.6"/>
+    <rect x="420" y="494" width="250" height="92" rx="12" fill="#ffffff" stroke="#e08a00" stroke-width="1.6"/>
+    <rect x="740" y="494" width="280" height="92" rx="12" fill="#ffffff" stroke="#e08a00" stroke-width="1.6"/>
+    <rect x="1140" y="494" width="360" height="92" rx="12" fill="#fdecef" stroke="#c2364a" stroke-width="1.6"/>
+  </g>
+  <text x="225" y="524" text-anchor="middle" class="t">Admission</text>
+  <text x="225" y="548" text-anchor="middle" class="s">row / byte caps</text>
+  <text x="225" y="569" text-anchor="middle" class="s">full → <tspan font-weight="700">Busy</tspan>, never queues</text>
+
+  <text x="545" y="524" text-anchor="middle" class="t">Batching</text>
+  <text x="545" y="548" text-anchor="middle" class="s">eager; rows from many</text>
+  <text x="545" y="569" text-anchor="middle" class="s">requests per backend call</text>
+
+  <text x="880" y="524" text-anchor="middle" class="t">Dispatch</text>
+  <text x="880" y="548" text-anchor="middle" class="s">SharedQueue (default)</text>
+  <text x="880" y="569" text-anchor="middle" class="s">WorkStealing · LeastLoaded · …</text>
+
+  <text x="1320" y="524" text-anchor="middle" class="t" fill="#7a1524">Completion queue</text>
+  <text x="1320" y="548" text-anchor="middle" class="s">results wait here until</text>
+  <text x="1320" y="569" text-anchor="middle" class="s">the next frame drains them</text>
+
+  <path class="edge" d="M350,540 L418,540"/>
+  <path class="edge" d="M670,540 L738,540"/>
+
+  <!-- bucket -> admission -->
+  <path class="edge" d="M560,416 L560,448 Q560,458 550,458 L235,458 Q225,458 225,468 L225,492"/>
+  <rect x="300" y="447" width="190" height="22" rx="6" fill="#ffffff"/>
+  <text x="395" y="463" text-anchor="middle" class="lbl">submit observation rows</text>
+
+  <!-- ============ Band C: workers ============ -->
+  <rect x="20" y="670" width="1560" height="150" rx="18" fill="#f1faf4" stroke="#9fd8b5" stroke-width="1.5"/>
+  <text x="44" y="808" class="band-label" fill="#23804a">WORKER THREADS</text>
+  <text x="200" y="808" class="band-sub">dedicated threads · one backend execution context each · BelowNormal priority</text>
+
+  <g filter="url(#sh)">
+    <rect x="600" y="722" width="160" height="68" rx="12" fill="#ffffff" stroke="#2e9e5b" stroke-width="1.6"/>
+    <rect x="800" y="722" width="160" height="68" rx="12" fill="#ffffff" stroke="#2e9e5b" stroke-width="1.6"/>
+    <rect x="1040" y="722" width="160" height="68" rx="12" fill="#ffffff" stroke="#2e9e5b" stroke-width="1.6"/>
+  </g>
+  <text x="680" y="752" text-anchor="middle" class="t">Worker 1</text>
+  <text x="680" y="774" text-anchor="middle" class="m">context 1</text>
+  <text x="880" y="752" text-anchor="middle" class="t">Worker 2</text>
+  <text x="880" y="774" text-anchor="middle" class="m">context 2</text>
+  <text x="1000" y="762" text-anchor="middle" class="t" fill="#5b6778">…</text>
+  <text x="1120" y="752" text-anchor="middle" class="t">Worker N</text>
+  <text x="1120" y="774" text-anchor="middle" class="m">context N</text>
+
+  <!-- dispatch -> workers -->
+  <path class="edge" d="M840,586 L840,640 Q840,650 830,650 L690,650 Q680,650 680,660 L680,720"/>
+  <path class="edge" d="M880,586 L880,720"/>
+  <path class="edge" d="M920,586 L920,640 Q920,650 930,650 L1110,650 Q1120,650 1120,660 L1120,720"/>
+
+  <!-- workers -> completion -->
+  <path class="ret" d="M1200,756 L1380,756 Q1390,756 1390,746 L1390,590"/>
+  <text x="1404" y="710" class="lbl" fill="#7a1524">completed rows</text>
+
+  <!-- ============ Band D: backends ============ -->
+  <rect x="20" y="850" width="1560" height="160" rx="18" fill="#f7f4fd" stroke="#c9b8ec" stroke-width="1.5"/>
+  <text x="44" y="996" class="band-label" fill="#5b3aa6">BACKENDS</text>
+  <text x="142" y="996" class="band-sub">IBatchInferenceBackend · selected per bucket by a provider</text>
+
+  <g filter="url(#sh)">
+    <rect x="360" y="880" width="260" height="80" rx="12" fill="#ffffff" stroke="#7a52c7" stroke-width="1.6"/>
+    <rect x="680" y="880" width="260" height="80" rx="12" fill="#ffffff" stroke="#7a52c7" stroke-width="1.6"/>
+    <rect x="1000" y="880" width="260" height="80" rx="12" fill="#ffffff" stroke="#7a52c7" stroke-width="1.6" stroke-dasharray="6 4"/>
+  </g>
+  <text x="490" y="912" text-anchor="middle" class="t">NNE ORT CPU</text>
+  <text x="490" y="936" text-anchor="middle" class="s">.onnx · dynamic or fixed batch</text>
+  <text x="810" y="912" text-anchor="middle" class="t">NNE BasicCpu</text>
+  <text x="810" y="936" text-anchor="middle" class="s">.ubnne</text>
+  <text x="1130" y="912" text-anchor="middle" class="t">Passthrough</text>
+  <text x="1130" y="936" text-anchor="middle" class="s">no provider set · mock behaviour</text>
+
+  <!-- workers -> backends -->
+  <path class="edge" d="M880,790 L880,826 Q880,836 870,836 L500,836 Q490,836 490,846 L490,878"/>
+  <path class="edge" d="M880,790 L880,826 Q880,836 870,836 L820,836 Q810,836 810,846 L810,878"/>
+  <path class="edge" d="M880,790 L880,826 Q880,836 890,836 L1120,836 Q1130,836 1130,846 L1130,878" stroke-dasharray="5 4"/>
+  <text x="892" y="817" class="lbl">RunBatch</text>
+
+  <!-- ============ return path: completion -> game thread ============ -->
+  <path class="ret" d="M1440,494 L1440,456 L1540,456 Q1550,456 1550,446 L1550,134 Q1550,124 1540,124 L1504,124"/>
+  <path class="ret" d="M1550,388 L1154,388"/>
+  <g transform="translate(1568,262) rotate(90)">
+    <text text-anchor="middle" class="lbl" fill="#7a1524">next frame: validate generation · lifetime · age, then apply</text>
+  </g>
+</svg>

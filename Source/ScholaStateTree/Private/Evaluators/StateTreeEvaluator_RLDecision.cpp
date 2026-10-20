@@ -424,13 +424,10 @@ AStateTreeTrainingEnvironment* UStateTreeEvaluator_RLDecision::FindTrainingEnvir
 		}
 	}
 
-	// Search the world
-	for (TActorIterator<AStateTreeTrainingEnvironment> It(World); It; ++It)
-	{
-		return *It;
-	}
-
-	return nullptr;
+	// Only the first matching environment is needed. Avoid a single-iteration
+	// loop, which UE 5.8 Clang diagnoses as an unreachable increment.
+	TActorIterator<AStateTreeTrainingEnvironment> It(World);
+	return It ? *It : nullptr;
 }
 
 // ========== Default Implementations ==========

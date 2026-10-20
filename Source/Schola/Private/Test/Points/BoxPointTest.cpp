@@ -92,7 +92,12 @@ bool FBoxPointPreallocationConstructorTest::RunTest(const FString& Parameters)
 {
     FBoxPoint BoxPoint = FBoxPoint(5);
 
-    TestEqual(TEXT("BoxPoint.Values has 5 slack space"), BoxPoint.Values.GetSlack(), 5);
+    // Allocators may round Reserve up differently in Editor and packaged targets.
+    TestEqual(TEXT("Preallocation starts empty"), BoxPoint.Values.Num(), 0);
+    TestTrue(TEXT("Capacity covers requested dimensions"), BoxPoint.Values.GetSlack() >= 5);
+    const int32 Capacity = BoxPoint.Values.Max();
+    for (int32 Index = 0; Index < 5; ++Index) BoxPoint.Values.Add(float(Index));
+    TestEqual(TEXT("Appending reserved dimensions does not grow storage"), BoxPoint.Values.Max(), Capacity);
     
 	return true;
 }

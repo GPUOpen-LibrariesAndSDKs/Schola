@@ -22,6 +22,12 @@ class CountingSession:
         self._session = session
         self.run_call_count = 0
 
+    def get_inputs(self) -> list[ort.NodeArg]:
+        return self._session.get_inputs()
+
+    def get_outputs(self) -> list[ort.NodeArg]:
+        return self._session.get_outputs()
+
     def run(
         self,
         output_names: Sequence[str],

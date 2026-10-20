@@ -41,7 +41,7 @@ public:
 	FString GetAgentId() const;
 
 	/** NNE policy for inference. Only used in inference mode. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced, Category = "Reinforcement Learning", meta = (AllowedClasses = "/Script/ScholaNNE.NNEPolicy"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced, Category = "Reinforcement Learning", meta = (AllowedClasses = "/Script/ScholaNNE.NNEPolicy,/Script/ScholaInferenceUtils.NPCInferencePolicy"))
 	TObjectPtr<UObject> Policy;
 
 	/** Complete task after single inference step (inference mode only). */

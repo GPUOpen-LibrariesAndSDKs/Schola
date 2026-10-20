@@ -7,6 +7,7 @@ dependencies = [
     "numpy",
     "onnx>=1.18",
     "onnxruntime",
+    "onnxscript>=0.6.2",
     "torch>=2.10",
 ]
 

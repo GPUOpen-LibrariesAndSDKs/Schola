@@ -3,7 +3,8 @@
 """Root pytest fixtures and helpers for the Schola plugin Python tests."""
 
 from concurrent import futures
-from typing import Callable, List
+import itertools
+from typing import Callable, List, cast
 from unittest.mock import MagicMock
 import grpc
 
@@ -13,6 +14,7 @@ import pytest
 from functools import cache
 from typing import Dict, List, Optional, Any, Tuple
 import pytest
+from torch import is_nonzero
 
 from schola.core.protocols.base_protocol import BaseRLProtocol
 from schola.core.simulators.base_simulator import BaseSimulator
@@ -306,10 +308,10 @@ def gym_id_and_wrappers(request):
     return env_id, wrappers
 
 
-from gymnasium.spaces import flatdim, flatten_space, unflatten
-from gymnasium.vector.utils import batch_space
+from pathlib import Path
+
+from gymnasium.vector.utils import batch_space, concatenate, create_empty_array
 import onnx
-import numpy as np
 import onnxruntime as ort
 
 
@@ -328,107 +330,259 @@ def _check_inputs_have_valid_shape(
         ), f"Expected input '{input_name}' to have a dynamic batch dimension. Got {batch_dim}"
 
 
-@pytest.fixture(scope="function")
-def onnx_model_checker():
-    def _check_onnx_model(
-        model_path,
-        observation_space,
-        action_space,
-        state_shapes: Dict[str, Tuple[int, ...]] = None,
-        metadata: Dict[str, Dict[str, str]] = None,
-    ):
-        """Check that the ONNX model exists and has the correct input and output names."""
-        assert model_path.exists(), f"ONNX file not created at {model_path}"
+def check_onnx_model_loads(model_path) -> onnx.ModelProto:
+    """Load an ONNX model, failing if the file is missing or cannot be parsed."""
+    path = Path(model_path)
+    assert path.exists(), f"ONNX file not created at {model_path}"
+    try:
+        return onnx.load(path)
+    except Exception as exc:
+        raise AssertionError(
+            f"Failed to load ONNX model at {model_path}: {exc}"
+        ) from exc
 
-        if state_shapes is None:
-            state_shapes = {}
 
-        model = onnx.load(model_path)
-        batch_size = 2
+def check_onnx_metadata(
+    model: onnx.ModelProto,
+    observation_space,
+    action_space,
+    state_shapes: Dict[str, Tuple[int, ...]] | None = None,
+    metadata: Dict[str, Dict[str, str]] | None = None,
+) -> None:
+    """Check graph input and output names, shapes, and embedded metadata.
 
-        if not isinstance(observation_space, gym.spaces.Dict):
-            observation_space = gym.spaces.Dict({"obs": observation_space})
+    ``metadata`` is keyed by input name, then by metadata property key. When
+    ``metadata`` is ``None``, the embedded-metadata comparison is skipped.
+    """
+    if state_shapes is None:
+        state_shapes = {}
 
-        # then we can batch the flat observation space (otherwise we get the wrong dimensions)
-        batched_observation_space = batch_space(observation_space, n=batch_size)
+    if not isinstance(observation_space, gym.spaces.Dict):
+        observation_space = gym.spaces.Dict({"obs": observation_space})
 
-        if not isinstance(action_space, gym.spaces.Dict):
-            action_space = gym.spaces.Dict({"action": action_space})
+    if not isinstance(action_space, gym.spaces.Dict):
+        action_space = gym.spaces.Dict({"action": action_space})
 
-        action_space = batch_space(action_space, n=batch_size)
+    input_names = [model_input.name for model_input in model.graph.input]
+    output_names = [output.name for output in model.graph.output]
 
-        # Check that the model has the correct input and output names
+    expected_input_names = set(observation_space.spaces.keys()) | {
+        f"state_in_{k}" for k in state_shapes.keys()
+    }
+    assert (
+        set(input_names) == expected_input_names
+    ), "Input names should be the keys of the observation space or state inputs"
+    assert set(output_names) == set(action_space.spaces.keys()) | {
+        f"state_out_{k}" for k in state_shapes.keys()
+    }, "Output names should be the keys of the action space or 'state_out'"
+    _check_inputs_have_valid_shape(model)
 
-        input_names = [input.name for input in model.graph.input]
-        output_names = [output.name for output in model.graph.output]
+    if metadata is None:
+        return
 
-        expected_input_names = set(observation_space.spaces.keys()) | {
-            f"state_in_{k}" for k in state_shapes.keys()
-        }
-        assert (
-            set(input_names) == expected_input_names
-        ), "Input names should be the keys of the observation space or state inputs"
-        assert set(output_names) == set(action_space.spaces.keys()) | {
-            f"state_out_{k}" for k in state_shapes.keys()
-        }, "Output names should be the keys of the action space or 'state_out'"
-        _check_inputs_have_valid_shape(model)
+    found_metadata = 0
+    for inp in model.graph.input:
+        if inp.name in metadata:
+            inp_metadata = metadata[inp.name]
+            found_metadata_key = 0
+            for prop in inp.metadata_props:
+                if prop.key in inp_metadata:
+                    assert (
+                        inp_metadata[prop.key] == prop.value
+                    ), f"Model metadata for {inp.name} should match the expected metadata"
+                    found_metadata_key += 1
+            assert found_metadata_key == len(
+                inp_metadata
+            ), f"Expected to find {len(inp_metadata)} metadata keys for {inp.name}. Found {found_metadata_key}"
+            found_metadata += 1
+    assert found_metadata == len(
+        metadata
+    ), f"Expected to find metadata for {len(metadata)} state inputs. Found {found_metadata}"
 
-        # check the metadata of the model (embedded on state inputs)
-        if metadata is not None:
-            found_metadata = 0
-            for inp in model.graph.input:
-                if inp.name in metadata:
-                    inp_metadata = metadata[inp.name]
-                    found_metadata_key = 0
-                    for prop in inp.metadata_props:
-                        if prop.key in inp_metadata:
-                            assert (
-                                inp_metadata[prop.key] == prop.value
-                            ), f"Model metadata for {inp.name} should match the expected metadata"
-                            found_metadata_key += 1
-                    assert found_metadata_key == len(
-                        inp_metadata
-                    ), f"Expected to find {len(inp_metadata)} metadata keys for {inp.name}. Found {found_metadata_key}"
-                    found_metadata += 1
-            assert found_metadata == len(
-                metadata
-            ), f"Expected to find metadata for {len(metadata)} state inputs. Found {found_metadata}"
-        # Run one step of inference on the model and check that the outputs match the expected shapes/spaces
 
-        input_data = batched_observation_space.sample()
+def _box_edge_samples(space: gym.spaces.Box) -> list[np.ndarray]:
+    """Upper bound, lower bound, and the zero vector when each lies in ``space``."""
+    samples: list = []
+    if np.all(np.isfinite(space.high)):
+        samples.append(space.high)
+    if np.all(np.isfinite(space.low)):
+        samples.append(space.low)
+    if np.all(space.low < 0) and np.all(space.high > 0):
+        samples.append(np.zeros(space.shape, dtype=space.dtype))
+    return samples
 
-        # no-op if state_shapes is empty
-        for k, v in state_shapes.items():
-            input_data[f"state_in_{k}"] = np.random.rand(batch_size, *v).astype(
-                np.float32
+
+def _has_fewer_combinations(counts, num_samples: int) -> bool:
+    """Return whether the cartesian product of ``counts`` is smaller than ``num_samples``."""
+    total = 1
+    for count in counts:
+        total *= int(count)
+        if total >= num_samples:
+            return False
+    return True
+
+
+def _discrete_edge_samples(space: gym.spaces.Discrete, num_samples: int) -> list:
+    """Every legal value when there are fewer than ``num_samples`` of them."""
+    count = int(space.n)
+    if count >= num_samples:
+        return []
+    start = int(space.start)
+    return [space.dtype.type(value) for value in range(start, start + count)]
+
+
+def _multi_discrete_edge_samples(
+    space: gym.spaces.MultiDiscrete, num_samples: int
+) -> list[np.ndarray]:
+    """Every combination when there are fewer than ``num_samples`` of them."""
+    counts = space.nvec.reshape(-1)
+    starts = space.start.reshape(-1)
+    if not _has_fewer_combinations(counts, num_samples):
+        return []
+    ranges = [
+        range(int(start), int(start) + int(count))
+        for start, count in zip(starts, counts)
+    ]
+    return [
+        np.array(combo, dtype=space.dtype).reshape(space.shape)
+        for combo in itertools.product(*ranges)
+    ]
+
+
+def _multi_binary_edge_samples(space: gym.spaces.MultiBinary, num_samples: int) -> list[np.ndarray]:
+    """Every 0/1 combination when there are fewer than ``num_samples`` of them."""
+    num_bits = 1
+    for dim in space.shape:
+        num_bits *= int(dim)
+    if not _has_fewer_combinations(itertools.repeat(2, num_bits), num_samples):
+        return []
+    return [
+        np.array(bits, dtype=space.dtype).reshape(space.shape)
+        for bits in itertools.product((0, 1), repeat=num_bits)
+    ]
+
+
+def _edge_samples(space: gym.Space, num_samples: int) -> list:
+    """Edge-case samples for ``space``. Empty when the space is sampled at random."""
+    if isinstance(space, gym.spaces.Box):
+        return _box_edge_samples(space)
+    if isinstance(space, gym.spaces.Discrete):
+        return _discrete_edge_samples(space, num_samples)
+    if isinstance(space, gym.spaces.MultiDiscrete):
+        return _multi_discrete_edge_samples(space, num_samples)
+    if isinstance(space, gym.spaces.MultiBinary):
+        return _multi_binary_edge_samples(space, num_samples)
+    if isinstance(space, gym.spaces.Dict):
+        if len(space.spaces) == 1:
+            key, subspace = next(iter(space.spaces.items()))
+            return [{key: sample} for sample in _edge_samples(subspace, num_samples)]
+        return _dict_edge_samples(space, num_samples)
+    return []
+
+
+def _dict_edge_samples(space: gym.spaces.Dict, num_samples: int) -> list:
+    """One row per subspace edge case. Other subspaces are sampled at random."""
+    samples = []
+    for key, subspace in space.spaces.items():
+        for edge in _edge_samples(subspace, num_samples):
+            samples.append(
+                {
+                    other_key: edge if other_key == key else other_space.sample()
+                    for other_key, other_space in space.spaces.items()
+                }
             )
+    return samples
 
-        ort_sess = ort.InferenceSession(model_path)
-        outputs = ort_sess.run(None, input_data)
+def _sample_batch_size(batched: np.ndarray | Dict[str, Any]) -> int:
+    while isinstance(batched, dict):
+        batched = next(iter(batched.values()))
+    return int(np.asarray(batched).shape[0])
 
-        output_states = {
-            k: v for k, v in zip(output_names, outputs) if k.startswith("state_out_")
-        }
-        output_actions = {
-            k: v
-            for k, v in zip(output_names, outputs)
-            if not k.startswith("state_out_")
-        }
 
-        # check the output actions
-        for action_name, action in output_actions.items():
-            assert action_space.spaces[action_name].contains(
-                action
-            ), f"Expected Action '{action_name}' to be in action space. Got {action}"
+def make_fake_space_samples(space: gym.Space, num_samples: int) -> Any:
+    """Build a batch of fake samples from ``space``.
 
-        # check the state outputs
-        assert set(output_states.keys()) == {
-            f"state_out_{k}" for k in state_shapes.keys()
-        }, f"Expected output states to be the keys of the state shapes. Got {output_states.keys()} != {state_shapes.keys()}"
-        for state_name, state in output_states.items():
-            assert state.shape == (
-                batch_size,
-                *state_shapes[state_name[len("state_out_") :]],
-            ), f"Expected output state '{state_name}' to have shape {state_shapes[state_name[len('state_out_'):]]}. Got {state.shape}"
+    The batch starts with edge cases and is then filled with random samples
+    until it is ``num_samples`` long. Edge cases are kept even when there are
+    more of them than ``num_samples``.
 
-    return _check_onnx_model
+    Box samples are the upper bound, the lower bound, and the zero vector when
+    each value is finite and inside the space. Discrete samples include every
+    legal value when there are fewer than ``num_samples`` options; otherwise
+    the batch is random. MultiDiscrete and MultiBinary (binary) samples do the
+    same over combinations of their elements.
+
+    A dictionary with one subspace uses that subspace's samples. A dictionary
+    with several subspaces contributes every edge case of each subspace. The
+    subspace under test is fixed to that edge, and the others are random. The
+    remaining rows, up to ``num_samples``, are fully random.
+    """
+    if num_samples < 1:
+        raise ValueError(f"num_samples must be positive, got {num_samples}")
+    samples = _edge_samples(space, num_samples)
+    remaining = num_samples - len(samples)
+    if remaining > 0:
+        samples.extend(space.sample() for _ in range(remaining))
+    return concatenate(space, samples, create_empty_array(space, n=len(samples)))
+
+
+def check_onnx_runtime(
+    model: onnx.ModelProto,
+    observation_space,
+    action_space,
+    state_shapes: Dict[str, Tuple[int, ...]] | None = None,
+    num_samples: int = 32,
+) -> None:
+    """Run inference on fake samples and check that the outputs match the spaces.
+
+    ``num_samples`` is the number of inputs to draw. Edge cases from
+    ``make_fake_space_samples`` are always included, so the batch can be longer
+    than ``num_samples``.
+    """
+    if state_shapes is None:
+        state_shapes = {}
+
+    if not isinstance(observation_space, gym.spaces.Dict):
+        observation_space = gym.spaces.Dict({"obs": observation_space})
+
+    input_data = make_fake_space_samples(observation_space, num_samples)
+    batch_size = _sample_batch_size(input_data)
+
+    if not isinstance(action_space, gym.spaces.Dict):
+        action_space = gym.spaces.Dict({"action": action_space})
+
+    action_space = cast(gym.spaces.Dict, batch_space(action_space, n=batch_size))
+
+    output_names = [output.name for output in model.graph.output]
+
+    # no-op if state_shapes is empty
+    for k, v in state_shapes.items():
+        input_data[f"state_in_{k}"] = np.random.rand(batch_size, *v).astype(
+            np.float32
+        )
+
+    ort_sess = ort.InferenceSession(model.SerializeToString())
+    outputs = ort_sess.run(None, input_data)
+
+    output_states = {
+        k: v for k, v in zip(output_names, outputs) if k.startswith("state_out_")
+    }
+    output_actions = {
+        k: v
+        for k, v in zip(output_names, outputs)
+        if not k.startswith("state_out_")
+    }
+
+    for action_name, action in output_actions.items():
+        assert action_space.spaces[action_name].contains(
+            action
+        ), f"Expected Action '{action_name}' to be in action space. Got {action}"
+
+    assert set(output_states.keys()) == {
+        f"state_out_{k}" for k in state_shapes.keys()
+    }, f"Expected output states to be the keys of the state shapes. Got {output_states.keys()} != {state_shapes.keys()}"
+    for state_name, state in output_states.items():
+        assert state.shape == (
+            batch_size,
+            *state_shapes[state_name[len("state_out_") :]],
+        ), f"Expected output state '{state_name}' to have shape {state_shapes[state_name[len('state_out_'):]]}. Got {state.shape}"

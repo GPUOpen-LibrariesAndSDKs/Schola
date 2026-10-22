@@ -2,6 +2,7 @@
 """Tests for exporting RLlib policies to ONNX"""
 
 import copy
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, field
 import functools
 from typing import Any, Dict, Literal, Optional, Tuple
@@ -10,12 +11,18 @@ import gymnasium as gym
 import numpy as np
 import onnx
 import os
+import torch as th
 from ray.rllib import Policy
 from ray.rllib.algorithms.algorithm import Algorithm
 from ray.rllib.connectors.env_to_module import FlattenObservations
 from ray.rllib.env import PettingZooEnv
 from schola.rllib.export import export_onnx_from_policy
 from schola.scripts.rllib.rllib_to_onnx import export_onnx_app
+from Test.conftest import (
+    check_onnx_metadata,
+    check_onnx_model_loads,
+    check_onnx_runtime,
+)
 from ray.rllib.algorithms.ppo import PPO, PPOConfig
 from ray.rllib.algorithms.sac import SAC, SACConfig
 from ray.rllib.policy.policy import PolicySpec
@@ -38,6 +45,8 @@ dict_obs_space = gym.spaces.Dict(
 )
 # we use slightly altered action spaces, so that no-ops can't work by accident.
 box_action_space = gym.spaces.Box(low=-1, high=1, shape=(3,), dtype=np.float32)
+# Bounds away from zero so an unsquashed, unscaled actor mean fails contains().
+offset_box_action_space = gym.spaces.Box(low=12, high=14, shape=(3,), dtype=np.float32)
 discrete_action_space = gym.spaces.Discrete(3)
 binary_action_space = gym.spaces.MultiBinary(3)
 multi_discrete_action_space = gym.spaces.MultiDiscrete([3, 4])
@@ -73,6 +82,7 @@ class ExportParams:
     use_attention: bool = False  # only works on the old API Stack
     num_agents: int = 1
     num_policies: Optional[int] = None
+    custom_id: Optional[str] = None
 
     def __hash__(self):
         lstm_settings = (
@@ -203,6 +213,8 @@ class ExportParams:
         return config
 
     def __str__(self):
+        if self.custom_id:
+            return self.custom_id
         params_str = f"{self.algo_name.upper()}({type(self.observation_space).__name__},{type(self.action_space).__name__}"
         if self.share_layers:
             params_str += ",share_layers=True"
@@ -278,6 +290,11 @@ class ExportParams:
                 def __init__(self):
                     self.observation_space = copy.deepcopy(obs_space)
                     self.action_space = copy.deepcopy(action_space)
+                    self.record_actions = False
+                    self.recorded_actions: list[Any] = []
+                    # None keeps the env from ending, which is what the export tests use.
+                    self.episode_length: int | None = None
+                    self.current_step = 0
                     super().__init__()
 
                 def reset(
@@ -286,20 +303,289 @@ class ExportParams:
                     seed: Optional[int] = None,
                     options: Optional[Dict[str, Any]] = None,
                 ):
-                    super().reset(seed=seed)
-                    observation = self.observation_space.sample()
-                    info = {}
-                    return observation, info
+                    # Fixed seed so RLlib and ONNX sample the same observations.
+                    # ``observation_space.sample()`` uses the space RNG, not the env RNG.
+                    super().reset(seed=1)
+                    self.observation_space.seed(1)
+                    self.current_step = 0
+                    return self.observation_space.sample(), {}
 
                 def step(self, action):
-                    observation = self.observation_space.sample()
-                    reward = 0
-                    terminated = False
-                    truncated = False
-                    info = {}
-                    return observation, reward, terminated, truncated, info
+                    if self.record_actions:
+                        self.recorded_actions.append(copy.deepcopy(action))
+                    self.current_step += 1
+                    terminated = (
+                        self.episode_length is not None
+                        and self.current_step >= self.episode_length
+                    )
+                    return (
+                        self.observation_space.sample(),
+                        0.0,
+                        terminated,
+                        terminated,
+                        {},
+                    )
 
         return TestEnv
+
+
+def _recording_sub_env(vector_env):
+    """Return the gym env inside RLlib's vector env."""
+    base = getattr(vector_env, "unwrapped", vector_env)
+    envs = getattr(base, "envs", None)
+    if not envs:
+        raise AssertionError(f"Expected a vector env with sub-envs, got {type(vector_env)}")
+    env = envs[0]
+    return env.unwrapped if hasattr(env, "unwrapped") else env
+
+
+def _onnx_inputs(observation: Any, observation_space: gym.Space) -> dict[str, np.ndarray]:
+    if isinstance(observation_space, gym.spaces.Dict):
+        return {
+            key: np.expand_dims(np.asarray(observation[key]), axis=0)
+            for key in observation_space.spaces
+        }
+    return {"obs": np.expand_dims(np.asarray(observation), axis=0)}
+
+
+def _unbatch_onnx_output(value: np.ndarray) -> np.ndarray:
+    array = np.asarray(value)
+    if array.shape[:1] == (1,):
+        return array[0]
+    return array
+
+
+def _initial_onnx_state(state_shapes: Dict[str, Tuple[int, ...]]) -> dict[str, np.ndarray]:
+    return {
+        f"state_in_{name}": np.zeros((1, *shape), dtype=np.float32)
+        for name, shape in state_shapes.items()
+    }
+
+
+def evaluate_onnx_policy(
+    model: onnx.ModelProto,
+    env: gym.Env,
+    action_space: gym.Space,
+    state_shapes: Dict[str, Tuple[int, ...]] | None = None,
+    n_eval_episodes: int = 1,
+) -> None:
+    """Step ``env`` with an exported ONNX policy, carrying recurrent state when present."""
+    import onnxruntime as ort
+
+    session = ort.InferenceSession(
+        model.SerializeToString(), providers=["CPUExecutionProvider"]
+    )
+    output_names = [output.name for output in model.graph.output]
+    state = _initial_onnx_state(state_shapes or {})
+    episodes_completed = 0
+    observation, _ = env.reset()
+    while episodes_completed < n_eval_episodes:
+        outputs = session.run(
+            None,
+            _onnx_inputs(observation, env.observation_space) | state,
+        )
+        output_map = dict(zip(output_names, outputs))
+        for name in state:
+            state[name] = np.asarray(output_map["state_out_" + name[len("state_in_") :]])
+        if isinstance(action_space, gym.spaces.Dict):
+            action = {
+                key: _unbatch_onnx_output(output_map[key]) for key in action_space.spaces
+            }
+        else:
+            action = _unbatch_onnx_output(output_map["action"])
+        observation, _, terminated, truncated, _ = env.step(action)
+        if terminated or truncated:
+            episodes_completed += 1
+            if episodes_completed < n_eval_episodes:
+                observation, _ = env.reset()
+                state = _initial_onnx_state(state_shapes or {})
+
+
+def _assert_recorded_actions_match(
+    rllib_actions: list[Any],
+    onnx_actions: list[Any],
+    action_space: gym.Space,
+) -> None:
+    assert len(rllib_actions) == len(onnx_actions), (
+        "RLlib and ONNX evaluations recorded different numbers of actions: "
+        f"{len(rllib_actions)} != {len(onnx_actions)}"
+    )
+    for step, (rllib_action, onnx_action) in enumerate(zip(rllib_actions, onnx_actions)):
+        np.testing.assert_allclose(
+            np.asarray(gym.spaces.flatten(action_space, rllib_action), dtype=np.float64),
+            np.asarray(gym.spaces.flatten(action_space, onnx_action), dtype=np.float64),
+            rtol=1e-4,
+            atol=1e-4,
+            err_msg=f"Action mismatch at step {step}",
+        )
+
+
+def _as_numpy(value: dict[str, Any] | np.ndarray | th.Tensor) -> dict[str, Any] | np.ndarray:
+    if isinstance(value, dict):
+        return {key: _as_numpy(item) for key, item in value.items()}
+    if isinstance(value, th.Tensor):
+        value = value.detach().cpu().numpy()
+    return value
+
+
+def _record_new_api_actions(
+    algo: Algorithm,
+    action_space: gym.Space,
+    episode_length: int,
+) -> tuple[list[Any], type]:
+    """Record one deterministic episode from the new-API env runner."""
+    assert algo.env_runner is not None, "Unexpected Error, env_runner was None during test"
+    sub_env = _recording_sub_env(algo.env_runner.env)
+    env_cls = type(sub_env)
+    sub_env.record_actions = True
+    sub_env.episode_length = episode_length
+    sub_env.recorded_actions.clear()
+    logp_context = (
+        _summable_multi_action_logp()
+        if isinstance(action_space, gym.spaces.Dict)
+        else nullcontext()
+    )
+    try:
+        with logp_context:
+            algo.env_runner.sample(num_episodes=1, explore=False)
+        return copy.deepcopy(sub_env.recorded_actions), env_cls
+    finally:
+        # The algorithm is cached, so leave its env non-terminating.
+        sub_env.record_actions = False
+        sub_env.episode_length = None
+        sub_env.recorded_actions.clear()
+
+
+def _record_old_api_actions(
+    algo: Algorithm,
+    episode_length: int,
+) -> tuple[list[Any], type]:
+    """Record one deterministic episode from the old-API policy.
+
+    ``Algorithm.compute_single_action`` applies the observation preprocessor and
+    unsquashes normalized actions. Calling the policy directly skips both, so
+    its outputs do not match the exported graph.
+    """
+    assert algo.env_runner is not None, "Unexpected Error, env_runner was None during test"
+    sub_env = algo.env_runner.env
+    sub_env = getattr(sub_env, "unwrapped", sub_env)
+    env_cls = type(sub_env)
+    policy: Policy = algo.get_policy("default_policy")
+    sub_env.record_actions = True
+    sub_env.episode_length = episode_length
+    sub_env.recorded_actions.clear()
+    try:
+        observation, _ = sub_env.reset()
+        state = policy.get_initial_state()
+        while len(sub_env.recorded_actions) < episode_length:
+            result = algo.compute_single_action(
+                observation,
+                state=state or None,
+                explore=False,
+            )
+            if state:
+                action, state, _ = result
+            else:
+                action = result
+            observation, _, terminated, truncated, _ = sub_env.step(_as_numpy(action))
+            if terminated or truncated:
+                break
+        return copy.deepcopy(sub_env.recorded_actions), env_cls
+    finally:
+        sub_env.record_actions = False
+        sub_env.episode_length = None
+        sub_env.recorded_actions.clear()
+
+
+def check_onnx_matches_rllib(
+    algo: Algorithm,
+    model: onnx.ModelProto,
+    action_space: gym.Space,
+    state_shapes: Dict[str, Tuple[int, ...]] | None = None,
+    episode_length: int = 32,
+) -> None:
+    """Fixed-seed episodes should make the exported policy match RLlib."""
+    assert algo.config is not None, "Unexpected Error, config was None during test"
+    if algo.config.enable_env_runner_and_connector_v2:
+        rllib_actions, env_cls = _record_new_api_actions(
+            algo, action_space, episode_length
+        )
+    else:
+        rllib_actions, env_cls = _record_old_api_actions(algo, episode_length)
+
+    onnx_env = env_cls()
+    onnx_env.record_actions = True
+    onnx_env.episode_length = episode_length
+    evaluate_onnx_policy(
+        model,
+        onnx_env,
+        action_space,
+        state_shapes=state_shapes,
+    )
+    assert len(onnx_env.recorded_actions) == episode_length
+    _assert_recorded_actions_match(
+        rllib_actions,
+        onnx_env.recorded_actions,
+        action_space,
+    )
+
+
+@contextmanager
+def _summable_multi_action_logp():
+    """Let deterministic dict-action log-probs add during ``EnvRunner.sample``.
+
+    ``GetActions`` always requests ``logp`` after it samples. With
+    ``explore=False``, each child is a ``TorchDeterministic`` whose ``logp`` is
+    ``zeros_like(loc)`` and still has the action shape. ``TorchMultiDistribution``
+    then adds a width-3 Box to a width-2 MultiDiscrete and sampling stops before
+    the environment is stepped. Summing that action axis makes each child
+    log-probability one value per timestep, which is what the stochastic
+    ``logp`` methods already return. The action itself is sampled before
+    ``logp`` and is unchanged.
+
+    Single-step inference gives a stateful batch shape ``(batch, time=1, ...)``.
+    A Discrete index is already ``(batch,)`` or ``(batch, 1)``. A trailing axis
+    wider than that time axis is the action axis and is the one summed here.
+    """
+    from ray.rllib.core.distribution.torch.torch_distribution import TorchDeterministic
+
+    original = TorchDeterministic.logp
+
+    def logp(self, value, **kwargs):
+        import torch
+
+        zeros = torch.zeros_like(self.loc)
+        if zeros.ndim >= 2 and zeros.shape[-1] != 1:
+            zeros = zeros.sum(dim=-1)
+        return zeros
+
+    TorchDeterministic.logp = logp
+    try:
+        yield
+    finally:
+        TorchDeterministic.logp = original
+
+
+# Same single-agent cases as the RLModule export test.
+rl_module_export_cases = [
+    ExportParams("ppo", box_obs_space, box_action_space),
+    ExportParams(
+        "ppo", box_obs_space, offset_box_action_space, custom_id="PPO(Box, BoxWithOffset)"
+    ),
+    ExportParams("ppo", discrete_obs_space, box_action_space),
+    ExportParams("ppo", box_obs_space, dict_action_space),
+    ExportParams("ppo", multi_discrete_obs_space, box_action_space),
+    ExportParams("ppo", dict_obs_space, dict_action_space, use_lstm=True),
+    ExportParams("ppo", box_obs_space, box_action_space, use_lstm=True),
+    ExportParams("ppo", dict_obs_space, dict_action_space),
+    ExportParams("sac", box_obs_space, box_action_space),
+    ExportParams(
+        "sac",
+        box_obs_space,
+        offset_box_action_space,
+        custom_id="SAC(Box, BoxWithOffset)",
+    ),
+]
 
 
 @pytest.fixture(scope="module")
@@ -352,16 +638,24 @@ class TestExportFunctions:
                 "ppo", multi_discrete_obs_space, box_action_space, new_stack=False
             ),
             ExportParams("sac", box_obs_space, box_action_space, new_stack=False),
+            ExportParams(
+                "sac",
+                box_obs_space,
+                offset_box_action_space,
+                new_stack=False,
+                custom_id="SAC(Box, BoxWithOffset, old)",
+            ),
         ],
         ids=str,
     )
     def test_export_rllib_policy_to_onnx(
-        self, tmp_path, make_algo, alg_params, onnx_model_checker, ray_cluster
+        self, tmp_path, make_algo, alg_params, ray_cluster
     ):
         """Test exporting RLlib policies to ONNX format."""
 
         # Get the policy
-        policy: Policy = make_algo(alg_params).get_policy("default_policy")
+        algo = make_algo(alg_params)
+        policy: Policy = algo.get_policy("default_policy")
         onnx_file = tmp_path / "test_policy" / "model.onnx"
 
         # Export to ONNX
@@ -370,35 +664,31 @@ class TestExportFunctions:
         )
 
         # Verify the ONNX file was created
-        onnx_model_checker(
-            onnx_file,
+        onnx_model = check_onnx_model_loads(onnx_file)
+        check_onnx_metadata(
+            onnx_model,
             alg_params.observation_space,
             alg_params.action_space,
-            alg_params.state_shapes,
-            alg_params.metadata,
+            state_shapes=alg_params.state_shapes,
+            metadata=alg_params.metadata,
+        )
+        check_onnx_runtime(
+            onnx_model,
+            alg_params.observation_space,
+            alg_params.action_space,
+            state_shapes=alg_params.state_shapes,
+        )
+        check_onnx_matches_rllib(
+            algo,
+            onnx_model,
+            alg_params.action_space,
+            state_shapes=alg_params.state_shapes,
         )
 
     # test exporting just the RLModule to ONNX (direct creation without Ray cluster)
-    @pytest.mark.parametrize(
-        "alg_params",
-        [
-            # Check different action spaces with dict observation space
-            ExportParams("ppo", box_obs_space, box_action_space),
-            ExportParams("ppo", discrete_obs_space, box_action_space),
-            ExportParams("ppo", box_obs_space, dict_action_space),
-            # Skip MultiBinary - not supported by RLlib
-            ExportParams("ppo", multi_discrete_obs_space, box_action_space),
-            # Test ppo with LSTM enabled
-            ExportParams("ppo", dict_obs_space, dict_action_space, use_lstm=True),
-            ExportParams("ppo", box_obs_space, box_action_space, use_lstm=True),
-            ExportParams("ppo", dict_obs_space, dict_action_space),
-            # SAC - only supports Box action spaces (no Dict wrapping)
-            ExportParams("sac", box_obs_space, box_action_space),
-        ],
-        ids=str,
-    )
+    @pytest.mark.parametrize("alg_params", rl_module_export_cases, ids=str)
     def test_export_rllib_rl_module_to_onnx(
-        self, tmp_path, make_algo, alg_params, onnx_model_checker, ray_cluster
+        self, tmp_path, make_algo, alg_params, ray_cluster
     ):
         """Test exporting RLlib RLModule to ONNX format (no Ray cluster spawning)."""
         algo = make_algo(alg_params)
@@ -409,12 +699,25 @@ class TestExportFunctions:
         )
         # TODO handle exporting vision models
         # Verify the ONNX file was created
-        onnx_model_checker(
-            onnx_file,
+        onnx_model = check_onnx_model_loads(onnx_file)
+        check_onnx_metadata(
+            onnx_model,
             alg_params.observation_space,
             alg_params.action_space,
-            alg_params.state_shapes,
-            alg_params.metadata,
+            state_shapes=alg_params.state_shapes,
+            metadata=alg_params.metadata,
+        )
+        check_onnx_runtime(
+            onnx_model,
+            alg_params.observation_space,
+            alg_params.action_space,
+            state_shapes=alg_params.state_shapes,
+        )
+        check_onnx_matches_rllib(
+            algo,
+            onnx_model,
+            alg_params.action_space,
+            state_shapes=alg_params.state_shapes,
         )
 
     # test exporting using the entire algorithm object
@@ -425,11 +728,17 @@ class TestExportFunctions:
             # Test with LSTM enabled
             ExportParams("ppo", box_obs_space, box_action_space, use_lstm=True),
             ExportParams("sac", dict_obs_space, box_action_space),
+            ExportParams(
+                "sac",
+                dict_obs_space,
+                offset_box_action_space,
+                custom_id="SAC(Dict, BoxWithOffset)",
+            ),
         ],
         ids=str,
     )
     def test_export_rllib_algorithm_to_onnx(
-        self, tmp_path, make_algo, alg_params, onnx_model_checker, ray_cluster
+        self, tmp_path, make_algo, alg_params, ray_cluster
     ):
         """Test exporting RLlib algorithms to ONNX format from checkpoint using tune.run()."""
         algo = make_algo(alg_params)
@@ -438,12 +747,25 @@ class TestExportFunctions:
         export_onnx_from_policy(algo, onnx_file)
 
         # Verify the ONNX file was created
-        onnx_model_checker(
-            onnx_file,
+        onnx_model = check_onnx_model_loads(onnx_file)
+        check_onnx_metadata(
+            onnx_model,
             alg_params.observation_space,
             alg_params.action_space,
-            alg_params.state_shapes,
-            alg_params.metadata,
+            state_shapes=alg_params.state_shapes,
+            metadata=alg_params.metadata,
+        )
+        check_onnx_runtime(
+            onnx_model,
+            alg_params.observation_space,
+            alg_params.action_space,
+            state_shapes=alg_params.state_shapes,
+        )
+        check_onnx_matches_rllib(
+            algo,
+            onnx_model,
+            alg_params.action_space,
+            state_shapes=alg_params.state_shapes,
         )
 
     @pytest.mark.parametrize(
@@ -458,19 +780,26 @@ class TestExportFunctions:
         ids=str,
     )
     def test_export_rllib_multiagent_to_onnx(
-        self, tmp_path, make_algo, alg_params, onnx_model_checker, ray_cluster
+        self, tmp_path, make_algo, alg_params, ray_cluster
     ):
         """Test exporting RLlib multiagent policies to ONNX format."""
         algo = make_algo(alg_params)
         export_onnx_from_policy(algo, tmp_path)
 
         for i in range(alg_params.num_policies):
-            onnx_model_checker(
-                tmp_path / f"policy_{i}.onnx",
+            onnx_model = check_onnx_model_loads(tmp_path / f"policy_{i}.onnx")
+            check_onnx_metadata(
+                onnx_model,
                 alg_params.observation_space,
                 alg_params.action_space,
-                alg_params.state_shapes,
-                alg_params.metadata,
+                state_shapes=alg_params.state_shapes,
+                metadata=alg_params.metadata,
+            )
+            check_onnx_runtime(
+                onnx_model,
+                alg_params.observation_space,
+                alg_params.action_space,
+                state_shapes=alg_params.state_shapes,
             )
 
 
@@ -484,11 +813,17 @@ class TestExportScript:
             ExportParams("ppo", box_obs_space, box_action_space),
             ExportParams("ppo", dict_obs_space, dict_action_space, use_lstm=True),
             ExportParams("sac", box_obs_space, box_action_space),
+            ExportParams(
+                "sac",
+                box_obs_space,
+                offset_box_action_space,
+                custom_id="SAC(Box, BoxWithOffset)",
+            ),
         ],
         ids=str,
     )
     def test_rllib_to_onnx_script(
-        self, tmp_path, make_algo, alg_params, onnx_model_checker, ray_cluster
+        self, tmp_path, make_algo, alg_params, ray_cluster
     ):
         """Test the rllib-to-onnx script: save checkpoint, run script, verify ONNX output."""
         algo: Algorithm = make_algo(alg_params)
@@ -500,12 +835,25 @@ class TestExportScript:
             result_action="return_value",
             exit_on_error=False,
         )
-        onnx_model_checker(
-            export_path,
+        onnx_model = check_onnx_model_loads(export_path)
+        check_onnx_metadata(
+            onnx_model,
             alg_params.observation_space,
             alg_params.action_space,
             state_shapes=alg_params.state_shapes,
             metadata=alg_params.metadata,
+        )
+        check_onnx_runtime(
+            onnx_model,
+            alg_params.observation_space,
+            alg_params.action_space,
+            state_shapes=alg_params.state_shapes,
+        )
+        check_onnx_matches_rllib(
+            algo,
+            onnx_model,
+            alg_params.action_space,
+            state_shapes=alg_params.state_shapes,
         )
 
 

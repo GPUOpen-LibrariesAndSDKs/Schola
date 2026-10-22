@@ -8,6 +8,14 @@ from ray.rllib.algorithms import AlgorithmConfig
 from ray.rllib.algorithms.algorithm import Algorithm
 from ray.rllib.env.multi_agent_episode import MultiAgentEpisode
 from ray.rllib.algorithms.sac import SACTorchPolicy
+from ray.rllib.core.distribution.torch.torch_distribution import (
+    TorchDiagGaussian as NewTorchDiagGaussian,
+    TorchMultiDistribution,
+    TorchSquashedGaussian as NewTorchSquashedGaussian,
+)
+from ray.rllib.models.torch.torch_action_dist import (
+    TorchSquashedGaussian as OldTorchSquashedGaussian,
+)
 from ray.rllib.core.rl_module import MultiRLModule
 from ray.rllib.core.rl_module.rl_module import RLModule
 from ray.rllib.core.rl_module.torch.torch_rl_module import TorchRLModule
@@ -142,13 +150,19 @@ def _(
     path: pathlib.Path,
     observation_space: gym.Space[Any] | None = None,
     action_space: gym.Space[Any] | None = None,
+    normalize_actions: bool = True,
+    clip_actions: bool = False,
 ):
     if path.is_dir():
         path = path / "default_policy.onnx"
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
     schola_model = ScholaRLModule(
-        arg, observation_space=observation_space, action_space=action_space
+        arg,
+        observation_space=observation_space,
+        action_space=action_space,
+        normalize_actions=normalize_actions,
+        clip_actions=clip_actions,
     )
     schola_model.save_as_onnx(path)
 
@@ -159,6 +173,8 @@ def _(
     path: pathlib.Path,
     observation_spaces: dict[str, gym.Space[Any]],
     action_spaces: dict[str, gym.Space[Any]],
+    normalize_actions: bool = True,
+    clip_actions: bool = False,
 ) -> None:
     """
     Export a multiagent module to ONNX format.
@@ -185,7 +201,12 @@ def _(
     for k, module in arg.items():
         # remap the observation space which has agents as keys to the policy name
         export_onnx_from_policy(
-            module, path / f"{k}.onnx", observation_spaces[k], action_spaces[k]
+            module,
+            path / f"{k}.onnx",
+            observation_spaces[k],
+            action_spaces[k],
+            normalize_actions=normalize_actions,
+            clip_actions=clip_actions,
         )
 
 
@@ -193,6 +214,38 @@ def _flatten_inputs_to_1d_tensor(
     inputs: dict[str, Any], spaces: dict[str, gym.Space[Any]]
 ) -> th.Tensor:
     return th.as_tensor(flatten_inputs_to_1d_tensor(inputs, spaces))
+
+
+def _partial_distribution_kwargs(dist_cls: type) -> dict[str, Any]:
+    """Return kwargs captured by ``Distribution.get_partial_dist_cls``."""
+    merge = getattr(dist_cls, "_merge_kwargs", None)
+    closure = getattr(merge, "__closure__", None)
+    if closure is None:
+        return {}
+    fallback: dict[str, Any] | None = None
+    for cell in closure:
+        try:
+            contents = cell.cell_contents
+        except ValueError:
+            continue
+        if isinstance(contents, dict):
+            if "child_distribution_cls_struct" in contents:
+                return contents
+            fallback = contents
+    return fallback or {}
+
+
+def _eval_action_postprocessing(config: Any) -> tuple[bool, bool]:
+    """Return ``(normalize_actions, clip_actions)`` used for evaluation steps.
+
+    Evaluation copies the training config and applies ``evaluation_config``
+    overrides. Missing config uses RLlib's defaults: normalize, do not clip.
+    """
+    if isinstance(config, AlgorithmConfig):
+        eval_config = config.get_evaluation_config_object()
+        action_config = eval_config if eval_config is not None else config
+        return bool(action_config.normalize_actions), bool(action_config.clip_actions)
+    return True, False
 
 
 @export_onnx_from_policy.register
@@ -224,7 +277,8 @@ def _(arg: Algorithm, path: pathlib.Path) -> None:
     # The space will be defined as a Dict Space with agent_ids as the key, so we condense down to policy_ids.
     # All agent's mapping to the same policy will have the same observation space so we can just overwrite the values.
     # We can't use the policy observation space as it is already flattened.
-    if isinstance(module, MultiRLModule) and (config := arg.get_config()) is not None:
+    config = arg.get_config()
+    if isinstance(module, MultiRLModule) and config is not None:
         assert isinstance(
             obs_space, gym.spaces.Dict
         ), f"Expected MultiAgent Algorithm to have a Dict Observation space with agent_ids as the keys but got {type(obs_space)}"
@@ -250,7 +304,12 @@ def _(arg: Algorithm, path: pathlib.Path) -> None:
                 {policy_mapping_fn(k, dummy_episode): v for k, v in act_space.items()}
             )
 
-    export_onnx_from_policy(module, path, obs_space, act_space)
+    normalize_actions, clip_actions = _eval_action_postprocessing(config)
+    export_kwargs: dict[str, Any] = {}
+    if isinstance(module, (TorchRLModule, MultiRLModule)):
+        export_kwargs["normalize_actions"] = normalize_actions
+        export_kwargs["clip_actions"] = clip_actions
+    export_onnx_from_policy(module, path, obs_space, act_space, **export_kwargs)
 
 
 class ModelOutputDict(TypedDict):
@@ -270,6 +329,13 @@ class ScholaRLModule(ScholaModel):
         Override observation space; defaults to ``rl_module.observation_space``.
     action_space : gymnasium.spaces.Space, optional
         Override action space; defaults to ``rl_module.action_space``.
+    normalize_actions : bool, optional
+        Match ``NormalizeAndClipActions`` when evaluation has
+        ``normalize_actions=True`` (the RLlib default). Bounded float Box means
+        are mapped from ``[-1, 1]`` into ``[low, high]`` and clipped.
+    clip_actions : bool, optional
+        Match ``NormalizeAndClipActions`` when normalization is off and
+        ``clip_actions=True``. Box means are clipped to the space bounds.
     ignored_state_keys : tuple of str, optional
         State dict keys to drop before export (default hides critic-only state).
 
@@ -285,6 +351,8 @@ class ScholaRLModule(ScholaModel):
         observation_space: gym.Space[Any] | None = None,
         action_space: gym.Space[Any] | None = None,
         ignored_state_keys: tuple[str, ...] = ("critic",),
+        normalize_actions: bool = True,
+        clip_actions: bool = False,
     ):
         super().__init__(
             observation_space=(
@@ -298,6 +366,19 @@ class ScholaRLModule(ScholaModel):
         )
         self.rl_module = cast(TorchRLModule, rl_module.to("cpu"))
         self.rl_module.eval()
+        self.normalize_actions = normalize_actions
+        self.clip_actions = clip_actions
+        self._inference_action_dist_cls = self.rl_module.get_inference_action_dist_cls()
+        self._box_output_mode: dict[str, str] = {}
+        for key, space in self.action_space.spaces.items():
+            if not isinstance(space, Box):
+                continue
+            mode = self._box_output_mode_for(space, key)
+            self._box_output_mode[key] = mode
+            if mode != "mean":
+                self.register_buffer(f"action_{key}_low", th.as_tensor(space.low))
+                self.register_buffer(f"action_{key}_high", th.as_tensor(space.high))
+
         if observation_space is None and isinstance(
             self.rl_module.observation_space, gym.spaces.Box
         ):
@@ -322,11 +403,80 @@ class ScholaRLModule(ScholaModel):
         )
         return {k: custom_flat_dim_func(v) for k, v in self.action_space.items()}
 
+    def _distribution_class_for_box(self, space_name: str) -> type | None:
+        """Return the inference distribution class for one Box action branch."""
+        dist_cls = self._inference_action_dist_cls
+        # Dict and Tuple spaces use a partial subclass of TorchMultiDistribution.
+        # The partial is a class, so ``isinstance(..., TorchMultiDistribution)`` is false.
+        if isinstance(dist_cls, type) and issubclass(dist_cls, TorchMultiDistribution):
+            struct = _partial_distribution_kwargs(dist_cls).get(
+                "child_distribution_cls_struct"
+            )
+            child = struct.get(space_name) if isinstance(struct, dict) else None
+            if not isinstance(child, type):
+                logger.warning(
+                    "Could not resolve the inference distribution for action '%s'. "
+                    "Exporting the distribution mean without environment bound mapping.",
+                    space_name,
+                )
+                return None
+            dist_cls = child
+        if isinstance(dist_cls, type):
+            return dist_cls
+        return None
+
+    def _box_output_mode_for(self, space: Box, space_name: str) -> str:
+        """Choose how a deterministic Box mean is turned into an env action.
+
+        ``GetActions`` calls ``to_deterministic()`` during evaluation. Both
+        diagonal and squashed Gaussians return the raw mean there; ``tanh`` is
+        only used while sampling. ``NormalizeAndClipActions`` then unsquashes
+        or clips that mean.
+        """
+        dist_cls = self._distribution_class_for_box(space_name)
+        if dist_cls is None or not issubclass(
+            dist_cls, (NewTorchSquashedGaussian, NewTorchDiagGaussian)
+        ):
+            return "mean"
+        if self.normalize_actions:
+            fully_bounded = bool(
+                np.all(space.bounded_below) and np.all(space.bounded_above)
+            )
+            if not fully_bounded:
+                return "mean"
+            if space.dtype == np.float32 or space.dtype == np.float64:
+                return "unsquash"
+            if np.issubdtype(space.dtype, np.integer):
+                return "shift"
+            return "mean"
+        if self.clip_actions and (
+            np.any(space.bounded_below) or np.any(space.bounded_above)
+        ):
+            return "clip"
+        return "mean"
+
     def make_box_output(
         self, logits: th.Tensor, _space_name: str = "action"
     ) -> th.Tensor:
-        # must always be even so we can just divide here
-        return logits[: len(logits) // 2]
+        """Turn box distribution inputs into the action sent to the environment.
+
+        Distribution inputs are ``(mean, log_std)``. Deterministic evaluation
+        keeps the mean. With ``normalize_actions``, a bounded float mean is
+        mapped from ``[-1, 1]`` with ``low + (mean + 1) * (high - low) / 2``
+        and clipped. With only ``clip_actions``, the mean is clipped to the Box.
+        """
+        mean = logits[: len(logits) // 2]
+        mode = self._box_output_mode.get(_space_name, "mean")
+        if mode == "mean":
+            return mean
+
+        low = self.get_buffer(f"action_{_space_name}_low").to(dtype=mean.dtype)
+        high = self.get_buffer(f"action_{_space_name}_high").to(dtype=mean.dtype)
+        if mode == "unsquash":
+            return th.clamp(low + (mean + 1.0) * (high - low) / 2.0, low, high)
+        if mode == "shift":
+            return low + mean
+        return th.clamp(mean, low, high)
 
     def forward(self, *args: th.Tensor) -> tuple[th.Tensor, ...]:
 
@@ -461,6 +611,16 @@ class RllibScholaModel(ScholaModel):
             self._policy._get_dummy_batch_from_view_requirements(1)
         )
         self._policy._lazy_tensor_dict(self._policy._dummy_batch)
+        dist_cls = getattr(policy, "dist_class", None)
+        dist_cls = getattr(dist_cls, "func", dist_cls)
+        self._squash_box_actions = isinstance(dist_cls, type) and issubclass(
+            dist_cls, OldTorchSquashedGaussian
+        )
+        if self._squash_box_actions:
+            for key, space in self.action_space.spaces.items():
+                if isinstance(space, Box):
+                    self.register_buffer(f"action_{key}_low", th.as_tensor(space.low))
+                    self.register_buffer(f"action_{key}_high", th.as_tensor(space.high))
 
     @cached_property
     def initial_state_dict(self) -> NestedDict[str, th.Tensor]:
@@ -527,8 +687,13 @@ class RllibScholaModel(ScholaModel):
     def make_box_output(
         self, logits: th.Tensor, _space_name: str = "action"
     ) -> th.Tensor:
-        # must always be even so we can just divide here
-        return logits[: len(logits) // 2]
+        # Distribution inputs are (mean, log_std). Keep the mean.
+        mean = logits[: len(logits) // 2]
+        if not self._squash_box_actions:
+            return mean
+        low = self.get_buffer(f"action_{_space_name}_low").to(dtype=mean.dtype)
+        high = self.get_buffer(f"action_{_space_name}_high").to(dtype=mean.dtype)
+        return low + 0.5 * (th.tanh(mean) + 1.0) * (high - low)
 
 
 # end of adapted code

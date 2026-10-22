@@ -11,6 +11,11 @@ from schola.rllib.env import RayEnv
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
 import gymnasium as gym
 from schola.rllib.export import export_onnx_from_policy
+from Test.conftest import (
+    check_onnx_metadata,
+    check_onnx_model_loads,
+    check_onnx_runtime,
+)
 
 # Check if PettingZoo is available
 try:
@@ -246,7 +251,6 @@ def test_multiagent_training(
     make_pettingzoo_env,
     ray_cluster,
     tmp_path,
-    onnx_model_checker,
 ):
     env_server_port = make_pettingzoo_env_server(
         make_pettingzoo_env("simple_spread_v3")
@@ -308,13 +312,9 @@ def test_multiagent_training(
     algo.stop()
 
     export_onnx_from_policy(algo, tmp_path)
-    onnx_model_checker(
-        tmp_path / "policy_0.onnx",
-        gym.spaces.Box(low=-np.inf, high=np.inf, shape=(18,)),
-        gym.spaces.Discrete(5),
-    )
-    onnx_model_checker(
-        tmp_path / "policy_1.onnx",
-        gym.spaces.Box(low=-np.inf, high=np.inf, shape=(18,)),
-        gym.spaces.Discrete(5),
-    )
+    observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(18,))
+    action_space = gym.spaces.Discrete(5)
+    for policy_name in ("policy_0", "policy_1"):
+        onnx_model = check_onnx_model_loads(tmp_path / f"{policy_name}.onnx")
+        check_onnx_metadata(onnx_model, observation_space, action_space)
+        check_onnx_runtime(onnx_model, observation_space, action_space)

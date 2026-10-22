@@ -1,11 +1,14 @@
 class_name ScholaDemoRunner
 extends Node
-## Hands control to the keyboard, the Python trainer (JSON over TCP, a US3 stand-in) or a saved policy.
+## Hands control to the keyboard, the Python trainer or a saved policy. Training goes through
+## ScholaLocalConnector, the D2 stand-in for US3's connector; this script plays the part of US3's
+## ConnectorLoop and runs each of Python's requests on the environment.
 
 signal mode_changed(mode: Mode)
 signal log_message(text: String, is_error: bool)
 signal trainer_progress(stats: Dictionary)
 signal action_chosen(action: Variant, source: String)
+signal connection_state_changed(state: ScholaLocalConnector.State, message: String)
 
 enum Mode { MANUAL, WAITING, TRAINING, STOPPING, POLICY }
 
@@ -14,7 +17,9 @@ const GROUP := "schola_demo_runner"
 
 @export var environment: ScholaDemoEnvironment
 @export_group("Training client")
-@export var port := 5757
+@export var port := 8000
+@export var start_timeout_sec := 45.0
+@export var step_timeout_sec := 60.0
 @export var auto_launch_trainer := true
 @export var python_executable := "python"
 @export_file("*.py") var trainer_script := "res://python/trainer.py"
@@ -27,11 +32,9 @@ const GROUP := "schola_demo_runner"
 
 var mode := Mode.MANUAL
 var policy: ScholaSavedPolicy
+var connector: ScholaLocalConnector
+var connection_state := ScholaLocalConnector.State.IDLE
 
-var _server: TCPServer
-var _peer: StreamPeerTCP
-var _buffer := PackedByteArray()
-var _pending: Array[Dictionary] = []
 var _pid := -1
 var _step_budget := 0.0
 var _reset_timer := 0.0
@@ -44,7 +47,8 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
-	_close_connection()
+	if connector != null:
+		connector.close("Godot is shutting down.", false)
 	_kill_trainer()
 
 
@@ -52,14 +56,13 @@ func start_training() -> void:
 	if mode in [Mode.WAITING, Mode.TRAINING, Mode.STOPPING]:
 		return
 	policy = null
-	_server = TCPServer.new()
-	var err := _server.listen(port, "127.0.0.1")
-	if err != OK:
-		_log("could not listen on 127.0.0.1:%d (%s)" % [port, error_string(err)], true)
-		_server = null
+	connector = ScholaLocalConnector.new()
+	connector.start_timeout_sec = start_timeout_sec
+	connector.step_timeout_sec = step_timeout_sec
+	connector.state_changed.connect(_on_connection_state_changed)
+	connector.notification_received.connect(_on_trainer_notification)
+	if not connector.open(port):
 		return
-	_set_mode(Mode.WAITING)
-	_log("listening on 127.0.0.1:%d for the Python trainer" % port)
 	if not auto_launch_trainer:
 		_log("run: python python/trainer.py --port %d" % port)
 		return
@@ -77,13 +80,15 @@ func start_training() -> void:
 
 
 func stop_run() -> void:
-	if mode == Mode.TRAINING and _peer != null:
-		_send({"type": "stop"})
+	if mode == Mode.TRAINING and connector != null and connector.state == ScholaLocalConnector.State.TRAINING:
+		connector.request_stop("Stopped by the user in Godot; save the policy and close the session.")
 		_set_mode(Mode.STOPPING)
 		_stop_deadline = Time.get_ticks_msec() / 1000.0 + 3.0
 		_log("asked the trainer to save and stop")
 		return
-	_close_connection()
+	if connector != null and connector.is_active():
+		connector.close("Run reset by the user.", false)
+		_set_connection_state(ScholaLocalConnector.State.CLOSED, "Run reset by the user.")
 	_kill_trainer()
 	policy = null
 	_set_mode(Mode.MANUAL)
@@ -137,7 +142,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
-	_poll_network()
+	if connector != null:
+		connector.poll()
 	if mode == Mode.STOPPING and Time.get_ticks_msec() / 1000.0 > _stop_deadline:
 		_log("trainer did not stop in time; closing", true)
 		stop_run()
@@ -161,12 +167,14 @@ func _process(delta: float) -> void:
 func _run_one_step(frame_deadline: int) -> bool:
 	match mode:
 		Mode.TRAINING:
-			while _pending.is_empty() and _peer != null and Time.get_ticks_usec() < frame_deadline:
+			var request := connector.poll_request()
+			while request.is_empty() and connector.is_active() and Time.get_ticks_usec() < frame_deadline:
 				OS.delay_usec(50)
-				_poll_network()
-			if _pending.is_empty() or mode != Mode.TRAINING:
+				connector.poll()
+				request = connector.poll_request()
+			if request.is_empty() or mode != Mode.TRAINING:
 				return false
-			_handle_request(_pending.pop_front())
+			_handle_request(request)
 			return true
 		Mode.POLICY:
 			if environment.is_episode_over():
@@ -185,104 +193,102 @@ func _step(action: Variant, source: String) -> Dictionary:
 
 
 func _handle_request(request: Dictionary) -> void:
-	match request.get("type"):
+	var agent := environment.get_agent()
+	match request.kind:
+		"start":
+			if request.autoreset_mode != "DISABLED":
+				connector.fail("INCOMPATIBLE", "The D2 demo supports only DISABLED auto-reset; Python asked for %s." % request.autoreset_mode)
+				return
+			connector.reply_start()
+			connector.publish_definition(_training_definition())
 		"reset":
-			var result := environment.reset_episode(request.get("seed"))
+			var settings: Dictionary = request.environments.get(0, {})
+			var result := environment.reset_episode(settings.get("seed"), settings.get("options", {}))
 			if result.error != "":
-				_send({"type": "error", "message": result.error})
-				_log(result.error, true)
-			else:
-				_send({"type": "reset_result", "observation": Array(result.observation), "info": {}})
+				connector.fail("RUNTIME_FAILURE", "Reset failed: %s" % result.error)
+				return
+			connector.reply_reset({"0": {agent.agent_id: {
+				"observation": ScholaLocalConnector.to_json_value(result.observation),
+				"info": {},
+			}}})
 		"step":
-			var action: Variant = request.get("action")
+			var actions: Dictionary = request.actions[0]
+			if not actions.has(agent.agent_id):
+				connector.fail("INVALID_ARGUMENT", "The step has no action for agent %s." % agent.agent_id)
+				return
+			var action: Variant = actions[agent.agent_id]
 			# JSON numbers arrive as floats.
 			if typeof(action) == TYPE_FLOAT and action == floor(action):
 				action = int(action)
+			var action_error: String = agent.action_space.get_validation_error(action)
+			if action_error != "":
+				connector.fail("INVALID_ARGUMENT", "Action %s rejected by %s: %s" % [JSON.stringify(action), agent.action_space.describe(), action_error])
+				return
+			if environment.is_episode_over():
+				connector.fail("FAILED_PRECONDITION", "Python stepped an episode that already ended; with DISABLED auto-reset it must reset first.")
+				return
 			var result := _step(action, "Python trainer")
 			if result.get("error", "") != "":
-				_send({"type": "error", "message": result.error})
-			else:
-				_send({
-					"type": "step_result",
-					"observation": Array(result.observation),
-					"reward": result.reward,
-					"terminated": result.terminated,
-					"truncated": result.truncated,
-					"info": {"outcome": result.outcome},
-				})
+				connector.fail("RUNTIME_FAILURE", "Step failed: %s" % result.error)
+				return
+			var info: Dictionary = result.info.duplicate()
+			info["outcome"] = result.outcome
+			connector.reply_step([{agent.agent_id: {
+				"observation": ScholaLocalConnector.to_json_value(result.observation),
+				"reward": result.reward,
+				"terminated": result.terminated,
+				"truncated": result.truncated,
+				"info": ScholaLocalConnector.info_to_strings(info),
+			}}])
 
 
-func _poll_network() -> void:
-	if _server != null and _peer == null and _server.is_connection_available():
-		_peer = _server.take_connection()
-		_peer.set_no_delay(true)
-		_server.stop()
-		_server = null
-		_set_mode(Mode.TRAINING)
-		var agent := environment.get_agent()
-		_send({
-			"type": "hello",
-			"agent_id": agent.agent_id,
-			"observation_space": agent.observation_space.to_dictionary(),
-			"action_space": agent.action_space.to_dictionary(),
-			"config": environment.get_config(),
-		})
-		_log("trainer connected; sent US2 space definitions")
-
-	if _peer == null:
-		return
-	_peer.poll()
-	if _peer.get_status() != StreamPeerTCP.STATUS_CONNECTED:
-		_log("trainer disconnected")
-		_close_connection()
-		_set_mode(Mode.MANUAL)
-		environment.reset_episode()
-		return
-	var available := _peer.get_available_bytes()
-	if available > 0:
-		var received := _peer.get_data(available)
-		if received[0] == OK:
-			_buffer.append_array(received[1])
-	var newline := _buffer.find(10)
-	while newline != -1:
-		var line := _buffer.slice(0, newline).get_string_from_utf8()
-		_buffer = _buffer.slice(newline + 1)
-		_handle_message(line)
-		newline = _buffer.find(10)
+# Mirrors TrainingDefinition: one {agent_id: definition} per environment. The demo has one of each.
+func _training_definition() -> Array:
+	var agent := environment.get_agent()
+	return [{agent.agent_id: {
+		"observation_space": agent.observation_space.to_dictionary(),
+		"action_space": agent.action_space.to_dictionary(),
+		"agent_type": "",
+	}}]
 
 
-func _handle_message(line: String) -> void:
-	var message: Variant = JSON.parse_string(line)
-	if typeof(message) != TYPE_DICTIONARY:
-		_log("bad message from trainer: %s" % line, true)
-		return
+func _on_connection_state_changed(state: ScholaLocalConnector.State, message: String) -> void:
+	_set_connection_state(state, message)
+	match state:
+		ScholaLocalConnector.State.WAITING:
+			_set_mode(Mode.WAITING)
+		ScholaLocalConnector.State.CONNECTED, ScholaLocalConnector.State.TRAINING:
+			if mode != Mode.STOPPING:
+				_set_mode(Mode.TRAINING)
+		ScholaLocalConnector.State.CLOSED, ScholaLocalConnector.State.ERROR:
+			_end_training_session(state == ScholaLocalConnector.State.ERROR)
+
+
+func _on_trainer_notification(message: Dictionary) -> void:
 	match message.get("type"):
-		"reset", "step":
-			_pending.append(message)
 		"progress":
 			trainer_progress.emit(message)
 		"saved":
 			_log("trainer saved policy to %s" % message.get("path"))
 		"log":
 			_log("python: %s" % message.get("message"))
-		_:
-			_log("unknown message type from trainer: %s" % message.get("type"), true)
 
 
-func _send(message: Dictionary) -> void:
-	if _peer != null:
-		_peer.put_data((JSON.stringify(message) + "\n").to_utf8_buffer())
+func _end_training_session(failed: bool) -> void:
+	if mode not in [Mode.WAITING, Mode.TRAINING, Mode.STOPPING]:
+		return
+	if failed:
+		_kill_trainer()
+	_set_mode(Mode.MANUAL)
+	environment.reset_episode()
+	_log("training session ended; keyboard controls the agent")
 
 
-func _close_connection() -> void:
-	if _peer != null:
-		_peer.disconnect_from_host()
-		_peer = null
-	if _server != null:
-		_server.stop()
-		_server = null
-	_buffer.clear()
-	_pending.clear()
+func _set_connection_state(state: ScholaLocalConnector.State, message: String) -> void:
+	connection_state = state
+	connection_state_changed.emit(state, message)
+	var is_error := state == ScholaLocalConnector.State.ERROR
+	_log("connection %s: %s" % [ScholaLocalConnector.STATE_NAMES[state], message], is_error)
 
 
 func _kill_trainer() -> void:

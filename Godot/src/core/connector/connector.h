@@ -165,9 +165,18 @@ public:
 	/** Closes the backend and the connector. Safe to call twice. */
 	void stop();
 
+	/** True between a successful start() and the end of the session. */
+	bool is_running() const;
+
 private:
-	Connector *connector = nullptr; // Not owned.
-	TrainingBackend *backend = nullptr; // Not owned.
+	// Runs one update on the backend and sends the matching reply.
+	Status run_update(const ConnectorUpdate &p_update);
+
+	// Reports p_error to Python, ends the session, and returns p_error.
+	Status end_session(const Status &p_error);
+
+	Connector *connector = nullptr; // Not owned; null when no session is running.
+	TrainingBackend *backend = nullptr; // Not owned; null when no session is running.
 	std::chrono::steady_clock::time_point last_update;
 };
 

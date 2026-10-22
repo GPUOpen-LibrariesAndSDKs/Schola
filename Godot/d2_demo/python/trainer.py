@@ -1,6 +1,10 @@
-"""Tabular Q-learning client for the Schola D2 demo (JSON over TCP; a stand-in for US3).
+"""Tabular Q-learning client for the Schola D2 demo.
 
-    python trainer.py --port 5757 --episodes 300 --policy-out ../policies/q_policy.json
+Talks to Godot's ScholaLocalConnector (the D2 stand-in for US3) with newline-delimited JSON over
+localhost TCP. As in Schola's GymService, Python sends every request and Godot answers it:
+start, definition, then update (reset, step, close). See Godot/docs/local_protocol.md.
+
+    python trainer.py --port 8000 --episodes 300 --policy-out ../policies/q_policy.json
 """
 
 from __future__ import annotations
@@ -58,19 +62,31 @@ class GodotConnection:
         self.sock.settimeout(None)
         self.reader = self.sock.makefile("r", encoding="utf-8")
 
-    def send(self, message: dict) -> None:
+    def notify(self, message: dict) -> None:
+        """Sends a one-way demo message (progress, saved, log); Godot does not reply."""
         self.sock.sendall((json.dumps(message) + "\n").encode("utf-8"))
 
-    def receive(self) -> dict:
+    def request(self, message: dict, expected: str) -> dict:
+        """Sends one request and returns Godot's reply, which must have type ``expected``."""
+        self.sock.sendall((json.dumps(message) + "\n").encode("utf-8"))
         line = self.reader.readline()
         if not line:
             raise ConnectionError("Godot closed the connection")
-        message = json.loads(line)
-        if message.get("type") == "stop":
-            raise StopRequested()
-        if message.get("type") == "error":
-            raise RuntimeError(f"Godot rejected the request: {message['message']}")
-        return message
+        reply = json.loads(line)
+        if reply.get("type") == "error":
+            if reply.get("code") == "CLOSED":
+                raise StopRequested(reply.get("message", ""))
+            raise RuntimeError(f"Godot rejected {message['type']} ({reply.get('code')}): {reply.get('message')}")
+        if reply.get("type") != expected:
+            raise RuntimeError(f"expected {expected} from Godot, got {reply}")
+        return reply
+
+    def close_session(self) -> None:
+        """Ends the session cleanly; safe to call after Godot has already closed."""
+        try:
+            self.request({"type": "update", "status": "CLOSED"}, "close_result")
+        except (OSError, ConnectionError, RuntimeError, StopRequested, json.JSONDecodeError):
+            pass
 
     def close(self) -> None:
         try:
@@ -82,28 +98,38 @@ class GodotConnection:
 class GodotGridEnv(gym.Env):
     def __init__(self, connection: GodotConnection) -> None:
         self.connection = connection
-        hello = connection.receive()
-        if hello.get("type") != "hello":
-            raise RuntimeError(f"expected hello from Godot, got {hello}")
-        self.hello = hello
-        self.observation_space = space_from_dict(hello["observation_space"])
-        self.action_space = space_from_dict(hello["action_space"])
+        connection.request({"type": "start", "autoreset_mode": "DISABLED"}, "start_result")
+        environments = connection.request({"type": "definition"}, "definition_result")["environments"]
+        if len(environments) != 1 or len(environments[0]) != 1:
+            raise RuntimeError(f"this trainer supports one environment with one agent, got {environments}")
+        (self.agent_id, self.definition), = environments[0].items()
+        self.observation_space = space_from_dict(self.definition["observation_space"])
+        self.action_space = space_from_dict(self.definition["action_space"])
 
     def reset(self, *, seed: int | None = None, options: dict | None = None):
         super().reset(seed=seed)
-        self.connection.send({"type": "reset", "seed": seed})
-        reply = self.connection.receive()
-        return self._observation(reply), reply.get("info", {})
+        reply = self.connection.request(
+            {"type": "update", "reset": {"environments": {"0": {"seed": seed, "options": options or {}}}}},
+            "reset_result",
+        )
+        agent = reply["initial_state"]["0"][self.agent_id]
+        return self._observation(agent), agent.get("info", {})
 
     def step(self, action):
-        self.connection.send({"type": "step", "action": int(action)})
-        reply = self.connection.receive()
+        # The client validates actions before sending, as Schola's Python package does.
+        if not self.action_space.contains(action):
+            raise ValueError(f"action {action!r} is outside {self.action_space}")
+        reply = self.connection.request(
+            {"type": "update", "step": {"actions": [{self.agent_id: int(action)}]}},
+            "step_result",
+        )
+        agent = reply["state"][0][self.agent_id]
         return (
-            self._observation(reply),
-            float(reply["reward"]),
-            bool(reply["terminated"]),
-            bool(reply["truncated"]),
-            reply.get("info", {}),
+            self._observation(agent),
+            float(agent["reward"]),
+            bool(agent["terminated"]),
+            bool(agent["truncated"]),
+            agent.get("info", {}),
         )
 
     def _observation(self, reply: dict) -> np.ndarray:
@@ -122,8 +148,8 @@ def save_policy(path: Path, env: GodotGridEnv, q_table: dict, episodes: int) -> 
     path.parent.mkdir(parents=True, exist_ok=True)
     data = {
         "format": POLICY_FORMAT,
-        "observation_space": env.hello["observation_space"],
-        "action_space": env.hello["action_space"],
+        "observation_space": env.definition["observation_space"],
+        "action_space": env.definition["action_space"],
         "episodes": episodes,
         "q": {key: [float(v) for v in values] for key, values in q_table.items()},
     }
@@ -159,7 +185,7 @@ def train(env: GodotGridEnv, args: argparse.Namespace) -> tuple[dict, int]:
                     outcome = info.get("outcome", "done")
                     break
             completed = episode
-            env.connection.send({
+            env.connection.notify({
                 "type": "progress",
                 "episode": episode,
                 "episodes": args.episodes,
@@ -168,15 +194,15 @@ def train(env: GodotGridEnv, args: argparse.Namespace) -> tuple[dict, int]:
             })
             if episode % 10 == 0 or episode == 1:
                 print(f"episode {episode:4d}  reward {total:7.2f}  {outcome:8s}  epsilon {epsilon:.2f}  states {len(q_table)}")
-    except StopRequested:
-        print(f"Godot asked to stop after {completed} episodes")
+    except StopRequested as stop:
+        print(f"Godot asked to stop after {completed} episodes: {stop}")
     return q_table, completed
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=5757)
+    parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--episodes", type=int, default=300)
     parser.add_argument("--policy-out", type=Path, default=Path(__file__).resolve().parent.parent / "policies" / "q_policy.json")
     parser.add_argument("--alpha", type=float, default=0.5)
@@ -192,15 +218,19 @@ def main() -> int:
         env = GodotGridEnv(connection)
         print(f"observation space: {env.observation_space}")
         print(f"action space:      {env.action_space}")
-        print(f"environment:       {env.hello.get('config')}")
+        print(f"agent:             {env.agent_id}")
         q_table, completed = train(env, args)
         save_policy(args.policy_out, env, q_table, completed)
         print(f"saved policy with {len(q_table)} states to {args.policy_out}")
         try:
-            connection.send({"type": "saved", "path": str(args.policy_out)})
+            connection.notify({"type": "saved", "path": str(args.policy_out)})
         except OSError:
             pass
-    except (ConnectionError, RuntimeError) as error:
+        connection.close_session()
+    except StopRequested as stop:
+        print(f"Godot ended the session: {stop}", file=sys.stderr)
+        return 1
+    except (ConnectionError, RuntimeError, ValueError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
     finally:

@@ -4,8 +4,13 @@
 import sys
 from pathlib import Path
 
-
 GODOT_API_VERSION = "4.7"
+ONNXRUNTIME_DIR = Path("thirdparty/onnxruntime")
+ONNXRUNTIME_RUNTIME_LIBRARY = {
+    "windows": "onnxruntime.dll",
+    "linux": "libonnxruntime.so.1",
+    "macos": "libonnxruntime.1.dylib",
+}
 
 environment = Environment(tools=["default"], PLATFORM="")
 
@@ -31,9 +36,38 @@ def sources_under(*directories):
     return sorted(sources)
 
 
-def build_extension(name, source_directories, addon_directory):
+def use_onnxruntime(target_environment, install_directory):
+    if not (ONNXRUNTIME_DIR / "include" / "onnxruntime_c_api.h").is_file():
+        print("ONNX Runtime is missing. Run: python tools/setup_onnxruntime.py")
+        sys.exit(1)
+    target_environment.Append(
+        CPPPATH=[str(ONNXRUNTIME_DIR / "include")],
+        LIBPATH=[str(ONNXRUNTIME_DIR / "lib")],
+        LIBS=["onnxruntime"],
+    )
+    platform_name = target_environment["platform"]
+    if platform_name == "linux":
+        target_environment.Append(RPATH=[target_environment.Literal("\\$$ORIGIN")])
+    elif platform_name == "macos":
+        target_environment.Append(LINKFLAGS=["-Wl,-rpath,@loader_path"])
+    library_name = ONNXRUNTIME_RUNTIME_LIBRARY[platform_name]
+    return target_environment.InstallAs(
+        f"{install_directory}/{library_name}",
+        str((ONNXRUNTIME_DIR / "lib" / library_name).resolve()),
+    )
+
+
+def build_extension(name, source_directories, addon_directory, configure=None):
     extension_environment = environment.Clone()
-    suffix = extension_environment["suffix"].replace(".dev", "").replace(".universal", "")
+    install_directory = (
+        f"addons/{addon_directory}/bin/{extension_environment['platform']}"
+    )
+    extra_targets = (
+        configure(extension_environment, install_directory) if configure else []
+    )
+    suffix = (
+        extension_environment["suffix"].replace(".dev", "").replace(".universal", "")
+    )
     library_filename = "{}{}{}{}".format(
         extension_environment.subst("$SHLIBPREFIX"),
         name,
@@ -44,17 +78,15 @@ def build_extension(name, source_directories, addon_directory):
         f"build/{extension_environment['platform']}/{library_filename}",
         source=sources_under(*source_directories),
     )
-    installed_library = extension_environment.Install(
-        f"addons/{addon_directory}/bin/{extension_environment['platform']}",
-        library,
-    )
-    return [library, installed_library]
+    installed_library = extension_environment.Install(install_directory, library)
+    return [library, installed_library] + list(extra_targets)
 
 
 runtime_targets = build_extension(
     "schola",
     ["src/core", "src/interop", "src/bindings", "src/inference", "src/runtime"],
     "schola",
+    configure=use_onnxruntime,
 )
 training_targets = build_extension(
     "schola_training",
@@ -72,5 +104,38 @@ unit_test_program = test_environment.Program(
     ),
 )
 Alias("unit_tests", unit_test_program)
+
+inference_test_environment = test_environment.Clone()
+inference_test_runtime = use_onnxruntime(inference_test_environment, "build/tests")
+# A generated header, because the fixture path may contain spaces that break -D flags.
+inference_test_environment.Textfile(
+    "build/tests/test_fixtures_path.h",
+    [
+        "#pragma once",
+        '#define SCHOLA_TEST_FIXTURES_DIR "{}"'.format(
+            Path("tests/inference/fixtures").resolve().as_posix()
+        ),
+    ],
+)
+inference_test_environment.Append(CPPPATH=["build/tests"])
+inference_test_sources = (
+    sources_under("src/core", "tests/inference")
+    + [
+        source
+        for source in sources_under("src/inference")
+        if not source.endswith("register_types.cpp")
+    ]
+    + ["catch2/extras/catch_amalgamated.cpp"]
+)
+inference_test_program = inference_test_environment.Program(
+    "build/tests/schola_inference_tests",
+    source=[
+        inference_test_environment.Object(
+            f"build/tests/inference/{Path(source).with_suffix('')}", source
+        )
+        for source in inference_test_sources
+    ],
+)
+Alias("inference_tests", [inference_test_program, inference_test_runtime])
 
 Default(*(runtime_targets + training_targets))

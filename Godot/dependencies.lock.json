@@ -40,21 +40,20 @@
     }
   },
   "onnxruntime": {
-    "status": "proposed-pending-amd-confirmation",
-    "source": null,
-    "version": null,
-    "proposal": {
-      "version": "1.30.0",
-      "note": "Candidate only; US7 must confirm the version, supported macOS architectures, and acquisition plan with AMD before integration.",
-      "archives": {
-        "linux-x86_64": {
-          "url": "https://github.com/microsoft/onnxruntime/releases/download/v1.30.0/onnxruntime-linux-x64-1.30.0.tgz",
-          "sha256": "a5ed5a3cac51fbb2e90da632ae43d19212faaa20e76484e62bcb7c23ddb3b3fd"
-        },
-        "windows-x86_64": {
-          "url": "https://github.com/microsoft/onnxruntime/releases/download/v1.30.0/onnxruntime-win-x64-1.30.0.zip",
-          "sha256": "c6ba983baf5681af108599675d2a89c2d145512d02de28aed0bff177cd0ba949"
-        }
+    "source": "release-archive",
+    "version": "1.30.0",
+    "archives": {
+      "linux-x86_64": {
+        "url": "https://github.com/microsoft/onnxruntime/releases/download/v1.30.0/onnxruntime-linux-x64-1.30.0.tgz",
+        "sha256": "a5ed5a3cac51fbb2e90da632ae43d19212faaa20e76484e62bcb7c23ddb3b3fd"
+      },
+      "windows-x86_64": {
+        "url": "https://github.com/microsoft/onnxruntime/releases/download/v1.30.0/onnxruntime-win-x64-1.30.0.zip",
+        "sha256": "c6ba983baf5681af108599675d2a89c2d145512d02de28aed0bff177cd0ba949"
+      },
+      "macos-arm64": {
+        "url": "https://github.com/microsoft/onnxruntime/releases/download/v1.30.0/onnxruntime-osx-arm64-1.30.0.tgz",
+        "sha256": "6ebb5062a934537c352937821f9fe9718e7de1a2db1122a93dd363ffd53a7012"
       }
     }
   }

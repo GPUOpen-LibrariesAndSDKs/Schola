@@ -156,6 +156,16 @@ def save_policy(path: Path, env: GodotGridEnv, q_table: dict, episodes: int) -> 
     path.write_text(json.dumps(data, indent=1), encoding="utf-8")
 
 
+def export_onnx_policy(policy_path: Path, onnx_path: Path) -> None:
+    try:
+        from export_onnx import export
+    except ImportError as error:
+        print(f"skipped ONNX export: {error}", file=sys.stderr)
+        return
+    checked = export(policy_path, onnx_path)
+    print(f"exported ONNX policy to {onnx_path} ({checked} states checked)")
+
+
 def train(env: GodotGridEnv, args: argparse.Namespace) -> tuple[dict, int]:
     n_actions = int(env.action_space.n)
     q_table: dict[str, list[float]] = {}
@@ -205,6 +215,7 @@ def main() -> int:
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--episodes", type=int, default=300)
     parser.add_argument("--policy-out", type=Path, default=Path(__file__).resolve().parent.parent / "policies" / "q_policy.json")
+    parser.add_argument("--onnx-out", type=Path, help="Also export the policy to ONNX (needs the onnx package)")
     parser.add_argument("--alpha", type=float, default=0.5)
     parser.add_argument("--gamma", type=float, default=0.95)
     parser.add_argument("--epsilon-min", type=float, default=0.05)
@@ -222,6 +233,8 @@ def main() -> int:
         q_table, completed = train(env, args)
         save_policy(args.policy_out, env, q_table, completed)
         print(f"saved policy with {len(q_table)} states to {args.policy_out}")
+        if args.onnx_out is not None:
+            export_onnx_policy(args.policy_out, args.onnx_out)
         try:
             connection.notify({"type": "saved", "path": str(args.policy_out)})
         except OSError:

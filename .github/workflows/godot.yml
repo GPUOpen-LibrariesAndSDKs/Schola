@@ -94,6 +94,9 @@ jobs:
       - name: Verify dependency pins
         run: python Godot/tools/verify_dependency_pins.py
 
+      - name: Install ONNX Runtime
+        run: python Godot/tools/setup_onnxruntime.py
+
       - name: Build debug extensions
         run: scons -C Godot platform=linux target=template_debug -j2
 
@@ -102,11 +105,19 @@ jobs:
           scons -C Godot unit_tests platform=linux target=template_debug -j2
           ./Godot/build/tests/schola_core_tests
 
+      - name: Build and run inference tests
+        run: |
+          scons -C Godot inference_tests platform=linux target=template_debug -j2
+          ./Godot/build/tests/schola_inference_tests
+
       - name: Upload extensions
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: godot-linux-debug
-          path: Godot/addons/*/bin/linux/*.so
+          # *.so.* includes libonnxruntime.so.1, which libschola.so loads at startup.
+          path: |
+            Godot/addons/*/bin/linux/*.so
+            Godot/addons/*/bin/linux/*.so.*
           if-no-files-found: error
 
   smoke:

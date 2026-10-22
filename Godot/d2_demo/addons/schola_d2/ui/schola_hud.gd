@@ -36,6 +36,7 @@ var _connection: Label
 var _start_button: Button
 var _stop_button: Button
 var _load_button: Button
+var _load_onnx_button: Button
 var _speed_label: Label
 var _telemetry := {}
 var _graph: ScholaRewardGraph
@@ -98,9 +99,14 @@ func _build() -> void:
 	_start_button = _button("Start Training", runner.start_training)
 	_stop_button = _button("Stop / Reset Run", runner.stop_run)
 	_load_button = _button("Load Saved Policy", runner.load_saved_policy)
-	for b in [_start_button, _stop_button, _load_button]:
+	_load_onnx_button = _button("Load ONNX Policy", runner.load_onnx_policy)
+	for b in [_start_button, _stop_button]:
 		buttons.add_child(b)
 	box.add_child(buttons)
+	var policy_buttons := HBoxContainer.new()
+	for b in [_load_button, _load_onnx_button]:
+		policy_buttons.add_child(b)
+	box.add_child(policy_buttons)
 	var row := HBoxContainer.new()
 	_connection = Label.new()
 	_connection.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -239,6 +245,9 @@ func _on_mode_changed(mode: ScholaDemoRunner.Mode) -> void:
 	var info: Array = MODE_TEXT[mode]
 	_mode_title.text = info[0]
 	_mode_detail.text = info[1]
+	if mode == ScholaDemoRunner.Mode.POLICY:
+		var source := runner.policy_source
+		_mode_detail.text = "%s%s controls agent" % [source.left(1).to_upper(), source.substr(1)]
 	var style := StyleBoxFlat.new()
 	style.bg_color = info[2]
 	style.set_corner_radius_all(6)
@@ -248,6 +257,7 @@ func _on_mode_changed(mode: ScholaDemoRunner.Mode) -> void:
 	var busy := mode in [ScholaDemoRunner.Mode.WAITING, ScholaDemoRunner.Mode.TRAINING, ScholaDemoRunner.Mode.STOPPING]
 	_start_button.disabled = busy
 	_load_button.disabled = busy
+	_load_onnx_button.disabled = busy
 	if mode == ScholaDemoRunner.Mode.TRAINING:
 		_telemetry["Trainer"].text = "connected"
 	elif mode == ScholaDemoRunner.Mode.MANUAL:

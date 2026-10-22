@@ -13,20 +13,23 @@ The spaces are the real US2 resources (`ScholaBoxSpace`, `ScholaDiscreteSpace`) 
 | --- | --- |
 | `ScholaDemoEnvironment`, `ScholaDemoAgent` | US1, US4, US5 |
 | `ScholaLocalConnector`: JSON over localhost TCP, mirroring Schola's gRPC calls ([protocol](../docs/local_protocol.md)) | US3 |
-| saved Q-table | US7 |
+| Tabular Q-learning instead of SB3 or RLlib training | US3 |
+
+US7 is real: the trained Q-table is exported to ONNX, and **Load ONNX Policy** runs it with the `ScholaOnnxPolicy` resource from the Schola GDExtension (ONNX Runtime 1.30). **Load Saved Policy** keeps the GDScript Q-table reader for comparison.
 
 ## Requirements
 
 - Godot 4.7.2
-- Python with `gymnasium` and `numpy` (the repo's `.venv` has both)
+- Python with `gymnasium` and `numpy` (the repo's `.venv` has both), plus `onnx` and `onnxruntime` to export the policy to ONNX
 
 ## Run
 
-1. Build the extension and copy it into the demo:
+1. Download ONNX Runtime, build the extension, and copy both libraries into the demo:
    ```sh
+   python Godot/tools/setup_onnxruntime.py
    scons -C Godot platform=windows target=template_debug
    mkdir -p Godot/d2_demo/addons/schola/bin/windows
-   cp Godot/build/windows/schola.windows.template_debug.x86_64.dll Godot/d2_demo/addons/schola/bin/windows/
+   cp Godot/addons/schola/bin/windows/schola.windows.template_debug.x86_64.dll Godot/addons/schola/bin/windows/onnxruntime.dll Godot/d2_demo/addons/schola/bin/windows/
    ```
 2. Open `Godot/d2_demo/project.godot` in Godot.
 3. On the `Runner` node, set `python_executable` to a Python that has gymnasium, e.g. `.venv/Scripts/python.exe`. Ensure the directories match for `python_executable`. Using `where python` helps.
@@ -38,6 +41,7 @@ The spaces are the real US2 resources (`ScholaBoxSpace`, `ScholaDiscreteSpace`) 
 - **Start Training:** Godot listens on `127.0.0.1:8000` and launches `python/trainer.py`. The trainer connects and sends every request (start, definition, reset, step), and Godot answers each one.
   - The log panel shows the connection state: `waiting`, `connected`, `training`, `closed` or `error`. An error always comes with a message saying what went wrong.
   - If nothing connects within 45 seconds, the run ends with an error. Check `python_executable` on `Runner`, or untick `auto_launch_trainer` and run `python python/trainer.py --port 8000` yourself.
-- **Stop / Reset Run:** the trainer saves `policies/q_policy.json` and the scene resets.
-- **Load Saved Policy:** the agent follows the saved policy inside Godot as a jSON.
+- **Stop / Reset Run:** the trainer saves `policies/q_policy.json`, exports it to `policies/q_policy.onnx`, and the scene resets.
+- **Load Saved Policy:** the agent follows the saved Q-table (JSON) in GDScript.
+- **Load ONNX Policy:** the agent follows the same policy exported to ONNX, run by Schola's ONNX Runtime inference (US7) with Python closed. To export a saved policy by hand, run `python python/export_onnx.py`.
 - **Test US2 validation:** logs the US2 errors for a set of invalid actions and observations.

@@ -3,20 +3,19 @@
 #pragma once
 
 #include "core/common/status.h"
+#include "core/policy/policy_state.h"
+#include "core/spaces/point.h"
+#include "core/spaces/space.h"
 
 #include <cstdint>
+#include <memory>
 #include <vector>
 
 namespace schola {
 
 class Agent;
 class Policy;
-class PolicyState;
 
-// Blocking observe -> think -> act loop on the main thread.
-// Entries work like an array: kept in add order, and removal shifts later entries down.
-// Owns one state per entry; does not own agents or the policy.
-// An invalid index returns NOT_FOUND or nullptr.
 class SimpleStepper {
 public:
 	// Replaces all entries, as if each agent were passed to add_agent(). p_policy must be initialized.
@@ -32,7 +31,26 @@ public:
 	Status reset_state(int32_t p_index);
 	void reset_states();
 
-	Status step(); // Observe all, one batched_think, act all.
+	// Observe all, one batched_think, act all. Every agent acts even if one fails; returns the first error.
+	Status step();
+
+private:
+	struct Entry {
+		Agent *agent = nullptr;
+		std::unique_ptr<PolicyState> state;
+	};
+
+	Policy *policy = nullptr;
+	std::vector<Entry> entries;
+	// From the first agent's define(); entries share one policy, so they share one set of spaces.
+	Space observation_space;
+	Space action_space;
+	// Reused every step, so stepping does not allocate once the agent count is stable.
+	std::vector<Point> observations;
+	std::vector<Point> actions;
+	std::vector<const Point *> observation_ptrs;
+	std::vector<PolicyState *> state_ptrs;
+	std::vector<Point *> action_ptrs;
 };
 
 } // namespace schola

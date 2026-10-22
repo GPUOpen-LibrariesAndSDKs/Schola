@@ -26,12 +26,15 @@ const GROUP := "schola_demo_runner"
 @export var trainer_episodes := 300
 @export_group("Saved policy")
 @export var policy_path := "res://policies/q_policy.json"
+@export_file("*.onnx") var onnx_policy_path := "res://policies/q_policy.onnx"
 @export_group("Pacing")
 @export_range(1, 2000) var steps_per_second := 20.0
 @export var reset_delay := 0.8
 
 var mode := Mode.MANUAL
 var policy: ScholaSavedPolicy
+var onnx_policy: ScholaOnnxPolicy
+var policy_source := ""
 var connector: ScholaLocalConnector
 var connection_state := ScholaLocalConnector.State.IDLE
 
@@ -55,7 +58,7 @@ func _exit_tree() -> void:
 func start_training() -> void:
 	if mode in [Mode.WAITING, Mode.TRAINING, Mode.STOPPING]:
 		return
-	policy = null
+	_clear_policies()
 	connector = ScholaLocalConnector.new()
 	connector.start_timeout_sec = start_timeout_sec
 	connector.step_timeout_sec = step_timeout_sec
@@ -71,6 +74,7 @@ func start_training() -> void:
 		"--port", str(port),
 		"--episodes", str(trainer_episodes),
 		"--policy-out", ProjectSettings.globalize_path(policy_path),
+		"--onnx-out", ProjectSettings.globalize_path(onnx_policy_path),
 	])
 	_pid = OS.create_process(python_executable, args, true)
 	if _pid == -1:
@@ -90,7 +94,7 @@ func stop_run() -> void:
 		connector.close("Run reset by the user.", false)
 		_set_connection_state(ScholaLocalConnector.State.CLOSED, "Run reset by the user.")
 	_kill_trainer()
-	policy = null
+	_clear_policies()
 	_set_mode(Mode.MANUAL)
 	environment.reset_episode()
 	_log("run reset; keyboard controls the agent")
@@ -106,10 +110,30 @@ func load_saved_policy() -> void:
 	if err != "":
 		_log(err, true)
 		return
+	_clear_policies()
 	policy = loaded
+	policy_source = "saved policy"
 	_set_mode(Mode.POLICY)
 	environment.reset_episode()
 	_log("loaded saved policy: %d states, %d training episodes" % [loaded.state_count(), loaded.episodes_trained])
+
+
+func load_onnx_policy() -> void:
+	if mode in [Mode.WAITING, Mode.TRAINING, Mode.STOPPING]:
+		_log("stop training before loading a policy", true)
+		return
+	var agent := environment.get_agent()
+	var loaded := ScholaOnnxPolicy.new()
+	loaded.model_path = onnx_policy_path
+	if loaded.load() != OK or loaded.initialize_spaces(agent.observation_space, agent.action_space) != OK:
+		_log("could not load ONNX policy: %s" % loaded.get_last_error(), true)
+		return
+	_clear_policies()
+	onnx_policy = loaded
+	policy_source = "ONNX policy"
+	_set_mode(Mode.POLICY)
+	environment.reset_episode()
+	_log("loaded ONNX policy %s (inputs %s, outputs %s)" % [onnx_policy_path, loaded.get_input_names(), loaded.get_output_names()])
 
 
 func run_validation_check() -> void:
@@ -179,7 +203,15 @@ func _run_one_step(frame_deadline: int) -> bool:
 		Mode.POLICY:
 			if environment.is_episode_over():
 				return false
-			_step(policy.act(environment.last_observation), "saved policy")
+			if onnx_policy == null:
+				_step(policy.act(environment.last_observation), "saved policy")
+				return true
+			var action: Variant = onnx_policy.infer(environment.last_observation)
+			if action == null:
+				_log("ONNX inference failed: %s" % onnx_policy.get_last_error(), true)
+				stop_run()
+				return false
+			_step(action, "ONNX policy")
 			return true
 	return false
 
@@ -289,6 +321,12 @@ func _set_connection_state(state: ScholaLocalConnector.State, message: String) -
 	connection_state_changed.emit(state, message)
 	var is_error := state == ScholaLocalConnector.State.ERROR
 	_log("connection %s: %s" % [ScholaLocalConnector.STATE_NAMES[state], message], is_error)
+
+
+func _clear_policies() -> void:
+	policy = null
+	onnx_policy = null
+	policy_source = ""
 
 
 func _kill_trainer() -> void:

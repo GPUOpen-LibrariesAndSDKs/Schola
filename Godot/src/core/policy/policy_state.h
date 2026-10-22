@@ -22,11 +22,16 @@ public:
 	virtual std::string to_string() const = 0;
 };
 
-// Unreal: UStatelessPolicyState. The state of policies with no memory, so a state is never null.
+// The state of policies with no memory, so a state is never null.
 class EmptyPolicyState final : public PolicyState {
 public:
 	void reset() override {}
-	Status copy_from(const PolicyState &p_other) override;
+	Status copy_from(const PolicyState &p_other) override {
+		if (dynamic_cast<const EmptyPolicyState *>(&p_other) == nullptr) {
+			return Status::error(StatusCode::INVALID_ARGUMENT, "EmptyPolicyState::copy_from: expected an EmptyPolicyState, got " + p_other.to_string());
+		}
+		return Status::ok();
+	}
 	std::string to_string() const override { return "EmptyPolicyState"; }
 };
 

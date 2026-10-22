@@ -160,3 +160,7 @@ coverage_html_report/*
 /Godot/compile_commands.json
 /Godot/generated/proto/
 /Godot/reports/
+
+# fake Makefile so clion can load the projecti (code analysis purposes)
+# clion does not support SCons :(
+/Godot/Makefile

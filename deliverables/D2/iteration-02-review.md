@@ -1,47 +1,33 @@
-# Your Team Number and Name
+# Team 20: The Hard Workers - Schola for Godot
 
- > _Note:_ This document is meant to be written during (or shortly after) your review meeting, which should happen fairly close to the due date.      
- >      
- > _Suggestion:_ Have your review meeting a day or two before the due date. This way you will have some time to go over (and edit) this document, and all team members should have a chance to make their contribution.
-
-
-## Iteration XX - Review & Retrospect
+## Iteration 02 - Review & Retrospect
 
  * When: FILL IN THE DATE WHEN YOU ACTUALLY HAD YOUR REVIEW MEETING
  * Where: PHYSICAL LOCATION AND/OR ONLINE
 
 ## Process - Reflection
 
-
 #### Q1. What worked well
 
-List **process-related** (i.e. team organization and how you work) decisions and actions that worked well.
-
-
- * 2 - 4 important decisions, processes, actions, or anything else that worked well for you, ordered from most to least important.
- * Give a supporting argument about what makes you think that way.
- * Feel free to refer/link to process artifact(s).
+ * **Defining every user story's API before implementing it.** Each owner opened a pull request with only the interfaces for their story: US1 (#11), US2 (#7), US3 (#12), US4 (#6), US5 (#9), and US7 (#2). Abstract types such as `Agent`, `Policy`, and `Space` let dependent stories start in parallel instead of waiting for each other's code. When AMD changed its policy state design upstream, only the US7 contract had to change (#14, #15), and no other story was affected.
+ * **Building a shared foundation and conventions before feature work.** The first pull request (#1) set up the build, the runtime and training add-ons, pinned dependencies, and CI that checks formatting, builds both extensions, and runs Catch2 and GdUnit4 tests. The development contract and PR template gave everyone the same rules, such as no exceptions, errors returned as `Status`, and engine-independent `core`. As a result, pull requests from seven people stayed consistent and reviewable.
+ * **Splitting work by user story with one owner each.** Every member owns one story end to end, which matches the course's recommended structure and makes responsibility clear. Non-coding work also has owners: meeting minutes (Sanjay), partner communication (Vansh), and project management (Guneev).
+ * **Recording partner and TA decisions in minutes.** Decisions such as targeting the latest ONNX Runtime, avoiding Git LFS in favour of a setup script, and treating GPU inference as a stretch goal are written down in `deliverables/team/minutes/`. Members could act on them without asking again, and the ONNX Runtime setup followed them directly.
 
 #### Q2. What did not work well
 
-List **process-related** (i.e. team organization and how you work) decisions and actions that did not work well.
-
- * 2 - 4 important decisions, processes, actions, or anything else that did not work well for you, ordered from most to least important.
- * Give a supporting argument about what makes you think that way.
- * Feel free to refer/link to process artifact(s).
-
+ * **Dependencies between user stories made implementations wait on each other.** The API pull requests merged late in the iteration (October 14 and 15). Several implementations depend on code that is not on `main` yet: US7's Godot classes need US1's agent adapter, US2's spaces and points, US5's space resources, and the Variant conversion. As a result, US7's runtime extension cannot link yet, and no end-to-end demo was possible by the deadline.
+ * **Changing the implementation language cost time.** D1 planned a C# architecture, and the team switched to a C++ GDExtension at the start of this iteration. That was the right call for performance and packaging, but the planning and early prototype had to be redone.
+ * **Waiting on upstream AMD changes delayed one API.** US7 waited for AMD's multi-agent and recurrent state commit before finalizing its API. That commit landed mid-iteration, so the API had to be synced and reworked in two extra pull requests (#14, #15).
 
 #### Q3(a). Planned changes
 
-List any **process-related** (i.e. team organization and/or how you work) changes you are planning to make (if there are any)
-
- * Ordered from most to least important, with supporting argument explaining a change.
+ * **Implement shared dependencies first, with internal deadlines.** The stories other code depends on (US2 spaces and points, US1's agent adapter, and the Variant conversion) will be implemented and merged first. Each will have a deadline a few days before the stories that depend on it.
+ * **Merge smaller pieces earlier.** Implementations will be merged in tested increments instead of one large pull request at the end, and feature branches will merge `main` regularly. Progress then stays visible on `main` and integration problems appear early.
 
 #### Q3(b). Integration & Next steps
-Briefly explain how you integrated the previously developed individuals components as one product (i.e. How did you split the work across your team) and how was the work integrated together.
 
- * Keep this very short (1-3 lines).
-
+The work is split by user story (US1-US7), with shared build and CI infrastructure owned by Shahyar. Components integrate through the engine-independent interfaces in `Godot/src/core/`, so each story builds against merged contracts and CI checks every pull request. Next, the stories that others depend on merge their implementations, and then the end-to-end environment, training, and inference workflow is assembled into the demo scene.
 
 ## Product - Review
 

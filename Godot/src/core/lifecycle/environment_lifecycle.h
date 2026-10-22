@@ -33,6 +33,8 @@ public:
 
 	EnvironmentId get_id() const;
 	LifecycleState get_state() const;
+	uint64_t get_episode_step_count() const;
+	uint64_t get_episode_count() const;
 
 	// Valid after initialize() succeeds. The reference remains valid for the
 	// lifetime of this lifecycle.
@@ -75,6 +77,7 @@ private:
 	EnvironmentState last_state;
 	const uint64_t episode_step_limit;
 	uint64_t episode_step_count = 0;
+	uint64_t episode_num = 0;
 };
 
 } // namespace schola

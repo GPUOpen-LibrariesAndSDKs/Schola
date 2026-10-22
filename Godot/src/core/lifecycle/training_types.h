@@ -3,11 +3,6 @@
 #pragma once
 
 #include "core/common/types.h"
-
-#if !__has_include("core/environment/environment.h")
-#error "US4 requires the shared US1 environment contract"
-#endif
-
 #include "core/environment/environment.h"
 
 #include <map>

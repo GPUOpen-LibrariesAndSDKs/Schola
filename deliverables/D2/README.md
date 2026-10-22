@@ -9,10 +9,11 @@ Recorded adaptive NPC validation:
 - [Packaged Unreal learning report](evidence/adaptive-packaged-test.json)
 - [Arena input and collision smoke report](evidence/adaptive-arena-smoke.json)
 
-Other required D2 documents remain separate:
+Other required D2 documents:
 
-- `iteration-02-review.md`
-- `Individual_Contributions_Deliverable2.md`
+- [Iteration 02 review and retrospective](iteration-02-review.md)
+- [Individual contributions](Individual_Contributions_Deliverable2.md)
 
-The root README retains empty fields for unknown subteam details, partner
-feedback, release access, and individual contributions.
+The review contains online learning reflections and space for the other
+subteams. The contributions document currently contains Jace's entry only.
+Partner feedback is pending, and release access still needs confirmation.

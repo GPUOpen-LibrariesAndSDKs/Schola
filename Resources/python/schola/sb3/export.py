@@ -3,7 +3,7 @@
 """ONNX export helpers for Stable-Baselines3 policies trained or deployed with Schola."""
 
 import logging
-from typing import Generic, TypeVar
+from typing import Dict, Generic, TypeVar
 
 from stable_baselines3.sac.policies import SACPolicy
 from stable_baselines3.td3.policies import TD3Policy
@@ -76,7 +76,12 @@ class SB3ScholaModel(ScholaModel, Generic[T]):
         )
         self.policy = policy
         self.policy.set_training_mode(False)
-
+       
+        for key, space in self.action_space.spaces.items():
+            if isinstance(space, Box):
+                self.register_buffer(f"action_{key}_low", th.tensor(space.low))
+                self.register_buffer(f"action_{key}_high", th.tensor(space.high))
+        
     def get_logits(self, x) -> th.Tensor: ...
 
     def forward(self, *args) -> tuple[th.Tensor, ...]:
@@ -126,10 +131,20 @@ class SB3PPOModel(SB3ScholaModel[ActorCriticPolicy]):
     """
     ``SB3ScholaModel`` specialization for PPO models.
 
+    Box actions are the Gaussian mean in the environment's own scale.
+    :meth:`make_box_output` clips that mean to the Box, matching
+    ``predict(deterministic=True)``. It does not tanh-squash or rescale.
+    A2C and behavioral cloning inherit this path.
+
     See Also
     --------
     SB3ScholaModel
     """
+
+    def __init__(
+        self, policy: ActorCriticPolicy, action_space: gym.Space | None = None
+    ):
+        super().__init__(policy, action_space)
 
     def get_logits(self, x):
         # discard the extracted features from the value function
@@ -144,6 +159,16 @@ class SB3PPOModel(SB3ScholaModel[ActorCriticPolicy]):
         x, _ = self.policy.mlp_extractor(x)
         x = self.policy.action_net(x)
         return x
+
+    def make_box_output(
+        self, logits: th.Tensor, _space_name: str = "action"
+    ) -> th.Tensor:
+        low = self.get_buffer(f"action_{_space_name}_low")
+        high = self.get_buffer(f"action_{_space_name}_high")
+        return th.clamp(logits, low, high)
+    
+    def make_multi_binary_output(self, logits: th.Tensor, _space_name: str = "action") -> th.Tensor:
+        return th.round(th.sigmoid(logits)).bool()
 
 
 # A2C and PPO share the same policies
@@ -174,12 +199,18 @@ class SB3BCModel(SB3PPOModel):
 
 class SB3SACModel(SB3ScholaModel[SACPolicy]):
     """
-    ONNX export view of an SAC actor (Gaussian policy mean path).
+    ONNX export view of an SAC actor.
+
+    :meth:`get_logits` returns the Gaussian mean. :meth:`make_box_output`
+    applies ``tanh`` and rescales from ``[-1, 1]`` onto the Box bounds.
 
     See Also
     --------
     SB3ScholaModel
     """
+
+    def __init__(self, policy: SACPolicy, action_space: gym.Space | None = None):
+        super().__init__(policy, action_space)
 
     def get_logits(self, x):
         x = self.policy.actor.extract_features(x, self.policy.actor.features_extractor)
@@ -187,20 +218,42 @@ class SB3SACModel(SB3ScholaModel[SACPolicy]):
         x = self.policy.actor.mu(x)
         return x
 
+    def make_box_output(
+        self, logits: th.Tensor, _space_name: str = "action"
+    ) -> th.Tensor:
+        low = self.get_buffer(f"action_{_space_name}_low")
+        high = self.get_buffer(f"action_{_space_name}_high")
+        squashed = th.tanh(logits)
+        return low + 0.5 * (squashed + 1.0) * (high - low)
+
 
 class SB3TD3Model(SB3ScholaModel[TD3Policy]):
     """
     ONNX export view of a TD3 deterministic actor.
+
+    ``actor.mu`` already ends in ``Tanh``. :meth:`make_box_output` rescales
+    that ``(-1, 1)`` output onto the Box bounds and does not apply a second
+    tanh. DDPG inherits this path.
 
     See Also
     --------
     SB3ScholaModel
     """
 
+    def __init__(self, policy: TD3Policy, action_space: gym.Space | None = None):
+        super().__init__(policy, action_space)
+
     def get_logits(self, x):
         x = self.policy.actor.extract_features(x, self.policy.actor.features_extractor)
         x = self.policy.actor.mu(x)
         return x
+
+    def make_box_output(
+        self, logits: th.Tensor, _space_name: str = "action"
+    ) -> th.Tensor:
+        low = self.get_buffer(f"action_{_space_name}_low")
+        high = self.get_buffer(f"action_{_space_name}_high")
+        return low + 0.5 * (logits + 1.0) * (high - low)
 
 
 # DDPG and TD3 share the same policies

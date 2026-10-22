@@ -1,0 +1,17 @@
+{
+    "FileVersion": 3,
+    "EngineAssociation": "5.7",
+    "Category": "Development",
+    "Description": "Native RLtools adaptive tag sandbox. Schola integration is disabled for this demo.",
+    "Modules": [
+        { "Name": "TagLearningRuntime", "Type": "Runtime", "LoadingPhase": "Default" },
+        { "Name": "CSC301Host", "Type": "Runtime", "LoadingPhase": "Default" }
+    ],
+    "Plugins": [
+        { "Name": "Schola", "Enabled": false },
+        { "Name": "EnhancedInput", "Enabled": true },
+        { "Name": "StateTree", "Enabled": true },
+        { "Name": "GameplayStateTree", "Enabled": true },
+        { "Name": "NNERuntimeORT", "Enabled": true }
+    ]
+}

@@ -1,0 +1,14 @@
+[configuration]
+
+entry_symbol = "schola_library_init"
+compatibility_minimum = "4.7"
+reloadable = false
+
+[libraries]
+
+linux.x86_64.debug = "./bin/linux/libschola.linux.template_debug.x86_64.so"
+linux.x86_64.release = "./bin/linux/libschola.linux.template_release.x86_64.so"
+windows.x86_64.debug = "./bin/windows/schola.windows.template_debug.x86_64.dll"
+windows.x86_64.release = "./bin/windows/schola.windows.template_release.x86_64.dll"
+macos.debug = "./bin/macos/libschola.macos.template_debug.dylib"
+macos.release = "./bin/macos/libschola.macos.template_release.dylib"

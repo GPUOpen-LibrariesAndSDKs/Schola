@@ -1,0 +1,164 @@
+[gd_scene load_steps=23 format=3]
+
+[ext_resource type="Script" path="res://demo/grid_environment.gd" id="1_env"]
+[ext_resource type="Script" path="res://demo/grid_arena.gd" id="2_arena"]
+[ext_resource type="Script" path="res://demo/grid_floor.gd" id="3_floor"]
+[ext_resource type="PackedScene" path="res://demo/goal.tscn" id="4_goal"]
+[ext_resource type="PackedScene" path="res://demo/hazard.tscn" id="5_hazard"]
+[ext_resource type="Script" path="res://demo/grid_player.gd" id="6_player"]
+[ext_resource type="Script" path="res://demo/grid_agent.gd" id="7_agent"]
+[ext_resource type="Script" path="res://addons/schola_d2/runtime/demo_runner.gd" id="8_runner"]
+[ext_resource type="Script" path="res://addons/schola_d2/ui/schola_hud.gd" id="9_hud"]
+
+[sub_resource type="ScholaBoxSpace" id="ScholaBoxSpace_obs"]
+low = PackedFloat32Array(0, 0, -5, -5)
+high = PackedFloat32Array(5, 5, 5, 5)
+shape = PackedInt32Array(4)
+
+[sub_resource type="ScholaDiscreteSpace" id="ScholaDiscreteSpace_act"]
+n = 4
+
+[sub_resource type="Environment" id="Environment_arena"]
+background_mode = 1
+background_color = Color(0.09, 0.1, 0.12, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.6, 0.65, 0.75, 1)
+ambient_light_energy = 0.5
+tonemap_mode = 2
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
+radius = 0.28
+height = 0.8
+
+[sub_resource type="StandardMaterial3D" id="Material_body"]
+albedo_color = Color(0.3, 0.55, 1, 1)
+roughness = 0.4
+
+[sub_resource type="SphereMesh" id="SphereMesh_eye"]
+radius = 0.07
+height = 0.14
+
+[sub_resource type="StandardMaterial3D" id="Material_eye"]
+albedo_color = Color(1, 1, 1, 1)
+emission_enabled = true
+emission = Color(1, 1, 1, 1)
+emission_energy_multiplier = 0.5
+
+[node name="Main" type="Node"]
+
+[node name="Title" type="Label" parent="."]
+offset_left = 16.0
+offset_top = 8.0
+offset_right = 800.0
+offset_bottom = 32.0
+theme_override_font_sizes/font_size = 15
+text = "Observation Box(4) goes to Python, Python returns a Discrete(4) action, reward and reset come back."
+
+[node name="Help" type="Label" parent="."]
+offset_left = 16.0
+offset_top = 32.0
+offset_right = 800.0
+offset_bottom = 56.0
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 13
+text = "Manual: arrow keys  ·  Start Training: Python drives reset/step  ·  Load Saved Policy: runs in Godot, no Python"
+
+[node name="ArenaView" type="SubViewportContainer" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = 60.0
+offset_right = -470.0
+offset_bottom = -220.0
+stretch = true
+
+[node name="SubViewport" type="SubViewport" parent="ArenaView"]
+handle_input_locally = false
+msaa_3d = 2
+size = Vector2i(810, 480)
+render_target_update_mode = 4
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="ArenaView/SubViewport"]
+environment = SubResource("Environment_arena")
+
+[node name="Sun" type="DirectionalLight3D" parent="ArenaView/SubViewport"]
+position = Vector3(0, 6, 0)
+rotation_degrees = Vector3(-55, -35, 0)
+light_energy = 1.2
+shadow_enabled = true
+
+[node name="Camera3D" type="Camera3D" parent="ArenaView/SubViewport"]
+position = Vector3(3, 7.2, 7.9)
+rotation_degrees = Vector3(-58, 0, 0)
+fov = 46.0
+
+[node name="ScholaEnvironment" type="Node" parent="ArenaView/SubViewport"]
+script = ExtResource("1_env")
+
+[node name="Arena" type="Node3D" parent="ArenaView/SubViewport/ScholaEnvironment"]
+script = ExtResource("2_arena")
+
+[node name="Floor" type="Node3D" parent="ArenaView/SubViewport/ScholaEnvironment/Arena"]
+script = ExtResource("3_floor")
+
+[node name="Goal" parent="ArenaView/SubViewport/ScholaEnvironment/Arena" instance=ExtResource("4_goal")]
+position = Vector3(5.5, 0, 0.5)
+
+[node name="Hazard1" parent="ArenaView/SubViewport/ScholaEnvironment/Arena" instance=ExtResource("5_hazard")]
+position = Vector3(2.5, 0, 1.5)
+
+[node name="Hazard2" parent="ArenaView/SubViewport/ScholaEnvironment/Arena" instance=ExtResource("5_hazard")]
+position = Vector3(2.5, 0, 2.5)
+
+[node name="Hazard3" parent="ArenaView/SubViewport/ScholaEnvironment/Arena" instance=ExtResource("5_hazard")]
+position = Vector3(4.5, 0, 3.5)
+
+[node name="Hazard4" parent="ArenaView/SubViewport/ScholaEnvironment/Arena" instance=ExtResource("5_hazard")]
+position = Vector3(1.5, 0, 4.5)
+
+[node name="Player" type="Node3D" parent="ArenaView/SubViewport/ScholaEnvironment/Arena"]
+position = Vector3(0.5, 0, 5.5)
+script = ExtResource("6_player")
+
+[node name="Body" type="MeshInstance3D" parent="ArenaView/SubViewport/ScholaEnvironment/Arena/Player"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, 0)
+mesh = SubResource("CapsuleMesh_body")
+surface_material_override/0 = SubResource("Material_body")
+
+[node name="EyeLeft" type="MeshInstance3D" parent="ArenaView/SubViewport/ScholaEnvironment/Arena/Player"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.11, 0.58, -0.24)
+mesh = SubResource("SphereMesh_eye")
+surface_material_override/0 = SubResource("Material_eye")
+
+[node name="EyeRight" type="MeshInstance3D" parent="ArenaView/SubViewport/ScholaEnvironment/Arena/Player"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.11, 0.58, -0.24)
+mesh = SubResource("SphereMesh_eye")
+surface_material_override/0 = SubResource("Material_eye")
+
+[node name="ScholaAgent" type="Node" parent="ArenaView/SubViewport/ScholaEnvironment/Arena/Player"]
+script = ExtResource("7_agent")
+observation_space = SubResource("ScholaBoxSpace_obs")
+action_space = SubResource("ScholaDiscreteSpace_act")
+
+[node name="Banner" type="Label3D" parent="ArenaView/SubViewport/ScholaEnvironment/Arena"]
+position = Vector3(3, 1.8, 3.2)
+billboard = 1
+no_depth_test = true
+pixel_size = 0.008
+font_size = 72
+outline_size = 18
+
+[node name="OutcomeLight" type="OmniLight3D" parent="ArenaView/SubViewport/ScholaEnvironment/Arena"]
+position = Vector3(3, 1.5, 3)
+light_energy = 0.0
+omni_range = 4.0
+
+[node name="Runner" type="Node" parent="." node_paths=PackedStringArray("environment")]
+script = ExtResource("8_runner")
+environment = NodePath("../ArenaView/SubViewport/ScholaEnvironment")
+
+[node name="HUD" type="CanvasLayer" parent="." node_paths=PackedStringArray("runner")]
+script = ExtResource("9_hud")
+runner = NodePath("../Runner")
+
+[connection signal="episode_started" from="ArenaView/SubViewport/ScholaEnvironment" to="ArenaView/SubViewport/ScholaEnvironment/Arena" method="hide_outcome"]
+[connection signal="episode_ended" from="ArenaView/SubViewport/ScholaEnvironment" to="ArenaView/SubViewport/ScholaEnvironment/Arena" method="show_outcome"]

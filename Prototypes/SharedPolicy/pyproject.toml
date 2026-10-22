@@ -1,0 +1,20 @@
+[project]
+name = "shared-policy-reference"
+version = "0.1.0"
+description = "Executable reference for the Shared Policy ONNX contract."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "numpy",
+    "onnx>=1.18",
+    "onnxruntime",
+    "onnxscript>=0.6.2",
+    "torch>=2.10",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+]
+
+[tool.uv]
+package = false

@@ -164,6 +164,11 @@ The numeric learner owns its training data and networks. It does not access Unre
 
 These are recorded development test results, not performance guarantees for other environments or hardware.
 
+A separate fresh checkout passed the native tests, Unreal editor and game builds,
+packaging, 26 arena checks, and nine packaged learning checks without copying
+project binaries, caches, or the old plugin junction. This used the same Windows
+development machine and installed Unreal/C++ tools, rather than a fresh machine.
+
 | Check | Recorded result | Evidence |
 | --- | --- | --- |
 | Native learner across four seeds | All four adapt to both runner preferences | [Native test output](deliverables/D2/evidence/adaptive-native-tests.txt) |

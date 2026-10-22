@@ -283,6 +283,10 @@ Proposed next steps for the adaptive NPC experiment are to compare learning and 
 
 ## Iteration review and partner feedback
 
+See the [Iteration 02 review](deliverables/D2/iteration-02-review.md) for the online learning reflections and space for the other subteams.
+
+**Online learning demo:** We shared a video demo of the adaptive tag game with the partner and are currently waiting to hear back.
+
 **What worked well:**
 
 **What did not work well:**
@@ -297,7 +301,7 @@ Proposed next steps for the adaptive NPC experiment are to compare learning and 
 
 | Student | Role | Specific contributions and PR / commit links |
 | --- | --- | --- |
-| | | |
+| Jace | Created the adaptive tag game and explored online learning integration options. | [Detailed contributions](deliverables/D2/Individual_Contributions_Deliverable2.md) |
 | | | |
 | | | |
 | | | |

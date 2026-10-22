@@ -1,0 +1,3 @@
+ThirdParty/RLtools/** linguist-vendored
+Content/**/*.uasset binary
+Content/**/*.umap binary

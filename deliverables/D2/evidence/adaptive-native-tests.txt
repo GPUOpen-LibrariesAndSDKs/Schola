@@ -1,0 +1,17 @@
+-- Selecting Windows SDK version 10.0.26100.0 to target Windows 10.0.26200.
+-- Configuring done (0.1s)
+-- Generating done (0.1s)
+-- Build files have been written to: D:/Projects/Code/CSC301Host/Saved/TagLearning/NativeBuild
+MSBuild version 17.14.40+3e7442088 for .NET Framework
+
+  TagLearner.cpp
+  tag_learning_tests.vcxproj -> D:\Projects\Code\CSC301Host\Saved\TagLearning\NativeBuild\Release\tag_learning_tests.exe
+seed=0 phase=0 mean_p_left_last64=0.989078 catches_last64=54 learned=1
+seed=0 phase=1 mean_p_left_last64=0.0767509 catches_last64=41 learned=1
+seed=1 phase=0 mean_p_left_last64=0.890125 catches_last64=50 learned=1
+seed=1 phase=1 mean_p_left_last64=0.103564 catches_last64=45 learned=1
+seed=2 phase=0 mean_p_left_last64=0.959767 catches_last64=49 learned=1
+seed=2 phase=1 mean_p_left_last64=0.0303645 catches_last64=46 learned=1
+seed=2026 phase=0 mean_p_left_last64=0.980742 catches_last64=47 learned=1
+seed=2026 phase=1 mean_p_left_last64=0.00794759 catches_last64=47 learned=1
+PASS=1

@@ -76,12 +76,12 @@ class SB3ScholaModel(ScholaModel, Generic[T]):
         )
         self.policy = policy
         self.policy.set_training_mode(False)
-       
+
         for key, space in self.action_space.spaces.items():
             if isinstance(space, Box):
                 self.register_buffer(f"action_{key}_low", th.tensor(space.low))
                 self.register_buffer(f"action_{key}_high", th.tensor(space.high))
-        
+
     def get_logits(self, x) -> th.Tensor: ...
 
     def forward(self, *args) -> tuple[th.Tensor, ...]:
@@ -166,8 +166,10 @@ class SB3PPOModel(SB3ScholaModel[ActorCriticPolicy]):
         low = self.get_buffer(f"action_{_space_name}_low")
         high = self.get_buffer(f"action_{_space_name}_high")
         return th.clamp(logits, low, high)
-    
-    def make_multi_binary_output(self, logits: th.Tensor, _space_name: str = "action") -> th.Tensor:
+
+    def make_multi_binary_output(
+        self, logits: th.Tensor, _space_name: str = "action"
+    ) -> th.Tensor:
         return th.round(th.sigmoid(logits)).bool()
 
 

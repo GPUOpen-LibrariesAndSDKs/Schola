@@ -18,7 +18,7 @@ func _act(action: Variant) -> void:
 
 
 func _get_configuration_warnings() -> PackedStringArray:
-	var warnings := super()
+	var warnings := get_configuration_errors()
 	if not get_parent() is GridPlayer:
 		warnings.append("GridAgent must be a child of a GridPlayer.")
 	return warnings

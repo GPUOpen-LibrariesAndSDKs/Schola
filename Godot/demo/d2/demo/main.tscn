@@ -91,8 +91,9 @@ position = Vector3(3, 7.2, 7.9)
 rotation_degrees = Vector3(-58, 0, 0)
 fov = 46.0
 
-[node name="ScholaEnvironment" type="Node" parent="ArenaView/SubViewport"]
+[node name="ScholaEnvironment" type="ScholaEnvironment" parent="ArenaView/SubViewport"]
 script = ExtResource("1_env")
+max_episode_steps = 40
 
 [node name="Arena" type="Node3D" parent="ArenaView/SubViewport/ScholaEnvironment"]
 script = ExtResource("2_arena")
@@ -134,8 +135,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.11, 0.58, -0.24)
 mesh = SubResource("SphereMesh_eye")
 surface_material_override/0 = SubResource("Material_eye")
 
-[node name="ScholaAgent" type="Node" parent="ArenaView/SubViewport/ScholaEnvironment/Arena/Player"]
+[node name="ScholaAgent" type="ScholaAgent" parent="ArenaView/SubViewport/ScholaEnvironment/Arena/Player"]
 script = ExtResource("7_agent")
+agent_id = "agent_0"
 observation_space = SubResource("ScholaBoxSpace_obs")
 action_space = SubResource("ScholaDiscreteSpace_act")
 

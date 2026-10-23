@@ -20,7 +20,7 @@ func _reset_episode(_seed: Variant, _options: Dictionary) -> void:
 		(agent as GridAgent).player.place(cell)
 
 
-func _get_reward(agent: ScholaDemoAgent) -> float:
+func _get_reward(agent: ScholaAgent) -> float:
 	var kind := _cell_kind(agent)
 	if kind == GridArena.GOAL:
 		return step_penalty + goal_reward
@@ -29,11 +29,11 @@ func _get_reward(agent: ScholaDemoAgent) -> float:
 	return step_penalty
 
 
-func _is_terminated(agent: ScholaDemoAgent) -> bool:
+func _is_terminated(agent: ScholaAgent) -> bool:
 	return _cell_kind(agent) != GridArena.FLOOR
 
 
-func _get_info(agent: ScholaDemoAgent) -> Dictionary:
+func _get_info(agent: ScholaAgent) -> Dictionary:
 	var kind := _cell_kind(agent)
 	if kind == GridArena.GOAL:
 		return {"outcome": SUCCESS}
@@ -52,5 +52,5 @@ func get_config() -> Dictionary:
 	return config
 
 
-func _cell_kind(agent: ScholaDemoAgent) -> String:
+func _cell_kind(agent: ScholaAgent) -> String:
 	return arena.get_cell_kind((agent as GridAgent).player.cell)

@@ -1,8 +1,8 @@
 @tool
 @icon("res://addons/schola_d2/icons/schola_environment.svg")
 class_name ScholaDemoEnvironment
-extends Node
-## Stand-in for the US5 ScholaEnvironment node with the US1 step/reset callbacks.
+extends ScholaEnvironment
+## Demo lifecycle bridge layered on the native US5 ScholaEnvironment node.
 
 signal episode_started(episode: int)
 signal step_completed(result: Dictionary)
@@ -12,8 +12,6 @@ const RUNNING := "running"
 const SUCCESS := "success"
 const FAILURE := "failure"
 const TIMEOUT := "timeout"
-
-@export_range(0, 10000) var max_episode_steps := 40
 
 var episode := 0
 var episode_step := 0
@@ -28,20 +26,20 @@ func _reset_episode(_seed: Variant, _options: Dictionary) -> void:
 	pass
 
 
-func _get_reward(_agent: ScholaDemoAgent) -> float:
+func _get_reward(_agent: ScholaAgent) -> float:
 	push_error("%s must override _get_reward()" % name)
 	return 0.0
 
 
-func _is_terminated(_agent: ScholaDemoAgent) -> bool:
+func _is_terminated(_agent: ScholaAgent) -> bool:
 	return false
 
 
-func _is_truncated(_agent: ScholaDemoAgent) -> bool:
+func _is_truncated(_agent: ScholaAgent) -> bool:
 	return false
 
 
-func _get_info(_agent: ScholaDemoAgent) -> Dictionary:
+func _get_info(_agent: ScholaAgent) -> Dictionary:
 	return {}
 
 
@@ -53,15 +51,11 @@ func get_rng() -> RandomNumberGenerator:
 	return _rng
 
 
-func get_agents() -> Array[ScholaDemoAgent]:
-	var agents: Array[ScholaDemoAgent] = []
-	_collect_agents(self, agents)
-	return agents
-
-
 func get_agent() -> ScholaDemoAgent:
-	var agents := get_agents()
-	return agents[0] if not agents.is_empty() else null
+	var agents := super.get_agents()
+	if agents.is_empty():
+		return null
+	return agents[0] as ScholaDemoAgent
 
 
 func is_episode_over() -> bool:
@@ -123,21 +117,3 @@ func step(action: Variant) -> Dictionary:
 	if terminated or truncated:
 		episode_ended.emit(outcome, cumulative_reward)
 	return result
-
-
-func _collect_agents(node: Node, out: Array[ScholaDemoAgent]) -> void:
-	for child in node.get_children():
-		if child is ScholaDemoEnvironment:
-			continue
-		if child is ScholaDemoAgent:
-			out.append(child)
-		_collect_agents(child, out)
-
-
-func _get_configuration_warnings() -> PackedStringArray:
-	var agents := get_agents()
-	if agents.is_empty():
-		return PackedStringArray(["Add a ScholaDemoAgent node below this environment."])
-	if agents.size() > 1:
-		return PackedStringArray(["This demo stand-in steps one agent; found %d." % agents.size()])
-	return PackedStringArray()

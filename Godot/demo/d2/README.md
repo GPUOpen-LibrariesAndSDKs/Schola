@@ -37,6 +37,21 @@ Packaged builds for Windows x86_64, Linux x86_64, and macOS arm64 are attached t
 3. On the `Runner` node, set `python_executable` to a Python that has gymnasium, e.g. `.venv/Scripts/python.exe`. Ensure the directories match for `python_executable`. Using `where python` helps.
 4. Press F5 or the Play button.
 
+## US5 smoke check
+
+After building and copying the runtime extension, verify the native US5 scene
+configuration without starting Python. Import the Demo 2 project first so
+Godot registers its GDScript global classes and GDExtension classes:
+
+```sh
+godot --headless --path Godot/demo/d2 --editor --quit
+godot --headless --path Godot/demo/d2 -s res://tests/us5_smoke.gd
+```
+
+The check loads the demo scene and verifies the native environment and agent,
+their valid space configuration, the single discovered agent, its `agent_0`
+ID, and the 40-step limit.
+
 ## Controls
 
 - **Arrow keys:** move the agent while in manual mode.

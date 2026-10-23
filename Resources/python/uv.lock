@@ -2356,6 +2356,7 @@ dependencies = [
     { name = "onnx" },
     { name = "onnxscript" },
     { name = "protobuf" },
+    { name = "pyyaml" },
     { name = "rich" },
     { name = "torch" },
 ]
@@ -2419,6 +2420,7 @@ requires-dist = [
     { name = "onnxscript", specifier = ">=0.6.2" },
     { name = "pillow", marker = "extra == 'minari'" },
     { name = "protobuf", specifier = ">=6.31.1,<7" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "ray", extras = ["rllib"], marker = "extra == 'rllib'", specifier = ">=2.49,<2.55" },
     { name = "rich" },
     { name = "schola", extras = ["sb3", "rllib", "minari"], marker = "extra == 'all'" },

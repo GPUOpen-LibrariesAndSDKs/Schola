@@ -437,6 +437,44 @@ class TestExportFunction:
 
 class TestExportScript:
 
+    def test_spaces_yaml_overrides_checkpoint_interface(
+        self, tmp_path, make_spaces_yaml, onnx_model_checker
+    ):
+        env = make_vec_env(
+            ONNXExportParams("ppo", box_obs_space, box_action_space).get_env_class(),
+            2,
+            seed=1,
+        )
+        model = sb3.PPO("MlpPolicy", env, verbose=1)
+        checkpoint_path = tmp_path / "test.zip"
+        export_path = tmp_path / "test.onnx"
+        spaces_path = make_spaces_yaml("""
+            observation:
+              type: box
+              shape: [4]
+              dtype: float32
+            action:
+              type: box
+              shape: [3]
+              dtype: float32
+            """)
+        model.save(checkpoint_path)
+
+        export_onnx_app(
+            [
+                str(checkpoint_path),
+                str(export_path),
+                "--algorithm",
+                "PPO",
+                "--spaces-path",
+                str(spaces_path),
+            ],
+            result_action="return_value",
+            exit_on_error=False,
+        )
+
+        onnx_model_checker(export_path, box_obs_space, box_action_space)
+
     @pytest.mark.parametrize(
         "export_params",
         [

@@ -16,7 +16,12 @@ from ray.rllib import Policy
 from ray.rllib.algorithms.algorithm import Algorithm
 from ray.rllib.connectors.env_to_module import FlattenObservations
 from ray.rllib.env import PettingZooEnv
-from schola.rllib.export import export_onnx_from_policy
+from schola.rllib.export import (
+    _require_policy_spaces,
+    _select_policies,
+    _spaces_by_policy,
+    export_onnx_from_policy,
+)
 from schola.scripts.rllib.rllib_to_onnx import export_onnx_app
 from Test.conftest import (
     check_onnx_metadata,
@@ -808,6 +813,73 @@ class TestExportScript:
     """End-to-end tests for the rllib-to-onnx CLI script."""
 
     @pytest.mark.parametrize(
+        "spaces_yaml",
+        [
+            pytest.param(
+                """
+                observation:
+                  type: box
+                  shape: [4]
+                  dtype: float32
+                action:
+                  type: box
+                  shape: [3]
+                  dtype: float32
+                """,
+                id="shared",
+            ),
+            pytest.param(
+                """
+                default_policy:
+                  observation:
+                    type: box
+                    shape: [4]
+                    dtype: float32
+                  action:
+                    type: box
+                    shape: [3]
+                    dtype: float32
+                """,
+                id="per_policy",
+            ),
+        ],
+    )
+    def test_spaces_yaml_overrides_checkpoint_interface(
+        self,
+        tmp_path,
+        make_algo,
+        make_spaces_yaml,
+        onnx_model_checker,
+        ray_cluster,
+        spaces_yaml,
+    ):
+        params = ExportParams("ppo", box_obs_space, box_action_space)
+        algo: Algorithm = make_algo(params)
+        checkpoint_path = tmp_path / "checkpoint"
+        export_path = tmp_path / "model.onnx"
+        spaces_path = make_spaces_yaml(spaces_yaml)
+        algo.save(checkpoint_path)
+
+        export_onnx_app(
+            [
+                str(checkpoint_path),
+                str(export_path),
+                "--spaces-path",
+                str(spaces_path),
+            ],
+            result_action="return_value",
+            exit_on_error=False,
+        )
+
+        onnx_model_checker(
+            export_path,
+            box_obs_space,
+            box_action_space,
+            state_shapes=params.state_shapes,
+            metadata=params.metadata,
+        )
+
+    @pytest.mark.parametrize(
         "alg_params",
         [
             ExportParams("ppo", box_obs_space, box_action_space),
@@ -887,3 +959,37 @@ class TestExportOnnxFromPolicyEdgeCases:
             TypeError, match="Cannot export ONNX from Policy/Checkpoint"
         ):
             export_onnx_from_policy(None, path)
+
+
+def test_spaces_by_policy_shares_space_or_looks_up_policy_id():
+    a_space = gym.spaces.Box(0, 1, (2,))
+    b_space = gym.spaces.Box(0, 1, (3,))
+    assert _spaces_by_policy(a_space, ["a", "b"]) == {"a": a_space, "b": a_space}
+    assert _spaces_by_policy({"a": a_space, "b": b_space}, ["a"]) == {"a": a_space}
+
+
+def test_select_policies_keeps_only_listed_policies(caplog):
+    with caplog.at_level("WARNING", logger="schola.rllib.export"):
+        assert _select_policies({"a": 1, "b": 2}, ["a", "typo"]) == {"a": 1}
+    assert "['typo']" in caplog.text
+    assert "missing from the spaces config: ['b']" in caplog.text
+
+
+def test_select_policies_rejects_when_nothing_matches():
+    with pytest.raises(ValueError, match="None of the policy IDs"):
+        _select_policies({"a": 1}, ["typo"])
+
+
+def test_require_policy_spaces_defaults_every_policy_to_none():
+    assert _require_policy_spaces(None, ["a", "b"], "observation") == {
+        "a": None,
+        "b": None,
+    }
+
+
+@pytest.mark.parametrize("mapping_type", [dict, gym.spaces.Dict], ids=str)
+def test_require_policy_spaces_rejects_missing_policy_ids(mapping_type):
+    spaces = mapping_type({"a": gym.spaces.Box(0, 1, (2,))})
+    assert _require_policy_spaces(spaces, ["a"], "action") is spaces
+    with pytest.raises(KeyError, match=r"No action space given for policy IDs \['b'\]"):
+        _require_policy_spaces(spaces, ["a", "b"], "action")

@@ -168,7 +168,7 @@ The model's metadata records how the policy was configured to play each chunk:
 * ``schola.action_chunking.temporal_ensemble_coeff``: the policy's ``temporal_ensemble_coeff``,
   in ``temporal_ensemble`` mode.
 
-Unreal does not read these values yet. Set ``Action Chunking`` on the ``UNNEPolicy`` to match
+Unreal does not read these values. Set ``Action Chunking`` on the ``UNNEPolicy`` to match
 them; the defaults match ACT's defaults, which play the whole chunk.
 
 Troubleshooting

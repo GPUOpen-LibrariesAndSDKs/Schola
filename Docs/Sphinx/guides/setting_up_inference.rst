@@ -25,12 +25,12 @@ If you did not export to Onnx during training you will need to convert a checkpo
     .. group-tab:: Stable Baselines 3
         .. code-block:: bash
             
-            schola sb3 export --policy-checkpoint-path <CHECKPOINT_PATH> --output-path <ONNX_PATH> --algorithm <ALGORITHM>
+            schola sb3 export --policy-checkpoint-path <CHECKPOINT_PATH> --output-path <ONNX_PATH> --algorithm <ALGORITHM> [--spaces-path <SPACES.yaml>]
     
     .. group-tab:: Ray RLlib
         .. code-block:: bash
 
-            schola rllib export --policy-checkpoint-path <CHECKPOINT_DIR> [--output-path <OUTPUT_DIR>]
+            schola rllib export --policy-checkpoint-path <CHECKPOINT_DIR> [--output-path <OUTPUT_DIR>] [--spaces-path <SPACES.yaml>]
 
     .. group-tab:: LeRobot
         .. code-block:: bash
@@ -41,7 +41,26 @@ For SB3, ``<ALGORITHM>`` must match how the checkpoint was trained (for example 
 
 For RLlib, ``<CHECKPOINT_DIR>`` is the algorithm checkpoint **directory** produced by Ray. ``--output-path`` is optional; if omitted, ONNX output is written alongside the checkpoint (see ``schola rllib export --help``).
 
-For LeRobot, ``<PRETRAINED_PATH>`` is a local pretrained directory or Hugging Face Hub id with ``config.json`` and ``model.safetensors``, and ``<SPACES.yaml>`` names ONNX tensors using LeRobot batch keys (Unreal ``Define()`` keys must match those strings). Only ACT is supported currently. See :doc:`lerobot_export`.
+For SB3 and RLlib, ``--spaces-path`` is optional. Use it when exporting without
+usable environment-space metadata, or when the checkpoint contains flattened
+spaces. The YAML defines the exported model's named observation and action
+interface; without it, Schola uses the spaces stored in the checkpoint.
+
+For RLlib checkpoints with several policies whose interfaces differ, key the
+YAML by policy ID. Only the policies listed in the file are exported, and the
+others are named in a warning. Output files are named by policy ID, as without
+``--spaces-path``:
+
+.. code-block:: yaml
+
+    attacker:
+      observation: {type: box, shape: [8], dtype: float32}
+      action: {type: discrete, shape: [4]}
+    defender:
+      observation: {type: box, shape: [12], dtype: float32}
+      action: {type: box, shape: [2], dtype: float32}
+
+For LeRobot, ``<PRETRAINED_PATH>`` is a local pretrained directory or Hugging Face Hub id with ``config.json`` and ``model.safetensors``, and ``<SPACES.yaml>`` names the ONNX tensors with the dotted keys below its ``observation`` and ``action`` sections, without an ``observation.`` prefix (Unreal ``Define()`` keys must match those strings). The exported model outputs a whole action chunk. Only ACT is supported. See :doc:`lerobot_export`.
 
 These commands produce an ONNX model in Schola's export layout for use in the next section.
 
@@ -171,6 +190,33 @@ store the result in a variable that you pass to every ``Think`` call for that ag
 If a state input has a dynamic sequence dimension, ``Max State Sequence Length`` controls the
 allocated history length. On each successful inference Schola drops the oldest entry and appends the
 newest state. The default history length is one.
+
+Action Chunking Models
+""""""""""""""""""""""
+
+Some models, such as LeRobot ACT, predict several future actions per inference. Use the same
+``UNNEPolicy`` for them. During ``Init()``, the policy compares each action output with the action
+space. If an output holds more than one action, for example ``[1, chunk_size, action_dim]``,
+``Action Chunk Size`` shows the number of actions it found, ``CreateInitialState()`` creates a
+:cpp:class:`UNNEPolicyState` whose ``ActionChunker`` holds the chunk being played, and every
+``Think`` returns one action from the chunk. ``Init()`` fails if an output is larger than one action
+but not a whole number of actions, or if more than one output holds a chunk.
+
+The defaults work for any chunked model. To change how the chunk is played, expand the advanced
+section of ``Policy Properties`` and edit ``Action Chunking``. It is ignored for other models.
+
+* ``Chunk Mode``: ``Queue`` (default) runs the model, then plays its actions in order and runs the
+  model again once they are used up. ``Temporal Ensemble`` runs the model every step and averages
+  every prediction made for the current step, like LeRobot's ``temporal_ensemble_coeff``.
+* ``Num Action Steps``: actions played from each chunk in ``Queue`` mode, like LeRobot's
+  ``n_action_steps``. ``0`` plays the whole chunk.
+* ``Temporal Ensemble Coeff``: the coefficient ``k`` in the weight ``exp(-k * i)`` of the ``i``-th
+  prediction for a step, counting from the oldest. Used only in ``Temporal Ensemble`` mode.
+
+The LeRobot exporter records the policy's settings in the model's metadata (see
+:doc:`lerobot_export`), but ``UNNEPolicy`` does not read them, so set ``Action Chunking`` to
+match. Each ``Think`` plays one action, so call it at the control rate the training data was
+recorded at.
 
 Step 3: Create and Initialize the Stepper
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -49,10 +49,10 @@ def export(
     Parameters
     ----------
     policy_checkpoint_path : types.ExistingFile
-        The path to the SB3 policy checkpoint .
+        The path to the SB3 policy checkpoint.
     output_path : types.File
         The path to save the ONNX model to.
-    algorithm : Algorithm, default="PPO"
+    algorithm : AlgorithmIdentifier
         The SB3 algorithm used to train the policy being loaded.
     spaces_path : types.ExistingFile, optional
         YAML model-space configuration used instead of checkpoint spaces.

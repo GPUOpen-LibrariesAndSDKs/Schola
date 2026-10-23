@@ -65,10 +65,8 @@ def export_onnx_from_policy(arg: Any, path: pathlib.Path) -> None:
         - A dictionary mapping policy names to Policy objects
         - A string path to a policy checkpoint
         - A pathlib.Path object to a policy checkpoint
-    path : str
-        The directory path where the ONNX model will be saved.
-    policy_name : str, optional
-        The name to use for the exported policy file. If None, uses "Policy" as default.
+    path : pathlib.Path
+        The ONNX file, or the directory to save one ONNX file per policy in.
 
     Raises
     ------
@@ -146,8 +144,9 @@ def _(
     Export a checkpoint path. Spaces are either shared by every policy or given
     as a dict keyed by policy ID, in which case only those policies are exported.
 
-    A single-agent checkpoint is written like an exported Algorithm: to ``path``
-    if it is a file, otherwise to ``path / "default_policy.onnx"``.
+    A single-agent checkpoint is written like an exported Algorithm: to
+    ``path / "default_policy.onnx"`` if ``path`` is an existing directory,
+    otherwise to ``path``.
     """
     policies = _load_checkpoint_policies(arg)
     if not isinstance(policies, (dict, MultiRLModule)):
@@ -274,10 +273,18 @@ def _(
         The multiagent module to export.
     path : pathlib.Path
         The path to save the ONNX model to.
-    observation_spaces : gym.spaces.Dict
-        The observation spaces defined as per policy_id
-    action_spaces : gym.spaces.Dict
-        The action spaces defined as per policy_id
+    observation_spaces : Mapping[str, gym.Space], optional
+        The observation spaces keyed by policy ID. Must cover every policy if
+        given; None uses each module's own space.
+    action_spaces : Mapping[str, gym.Space], optional
+        The action spaces keyed by policy ID. Must cover every policy if
+        given; None uses each module's own space.
+    normalize_actions : bool, optional
+        Match ``NormalizeAndClipActions`` when evaluation has
+        ``normalize_actions=True`` (the RLlib default). Applied to every policy.
+    clip_actions : bool, optional
+        Match ``NormalizeAndClipActions`` when normalization is off and
+        ``clip_actions=True``. Applied to every policy.
     """
     if path.is_file():
         path = path.parent

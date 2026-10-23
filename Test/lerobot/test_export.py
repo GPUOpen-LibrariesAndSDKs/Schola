@@ -1,25 +1,51 @@
 # Copyright (c) 2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
-from pathlib import Path
-from textwrap import dedent
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import numpy as np
+import onnx_ir as ir
 import pytest
 import torch as th
-from gymnasium.spaces import Box, Dict, Discrete, MultiBinary, MultiDiscrete
-from lerobot.policies.act.modeling_act import ACTTemporalEnsembler
-from lerobot_env_schola.export import LeRobotACTScholaModule, get_spaces
+from gymnasium.spaces import Box, Dict
+from lerobot.configs.types import FeatureType, NormalizationMode, PolicyFeature
+from lerobot.policies.act.configuration_act import ACTConfig
+from lerobot.processor.normalize_processor import (
+    NormalizerProcessorStep,
+    UnnormalizerProcessorStep,
+)
+from lerobot_env_schola.export import LeRobotACTScholaModule
+from lerobot_env_schola.export.act import action_chunking_metadata
+from lerobot_env_schola.export.export import check_observations_cover_features
 
 
 @pytest.fixture
-def make_spaces_yaml(tmp_path: Path):
-    """Write a spaces YAML under ``tmp_path`` and return its path."""
-
-    def _make(yaml_text: str, name: str = "spaces.yaml") -> Path:
-        path = tmp_path / name
-        path.write_text(dedent(yaml_text).strip() + "\n", encoding="utf-8")
-        return path
+def make_normalizers():
+    def _make(
+        *,
+        features: dict[str, FeatureType],
+        norm_map: dict[FeatureType, NormalizationMode],
+        stats: dict[str, dict[str, th.Tensor]],
+    ) -> tuple[NormalizerProcessorStep, UnnormalizerProcessorStep]:
+        policy_features = {
+            key: PolicyFeature(
+                type=feature_type, shape=tuple(next(iter(stats[key].values())).shape)
+            )
+            for key, feature_type in features.items()
+        }
+        action_features = {
+            key: feature
+            for key, feature in policy_features.items()
+            if feature.type == FeatureType.ACTION
+        }
+        return (
+            NormalizerProcessorStep(
+                features=policy_features, norm_map=norm_map, stats=stats
+            ),
+            UnnormalizerProcessorStep(
+                features=action_features, norm_map=norm_map, stats=stats
+            ),
+        )
 
     return _make
 
@@ -30,230 +56,281 @@ def make_act_module():
         *,
         state_dim: int,
         action_dim: int,
-        chunk_size: int = 4,
-        temporal_ensemble_coeff: float | None = None,
         chunk: th.Tensor | None = None,
         observation_space: Dict | None = None,
-        action_space: Dict | None = None,
+        normalizers: (
+            tuple[NormalizerProcessorStep, UnnormalizerProcessorStep] | None
+        ) = None,
     ) -> tuple[LeRobotACTScholaModule, MagicMock]:
         if observation_space is None:
             observation_space = Dict(
                 {"observation.state": Box(-1, 1, shape=(state_dim,), dtype=np.float32)}
             )
-        if action_space is None:
-            action_space = Dict(
-                {"action": Box(-1, 1, shape=(action_dim,), dtype=np.float32)}
-            )
+        action_space = Dict(
+            {"action": Box(-1, 1, shape=(action_dim,), dtype=np.float32)}
+        )
         policy = MagicMock()
-        policy.config.chunk_size = chunk_size
-        policy.config.temporal_ensemble_coeff = temporal_ensemble_coeff
         policy.eval.return_value = policy
         if chunk is not None:
             policy.predict_action_chunk.return_value = chunk
+        normalizer, unnormalizer = normalizers or (None, None)
         return (
-            LeRobotACTScholaModule(policy, observation_space, action_space),
+            LeRobotACTScholaModule(
+                policy,
+                observation_space,
+                action_space,
+                normalizer=normalizer,
+                unnormalizer=unnormalizer,
+            ),
             policy,
         )
 
     return _make
 
 
-@pytest.fixture
-def make_ensemble_compare(make_act_module):
-    def _make(
-        *,
-        coeff: float,
-        chunk_size: int,
-        action_dim: int,
-        batch_size: int,
-    ) -> tuple[LeRobotACTScholaModule, ACTTemporalEnsembler, th.Tensor, th.Tensor]:
-        model, _ = make_act_module(
-            state_dim=1,
-            action_dim=action_dim,
-            chunk_size=chunk_size,
-            temporal_ensemble_coeff=coeff,
-        )
-        leftover_actions = th.zeros(batch_size, chunk_size - 1, action_dim)
-        leftover_counts = th.zeros(batch_size, chunk_size - 1, 1, dtype=th.long)
-        return (
-            model,
-            ACTTemporalEnsembler(coeff, chunk_size),
-            leftover_actions,
-            leftover_counts,
-        )
-
-    return _make
-
-
-def test_get_spaces_loads_nested_observation_leaves(make_spaces_yaml):
-    path = make_spaces_yaml("""
-        observation:
-          state:
-            type: box
-            shape: [7]
-            dtype: float32
-          images:
-            wrist:
-              type: box
-              shape: [3, 128, 128]
-              dtype: uint8
-            front:
-              type: box
-              shape: [3, 128, 128]
-              dtype: float32
-          mode:
-            type: discrete
-            shape: [4]
-          tools:
-            type: multi_discrete
-            shape: [2, 5, 3]
-          flags:
-            type: multi_binary
-            shape: [8]
-        action:
-          type: box
-          shape: [7]
-          dtype: float32
-        """)
-    observation_space, action_space = get_spaces(str(path))
-
-    assert isinstance(observation_space, Dict)
-    assert set(observation_space.spaces) == {
-        "observation.state",
-        "observation.images.wrist",
-        "observation.images.front",
-        "observation.mode",
-        "observation.tools",
-        "observation.flags",
-    }
-
-    state = observation_space["observation.state"]
-    assert isinstance(state, Box)
-    assert state.shape == (7,)
-    assert state.dtype == np.float32
-
-    wrist = observation_space["observation.images.wrist"]
-    assert isinstance(wrist, Box)
-    assert wrist.shape == (3, 128, 128)
-    assert wrist.dtype == np.uint8
-
-    assert isinstance(observation_space["observation.mode"], Discrete)
-    assert observation_space["observation.mode"].n == 4
-    assert isinstance(observation_space["observation.tools"], MultiDiscrete)
-    np.testing.assert_array_equal(
-        observation_space["observation.tools"].nvec, [2, 5, 3]
-    )
-    assert isinstance(observation_space["observation.flags"], MultiBinary)
-    assert observation_space["observation.flags"].shape == (8,)
-
-    assert list(action_space.spaces) == ["action"]
-    action = action_space["action"]
-    assert isinstance(action, Box)
-    assert action.shape == (7,)
-    assert action.dtype == np.float32
-
-    observation_space.sample()
-    action_space.sample()
-
-
-def test_get_spaces_nested_action_uses_dotted_keys(make_spaces_yaml):
-    path = make_spaces_yaml("""
-        observation:
-          state:
-            type: box
-            shape: [2]
-            dtype: float32
-        action:
-          arm:
-            type: box
-            shape: [6]
-            dtype: float32
-          gripper:
-            type: box
-            shape: [1]
-            dtype: float32
-        """)
-    observation_space, action_space = get_spaces(str(path))
-    assert list(observation_space.spaces) == ["observation.state"]
-    assert isinstance(action_space, Dict)
-    assert set(action_space.spaces) == {"action.arm", "action.gripper"}
-
-
-def test_get_spaces_rejects_unknown_space_type(make_spaces_yaml):
-    path = make_spaces_yaml("""
-        observation:
-          state:
-            type: tuple
-            shape: [3]
-        action:
-          type: box
-          shape: [1]
-          dtype: float32
-        """)
-    with pytest.raises(ValueError, match="unsupported space type"):
-        get_spaces(str(path))
-
-
-def test_temporal_ensemble_step_matches_lerobot(make_ensemble_compare):
-    coeff = 0.01
-    chunk_size, action_dim, batch_size = 5, 3, 2
-    model, ref, ensembled_actions, ensembled_counts = make_ensemble_compare(
-        coeff=coeff,
-        chunk_size=chunk_size,
-        action_dim=action_dim,
-        batch_size=batch_size,
-    )
-
-    for _ in range(8):
-        chunk = th.randn(batch_size, chunk_size, action_dim)
-        expected = ref.update(chunk.clone())
-        action, ensembled_actions, ensembled_counts = model._temporal_ensemble_step(
-            chunk, ensembled_actions, ensembled_counts
-        )
-        th.testing.assert_close(action, expected)
-        th.testing.assert_close(ensembled_actions, ref.ensembled_actions)
-        th.testing.assert_close(ensembled_counts[0], ref.ensembled_actions_count)
-        th.testing.assert_close(ensembled_counts[0], ensembled_counts[1])
-
-
-def test_act_module_is_stateless_without_ensemble(make_act_module):
-    chunk = th.zeros(2, 4, 3)
+def test_act_module_returns_full_chunk(make_act_module):
+    chunk = th.arange(24, dtype=th.float32).reshape(2, 4, 3)
     model, policy = make_act_module(state_dim=2, action_dim=3, chunk=chunk)
     assert not model.is_stateful
     (out,) = model.forward(th.zeros(2, 2))
-    assert out.shape == (2, 3)
-    th.testing.assert_close(out, chunk[:, 0])
+    th.testing.assert_close(out, chunk)
     batch = policy.predict_action_chunk.call_args.args[0]
     assert list(batch) == ["observation.state"]
 
 
-def test_act_module_ensemble_returns_action_and_state(make_act_module):
-    chunk = th.arange(24, dtype=th.float32).reshape(2, 4, 3)
-    model, _ = make_act_module(
+def test_act_module_maps_model_input_names_to_lerobot_batch_keys(make_act_module):
+    observation_space = Dict(
+        {
+            "state": Box(-1, 1, shape=(2,), dtype=np.float32),
+            "images.wrist": Box(-1, 1, shape=(3, 4, 4), dtype=np.float32),
+        }
+    )
+    model, policy = make_act_module(
         state_dim=2,
         action_dim=3,
-        chunk_size=4,
-        temporal_ensemble_coeff=0.01,
-        chunk=chunk,
+        chunk=th.zeros(1, 4, 3),
+        observation_space=observation_space,
     )
-    assert model.is_stateful
-    assert set(model.input_state_keys) == {
-        "state_in_ensembled_actions",
-        "state_in_ensembled_actions_count",
+
+    inputs = {
+        "state": th.zeros(1, 2),
+        "images.wrist": th.zeros(1, 3, 4, 4),
     }
-    assert set(model.output_state_keys) == {
-        "state_out_ensembled_actions",
-        "state_out_ensembled_actions_count",
+    model.forward(*(inputs[key] for key in model.input_obs_keys))
+
+    batch = policy.predict_action_chunk.call_args.args[0]
+    assert set(batch) == {
+        "observation.state",
+        "observation.images.wrist",
     }
 
-    obs = th.zeros(2, 2)
-    state_actions = model.input_state_dict["state_in_ensembled_actions"].repeat(2, 1, 1)
-    state_counts = model.input_state_dict["state_in_ensembled_actions_count"].repeat(
-        2, 1, 1
+
+def test_act_module_applies_lerobot_mean_std(make_act_module, make_normalizers):
+    chunk = th.zeros(1, 4, 3)
+    state_mean = th.tensor([10.0, 20.0])
+    state_std = th.tensor([2.0, 4.0])
+    env_mean = th.tensor([0.5])
+    env_std = th.tensor([0.25])
+    action_mean = th.tensor([1.0, 2.0, 3.0])
+    action_std = th.tensor([4.0, 5.0, 6.0])
+    observation_space = Dict(
+        {
+            "observation.state": Box(-1, 1, shape=(2,), dtype=np.float32),
+            "observation.environment_state": Box(-1, 1, shape=(1,), dtype=np.float32),
+        }
     )
-    action, new_actions, new_counts = model.forward(obs, state_actions, state_counts)
-    assert action.shape == (2, 3)
-    assert new_actions.shape == (2, 3, 3)
-    assert new_counts.shape == (2, 3, 1)
-    th.testing.assert_close(action, chunk[:, 0])
-    th.testing.assert_close(new_actions, chunk[:, 1:])
+    model, policy = make_act_module(
+        state_dim=2,
+        action_dim=3,
+        chunk=chunk,
+        observation_space=observation_space,
+        normalizers=make_normalizers(
+            features={
+                "observation.state": FeatureType.STATE,
+                "observation.environment_state": FeatureType.ENV,
+                "action": FeatureType.ACTION,
+            },
+            norm_map={
+                FeatureType.STATE: NormalizationMode.MEAN_STD,
+                FeatureType.ENV: NormalizationMode.MEAN_STD,
+                FeatureType.ACTION: NormalizationMode.MEAN_STD,
+            },
+            stats={
+                "observation.state": {"mean": state_mean, "std": state_std},
+                "observation.environment_state": {"mean": env_mean, "std": env_std},
+                "action": {"mean": action_mean, "std": action_std},
+            },
+        ),
+    )
+    state = th.tensor([[14.0, 12.0]])
+    env = th.tensor([[1.0]])
+    values = {
+        "observation.state": state,
+        "observation.environment_state": env,
+    }
+    (action,) = model.forward(*(values[key] for key in model.input_obs_keys))
+    seen = policy.predict_action_chunk.call_args.args[0]
+    th.testing.assert_close(
+        seen["observation.state"],
+        (state - state_mean) / (state_std + 1e-8),
+    )
+    th.testing.assert_close(
+        seen["observation.environment_state"],
+        (env - env_mean) / (env_std + 1e-8),
+    )
+    th.testing.assert_close(action, action_mean.view(1, 1, 3).expand(1, 4, 3))
+
+
+@pytest.mark.parametrize(
+    ("mode", "stats"),
+    [
+        (
+            NormalizationMode.MIN_MAX,
+            {"min": th.tensor([2.0]), "max": th.tensor([6.0])},
+        ),
+        (
+            NormalizationMode.QUANTILES,
+            {"q01": th.tensor([2.0]), "q99": th.tensor([6.0])},
+        ),
+        (
+            NormalizationMode.QUANTILE10,
+            {"q10": th.tensor([2.0]), "q90": th.tensor([6.0])},
+        ),
+    ],
+)
+def test_act_module_applies_lerobot_range_normalization(
+    make_act_module, make_normalizers, mode, stats
+):
+    model, policy = make_act_module(
+        state_dim=1,
+        action_dim=1,
+        chunk=th.zeros(1, 1, 1),
+        normalizers=make_normalizers(
+            features={
+                "observation.state": FeatureType.STATE,
+                "action": FeatureType.ACTION,
+            },
+            norm_map={FeatureType.STATE: mode, FeatureType.ACTION: mode},
+            stats={"observation.state": stats, "action": stats},
+        ),
+    )
+
+    (action,) = model.forward(th.tensor([[4.0]]))
+    seen = policy.predict_action_chunk.call_args.args[0]
+    th.testing.assert_close(seen["observation.state"], th.zeros(1, 1))
+    th.testing.assert_close(action, th.tensor([[[4.0]]]))
+
+
+def test_act_module_scales_uint8_images_to_unit_range(make_act_module):
+    observation_space = Dict(
+        {
+            "state": Box(-1, 1, shape=(2,), dtype=np.float32),
+            "images.wrist": Box(0, 255, shape=(3, 2, 2), dtype=np.uint8),
+        }
+    )
+    model, policy = make_act_module(
+        state_dim=2,
+        action_dim=3,
+        chunk=th.zeros(1, 4, 3),
+        observation_space=observation_space,
+    )
+    inputs = {
+        "state": th.tensor([[3.0, 4.0]]),
+        "images.wrist": th.full((1, 3, 2, 2), 255, dtype=th.uint8),
+    }
+    model.forward(*(inputs[key] for key in model.input_obs_keys))
+
+    batch = policy.predict_action_chunk.call_args.args[0]
+    th.testing.assert_close(batch["observation.images.wrist"], th.ones(1, 3, 2, 2))
+    th.testing.assert_close(batch["observation.state"], inputs["state"])
+
+
+@pytest.mark.parametrize(
+    ("config", "expected"),
+    [
+        pytest.param(
+            ACTConfig(),
+            {
+                "schola.action_chunking.chunk_mode": "queue",
+                "schola.action_chunking.num_action_steps": "100",
+            },
+            id="default-queue",
+        ),
+        pytest.param(
+            ACTConfig(chunk_size=50, n_action_steps=20),
+            {
+                "schola.action_chunking.chunk_mode": "queue",
+                "schola.action_chunking.num_action_steps": "20",
+            },
+            id="partial-queue",
+        ),
+        pytest.param(
+            ACTConfig(n_action_steps=1, temporal_ensemble_coeff=0.01),
+            {
+                "schola.action_chunking.chunk_mode": "temporal_ensemble",
+                "schola.action_chunking.temporal_ensemble_coeff": "0.01",
+            },
+            id="temporal-ensemble",
+        ),
+    ],
+)
+def test_action_chunking_metadata_matches_act_config(config, expected):
+    assert action_chunking_metadata(config) == expected
+
+
+def test_act_export_writes_action_chunking_metadata(make_act_module, monkeypatch):
+    # A real th.onnx.export imports this as a side effect; the stub below does not
+    import onnx_ir.passes.common  # noqa: F401
+
+    model, policy = make_act_module(state_dim=2, action_dim=3)
+    policy.config = ACTConfig(chunk_size=50, n_action_steps=20)
+    empty_model = ir.Model(ir.Graph([], [], nodes=[]), ir_version=10)
+    monkeypatch.setattr(
+        th.onnx, "export", lambda *args, **kwargs: SimpleNamespace(model=empty_model)
+    )
+
+    onnx_program = model.export_onnx_program()
+
+    assert onnx_program.model.metadata_props == action_chunking_metadata(
+        policy.config
+    )
+
+
+POLICY_INPUT_FEATURES = {
+    "observation.state": PolicyFeature(type=FeatureType.STATE, shape=(2,)),
+    "observation.images.wrist": PolicyFeature(type=FeatureType.VISUAL, shape=(3, 4, 4)),
+}
+
+
+def test_check_observations_cover_features_accepts_matching_yaml():
+    observation_space = Dict(
+        {
+            "state": Box(-1, 1, shape=(2,), dtype=np.float32),
+            "images.wrist": Box(0, 255, shape=(3, 4, 4), dtype=np.uint8),
+        }
+    )
+    check_observations_cover_features(observation_space, POLICY_INPUT_FEATURES)
+
+
+@pytest.mark.parametrize(
+    "observation_space",
+    [
+        pytest.param(
+            Dict({"obs": Box(-1, 1, shape=(2,), dtype=np.float32)}), id="unnamed"
+        ),
+        pytest.param(
+            Dict(
+                {
+                    "stat": Box(-1, 1, shape=(2,), dtype=np.float32),
+                    "images.wrist": Box(0, 255, shape=(3, 4, 4), dtype=np.uint8),
+                }
+            ),
+            id="typo",
+        ),
+    ],
+)
+def test_check_observations_cover_features_lists_missing_features(observation_space):
+    with pytest.raises(ValueError, match=r"missing the policy's input features") as err:
+        check_observations_cover_features(observation_space, POLICY_INPUT_FEATURES)
+    assert "'state'" in str(err.value)
+    assert "obs'" not in str(err.value)

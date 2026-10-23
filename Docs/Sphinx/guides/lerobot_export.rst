@@ -30,25 +30,24 @@ Spaces YAML
 
 Schola needs a YAML file that describes every observation tensor and the
 single action vector the policy expects. Unlike :doc:`lerobot_evaluation`,
-this file does **not** map Unreal sources. It names the ONNX inputs and
-outputs using LeRobot batch keys from ``config.json``
-``input_features`` / ``output_features``.
+this file does **not** map Unreal sources.
 
-Nested mappings are flattened on ``.``, and the root name is kept:
+``observation`` and ``action`` are configuration sections. Nested keys below
+them are flattened on ``.`` to form ONNX tensor names:
 
-* ``observation.state`` stays ``observation.state``
-* ``observation.images.wrist`` stays ``observation.images.wrist``
-* ``action`` stays ``action``
+* ``observation`` → ``state`` becomes ``state``
+* ``observation`` → ``images`` → ``wrist`` becomes ``images.wrist``
+* a root action remains ``action``
 
-Those dotted strings are the ONNX tensor names **and** the keys passed to
-``policy.predict_action_chunk``. NNE binds buffers by exact tensor name,
-so Unreal ``Define()`` dict keys must be these same strings. Nested Unreal
-spaces named ``state`` / ``images`` / ``wrist`` will not match
-``observation.state``. Do not rename YAML keys to Unreal-only names; the
-policy still requires LeRobot feature names.
+The LeRobot adapter maps observation tensor names to LeRobot batch keys
+internally, for example ``state`` to ``observation.state``. Every observation
+must therefore be nested under its feature name, and every input feature in
+the policy's ``config.json`` needs an observation; export fails otherwise.
+NNE binds buffers by exact ONNX tensor name, so Unreal ``Define()`` dict keys
+must use the unprefixed names from the YAML structure.
 
-Each leaf must include ``type`` and ``shape``. ``box`` also requires
-``dtype``.
+Mappings without a ``type`` are dictionary containers. Each leaf must include
+``type`` and ``shape``. ``box`` also requires ``dtype``.
 
 .. list-table::
    :header-rows: 1
@@ -101,13 +100,19 @@ state, two cameras, and a continuous action vector. Save it as
 
 That produces these ONNX names:
 
-* inputs: ``observation.state``, ``observation.images.wrist``,
-  ``observation.images.front``
-* output: ``action`` with shape ``[batch, 6]`` (one command per tick)
+* inputs: ``state``, ``images.wrist``, ``images.front``
+* output: ``action`` with shape ``[1, chunk_size, 6]`` (the whole action chunk)
 
-Copy shapes and dtypes from the policy's ``config.json``. The graph is the
-policy only: feed tensors ``predict_action_chunk`` expects (LeRobot batch
-keys). It does not apply LeRobot's preprocessor or postprocessor.
+The YAML ``action`` describes a single action. The chunk dimension comes from
+the policy's ``chunk_size``.
+
+Copy shapes and dtypes from the policy's ``config.json``. Inputs use the
+corresponding LeRobot features that ``predict_action_chunk`` expects, except that
+images declared as ``uint8`` take raw ``0``–``255`` pixels and are scaled to
+``[0, 1]`` inside the graph, as during training. Export loads the
+saved normalizer and unnormalizer processor steps and embeds LeRobot's
+built-in ``MEAN_STD``, ``MIN_MAX``, ``QUANTILES``, or ``QUANTILE10``
+transformations in the graph. Other processor steps are not embedded.
 
 Export the Policy
 -----------------
@@ -147,33 +152,24 @@ is the usual next step. See :doc:`setting_up_inference` for NNE import,
 What the ONNX Graph Contains
 ----------------------------
 
-The wrapper packs named observation tensors into a LeRobot batch and calls
-``predict_action_chunk``. Each tick emits **one** action of shape
-``[batch, action_dim]``, matching the YAML ``action`` Box and Unreal's
-action space. The graph queries the policy every tick (LeRobot
-``n_action_steps=1``). It does not keep an action-chunk queue.
+The wrapper packs named observation tensors into a LeRobot batch, normalizes
+them, calls ``predict_action_chunk``, and unnormalizes the result. The graph
+is stateless and outputs the whole chunk, ``[1, chunk_size, action_dim]``.
+Every input and output has a fixed batch size of 1, because ACT cannot be
+exported with a dynamic batch dimension.
+It does not keep an action queue or a temporal ensemble. ``UNNEPolicy`` detects the chunk output
+and plays one action per step; see the action chunking section of :doc:`setting_up_inference`.
 
-Without temporal ensembling
-   ``temporal_ensemble_coeff`` is ``None``. The graph is stateless. The
-   ``action`` output is ``chunk[:, 0]``.
+The model's metadata records how the policy was configured to play each chunk:
 
-With temporal ensembling
-   ``temporal_ensemble_coeff`` is set (LeRobot ACT's exponential
-   ensemble). The graph is stateful. Each tick outputs one command plus
-   leftover ensemble buffers that must be fed back on the next tick:
+* ``schola.action_chunking.chunk_mode``: ``queue``, or ``temporal_ensemble`` when the policy
+  sets ``temporal_ensemble_coeff``.
+* ``schola.action_chunking.num_action_steps``: the policy's ``n_action_steps``, in ``queue`` mode.
+* ``schola.action_chunking.temporal_ensemble_coeff``: the policy's ``temporal_ensemble_coeff``,
+  in ``temporal_ensemble`` mode.
 
-   * ``state_in_ensembled_actions`` /
-     ``state_out_ensembled_actions``
-   * ``state_in_ensembled_actions_count`` /
-     ``state_out_ensembled_actions_count``
-
-   Zero counts mean episode start (the same idea as LeRobot's empty
-   ensemble buffers). Schola's NNE policy already wires ``state_in_*`` /
-   ``state_out_*`` when the imported model exposes them.
-
-The ensemble math matches LeRobot's ``ACTTemporalEnsembler.update``. Do
-not change ``chunk_size`` or ``temporal_ensemble_coeff`` at export time;
-they are read from the pretrained config.
+Unreal does not read these values yet. Set ``Action Chunking`` on the ``UNNEPolicy`` to match
+them; the defaults match ACT's defaults, which play the whole chunk.
 
 Troubleshooting
 ---------------
@@ -181,11 +177,21 @@ Troubleshooting
 ``TypeError`` mentioning a policy class other than ``ACTPolicy``
    Only ACT export is implemented.
 
+``ValueError: Spaces config is missing top-level [...] sections``
+   The YAML must have both an ``observation`` and an ``action`` section at
+   the top level.
+
+``ValueError: The spaces YAML is missing the policy's input features [...]``
+   Add an observation for each listed feature, nested under its name without
+   the ``observation.`` prefix. This also happens when the YAML
+   ``observation`` section is a single leaf; nest it under its feature name,
+   for example ``observation`` → ``state``.
+
 ``ValueError: unsupported space type``
    A YAML leaf used a ``type`` other than ``box``, ``discrete``,
    ``multi_discrete``, or ``multi_binary``.
 
 ONNX input names do not match Unreal observations
-   Tensor names are the dotted LeRobot keys, including the
-   ``observation.`` prefix. Set Unreal ``Define()`` keys to those
-   strings. Changing YAML names would break ``predict_action_chunk``.
+   Tensor names are the dotted keys below the YAML ``observation`` section,
+   without an ``observation.`` prefix. Set Unreal ``Define()`` keys to those
+   strings.

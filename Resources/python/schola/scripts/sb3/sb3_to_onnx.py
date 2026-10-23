@@ -6,8 +6,8 @@ Script to convert a Stable Baselines3 model to an ONNX model for use in Unreal E
 
 import enum
 import logging
-from cyclopts import App, Parameter, types
-from typing import Annotated, Literal
+from cyclopts import App, types
+from typing import Literal
 
 from schola.scripts.common.console import configure_logging
 
@@ -42,6 +42,7 @@ def export(
     policy_checkpoint_path: types.ExistingFile,
     output_path: types.File,
     algorithm: AlgorithmIdentifier,
+    spaces_path: types.ExistingFile | None = None,
 ):
     """
     Export a SB3 policy to ONNX format.
@@ -53,6 +54,8 @@ def export(
         The path to save the ONNX model to.
     algorithm : Algorithm, default="PPO"
         The SB3 algorithm used to train the policy being loaded.
+    spaces_path : types.ExistingFile, optional
+        YAML model-space configuration used instead of checkpoint spaces.
     """
     configure_logging(logging.INFO)
     from schola.sb3.export import convert_ckpt_to_onnx_for_unreal
@@ -62,6 +65,7 @@ def export(
         trainer=trainer,
         model_path=str(policy_checkpoint_path),
         export_path=str(output_path),
+        spaces_path=str(spaces_path) if spaces_path is not None else None,
     )
 
 

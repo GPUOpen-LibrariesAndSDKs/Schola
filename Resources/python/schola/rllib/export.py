@@ -8,6 +8,7 @@ from ray.rllib.algorithms import AlgorithmConfig
 from ray.rllib.algorithms.algorithm import Algorithm
 from ray.rllib.env.multi_agent_episode import MultiAgentEpisode
 from ray.rllib.algorithms.sac import SACTorchPolicy
+from ray.rllib.core import DEFAULT_MODULE_ID
 from ray.rllib.core.distribution.torch.torch_distribution import (
     TorchDiagGaussian as NewTorchDiagGaussian,
     TorchMultiDistribution,
@@ -39,9 +40,10 @@ from gymnasium import spaces
 import copy
 from schola.rllib.env import RayVecEnv
 from torch.export.dynamic_shapes import Dim
-from typing import Any, TypedDict, cast
+from typing import Any, Iterable, Mapping, TypedDict, cast
 import logging
 
+from schola.rllib.checkpoint import rl_module_dir_from_algorithm_checkpoint
 from schola.rllib.policy_mapping import PolicyMappingFn
 
 logger = logging.getLogger(__name__)
@@ -112,8 +114,10 @@ def _(
     observation_spaces: dict[str, gym.Space[Any]] | None = None,
     action_spaces: dict[str, gym.Space[Any]] | None = None,
 ):
-    observation_spaces = observation_spaces if observation_spaces is not None else {}
-    action_spaces = action_spaces if action_spaces is not None else {}
+    observation_spaces = _require_policy_spaces(
+        observation_spaces, arg.keys(), "observation"
+    )
+    action_spaces = _require_policy_spaces(action_spaces, arg.keys(), "action")
     if path.is_file():
         path = path.parent
         logger.warning(
@@ -125,23 +129,109 @@ def _(
         export_onnx_from_policy(
             policy,
             path / f"{policy_name}.onnx",
-            observation_space=observation_spaces.get(policy_name, None),
-            action_space=action_spaces.get(policy_name, None),
+            observation_space=observation_spaces[policy_name],
+            action_space=action_spaces[policy_name],
         )
 
 
-@export_onnx_from_policy.register
-def _(arg: str, path: pathlib.Path):
-    # dir and other stuff is handled later
-    policy = Policy.from_checkpoint(arg)
-    export_onnx_from_policy(policy, path)
+@export_onnx_from_policy.register(str)
+@export_onnx_from_policy.register(pathlib.Path)
+def _(
+    arg: str | pathlib.Path,
+    path: pathlib.Path,
+    observation_space: gym.Space[Any] | dict[str, gym.Space[Any]] | None = None,
+    action_space: gym.Space[Any] | dict[str, gym.Space[Any]] | None = None,
+):
+    """
+    Export a checkpoint path. Spaces are either shared by every policy or given
+    as a dict keyed by policy ID, in which case only those policies are exported.
+
+    A single-agent checkpoint is written like an exported Algorithm: to ``path``
+    if it is a file, otherwise to ``path / "default_policy.onnx"``.
+    """
+    policies = _load_checkpoint_policies(arg)
+    if not isinstance(policies, (dict, MultiRLModule)):
+        policies = {DEFAULT_MODULE_ID: policies}
+    policies = dict(policies.items())
+    if isinstance(observation_space, dict):
+        policies = _select_policies(policies, observation_space.keys())
+    observation_spaces = _spaces_by_policy(observation_space, policies)
+    action_spaces = _spaces_by_policy(action_space, policies)
+
+    if list(policies) == [DEFAULT_MODULE_ID]:
+        export_onnx_from_policy(
+            policies[DEFAULT_MODULE_ID],
+            path,
+            observation_spaces[DEFAULT_MODULE_ID],
+            action_spaces[DEFAULT_MODULE_ID],
+        )
+    else:
+        export_onnx_from_policy(policies, path, observation_spaces, action_spaces)
 
 
-@export_onnx_from_policy.register
-def _(arg: pathlib.Path, path: pathlib.Path):
-    # dir and other stuff is handled later
-    policy = Policy.from_checkpoint(str(arg))
-    export_onnx_from_policy(policy, path)
+def _load_checkpoint_policies(checkpoint: str | pathlib.Path) -> Any:
+    """Load a new API stack ``MultiRLModule``, or old API stack policies."""
+    try:
+        module_dir = rl_module_dir_from_algorithm_checkpoint(pathlib.Path(checkpoint))
+    except FileNotFoundError:
+        return Policy.from_checkpoint(str(checkpoint))
+    return MultiRLModule.from_checkpoint(module_dir)
+
+
+def _select_policies(
+    policies: dict[str, Any], policy_ids: Iterable[str]
+) -> dict[str, Any]:
+    policy_ids = set(policy_ids)
+    if unknown_ids := policy_ids - policies.keys():
+        logger.warning(
+            "Ignoring spaces for policy IDs not in the checkpoint: %s",
+            sorted(unknown_ids),
+        )
+    if skipped_ids := policies.keys() - policy_ids:
+        logger.warning(
+            "Not exporting checkpoint policies missing from the spaces config: %s",
+            sorted(skipped_ids),
+        )
+    selected = {
+        policy_id: p for policy_id, p in policies.items() if policy_id in policy_ids
+    }
+    if not selected:
+        raise ValueError(
+            f"None of the policy IDs in the spaces config are in the checkpoint "
+            f"(checkpoint has {sorted(policies)})"
+        )
+    return selected
+
+
+def _spaces_by_policy(
+    space: gym.Space[Any] | dict[str, gym.Space[Any]] | None,
+    policy_ids: Iterable[str],
+) -> dict[str, gym.Space[Any] | None]:
+    if isinstance(space, dict):
+        return {policy_id: space[policy_id] for policy_id in policy_ids}
+    return {policy_id: space for policy_id in policy_ids}
+
+
+def _require_policy_spaces(
+    spaces: Mapping[str, gym.Space[Any] | None] | None,
+    policy_ids: Iterable[str],
+    kind: str,
+) -> Mapping[str, gym.Space[Any] | None]:
+    """
+    ``None`` means no override for any policy; otherwise every policy must have
+    an entry, so a missing ID can't silently fall back to the module's space.
+    """
+    policy_ids = list(policy_ids)
+    if spaces is None:
+        return dict.fromkeys(policy_ids)
+    # gym.spaces.Dict overrides ``in`` to test sample membership, so use keys()
+    space_ids = set(spaces.keys())
+    if missing_ids := [p for p in policy_ids if p not in space_ids]:
+        raise KeyError(
+            f"No {kind} space given for policy IDs {missing_ids} "
+            f"(spaces were given for {sorted(space_ids)})"
+        )
+    return spaces
 
 
 @export_onnx_from_policy.register
@@ -171,8 +261,8 @@ def _(
 def _(
     arg: MultiRLModule,
     path: pathlib.Path,
-    observation_spaces: dict[str, gym.Space[Any]],
-    action_spaces: dict[str, gym.Space[Any]],
+    observation_spaces: dict[str, gym.Space[Any]] | None = None,
+    action_spaces: dict[str, gym.Space[Any]] | None = None,
     normalize_actions: bool = True,
     clip_actions: bool = False,
 ) -> None:
@@ -198,6 +288,10 @@ def _(
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
 
+    observation_spaces = _require_policy_spaces(
+        observation_spaces, arg.keys(), "observation"
+    )
+    action_spaces = _require_policy_spaces(action_spaces, arg.keys(), "action")
     for k, module in arg.items():
         # remap the observation space which has agents as keys to the policy name
         export_onnx_from_policy(
@@ -600,6 +694,9 @@ class RllibScholaModel(ScholaModel):
             ),
         )
         self._policy = policy
+        self.policy_observation_space_is_dict = isinstance(
+            policy.observation_space, gym.spaces.Dict
+        )
         # for SAC the model.forward is a no-op, so we need to use the action model instead
         if isinstance(policy, SACTorchPolicy):
             # ignore typing here because rllib erases the type of the model
@@ -660,10 +757,15 @@ class RllibScholaModel(ScholaModel):
         inputs.update(state_dict)
 
         # Are we wrapping a dictionary or not?
-        if self.observation_space_is_natively_dict:
+        if self.policy_observation_space_is_dict:
             inputs["obs"] = obs_dict
         else:
-            inputs["obs"] = obs_dict["obs"]
+            if len(obs_dict) != 1:
+                raise ValueError(
+                    "A non-dictionary RLlib observation space requires exactly one "
+                    "model observation input"
+                )
+            inputs["obs"] = next(iter(obs_dict.values()))
 
         inputs["obs_flat"] = flatten_inputs_to_1d_tensor(
             obs_dict, self.observation_space

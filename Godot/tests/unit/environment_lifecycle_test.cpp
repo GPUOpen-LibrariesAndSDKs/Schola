@@ -67,6 +67,7 @@ void initialize_lifecycle(EnvironmentLifecycle &p_lifecycle, testing::FakeEnviro
 		const std::vector<AgentId> &p_agent_ids = { "agent_0" }) {
 	for (const AgentId &agent_id : p_agent_ids) {
 		p_environment.definitions.emplace(agent_id, make_definition(agent_id));
+		p_environment.reset_states.emplace(agent_id, make_initial_state(0, "initial"));
 	}
 
 	const Status result = p_lifecycle.initialize();
@@ -533,7 +534,7 @@ TEST_CASE("step failure preserves output and faults the lifecycle", "[lifecycle]
 	EnvironmentState output;
 	const AgentState sentinel = make_agent_state(3, -1.0f, false, false, "sentinel");
 	output.agents.emplace("sentinel", sentinel);
-	const Status result = lifecycle.step({}, output);
+	const Status result = lifecycle.step({ { "agent_0", make_point(0) } }, output);
 
 	CHECK_FALSE(result.is_ok());
 	CHECK(lifecycle.get_state() == LifecycleState::FAULTED);
@@ -707,4 +708,111 @@ TEST_CASE("reset starts a second episode without leaking state or step count", "
 	REQUIRE(second_result.agents.size() == 1);
 	require_agent_state(second_result.agents.at("agent_0"), second_episode_state);
 	CHECK_FALSE(second_result.agents.at("agent_0").truncated);
+}
+
+TEST_CASE("an empty environment definition faults initialization", "[lifecycle][regression]") {
+	testing::FakeEnvironment environment;
+	EnvironmentLifecycle lifecycle(0, environment);
+	CHECK(lifecycle.initialize().get_code() == StatusCode::INVALID_DATA);
+	CHECK(lifecycle.get_state() == LifecycleState::FAULTED);
+}
+
+TEST_CASE("invalid action membership preserves lifecycle and output before calling environment", "[lifecycle][regression]") {
+	testing::FakeEnvironment environment;
+	EnvironmentLifecycle lifecycle(0, environment, 1);
+	start_active(lifecycle, environment, { "agent_0", "agent_1" });
+	std::map<AgentId, Point> actions{
+		{ "agent_0", make_point(0) },
+		{ "agent_1", make_point(0) },
+	};
+	SECTION("empty actions cannot complete the episode") {
+		actions.clear();
+	}
+	SECTION("missing unfinished agent") {
+		actions.erase("agent_1");
+	}
+	SECTION("unknown agent") {
+		actions.emplace("unknown", make_point(0));
+	}
+	EnvironmentState output;
+	output.agents.emplace("sentinel", make_agent_state(3, -1.0f));
+	CHECK(lifecycle.step(actions, output).get_code() == StatusCode::INVALID_ARGUMENT);
+	CHECK(lifecycle.get_state() == LifecycleState::ACTIVE);
+	CHECK(environment.step_calls == 0);
+	REQUIRE(output.agents.size() == 1);
+	CHECK(output.agents.at("sentinel").reward == -1.0f);
+	environment.step_states = {
+		{ "agent_0", make_agent_state(0, 1.0f) },
+		{ "agent_1", make_agent_state(0, 1.0f) },
+	};
+	REQUIRE(lifecycle.step({ { "agent_0", make_point(0) }, { "agent_1", make_point(0) } }, output).is_ok());
+	CHECK(output.agents.at("agent_0").truncated);
+}
+
+TEST_CASE("malformed successful environment responses fault without publishing partial state", "[lifecycle][regression]") {
+	testing::FakeEnvironment environment;
+	EnvironmentLifecycle lifecycle(0, environment);
+	start_active(lifecycle, environment, { "agent_0", "agent_1" });
+	SECTION("reset misses an agent") {
+		environment.reset_states.erase("agent_1");
+		InitialEnvironmentState output;
+		output.agents.emplace("sentinel", make_initial_state(3, "sentinel"));
+		CHECK(lifecycle.reset({}, output).get_code() == StatusCode::INVALID_DATA);
+		REQUIRE(output.agents.size() == 1);
+		CHECK(output.agents.at("sentinel").observation == make_point(3));
+	}
+	SECTION("reset substitutes an unknown agent") {
+		environment.reset_states.erase("agent_1");
+		environment.reset_states.emplace("unknown", make_initial_state(0, "invalid"));
+		InitialEnvironmentState output;
+		CHECK(lifecycle.reset({}, output).get_code() == StatusCode::INVALID_DATA);
+		CHECK(output.agents.empty());
+	}
+	SECTION("step returns empty or partial results") {
+		SECTION("empty") {}
+		SECTION("partial") {
+			environment.step_states.emplace("agent_0", make_agent_state(1, 0.0f, true));
+		}
+		SECTION("unknown agent with matching count") {
+			environment.step_states.emplace("agent_0", make_agent_state(1, 0.0f, true));
+			environment.step_states.emplace("unknown", make_agent_state(1, 0.0f, true));
+		}
+		EnvironmentState output;
+		output.agents.emplace("sentinel", make_agent_state(3, -1.0f));
+		CHECK(lifecycle.step({ { "agent_0", make_point(0) }, { "agent_1", make_point(0) } }, output).get_code() == StatusCode::INVALID_DATA);
+		REQUIRE(output.agents.size() == 1);
+		CHECK(output.agents.at("sentinel").reward == -1.0f);
+	}
+	CHECK(lifecycle.get_state() == LifecycleState::FAULTED);
+}
+
+TEST_CASE("finished agents cannot be acted on or overwrite their final snapshot", "[lifecycle][regression]") {
+	testing::FakeEnvironment environment;
+	EnvironmentLifecycle lifecycle(0, environment);
+	start_active(lifecycle, environment, { "agent_0", "agent_1" });
+	const AgentState terminal = make_agent_state(1, 2.0f, true);
+	environment.step_states = {
+		{ "agent_0", terminal },
+		{ "agent_1", make_agent_state(2, 0.0f) },
+	};
+	EnvironmentState output;
+	REQUIRE(lifecycle.step({ { "agent_0", make_point(0) }, { "agent_1", make_point(0) } }, output).is_ok());
+	CHECK(lifecycle.step({ { "agent_0", make_point(0) }, { "agent_1", make_point(0) } }, output).get_code() == StatusCode::INVALID_ARGUMENT);
+	CHECK(environment.step_calls == 1);
+	environment.step_states.erase("agent_0");
+	environment.step_states.at("agent_1") = make_agent_state(3, 1.0f, true);
+	REQUIRE(lifecycle.step({ { "agent_1", make_point(0) } }, output).is_ok());
+	require_agent_state(output.agents.at("agent_0"), terminal);
+	CHECK(lifecycle.get_state() == LifecycleState::COMPLETE);
+}
+
+TEST_CASE("lifecycle forwards point contents without space validation", "[lifecycle]") {
+	testing::FakeEnvironment environment;
+	EnvironmentLifecycle lifecycle(0, environment);
+	start_active(lifecycle, environment);
+	environment.step_states.emplace("agent_0", make_agent_state(999, 1.0f));
+	EnvironmentState output;
+	REQUIRE(lifecycle.step({ { "agent_0", make_point(999) } }, output).is_ok());
+	CHECK(environment.last_actions.at("agent_0") == make_point(999));
+	CHECK(output.agents.at("agent_0").observation == make_point(999));
 }

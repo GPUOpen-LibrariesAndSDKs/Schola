@@ -26,8 +26,9 @@ public:
 
 	CoordinatorState get_state() const;
 
-	// Each lifecycle ID must equal its position in the vector. Registration is
-	// accepted only while CONFIGURING and fixed after define() succeeds. Ownership
+	// Each lifecycle ID must equal its position in the vector. The collection must
+	// be nonempty and contain only non-null, uninitialized lifecycles. Registration
+	// is accepted only while CONFIGURING and fixed after define() succeeds. Ownership
 	// transfers to the coordinator only when registration succeeds; validation
 	// failure leaves both the coordinator and p_lifecycles unchanged.
 	Status set_lifecycles(std::vector<std::unique_ptr<EnvironmentLifecycle>> &&p_lifecycles);
@@ -47,7 +48,8 @@ public:
 	// Explicit reset may interrupt ACTIVE environments and resets every registered
 	// environment. An omitted request entry supplies default ResetSettings,
 	// matching a Python reset request with no seed or options. Requires READY or
-	// RUNNING and transitions to RUNNING on success. Once any environment reset is
+	// RUNNING. Unknown environment IDs are rejected before any reset begins.
+	// Transitions to RUNNING on success. Once any environment reset is
 	// attempted, a failure transitions the coordinator to FAULTED.
 	Status reset(const ResetRequest &p_request, InitialState &r_initial_state);
 
@@ -57,8 +59,11 @@ public:
 	// NEXT_STEP, a completed environment resets instead of consuming its action
 	// map and returns its initial observation with zero reward and false completion
 	// flags. Physical effects may appear in a later observation according to
-	// Godot's normal frame timing. Requires RUNNING. Once any environment step or
-	// autoreset is attempted, a failure transitions the coordinator to FAULTED.
+	// Godot's normal frame timing. Exactly one action map per environment is
+	// required, including completed environments. Automatic resets use default
+	// ResetSettings; explicit reset settings are not retained for later episodes.
+	// Requires RUNNING. Once any environment step or autoreset is attempted, a
+	// failure transitions the coordinator to FAULTED.
 	Status step(const StepRequest &p_request, StepResult &r_result);
 
 	// Transitions to CLOSED from any state, closes every lifecycle, and rejects
@@ -68,6 +73,8 @@ public:
 
 private:
 	std::vector<std::unique_ptr<EnvironmentLifecycle>> environments;
+	// Retains final snapshots for completed environments in DISABLED mode.
+	TrainingState last_state;
 	AutoResetMode autoreset_mode = AutoResetMode::DISABLED;
 	CoordinatorState state = CoordinatorState::CONFIGURING;
 	bool mode_set = false;

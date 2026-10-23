@@ -32,6 +32,17 @@ Discuss larger changes in an issue first if you are unsure about direction or sc
 
 4. Build the native extensions and open the project using the platform-specific commands in [`Godot/README.md`](Godot/README.md#build-and-run).
 
+5. Install the formatter and enable the repository's Git hooks once per clone:
+
+   ```bash
+   python -m pip install --require-hashes -r Godot/requirements-format.txt
+   git config core.hooksPath .githooks
+   ```
+
+   The pre-commit hook checks staged Godot `.cpp` and `.h` contents with clang-format 17.
+   Formatting errors block the commit; format the reported files and stage them again.
+   The hook does not modify files or stage changes. PR CI still runs the full checks.
+
 Contributors working on Python compatibility may also install the relevant package extras (`sb3`, `rllib`, `minari`, `docs`) described in `Resources/python/pyproject.toml`.
 
 ## Pull request workflow

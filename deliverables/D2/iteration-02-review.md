@@ -1,39 +1,45 @@
-# Team 20: The Hard Workers - Schola for Godot
+# Team 20: D2 Review and Retrospective
 
-## Iteration 02 - Review & Retrospect
+## What worked well
 
- * When: FILL IN THE DATE WHEN YOU ACTUALLY HAD YOUR REVIEW MEETING
- * Where: PHYSICAL LOCATION AND/OR ONLINE
+### Stable contracts enabled parallel work
 
-## Process - Reflection
+Each user-story owner first contributed the interfaces needed by adjacent components. Shared abstractions such as `Agent`, `Environment`, `Policy`, `Space`, and `Status` let the team implement spaces, lifecycle coordination, connector behavior, and inference in parallel. When AMD's upstream policy-state design changed, the team updated the US7 boundary without redesigning unrelated modules.
 
-#### Q1. What worked well
+### The shared foundation kept implementations consistent
 
- * **Defining every user story's API before implementing it.** Each owner opened a pull request with only the interfaces for their story: US1 (#11), US2 (#7), US3 (#12), US4 (#6), US5 (#9), and US7 (#2). Abstract types such as `Agent`, `Policy`, and `Space` let dependent stories start in parallel instead of waiting for each other's code. When AMD changed its policy state design upstream, only the US7 contract had to change (#14, #15), and no other story was affected.
- * **Building a shared foundation and conventions before feature work.** The first pull request (#1) set up the build, the runtime and training add-ons, pinned dependencies, and CI that checks formatting, builds both extensions, and runs Catch2 and GdUnit4 tests. The development contract and PR template gave everyone the same rules, such as no exceptions, errors returned as `Status`, and engine-independent `core`. As a result, pull requests from seven people stayed consistent and reviewable.
- * **Splitting work by user story with one owner each.** Every member owns one story end to end, which matches the course's recommended structure and makes responsibility clear. Non-coding work also has owners: meeting minutes (Sanjay), partner communication (Vansh), and project management (Guneev).
- * **Recording partner and TA decisions in minutes.** Decisions such as targeting the latest ONNX Runtime, avoiding Git LFS in favour of a setup script, and treating GPU inference as a stretch goal are written down in `deliverables/team/minutes/`. Members could act on them without asking again, and the ONNX Runtime setup followed them directly.
+The initial Godot foundation established the SCons targets, dependency pins, runtime and training add-ons, Catch2 and GdUnit4 tests, and GitHub Actions checks. The development contract also fixed rules such as keeping the core independent from Godot and returning failures as `Status` values. These constraints made independently developed user stories fit into the same architecture.
 
-#### Q2. What did not work well
+### A focused demo made integration problems visible
 
- * **Dependencies between user stories made implementations wait on each other.** The API pull requests merged late in the iteration (October 14 and 15). Several implementations depend on code that is not on `main` yet: US7's Godot classes need US1's agent adapter, US2's spaces and points, US5's space resources, and the Variant conversion. As a result, US7's runtime extension cannot link yet, and no end-to-end demo was possible by the deadline.
- * **Changing the implementation language cost time.** D1 planned a C# architecture, and the team switched to a C++ GDExtension at the start of this iteration. That was the right call for performance and packaging, but the planning and early prototype had to be redone.
- * **Waiting on upstream AMD changes delayed one API.** US7 waited for AMD's multi-agent and recurrent state commit before finalizing its API. That commit landed mid-iteration, so the API had to be synced and reworked in two extra pull requests (#14, #15).
+The team built 1 small grid-world instead of several disconnected feature samples. Connecting environment definitions, training messages, episode resets, reward reporting, policy export, and local inference exposed integration issues that unit tests alone would not show. The demo also gave the team a concrete boundary between completed production code and temporary stand-ins.
 
-#### Q3(a). Planned changes
+## What did not work well
 
- * **Implement shared dependencies first, with internal deadlines.** The stories other code depends on (US2 spaces and points, US1's agent adapter, and the Variant conversion) will be implemented and merged first. Each will have a deadline a few days before the stories that depend on it.
- * **Merge smaller pieces earlier.** Implementations will be merged in tested increments instead of one large pull request at the end, and feature branches will merge `main` regularly. Progress then stays visible on `main` and integration problems appear early.
+### Cross-story dependencies were resolved too late
 
-#### Q3(b). Integration & Next steps
+Several implementations depended on types owned by other stories. The team merged contracts first, but concrete adapters and conversions arrived close to the demo deadline. This left insufficient time to connect every production component, so the D2 demo uses GDScript stand-ins for the Godot environment nodes and JSON over local TCP in place of the final gRPC adapter.
 
-The work is split by user story (US1-US7), with shared build and CI infrastructure owned by Shahyar. Components integrate through the engine-independent interfaces in `Godot/src/core/`, so each story builds against merged contracts and CI checks every pull request. Next, the stories that others depend on merge their implementations, and then the end-to-end environment, training, and inference workflow is assembled into the demo scene.
+### The team optimized individual branches before the integrated product
 
-## Product - Review
+Work progressed inside user-story branches, while the end-to-end path was assembled late. Components could pass their own tests without proving that a user could move from environment definition to training and inference. The release branch and focused demo corrected this for D2, but the team should have created that integration target earlier.
 
-#### Q4. How was your product demo?
- * How did you prepare your demo?
- * What did you manage to demo to your partner?
- * Did your partner accept the features? And were there change requests?
- * What were your learnings through this process? This can be either from a process and/or product perspective.
- * *This section will be marked very leniently so keep it brief and just make sure the points are addressed*
+### The architecture change consumed iteration time
+
+D1 used C# to prototype the Godot interface. After confirming the production requirements, the team moved to C++ GDExtensions for runtime performance, native ONNX integration, and packaging. The decision improved the production architecture but required the team to rebuild the foundation and replace parts of the original prototype during D2.
+
+## Process changes for the next iteration
+
+- Maintain 1 integration branch and runnable example throughout the iteration, rather than assembling it near the deadline.
+- Merge shared dependencies before the features that consume them, with internal dates that leave time for integration testing.
+- Split implementations into reviewable increments and merge them once their tests pass.
+- Add a packaged-demo workflow early so every milestone can be tested from a clean machine without a developer checkout.
+- Record the production status of every demo component so temporary stand-ins are not mistaken for completed user stories.
+
+## Demo review
+
+The team prepared the D2 presentation by rehearsing 1 complete grid-world workflow and keeping the controls, connection state, reward graph, and inference status visible in the scene. During the course Demo Day on October 22, 2026, the team showed the environment configuration, training exchange, episode progression, reward improvement, policy export, and ONNX inference running in Godot after the trainer closed.
+
+The presentation used the integrated D2 prototype, not a claim that every production adapter was complete. US2 space validation and US7 ONNX inference were represented by production C++ components. The Godot-facing environment configuration, episode lifecycle, and training transport were identified as stand-ins for unfinished US1, US3, US4, and US5 integration. The production US4 lifecycle was implemented and tested separately on the release branch.
+
+The Demo Day presentation was accepted without a required redo. The team did not record D2-specific AMD change requests during that course presentation. Earlier AMD feedback warned against over-engineering reward configuration and asked for a small end-to-end trained example; the grid-world and its compact reward model followed that direction. The main lesson was that a polished interface helps explain the workflow, but the team must label integration boundaries clearly and prioritize replacing stand-ins in the next iteration.

@@ -37,3 +37,4 @@ enabled=PackedStringArray("res://addons/schola_d2/plugin.cfg")
 [rendering]
 
 rendering_device/driver.windows="d3d12"
+textures/vram_compression/import_etc2_astc=true

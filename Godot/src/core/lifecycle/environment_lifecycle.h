@@ -51,6 +51,8 @@ public:
 	// output is changed only when the reset succeeds. The initial observation is
 	// forwarded without an engine-side value scan; Python owns observation-space
 	// validation. An Environment failure transitions to FAULTED.
+	// Reset must return exactly the declared agent IDs; malformed results fault
+	// the lifecycle without changing the output.
 	Status reset(const ResetSettings &p_settings, InitialEnvironmentState &r_initial_state);
 
 	// Requires ACTIVE. Steps unfinished agents and captures an owned state
@@ -62,6 +64,9 @@ public:
 	// ACTIVE. Point contents are forwarded without an engine-side value scan; Python
 	// owns space validation. The output is changed only when the step succeeds. An
 	// Environment failure transitions to FAULTED.
+	// Actions must name exactly the unfinished declared agents. Invalid membership
+	// is rejected before calling the Environment. A successful Environment response
+	// must name exactly the agents that acted, or the lifecycle becomes FAULTED.
 	Status step(const std::map<AgentId, Point> &p_actions, EnvironmentState &r_state);
 
 	// Releases episode-local state and transitions to CLOSED from any state,

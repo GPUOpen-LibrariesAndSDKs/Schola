@@ -6,6 +6,9 @@ namespace schola::testing {
 
 Status FakeEnvironment::initialize(std::map<AgentId, InteractionDefinition> &r_agents) {
 	initialize_calls++;
+	if (call_log) {
+		call_log->push_back(label + ":initialize");
+	}
 
 	if (initialize_status.is_ok()) {
 		r_agents = definitions;
@@ -15,6 +18,9 @@ Status FakeEnvironment::initialize(std::map<AgentId, InteractionDefinition> &r_a
 
 Status FakeEnvironment::reset(const ResetSettings &p_settings, std::map<AgentId, InitialAgentState> &r_states) {
 	reset_calls++;
+	if (call_log) {
+		call_log->push_back(label + ":reset");
+	}
 
 	last_reset_settings = p_settings;
 	if (reset_status.is_ok()) {
@@ -25,6 +31,9 @@ Status FakeEnvironment::reset(const ResetSettings &p_settings, std::map<AgentId,
 
 Status FakeEnvironment::step(const std::map<AgentId, Point> &p_actions, std::map<AgentId, AgentState> &r_states) {
 	step_calls++;
+	if (call_log) {
+		call_log->push_back(label + ":step");
+	}
 	last_actions = p_actions;
 
 	if (step_status.is_ok()) {

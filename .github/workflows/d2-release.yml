@@ -1,0 +1,257 @@
+name: D2 release packages
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - D2
+      - "D2-test-*"
+
+permissions:
+  contents: read
+
+env:
+  GODOT_VERSION: 4.7.2
+  GODOT_TEMPLATES_SHA256: f298490b8d44d934be425a5a65a51bf15f422428b229a06a6e11d9ffea248011
+
+jobs:
+  policy:
+    name: Build packaged policy
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install policy export dependencies
+        run: python -m pip install --disable-pip-version-check numpy==2.5.2 onnx==1.22.0 onnxruntime==1.29.0
+
+      - name: Create and export reference policy
+        run: |
+          python Godot/demo/d2/python/create_reference_policy.py
+          python Godot/demo/d2/python/export_onnx.py
+
+      - name: Upload packaged policy
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: packaged-policy
+          path: Godot/demo/d2/policies/*
+          if-no-files-found: error
+
+  package:
+    name: Package / ${{ matrix.name }}
+    needs: policy
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x86_64
+            runner: windows-2022
+            platform: windows
+            arch: x86_64
+            preset: Windows Desktop
+            editor_asset: Godot_v4.7.2-stable_win64.exe.zip
+            editor_sha256: 731980f9608d61333e5baf54a2ef17210acc7a538446c0cb9969f002aca1e953
+            editor_path: Godot_v4.7.2-stable_win64.exe
+            output: dist/Schola-D2-Windows-x86_64/Schola D2 Demo.exe
+            archive: dist/Schola-D2-Windows-x86_64.zip
+          - name: Linux x86_64
+            runner: ubuntu-22.04
+            platform: linux
+            arch: x86_64
+            preset: Linux
+            editor_asset: Godot_v4.7.2-stable_linux.x86_64.zip
+            editor_sha256: cadd3204e728a35d3f13adb7fd0d7902636b79f6b95c40c265eb73b6c35329e4
+            editor_path: Godot_v4.7.2-stable_linux.x86_64
+            output: dist/Schola-D2-Linux-x86_64/Schola-D2-Demo.x86_64
+            archive: dist/Schola-D2-Linux-x86_64.tar.gz
+          - name: macOS arm64
+            runner: macos-14
+            platform: macos
+            arch: arm64
+            preset: macOS
+            editor_asset: Godot_v4.7.2-stable_macos.universal.zip
+            editor_sha256: c58a24e31d720be9d62f60cb5627c4e695fb72f21b0cfe1bc9ccaa9a3b3ba63e
+            editor_path: Godot.app/Contents/MacOS/Godot
+            output: dist/Schola-D2-macOS-arm64.zip
+            archive: dist/Schola-D2-macOS-arm64.zip
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: Godot/requirements.txt
+
+      - name: Install build tools
+        run: python -m pip install --disable-pip-version-check --require-hashes -r Godot/requirements.txt
+
+      - name: Download packaged policy
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: packaged-policy
+          path: Godot/demo/d2/policies
+
+      - name: Build release extension
+        shell: pwsh
+        run: |
+          python Godot/tools/setup_onnxruntime.py
+          scons -C Godot platform=${{ matrix.platform }} arch=${{ matrix.arch }} target=template_debug -j2
+          scons -C Godot platform=${{ matrix.platform }} arch=${{ matrix.arch }} target=template_release -j2
+          if ($env:RUNNER_OS -eq "macOS") {
+            Copy-Item -Force Godot/addons/schola/bin/macos/libschola.macos.template_debug.arm64.dylib Godot/addons/schola/bin/macos/libschola.macos.template_debug.dylib
+            Copy-Item -Force Godot/addons/schola/bin/macos/libschola.macos.template_release.arm64.dylib Godot/addons/schola/bin/macos/libschola.macos.template_release.dylib
+          }
+          Copy-Item -Recurse -Force "Godot/addons/schola/bin/${{ matrix.platform }}" "Godot/demo/d2/addons/schola/bin/${{ matrix.platform }}"
+
+      - name: Download Godot and export templates
+        shell: pwsh
+        run: |
+          $release = "https://github.com/godotengine/godot-builds/releases/download/$env:GODOT_VERSION-stable"
+          Invoke-WebRequest "$release/${{ matrix.editor_asset }}" -OutFile godot-editor.zip
+          if ((Get-FileHash godot-editor.zip -Algorithm SHA256).Hash.ToLower() -ne "${{ matrix.editor_sha256 }}") {
+            throw "Godot editor checksum mismatch"
+          }
+          Invoke-WebRequest "$release/Godot_v$env:GODOT_VERSION-stable_export_templates.tpz" -OutFile export-templates.zip
+          if ((Get-FileHash export-templates.zip -Algorithm SHA256).Hash.ToLower() -ne $env:GODOT_TEMPLATES_SHA256) {
+            throw "Godot export templates checksum mismatch"
+          }
+          Expand-Archive godot-editor.zip -DestinationPath godot-editor
+          Expand-Archive export-templates.zip -DestinationPath godot-templates
+
+      - name: Install export templates
+        shell: pwsh
+        run: |
+          if ($env:RUNNER_OS -eq "Windows") {
+            $templateDirectory = Join-Path $env:APPDATA "Godot/export_templates/$env:GODOT_VERSION.stable"
+          } elseif ($env:RUNNER_OS -eq "macOS") {
+            $templateDirectory = Join-Path $HOME "Library/Application Support/Godot/export_templates/$env:GODOT_VERSION.stable"
+          } else {
+            $templateDirectory = Join-Path $HOME ".local/share/godot/export_templates/$env:GODOT_VERSION.stable"
+          }
+          New-Item -ItemType Directory -Force $templateDirectory | Out-Null
+          Copy-Item -Recurse -Force godot-templates/templates/* $templateDirectory
+
+      - name: Export demo
+        shell: pwsh
+        run: |
+          $editor = Resolve-Path "godot-editor/${{ matrix.editor_path }}"
+          if ($env:RUNNER_OS -ne "Windows") {
+            chmod +x $editor
+          }
+          $output = Join-Path $PWD "${{ matrix.output }}"
+          New-Item -ItemType Directory -Force (Split-Path -Parent $output) | Out-Null
+          if ($env:RUNNER_OS -eq "Windows") {
+            $process = Start-Process -FilePath $editor -ArgumentList "--headless", "--path", "Godot/demo/d2", "--import" -Wait -PassThru -WindowStyle Hidden
+            $importExitCode = $process.ExitCode
+          } else {
+            & $editor --headless --path Godot/demo/d2 --import
+            $importExitCode = $LASTEXITCODE
+          }
+          if ($importExitCode -in @(134, -1073741819)) {
+            Write-Warning "Godot hit its first-import GDExtension race; retrying with the generated cache"
+            if ($env:RUNNER_OS -eq "Windows") {
+              $process = Start-Process -FilePath $editor -ArgumentList "--headless", "--path", "Godot/demo/d2", "--import" -Wait -PassThru -WindowStyle Hidden
+              $importExitCode = $process.ExitCode
+            } else {
+              & $editor --headless --path Godot/demo/d2 --import
+              $importExitCode = $LASTEXITCODE
+            }
+          }
+          if ($importExitCode -ne 0) {
+            throw "Godot import failed with exit code $importExitCode"
+          }
+          if ($env:RUNNER_OS -eq "Windows") {
+            $quotedPreset = '"${{ matrix.preset }}"'
+            $quotedOutput = '"' + $output + '"'
+            $process = Start-Process -FilePath $editor -ArgumentList "--headless", "--path", "Godot/demo/d2", "--export-release", $quotedPreset, $quotedOutput -Wait -PassThru -WindowStyle Hidden
+            $exportExitCode = $process.ExitCode
+          } else {
+            & $editor --headless --path Godot/demo/d2 --export-release "${{ matrix.preset }}" $output
+            $exportExitCode = $LASTEXITCODE
+          }
+          if ($exportExitCode -ne 0) {
+            throw "Godot export failed with exit code $exportExitCode"
+          }
+
+      - name: Smoke-test package
+        shell: pwsh
+        run: |
+          if ($env:RUNNER_OS -eq "macOS") {
+            Expand-Archive "${{ matrix.output }}" -DestinationPath dist/macos-smoke
+            $application = Get-ChildItem dist/macos-smoke -Filter *.app | Select-Object -First 1
+            $executable = Get-ChildItem "$($application.FullName)/Contents/MacOS" -File | Select-Object -First 1
+          } else {
+            $executable = Get-Item "${{ matrix.output }}"
+          }
+          if ($env:RUNNER_OS -ne "Windows") {
+            chmod +x $executable.FullName
+            & $executable.FullName --headless --quit-after 1
+            $smokeExitCode = $LASTEXITCODE
+          } else {
+            $process = Start-Process -FilePath $executable.FullName -ArgumentList "--headless", "--quit-after", "1" -Wait -PassThru -WindowStyle Hidden
+            $smokeExitCode = $process.ExitCode
+          }
+          if ($smokeExitCode -ne 0) {
+            throw "Packaged demo smoke test failed with exit code $smokeExitCode"
+          }
+
+      - name: Archive package
+        shell: pwsh
+        run: |
+          if ($env:RUNNER_OS -eq "Windows") {
+            Compress-Archive -Path dist/Schola-D2-Windows-x86_64/* -DestinationPath "${{ matrix.archive }}"
+          } elseif ($env:RUNNER_OS -eq "Linux") {
+            chmod +x "${{ matrix.output }}"
+            tar -C dist/Schola-D2-Linux-x86_64 -czf "${{ matrix.archive }}" .
+          }
+          if (-not (Test-Path "${{ matrix.archive }}")) {
+            throw "Expected package ${{ matrix.archive }} was not created"
+          }
+
+      - name: Upload release package
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: d2-package-${{ matrix.platform }}-${{ matrix.arch }}
+          path: ${{ matrix.archive }}
+          if-no-files-found: error
+
+  release:
+    name: Publish D2 release
+    if: github.ref == 'refs/tags/D2'
+    needs: package
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download release packages
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: d2-package-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Publish immutable D2 snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create D2 release-assets/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --title "Deliverable 2" \
+            --notes "Packaged Schola for Godot D2 demo for Windows x86_64, Linux x86_64, and macOS arm64. See the repository README for controls, scope, and implementation status."

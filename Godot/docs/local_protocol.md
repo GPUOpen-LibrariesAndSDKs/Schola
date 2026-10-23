@@ -2,8 +2,8 @@
 
 The D2 demo connects Godot to a local Python trainer with newline-delimited JSON over localhost TCP. It is a stand-in for US3's gRPC connector. It carries the same calls, in the same order, as Schola's `GymService` (`Proto/GymConnector.proto`).
 
-- **Godot** (`ScholaLocalConnector`, `d2_demo/addons/schola_d2/transport/`) listens on `127.0.0.1:8000`.
-- **Python** (`d2_demo/python/trainer.py`) connects and sends every request, one at a time. Godot only answers.
+- **Godot** (`ScholaLocalConnector`, `demo/d2/addons/schola_d2/transport/`) listens on `127.0.0.1:8000`.
+- **Python** (`demo/d2/python/trainer.py`) connects and sends every request, one at a time. Godot only answers.
 
 ## Where US3 fits in the demo
 
@@ -38,10 +38,10 @@ flowchart LR
 | Component | In the demo today | Will be replaced by | File |
 | --- | --- | --- | --- |
 | `ConnectorLoop` | **US3, implemented.** Runs a session in the Python client's order and routes each request to the backend. Covered by 18 unit tests; not yet wired into the demo. | — | `Godot/src/core/connector/connector.cpp` |
-| `trainer.py` | **Stand-in.** Q-learning plus a JSON client that sends start, definition, reset, step and close. | Schola's existing Python client (`GymEnv`) with a training library such as Stable-Baselines3 | `d2_demo/python/trainer.py` |
-| `ScholaLocalConnector` | **Stand-in.** Receives Python's requests over JSON/TCP, rejects invalid ones, sends replies, and tracks the connection state. | US3: `GrpcConnector`, a `Connector` over gRPC | `d2_demo/addons/schola_d2/transport/schola_local_connector.gd` |
-| `demo_runner.gd` (request handling) | Stand-in. Takes one request per step, runs it on the environment, and answers. | US3: `ScholaTrainingConnector` driving `ConnectorLoop`, which reaches the game through US3's `HostTrainingBackend` | `d2_demo/addons/schola_d2/runtime/demo_runner.gd` |
-| `GridEnvironment`, `GridAgent` (on `ScholaDemoEnvironment`, `ScholaDemoAgent`) | Stand-ins. Move the agent, build its observation, compute the reward, and end episodes. | US1: `Environment`, `Agent`; US4: `ScholaTrainingHost` and the episode lifecycle; US5: `ScholaEnvironment`, `ScholaAgent` nodes | `d2_demo/demo/`, `d2_demo/addons/schola_d2/nodes/` |
+| `trainer.py` | **Stand-in.** Q-learning plus a JSON client that sends start, definition, reset, step and close. | Schola's existing Python client (`GymEnv`) with a training library such as Stable-Baselines3 | `demo/d2/python/trainer.py` |
+| `ScholaLocalConnector` | **Stand-in.** Receives Python's requests over JSON/TCP, rejects invalid ones, sends replies, and tracks the connection state. | US3: `GrpcConnector`, a `Connector` over gRPC | `demo/d2/addons/schola_d2/transport/schola_local_connector.gd` |
+| `demo_runner.gd` (request handling) | Stand-in. Takes one request per step, runs it on the environment, and answers. | US3: `ScholaTrainingConnector` driving `ConnectorLoop`, which reaches the game through US3's `HostTrainingBackend` | `demo/d2/addons/schola_d2/runtime/demo_runner.gd` |
+| `GridEnvironment`, `GridAgent` (on `ScholaDemoEnvironment`, `ScholaDemoAgent`) | Stand-ins. Move the agent, build its observation, compute the reward, and end episodes. | US1: `Environment`, `Agent`; US4: `ScholaTrainingHost` and the episode lifecycle; US5: `ScholaEnvironment`, `ScholaAgent` nodes | `demo/d2/demo/`, `demo/d2/addons/schola_d2/nodes/` |
 | `ScholaBoxSpace`, `ScholaDiscreteSpace` | **US2, real.** Describe the observation and action shapes and check each action. | — | `Godot/src/bindings/spaces/` |
 
 The unit tests use two more stand-ins so `ConnectorLoop` runs without Python or Godot: `FakeConnector` takes the place of US3's `GrpcConnector`, and `FakeTrainingBackend` takes the place of US4's `TrainingBackend` (reached through `HostTrainingBackend`).

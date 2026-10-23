@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+# Copyright (c) 2026 Advanced Micro Devices, Inc. All Rights Reserved.
+
+import os
+import shutil
+import subprocess
+import sys
+
+
+files = subprocess.check_output(
+    [
+        "git", "diff", "--cached", "--name-only", "--diff-filter=ACMR", "-z", "--",
+        ":(glob)Godot/**/*.cpp", ":(glob)Godot/**/*.h",
+    ]
+).split(b"\0")
+files = [os.fsdecode(path) for path in files if path]
+if not files:
+    sys.exit(0)
+
+formatter = next(
+    (
+        found
+        for name in (
+            ".venv/bin/clang-format", ".venv/Scripts/clang-format.exe",
+            "clang-format-17", "clang-format",
+        )
+        if (found := shutil.which(name))
+    ),
+    None,
+)
+if not formatter or "version 17." not in subprocess.check_output(
+    [formatter, "--version"], text=True
+):
+    sys.exit(
+        "clang-format 17 is required. Install it with:\n"
+        "  python -m pip install --require-hashes -r Godot/requirements-format.txt"
+    )
+
+failed = False
+for path in files:
+    staged = subprocess.check_output(["git", "show", f":{path}"])
+    result = subprocess.run(
+        [formatter, f"--assume-filename={path}", "--dry-run", "--Werror"],
+        input=staged,
+    )
+    failed |= result.returncode != 0
+
+if failed:
+    sys.exit("Formatting failed. Run clang-format -i on the reported files, then stage them again.")

@@ -31,6 +31,9 @@ public:
 
 	ResetSettings last_reset_settings;
 	std::map<AgentId, Point> last_actions;
+	// Optional non-owned trace shared by environments in coordinator tests.
+	std::vector<std::string> *call_log = nullptr;
+	std::string label;
 
 	/**
 	 * Declares every agent and its spaces.

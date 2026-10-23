@@ -20,7 +20,9 @@ US7 is real: the trained Q-table is exported to ONNX, and **Load ONNX Policy** r
 ## Requirements
 
 - Godot 4.7.2
-- Python with `gymnasium` and `numpy` (the repo's `.venv` has both), plus `onnx` and `onnxruntime` to export the policy to ONNX
+- Python with `gymnasium`, `numpy`, `onnx`, and `onnxruntime`. Install them into a virtual environment with `python -m pip install gymnasium numpy onnx onnxruntime`.
+
+Packaged builds for Windows x86_64, Linux x86_64, and macOS arm64 are attached to the [D2 release](https://github.com/csc301-2026-f/20-AMD-Schola/releases/tag/D2). They include a reference ONNX policy and do not require Godot, Python, or a source checkout for manual play, validation, or inference. Starting a new training session still requires this developer setup.
 
 ## Run
 
@@ -28,10 +30,10 @@ US7 is real: the trained Q-table is exported to ONNX, and **Load ONNX Policy** r
    ```sh
    python Godot/tools/setup_onnxruntime.py
    scons -C Godot platform=windows target=template_debug
-   mkdir -p Godot/d2_demo/addons/schola/bin/windows
-   cp Godot/addons/schola/bin/windows/schola.windows.template_debug.x86_64.dll Godot/addons/schola/bin/windows/onnxruntime.dll Godot/d2_demo/addons/schola/bin/windows/
+   mkdir -p Godot/demo/d2/addons/schola/bin/windows
+   cp Godot/addons/schola/bin/windows/schola.windows.template_debug.x86_64.dll Godot/addons/schola/bin/windows/onnxruntime.dll Godot/demo/d2/addons/schola/bin/windows/
    ```
-2. Open `Godot/d2_demo/project.godot` in Godot.
+2. Open `Godot/demo/d2/project.godot` in Godot.
 3. On the `Runner` node, set `python_executable` to a Python that has gymnasium, e.g. `.venv/Scripts/python.exe`. Ensure the directories match for `python_executable`. Using `where python` helps.
 4. Press F5 or the Play button.
 

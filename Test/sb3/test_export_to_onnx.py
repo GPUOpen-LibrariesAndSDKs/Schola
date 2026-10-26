@@ -134,7 +134,9 @@ class ONNXExportParams:
 
                 super().__init__()
 
-            def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None):
+            def reset(
+                self, *, seed: int | None = None, options: dict[str, Any] | None = None
+            ):
                 # Fixed seed so the SB3 and ONNX evaluations sample the same observations.
                 # The env RNG is not what ``observation_space.sample()`` uses.
                 super().reset(seed=1)
@@ -159,31 +161,34 @@ class ONNXExportParams:
         return TestEnv
 
     def make_algo(self):
+        # Export traces with CPU example inputs, so the policy must be on the CPU too.
         if self.algo_name == "ppo":
-            return sb3.PPO
+            return lambda *args, **kwargs: sb3.PPO(*args, **kwargs, device="cpu")
         elif self.algo_name == "sac":
             return lambda *args, **kwargs: sb3.SAC(
-                *args, **kwargs, buffer_size=self.buffer_size
+                *args, **kwargs, buffer_size=self.buffer_size, device="cpu"
             )
         elif self.algo_name == "td3":
             return lambda *args, **kwargs: sb3.TD3(
-                *args, **kwargs, buffer_size=self.buffer_size
+                *args, **kwargs, buffer_size=self.buffer_size, device="cpu"
             )
         elif self.algo_name == "ddpg":
             return lambda *args, **kwargs: sb3.DDPG(
-                *args, **kwargs, buffer_size=self.buffer_size
+                *args, **kwargs, buffer_size=self.buffer_size, device="cpu"
             )
         elif self.algo_name == "a2c":
-            return lambda *args, **kwargs: sb3.A2C(*args, **kwargs)
+            return lambda *args, **kwargs: sb3.A2C(*args, **kwargs, device="cpu")
         elif self.algo_name == "dqn":
             return lambda *args, **kwargs: sb3.DQN(
-                *args, **kwargs, buffer_size=self.buffer_size
+                *args, **kwargs, buffer_size=self.buffer_size, device="cpu"
             )
         else:
             raise ValueError(f"Unknown algorithm: {self.algo_name}")
 
 
-def _onnx_inputs(observation: Any, observation_space: gym.Space) -> dict[str, np.ndarray]:
+def _onnx_inputs(
+    observation: Any, observation_space: gym.Space
+) -> dict[str, np.ndarray]:
     """Batch one environment observation the way the exported graph expects it."""
     if isinstance(observation_space, gym.spaces.Dict):
         return {
@@ -244,6 +249,7 @@ def evaluate_onnx_policy(
             if episodes_completed < n_eval_episodes:
                 observation, _ = env.reset()
 
+
 def _action_in_exported_space(action: Any, exported_action_space: gym.Space) -> Any:
     """Return ``action`` as a point in ``exported_action_space``.
 
@@ -251,7 +257,9 @@ def _action_in_exported_space(action: Any, exported_action_space: gym.Space) -> 
     The exported graph emits the original dictionary. ``split_value`` restores
     that dictionary so both sides can be flattened the same way.
     """
-    if isinstance(exported_action_space, gym.spaces.Dict) and not isinstance(action, dict):
+    if isinstance(exported_action_space, gym.spaces.Dict) and not isinstance(
+        action, dict
+    ):
         return split_value(np.asarray(action), exported_action_space)
     return action
 
@@ -272,9 +280,7 @@ def check_onnx_matches_sb3(
     exported_action_space = (
         params.action_space if action_space is None else action_space
     )
-    env_cls = params.get_env_class(
-        record_actions=True, episode_length=episode_length
-    )
+    env_cls = params.get_env_class(record_actions=True, episode_length=episode_length)
     eval_env = make_vec_env(env_cls, 1)
     evaluate_policy(
         model,
@@ -316,7 +322,7 @@ def _assert_recorded_actions_match(
         )
         flat_onnx_action = gym.spaces.flatten(
             exported_action_space,
-           onnx_action,
+            onnx_action,
         )
         np.testing.assert_allclose(
             np.asarray(flat_sb3_action, dtype=np.float64),
@@ -325,13 +331,19 @@ def _assert_recorded_actions_match(
             atol=1e-4,
             err_msg=f"Action mismatch at step {step}",
         )
-        
+
+
 def make_all_combinations(alg_name):
     """Helper function to generate all combinations for an algorithm."""
     return [
         # Check different action spaces
         ONNXExportParams(alg_name, dict_obs_space, box_action_space),
-        ONNXExportParams(alg_name, dict_obs_space, offset_box_action_space, custom_id=f"{alg_name.upper()}(Dict, BoxWithOffset)"),
+        ONNXExportParams(
+            alg_name,
+            dict_obs_space,
+            offset_box_action_space,
+            custom_id=f"{alg_name.upper()}(Dict, BoxWithOffset)",
+        ),
         ONNXExportParams(alg_name, dict_obs_space, discrete_action_space),
         ONNXExportParams(alg_name, dict_obs_space, binary_action_space),
         ONNXExportParams(alg_name, dict_obs_space, multi_discrete_action_space),
@@ -436,6 +448,46 @@ class TestExportFunction:
 
 
 class TestExportScript:
+
+    def test_spaces_yaml_overrides_checkpoint_interface(
+        self, tmp_path, make_spaces_yaml
+    ):
+        env = make_vec_env(
+            ONNXExportParams("ppo", box_obs_space, box_action_space).get_env_class(),
+            2,
+            seed=1,
+        )
+        model = sb3.PPO("MlpPolicy", env, verbose=1, device="cpu")
+        checkpoint_path = tmp_path / "test.zip"
+        export_path = tmp_path / "test.onnx"
+        spaces_path = make_spaces_yaml("""
+            observation:
+              type: box
+              shape: [4]
+              dtype: float32
+            action:
+              type: box
+              shape: [3]
+              dtype: float32
+            """)
+        model.save(checkpoint_path)
+
+        export_onnx_app(
+            [
+                str(checkpoint_path),
+                str(export_path),
+                "--algorithm",
+                "PPO",
+                "--spaces-path",
+                str(spaces_path),
+            ],
+            result_action="return_value",
+            exit_on_error=False,
+        )
+
+        onnx_model = check_onnx_model_loads(export_path)
+        check_onnx_metadata(onnx_model, box_obs_space, box_action_space)
+        check_onnx_runtime(onnx_model, box_obs_space, box_action_space)
 
     @pytest.mark.parametrize(
         "export_params",
@@ -566,6 +618,4 @@ class TestExportScript:
             env.action_space,
             state_shapes=params.state_shapes,
         )
-        check_onnx_matches_sb3(
-            model, onnx_model, params, action_space=env.action_space
-        )
+        check_onnx_matches_sb3(model, onnx_model, params, action_space=env.action_space)

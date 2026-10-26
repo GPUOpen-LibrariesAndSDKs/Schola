@@ -4,6 +4,8 @@
 
 from concurrent import futures
 import itertools
+from pathlib import Path
+from textwrap import dedent
 from typing import Callable, List, cast
 from unittest.mock import MagicMock
 import grpc
@@ -21,6 +23,18 @@ from schola.core.simulators.base_simulator import BaseSimulator
 from schola.core.utils.dict_helpers import map_dict
 from schola.core.model import StateMetadata
 from schola.gym import env
+
+
+@pytest.fixture(scope="function")
+def make_spaces_yaml(tmp_path: Path):
+    """Write a model-space YAML file under ``tmp_path`` and return its path."""
+
+    def _make(yaml_text: str, name: str = "spaces.yaml") -> Path:
+        path = tmp_path / name
+        path.write_text(dedent(yaml_text).strip() + "\n", encoding="utf-8")
+        return path
+
+    return _make
 
 
 @pytest.fixture(scope="function")
@@ -322,7 +336,9 @@ def _check_inputs_have_valid_shape(
     graph_inputs = {inp.name: inp for inp in model.graph.input}
     for input_name, inp in graph_inputs.items():
         dims = inp.type.tensor_type.shape.dim
-        assert dims, f"Expected input '{input_name}' to have non-empty dimensions. Must have at least one dimension."
+        assert (
+            dims
+        ), f"Expected input '{input_name}' to have non-empty dimensions. Must have at least one dimension."
 
         batch_dim = dims[0]
         assert (

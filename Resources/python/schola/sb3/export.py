@@ -156,9 +156,12 @@ class SB3PPOModel(SB3ScholaModel[ActorCriticPolicy]):
     """
 
     def __init__(
-        self, policy: ActorCriticPolicy, action_space: gym.Space | None = None
+        self,
+        policy: ActorCriticPolicy,
+        observation_space: gym.Space | None = None,
+        action_space: gym.Space | None = None,
     ):
-        super().__init__(policy, action_space)
+        super().__init__(policy, observation_space, action_space)
 
     def get_logits(self, x):
         # discard the extracted features from the value function
@@ -225,8 +228,13 @@ class SB3SACModel(SB3ScholaModel[SACPolicy]):
     SB3ScholaModel
     """
 
-    def __init__(self, policy: SACPolicy, action_space: gym.Space | None = None):
-        super().__init__(policy, action_space)
+    def __init__(
+        self,
+        policy: SACPolicy,
+        observation_space: gym.Space | None = None,
+        action_space: gym.Space | None = None,
+    ):
+        super().__init__(policy, observation_space, action_space)
 
     def get_logits(self, x):
         x = self.policy.actor.extract_features(x, self.policy.actor.features_extractor)
@@ -256,8 +264,13 @@ class SB3TD3Model(SB3ScholaModel[TD3Policy]):
     SB3ScholaModel
     """
 
-    def __init__(self, policy: TD3Policy, action_space: gym.Space | None = None):
-        super().__init__(policy, action_space)
+    def __init__(
+        self,
+        policy: TD3Policy,
+        observation_space: gym.Space | None = None,
+        action_space: gym.Space | None = None,
+    ):
+        super().__init__(policy, observation_space, action_space)
 
     def get_logits(self, x):
         x = self.policy.actor.extract_features(x, self.policy.actor.features_extractor)

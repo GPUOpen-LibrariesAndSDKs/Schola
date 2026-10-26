@@ -701,8 +701,13 @@ class RllibScholaModel(ScholaModel):
             ),
         )
         self._policy = policy
+        # Old-stack policies hold the preprocessor's flattened Box; the Dict the
+        # model's forward consumes is kept on ``original_space``.
+        policy_observation_space = getattr(
+            policy.observation_space, "original_space", policy.observation_space
+        )
         self.policy_observation_space_is_dict = isinstance(
-            policy.observation_space, gym.spaces.Dict
+            policy_observation_space, gym.spaces.Dict
         )
         # for SAC the model.forward is a no-op, so we need to use the action model instead
         if isinstance(policy, SACTorchPolicy):

@@ -235,6 +235,23 @@ bool FBoxSpaceNormalizeObservationTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoxSpaceNormalizeObservationShapeTest, "Schola.Spaces.BoxSpace.Normalize Observation Shape Test", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FBoxSpaceNormalizeObservationShapeTest::RunTest(const FString& Parameters)
+{
+    FBoxSpace BoxSpace = FBoxSpace({ 0.0f, 0.0f, 0.0f, 0.0f }, { 1.0f, 1.0f, 1.0f, 1.0f }, { 2, 2 });
+
+    TArray<float> Values = { 0.f, 0.5f, 1.f, 0.25f };
+    FBoxPoint BoxPoint = FBoxPoint(Values, { 2, 2 });
+
+    FBoxPoint NormalizedBoxPoint = BoxSpace.NormalizeObservation(BoxPoint);
+
+    TestEqual(TEXT("NormalizedBoxPoint.Shape"), NormalizedBoxPoint.Shape, TArray<int>({ 2, 2 }));
+    TestEqual(TEXT("NormalizedBoxPoint.Values"), NormalizedBoxPoint.Values, TArray<float>({ 0.f, 0.5f, 1.f, 0.25f }));
+
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoxSpaceValidateSuccessTest, "Schola.Spaces.BoxSpace.Validate Success Test", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
 
 bool FBoxSpaceValidateSuccessTest::RunTest(const FString& Parameters)

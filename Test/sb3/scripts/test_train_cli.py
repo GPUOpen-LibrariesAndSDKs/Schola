@@ -120,6 +120,9 @@ def test_ppo_cli_default_args(mock_app, mock_main):
     assert args.algorithm_settings.vf_coef == 0.5
     assert args.algorithm_settings.target_kl is None
     assert args.environment_settings.seed is None
+    settings = args.training_settings.vecnormalize_settings
+    assert settings.vecnormalize_obs is False
+    assert settings.vecnormalize_reward is False
 
 
 def test_ppo_seed_argument(mock_app, mock_main):
@@ -594,6 +597,36 @@ def test_ppo_with_pbar(mock_app, mock_main):
     assert args.training_settings.pbar == True
 
 
+def test_ppo_with_vecnormalize(mock_app, mock_main):
+    """Prefixed VecNormalize flags parse onto the training settings object."""
+    command, bound, _ = mock_app.parse_args(
+        [
+            "ppo",
+            "--vecnormalize-obs",
+            "--vecnorm-clip-obs",
+            "5",
+            "--vecnorm-gamma",
+            "0.95",
+            "--vecnorm-epsilon",
+            "1e-6",
+            "--vecnorm-obs-keys",
+            "rgb",
+            "depth",
+        ],
+        exit_on_error=False,
+    )
+    command(*bound.args, **bound.kwargs)
+
+    settings = mock_main.call_args[0][0].training_settings.vecnormalize_settings
+    assert settings.vecnormalize_obs is True
+    assert settings.vecnormalize_reward is False
+    assert settings.enabled is True
+    assert settings.vecnorm_clip_obs == 5.0
+    assert settings.vecnorm_gamma == 0.95
+    assert settings.vecnorm_epsilon == 1e-6
+    assert settings.vecnorm_obs_keys == ["rgb", "depth"]
+
+
 def test_ppo_with_disable_eval(mock_app, mock_main):
     """Test that disable-eval flag is correctly parsed."""
 
@@ -679,3 +712,12 @@ def test_ppo_complex_scenario(mock_app, mock_main):
     assert args.logging_settings.enable_tensorboard == True
     assert args.checkpoint_settings.save_freq == 10000
     assert args.training_settings.pbar == True
+
+
+def test_sac_n_steps_defaults_to_one():
+    settings = SACTrainSettings()
+    assert settings.n_steps == 1
+
+
+def test_sac_accepts_batch_size_independent_of_n_steps():
+    SACTrainSettings(batch_size=100, buffer_size=10000, learning_starts=50)

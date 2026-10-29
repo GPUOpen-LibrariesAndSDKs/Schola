@@ -103,6 +103,32 @@ bool FProtobufBoxPointDeserializationTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProtobufBoxPointShapeDeserializationTest, "Schola.Protobuf.Deserialization.Points.BoxShape", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FProtobufBoxPointShapeDeserializationTest::RunTest(const FString& Parameters)
+{
+	Schola::Point InProto;
+	auto* BoxProto = InProto.mutable_box_point();
+	BoxProto->add_values(0.25f);
+	BoxProto->add_values(0.5f);
+	BoxProto->add_values(0.75f);
+	BoxProto->add_values(1.0f);
+	BoxProto->add_shape(2);
+	BoxProto->add_shape(2);
+
+	TInstancedStruct<FPoint> Out;
+	ProtobufDeserializer::FromProto(InProto, Out);
+
+	const FBoxPoint* Box = Out.GetPtr<FBoxPoint>();
+	TestTrue(TEXT("Box point deserialized as box_point"), Box != nullptr);
+	if (Box)
+	{
+		TestEqual(TEXT("Box shape is {2, 2}"), Box->Shape, TArray<int>({2, 2}));
+		TestEqual(TEXT("Box values count == 4"), Box->Values.Num(), 4);
+	}
+
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProtobufTextPointDeserializationTest, "Schola.Protobuf.Deserialization.Points.Text", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 bool FProtobufTextPointDeserializationTest::RunTest(const FString& Parameters)
 {

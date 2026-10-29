@@ -35,25 +35,25 @@ public:
 	UPROPERTY(EditAnywhere, meta = (EditCondition = "bHasPitch"), Category = "Actuator Settings")
 	FBoxSpaceDimension PitchBounds = FBoxSpaceDimension(-180, 180);
 
-	/** The Min/Max value for the Roll of the tracked rotation (rotation around X-axis) */
-	UPROPERTY(EditAnywhere, meta = (EditCondition = "bHasRoll"), Category = "Actuator Settings")
-	FBoxSpaceDimension RollBounds = FBoxSpaceDimension(-180, 180);
-
 	/** The Min/Max value for the Yaw of the tracked rotation (rotation around Z-axis) */
 	UPROPERTY(EditAnywhere, meta = (EditCondition = "bHasYaw"), Category = "Actuator Settings")
 	FBoxSpaceDimension YawBounds = FBoxSpaceDimension(-180, 180);
+
+	/** The Min/Max value for the Roll of the tracked rotation (rotation around X-axis) */
+	UPROPERTY(EditAnywhere, meta = (EditCondition = "bHasRoll"), Category = "Actuator Settings")
+	FBoxSpaceDimension RollBounds = FBoxSpaceDimension(-180, 180);
 
 	/** Toggle for whether this actuator rotates the Agent along the Pitch dimension */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Meta = (InlineEditConditionToggle), Category = "Actuator Settings")
 	bool bHasPitch = true;
 
-	/** Toggle for whether this actuator rotates the Agent along the Roll dimension */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Meta = (InlineEditConditionToggle), Category = "Actuator Settings")
-	bool bHasRoll = true;
-
 	/** Toggle for whether this actuator rotates the Agent along the Yaw dimension */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Meta = (InlineEditConditionToggle), Category = "Actuator Settings")
 	bool bHasYaw = true;
+
+	/** Toggle for whether this actuator rotates the Agent along the Roll dimension */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Meta = (InlineEditConditionToggle), Category = "Actuator Settings")
+	bool bHasRoll = true;
 
 	/** Type of teleportation to use. See SetActorLocation documentation for more details. */
 	UPROPERTY(EditAnywhere, Category = "Actuator Settings")

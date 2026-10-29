@@ -69,12 +69,11 @@ bool FRotationActuator_ConvertActionToFRotator_Raw_Test::RunTest(const FString& 
 	URotationActuator* Actuator = CreateRotationActuator(Owner);
 	Actuator->bNormalizeAndRescale = false;
 
-	// Implementation reads Pitch, then Roll, then Yaw from the BoxPoint.
 	FBoxPoint Action({12.f, 34.f, 56.f});
 	const FRotator R = Actuator->ConvertActionToFRotator(Action);
 	TestEqual(TEXT("Pitch"), static_cast<float>(R.Pitch), 12.f, 0.0001f);
-	TestEqual(TEXT("Yaw"), static_cast<float>(R.Yaw), 56.f, 0.0001f);
-	TestEqual(TEXT("Roll"), static_cast<float>(R.Roll), 34.f, 0.0001f);
+	TestEqual(TEXT("Yaw"), static_cast<float>(R.Yaw), 34.f, 0.0001f);
+	TestEqual(TEXT("Roll"), static_cast<float>(R.Roll), 56.f, 0.0001f);
 
 	return true;
 }
@@ -97,6 +96,47 @@ bool FRotationActuator_ConvertActionToFRotator_Rescaled_Test::RunTest(const FStr
 	TestEqual(TEXT("Midpoint of [0,100] from normalized 0.5"), static_cast<float>(R.Pitch), 50.f, 0.0001f);
 	TestEqual(TEXT("Yaw unused"), static_cast<float>(R.Yaw), 0.f, 0.0001f);
 	TestEqual(TEXT("Roll unused"), static_cast<float>(R.Roll), 0.f, 0.0001f);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRotationActuator_ConvertActionToFRotator_SpaceOrder_Test,
+	"Schola.Actuators.Rotation.ConvertActionToFRotator.SpaceOrder",
+	GScholaActuatorEditorTestFlags)
+
+bool FRotationActuator_ConvertActionToFRotator_SpaceOrder_Test::RunTest(const FString& Parameters)
+{
+	AActor* Owner = NewObject<AActor>(GetTransientPackage());
+	URotationActuator* Actuator = CreateRotationActuator(Owner);
+	Actuator->bNormalizeAndRescale = false;
+
+	const FBoxPoint Action({12.f, 34.f, 56.f});
+	const FRotator R = Actuator->ConvertActionToFRotator(Action);
+	TestEqual(TEXT("Pitch"), static_cast<float>(R.Pitch), 12.f, 0.0001f);
+	TestEqual(TEXT("Yaw"), static_cast<float>(R.Yaw), 34.f, 0.0001f);
+	TestEqual(TEXT("Roll"), static_cast<float>(R.Roll), 56.f, 0.0001f);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRotationActuator_ConvertActionToFRotator_SpaceOrderRescaled_Test,
+	"Schola.Actuators.Rotation.ConvertActionToFRotator.SpaceOrderRescaled",
+	GScholaActuatorEditorTestFlags)
+
+bool FRotationActuator_ConvertActionToFRotator_SpaceOrderRescaled_Test::RunTest(const FString& Parameters)
+{
+	AActor* Owner = NewObject<AActor>(GetTransientPackage());
+	URotationActuator* Actuator = CreateRotationActuator(Owner);
+	Actuator->bNormalizeAndRescale = true;
+	Actuator->PitchBounds = FBoxSpaceDimension(-10.f, 10.f);
+	Actuator->YawBounds = FBoxSpaceDimension(0.f, 100.f);
+	Actuator->RollBounds = FBoxSpaceDimension(-50.f, 50.f);
+
+	const FBoxPoint Action({0.f, 1.f, 0.f});
+	const FRotator R = Actuator->ConvertActionToFRotator(Action);
+	TestEqual(TEXT("Pitch rescaled from 0 on [-10,10]"), static_cast<float>(R.Pitch), -10.f, 0.0001f);
+	TestEqual(TEXT("Yaw rescaled from 1 on [0,100]"), static_cast<float>(R.Yaw), 100.f, 0.0001f);
+	TestEqual(TEXT("Roll rescaled from 0 on [-50,50]"), static_cast<float>(R.Roll), -50.f, 0.0001f);
 
 	return true;
 }

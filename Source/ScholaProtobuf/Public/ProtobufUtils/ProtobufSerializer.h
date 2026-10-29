@@ -59,10 +59,11 @@ public:
 	void operator()(const FDictPoint& Point) override
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("ScholaProtobuf: Serialize DictPoint");
+		// Set the oneof even when the map is empty. An unset oneof is reserved for an uninitialized point.
+		DictPoint* ConcretePoint = SerializedPointBuffer->mutable_dict_point();
 		for (const TPair<FString,TInstancedStruct<FPoint>>& Pair : Point.Points)
 		{
-			DictPoint* ConcretePoint = SerializedPointBuffer->mutable_dict_point();
-			Schola::Point&		ConcretePointEntry = (*ConcretePoint->mutable_values())[TCHAR_TO_UTF8(*(Pair.Key))];
+			Schola::Point& ConcretePointEntry = (*ConcretePoint->mutable_values())[TCHAR_TO_UTF8(*(Pair.Key))];
 			ProtobufPointSerializer NewSerializer = ProtobufPointSerializer(&ConcretePointEntry);
 			Pair.Value.Get<FPoint>().Accept(NewSerializer);
 		}

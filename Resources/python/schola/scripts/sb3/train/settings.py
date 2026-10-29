@@ -6,7 +6,10 @@ Cyclopts dataclasses for Stable-Baselines3 training with Schola (PPO, SAC, check
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
+
+if TYPE_CHECKING:
+    from stable_baselines3.common.vec_env import VecEnv, VecNormalize
 
 from schola.scripts.common.settings import (
     ActivationFunctionEnum,
@@ -48,12 +51,6 @@ class BaseSb3AlgorithmSettings:
         int, Parameter(validator=validators.Number(gte=1), alias="-b")
     ] = 64
     "Minibatch size for each update. This is the number of timesteps used in each batch for training the policy. Must be a divisor of `n_steps`."
-
-    def __post_init__(self):
-        if self.n_steps % self.batch_size != 0:
-            raise ValueError(
-                f"batch_size ({self.batch_size}) must divide n_steps ({self.n_steps})."
-            )
 
 
 @dataclass
@@ -104,7 +101,10 @@ class PPOTrainSettings(BaseSb3AlgorithmSettings, BasePPOSettings):
     "Approximate KL-divergence threshold used to early-stop the PPO update epoch loop when the policy moves too far from the rollout distribution. When set, SB3 stops the inner epoch loop as soon as the running approximate KL exceeds this value, which stabilizes training when ``train/approx_kl`` would otherwise blow past ``clip_range``. Typical values are 0.01-0.05. Leave as None to disable (SB3's default)."
 
     def __post_init__(self):
-        super().__post_init__()
+        if self.n_steps % self.batch_size != 0:
+            raise ValueError(
+                f"batch_size ({self.batch_size}) must divide n_steps ({self.n_steps})."
+            )
         if self.normalize_advantage and self.batch_size <= 1:
             raise ValueError(
                 "normalize_advantage=True requires batch_size > 1 to compute a valid variance."
@@ -125,6 +125,9 @@ class SACTrainSettings(BaseSb3AlgorithmSettings, BaseSACSettings):
         float, Parameter(validator=validators.Number(gt=0.0), alias="-l")
     ] = 0.0003
     "Learning rate for the optimizer. This controls how much to adjust the model parameters in response to the estimated error each time the model weights are updated. A lower value means slower learning, while a higher value means faster learning."
+
+    n_steps: Annotated[int, Parameter(validator=validators.Number(gte=1))] = 1
+    "Number of steps used for n-step returns when updating the Q-network. A value of 1 uses standard one-step returns, matching Stable Baselines3. Values greater than 1 store transitions in an n-step replay buffer. This is independent of `batch_size`."
 
     buffer_size: Annotated[int, Parameter(validator=validators.Number(gte=1))] = 1000000
     "Size of the replay buffer. This is the number of transitions (state, action, reward, next state) that can be stored in the buffer. A larger buffer allows for more diverse samples to be used for training, which can improve performance but also increases memory usage."
@@ -177,7 +180,6 @@ class SACTrainSettings(BaseSb3AlgorithmSettings, BaseSACSettings):
     "Frequency at which to sample the SDE noise. This determines how often the noise is sampled when using State Dependent Exploration (SDE). A value of -1 means that it will sample the noise at every step, while a positive integer will specify the number of steps between samples. This can help to control the exploration behavior of the agent. A higher frequency can lead to more diverse exploration, while a lower frequency may lead to more stable but less exploratory behavior."
 
     def __post_init__(self):
-        super().__post_init__()
         if self.batch_size > self.buffer_size:
             raise ValueError(
                 f"batch_size ({self.batch_size}) must be <= buffer_size ({self.buffer_size})."
@@ -341,6 +343,81 @@ class Sb3NetworkArchitectureSettings:
 
 
 @dataclass
+class Sb3VecNormalizeSettings:
+    """
+    Stable-Baselines3 ``VecNormalize`` options for an SB3 training run.
+
+    ``vecnormalize_*`` flags choose whether observations or rewards are
+    normalized. ``vecnorm_*`` fields are the wrapper parameters. Callers wrap
+    when either control flag is set, and prefer a wrapper loaded from
+    ``--load-vecnormalize`` when that load succeeds.
+    """
+
+    vecnormalize_obs: bool = False
+    "Normalize observations with a running mean and variance. Setting this or ``vecnormalize_reward`` wraps the environment."
+
+    vecnormalize_reward: bool = False
+    "Normalize rewards with a running estimate of their variance. Setting this or ``vecnormalize_obs`` wraps the environment."
+
+    vecnorm_clip_obs: Annotated[
+        float, Parameter(validator=validators.Number(gt=0.0))
+    ] = 10.0
+    "Clip normalized observations to this absolute value."
+
+    vecnorm_clip_reward: Annotated[
+        float, Parameter(validator=validators.Number(gt=0.0))
+    ] = 10.0
+    "Clip normalized rewards to this absolute value."
+
+    vecnorm_gamma: Annotated[
+        float, Parameter(validator=validators.Number(gte=0.0, lte=1.0))
+    ] = 0.99
+    "Discount factor used when normalizing rewards."
+
+    vecnorm_epsilon: Annotated[float, Parameter(validator=validators.Number(gt=0.0))] = (
+        1e-8
+    )
+    "Term added to the variance when normalizing, to avoid division by zero."
+
+    vecnorm_obs_keys: Annotated[list[str], Parameter(consume_multiple=True)] = (
+        field(default_factory=list)
+    )
+    "Dict observation keys to normalize. Leave empty to normalize every key."
+
+    @property
+    def enabled(self) -> bool:
+        return self.vecnormalize_obs or self.vecnormalize_reward
+
+    def make_wrapper(self, env: "VecEnv") -> "VecNormalize":
+        """
+        Wrap ``env`` in a new ``VecNormalize`` using these settings.
+
+        Parameters
+        ----------
+        env : VecEnv
+            Environment to wrap.
+
+        Returns
+        -------
+        VecNormalize
+            A fresh wrapper that updates its running statistics. Those statistics start at their defaults.
+        """
+        from stable_baselines3.common.vec_env import VecNormalize
+
+        return VecNormalize(
+            env,
+            training=True,
+            norm_obs=self.vecnormalize_obs,
+            norm_reward=self.vecnormalize_reward,
+            clip_obs=self.vecnorm_clip_obs,
+            clip_reward=self.vecnorm_clip_reward,
+            gamma=self.vecnorm_gamma,
+            epsilon=self.vecnorm_epsilon,
+            norm_obs_keys=self.vecnorm_obs_keys or None,
+        )
+
+
+@dataclass
 class Sb3TrainingSettings:
     """
     Top-level training run options for the SB3 launcher (mirrors RLlib's ``TrainingSettings`` grouping).
@@ -356,6 +433,12 @@ class Sb3TrainingSettings:
 
     disable_eval: bool = False
     "Whether to disable running evaluation after training. When set to True, it will skip evaluation after training completes."
+
+    vecnormalize_settings: Annotated[
+        Sb3VecNormalizeSettings,
+        Parameter(group="Training Arguments", name="*"),
+    ] = field(default_factory=Sb3VecNormalizeSettings)
+    "Stable-Baselines3 ``VecNormalize`` options. ``--vecnormalize-obs`` or ``--vecnormalize-reward`` wraps the environment."
 
 
 @dataclass

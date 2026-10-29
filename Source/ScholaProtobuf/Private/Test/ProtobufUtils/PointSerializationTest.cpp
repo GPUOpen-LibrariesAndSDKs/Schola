@@ -127,7 +127,7 @@ bool FProtobufTextPointSerializationTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProtobufDictPointSerializationTest, "Schola.Protobuf.Serialization.Points.Dict", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProtobufDictPointSerializationTest, "Schola.Protobuf.Serialization.Points.Dict.NonEmpty", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 bool FProtobufDictPointSerializationTest::RunTest(const FString& Parameters)
 {
 	// Create inner discrete point
@@ -159,6 +159,21 @@ bool FProtobufDictPointSerializationTest::RunTest(const FString& Parameters)
 			}
 		}
 	}
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProtobufEmptyDictPointSerializationTest, "Schola.Protobuf.Serialization.Points.Dict.Empty", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FProtobufEmptyDictPointSerializationTest::RunTest(const FString& Parameters)
+{
+	TInstancedStruct<FPoint> Inst;
+	Inst.InitializeAs<FDictPoint>();
+
+	Schola::Point OutProto;
+	ProtobufSerializer::ToProto(Inst, &OutProto);
+
+	TestTrue(TEXT("Empty dict point sets dict_point"), OutProto.has_dict_point());
+	TestEqual(TEXT("Empty dict point has no entries"), OutProto.dict_point().values_size(), 0);
 
 	return true;
 }

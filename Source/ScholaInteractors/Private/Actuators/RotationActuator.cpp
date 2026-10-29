@@ -64,21 +64,21 @@ FRotator URotationActuator::ConvertActionToFRotator(const FBoxPoint& Action)
 		}
 	}
 
-	if (bHasRoll)
-	{	
-		Roll = Action[Offset++];
-		if (bNormalizeAndRescale)
-		{
-			Roll = RollBounds.RescaleValue(Roll);
-		}
-	}
-
 	if (bHasYaw)
 	{
 		Yaw = Action[Offset++];
 		if (bNormalizeAndRescale)
 		{
 			Yaw = YawBounds.RescaleValue(Yaw);
+		}
+	}
+
+	if (bHasRoll)
+	{
+		Roll = Action[Offset++];
+		if (bNormalizeAndRescale)
+		{
+			Roll = RollBounds.RescaleValue(Roll);
 		}
 	}
 

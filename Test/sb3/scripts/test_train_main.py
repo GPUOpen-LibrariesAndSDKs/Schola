@@ -21,6 +21,7 @@ from schola.scripts.sb3.train.settings import (
     PPOTrainSettings,
     SACTrainSettings,
     Sb3CheckpointSettings,
+    Sb3VecNormalizeSettings,
     Sb3LoggingSettings,
     Sb3ResumeSettings,
     Sb3TrainScriptSettings,
@@ -103,6 +104,7 @@ def _train_args(
     load_vecnormalize: Path | None = None,
     load_replay_buffer: Path | None = None,
     pbar: bool = False,
+    vecnormalize: bool = False,
     algorithm_settings: PPOTrainSettings | SACTrainSettings | None = None,
     policy_kwargs_network: bool = False,
     env_options: dict[str, str] | None = None,
@@ -143,6 +145,10 @@ def _train_args(
             timesteps=timesteps,
             disable_eval=disable_eval,
             pbar=pbar,
+            vecnormalize_settings=Sb3VecNormalizeSettings(
+                vecnormalize_obs=vecnormalize,
+                vecnormalize_reward=vecnormalize,
+            ),
         ),
         logging_settings=logging_settings,
         resume_settings=resume_settings,
@@ -156,7 +162,6 @@ def _train_args(
         ),
         network_architecture_settings=net,
     )
-
 
 def _mock_vec_env():
     env = MagicMock()
@@ -301,6 +306,54 @@ def test_main_load_vecnormalize_on_resume(mock_ppo, mock_vec_cls, mock_vn, tmp_p
     main(args)
 
     mock_vn.load.assert_called_once()
+    mock_vn.assert_not_called()
+    assert mock_ppo.call_args.kwargs["env"] is mock_vn.load.return_value
+
+
+def test_vecnormalize_settings_make_wrapper_forwards_parameters():
+    settings = Sb3VecNormalizeSettings(
+        vecnormalize_obs=True,
+        vecnorm_clip_obs=5.0,
+        vecnorm_gamma=0.95,
+        vecnorm_obs_keys=["rgb"],
+    )
+    env = MagicMock()
+    with patch("stable_baselines3.common.vec_env.VecNormalize") as mock_vn:
+        wrapped = settings.make_wrapper(env)
+
+    mock_vn.assert_called_once_with(
+        env,
+        training=True,
+        norm_obs=True,
+        norm_reward=False,
+        clip_obs=5.0,
+        clip_reward=10.0,
+        gamma=0.95,
+        epsilon=1e-8,
+        norm_obs_keys=["rgb"],
+    )
+    assert wrapped is mock_vn.return_value
+
+
+@patch("stable_baselines3.common.vec_env.VecNormalize")
+@patch("schola.sb3.env.VecEnv")
+@patch("stable_baselines3.PPO")
+def test_main_vecnormalize_wraps_fresh_env(mock_ppo, mock_vec_cls, mock_vn, tmp_path):
+    mock_env = _mock_vec_env()
+    mock_vec_cls.return_value = mock_env
+    wrapped = MagicMock()
+    mock_vn.return_value = wrapped
+    mock_model = MagicMock()
+    mock_model.get_vec_normalize_env.return_value = None
+    mock_ppo.load.side_effect = Exception("x")
+    mock_ppo.return_value = mock_model
+
+    main(_train_args(tmp_path, timesteps=2, vecnormalize=True))
+
+    mock_vn.load.assert_not_called()
+    mock_vn.assert_called_once()
+    assert mock_ppo.call_args.kwargs["env"] is wrapped
+
 
 
 @patch("schola.sb3.env.VecEnv")

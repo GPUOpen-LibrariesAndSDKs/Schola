@@ -79,6 +79,18 @@ struct SCHOLA_API FBoxPoint : public FPoint
 	}
 
 	/**
+	 * @brief Construct a BoxPoint from raw value and shape arrays.
+	 * @param[in] Data The raw array of floats, as a const ptr.
+	 * @param[in] Num The number of float values.
+	 * @param[in] InShape The raw array of shape dimensions, as a const ptr.
+	 * @param[in] ShapeNum The number of shape dimensions.
+	 */
+	FBoxPoint(const float* Data, int Num, const int* InShape, int ShapeNum)
+		: Values(Data, Num), Shape(InShape, ShapeNum)
+	{
+	}
+
+	/**
 	 * @brief Constructs a preallocated BoxPoint with no initial values.
 	 * @param[in] NumDims The amount of memory to preallocate for values.
 	 */

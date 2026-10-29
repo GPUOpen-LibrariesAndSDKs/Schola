@@ -69,7 +69,7 @@ def get_activation_function(
     from torch import nn as nn
 
     if activation == ActivationFunctionEnum.ReLU:
-        return nn.ReLU6
+        return nn.ReLU
     elif activation == ActivationFunctionEnum.Sigmoid:
         return nn.Sigmoid
     elif activation == ActivationFunctionEnum.TanH:
@@ -114,7 +114,7 @@ class SingularExecutableSimulatorConfig(BaseSimulatorConfig["UnrealExecutable"])
     disable_script: bool = True
     "Flag indicating if the autolaunch script setting in the Unreal Engine Schola Plugin should be disabled. Useful for testing."
 
-    headless: Annotated[bool, Parameter(alias="-h")] = False
+    headless: bool = False
     "Flag indicating if the standalone Unreal Engine process should run in headless mode"
 
     map: str | None = None
@@ -190,7 +190,7 @@ class SingularProjectSimulatorConfig(BaseSimulatorConfig["UnrealExecutable"]):
     disable_script: bool = True
     "Flag indicating if the autolaunch script setting in the Unreal Engine Schola Plugin should be disabled. Useful for testing."
 
-    headless: Annotated[bool, Parameter(alias="-h")] = False
+    headless: bool = False
     "Flag indicating if the standalone Unreal Engine process should run in headless mode"
 
     map: str | None = None
@@ -448,6 +448,9 @@ class GrpcProtocolConfig:
         """
         Create N AsyncGrpcProtocol instances with the specified settings.
 
+        When ``port_offset_mode`` is ``fixed``, every instance uses ``port``.
+        Otherwise each instance uses ``port + index``.
+
         Returns
         -------
         List[AsyncGrpcProtocol]
@@ -458,9 +461,14 @@ class GrpcProtocolConfig:
         return [
             AsyncGrpcProtocol(
                 self.url,
-                protocol_port_for_index(self.port, i),
+                (
+                    self.port
+                    if self.port_offset_mode == PortOffsetMode.FIXED
+                    else protocol_port_for_index(self.port, i)
+                ),
                 self.environment_start_timeout,
                 credential_mode=self.credential_mode.value,
+                grpc_close_timeout=self.grpc_close_timeout,
             )
             for i in range(n)
         ]

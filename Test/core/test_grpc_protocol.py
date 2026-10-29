@@ -25,7 +25,9 @@ def test_send_reset_msg(monkeypatch):
     """Observations come back in environment-id order, including sparse map keys."""
     response = State()
     for env_id, value in ((0, 5), (1, 9)):
-        agent_state = response.initial_state.environment_states[env_id].agent_states["a"]
+        agent_state = response.initial_state.environment_states[env_id].agent_states[
+            "a"
+        ]
         agent_state.observations.discrete_point.value = value
 
     protocol = GrpcProtocol("localhost", 0)

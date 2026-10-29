@@ -1,4 +1,4 @@
-# Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
+# Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 """Tests for SB3 train script ``main()`` branches and ``warn_if_small_image_observation``."""
 
 from __future__ import annotations
@@ -163,6 +163,7 @@ def _train_args(
         network_architecture_settings=net,
     )
 
+
 def _mock_vec_env():
     env = MagicMock()
     env.num_envs = 1
@@ -196,6 +197,7 @@ def test_warn_if_small_image_nested_dict():
     with patch("schola.scripts.sb3.train.train.print_error") as mock_err:
         warn_if_small_image_observation(obs, threshold=64)
         mock_err.assert_called_once()
+
 
 @patch(
     "stable_baselines3.common.vec_env.vec_monitor.VecMonitor", side_effect=lambda e: e
@@ -353,7 +355,6 @@ def test_main_vecnormalize_wraps_fresh_env(mock_ppo, mock_vec_cls, mock_vn, tmp_
     mock_vn.load.assert_not_called()
     mock_vn.assert_called_once()
     assert mock_ppo.call_args.kwargs["env"] is wrapped
-
 
 
 @patch("schola.sb3.env.VecEnv")

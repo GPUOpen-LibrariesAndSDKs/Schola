@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Advanced Micro Devices, Inc. All Rights Reserved.
+// Copyright (c) 2024-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 #pragma once
 #include "Points/Point.h"
 #include "Points/MultiBinaryPoint.h"

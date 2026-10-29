@@ -1,4 +1,4 @@
-# Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
+# Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 # pyright: reportAny=false, reportUnknownVariableType=false, reportUnknownArgumentType=false, reportUnusedImport=false
 """Tests for the protobuf serialization"""
 
@@ -52,7 +52,7 @@ class TestDiscretePoint:
             5,
             9,
         ],
-        ids=["empty", "value","max_value"],
+        ids=["empty", "value", "max_value"],
     )
     def test_roundtrip(self, value: int):
         """An integer survives a proto roundtrip."""
@@ -166,6 +166,7 @@ class TestMultiBinarySpace:
         restored = from_proto(space_to_proto(space))
         assert restored == space
 
+
 class TestMultiDiscretePoint:
 
     def test_empty(self):
@@ -219,7 +220,7 @@ class TestMultiDiscreteSpace:
             proto, MultiDiscreteSpace
         ), "Serialized space should be MultiDiscreteSpace"
         assert len(proto.high) == 0, "MultiDiscreteSpace should have no high values"
-    
+
     @pytest.mark.skip(reason="MultiDiscrete nested shape is not supported")
     def test_nested_shape(self):
         """Test serialization of [[2, 2], [3, 3]] to MultiDiscreteSpace"""
@@ -270,17 +271,17 @@ class TestMultiDiscreteSpace:
         [
             MultiDiscrete([]),
             MultiDiscrete([2]),
-            #MultiDiscrete(np.array([[2, 2], [3, 3]], dtype=np.int64)), # not supported yet
+            # MultiDiscrete(np.array([[2, 2], [3, 3]], dtype=np.int64)), # not supported yet
             MultiDiscrete([2, 3, 4]),
-            #MultiDiscrete([2, 3, 4], start=[1, 2, 3]), # not supported yet
+            # MultiDiscrete([2, 3, 4], start=[1, 2, 3]), # not supported yet
         ],
         ids=[
-             "empty", 
-             "single_value",
-             # "nested_shape", # not supported yet
-             "simple_shape", 
-             # "start", # not supported yet
-            ],
+            "empty",
+            "single_value",
+            # "nested_shape", # not supported yet
+            "simple_shape",
+            # "start", # not supported yet
+        ],
     )
     def test_roundtrip(self, space: MultiDiscrete):
         """A MultiDiscrete space survives a proto roundtrip."""
@@ -530,9 +531,7 @@ class TestDictPoint:
         space = Dict(
             {
                 "a": Discrete(10),
-                "inner": Dict(
-                    {"b": Box(low=0, high=10, shape=(2,), dtype=np.float32)}
-                ),
+                "inner": Dict({"b": Box(low=0, high=10, shape=(2,), dtype=np.float32)}),
             }
         )
         point = to_proto(
@@ -640,9 +639,7 @@ class TestDictSpace:
         space = Dict(
             {
                 "a": Discrete(10),
-                "inner": Dict(
-                    {"b": Box(low=0, high=10, shape=(2,), dtype=np.float32)}
-                ),
+                "inner": Dict({"b": Box(low=0, high=10, shape=(2,), dtype=np.float32)}),
             }
         )
         proto = space_to_proto(space)
@@ -662,9 +659,9 @@ class TestDictSpace:
         assert (
             inner.spaces["b"].WhichOneof("space") == "box_space"
         ), "Nested DictSpace['b'] should be a BoxSpace"
-        assert (
-            list(inner.spaces["b"].box_space.shape_dimensions) == [2]
-        ), "Nested DictSpace['b'] shape should be [2]"
+        assert list(inner.spaces["b"].box_space.shape_dimensions) == [
+            2
+        ], "Nested DictSpace['b'] shape should be [2]"
 
     @pytest.mark.parametrize(
         "space",

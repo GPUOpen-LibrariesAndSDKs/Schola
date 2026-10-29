@@ -1,4 +1,4 @@
-# Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
+# Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 """Tests for the SB3 CLI"""
 
 import logging
@@ -72,7 +72,7 @@ def mock_app(mock_main):
     # mock the main method
     app = App(name="train", help="Train a model using StableBaselines3")
     logger = logging.getLogger(__name__)
-    
+
     class TestTrainSB3Command(MetaTrainSB3Command):
         @property
         def main_func(self):
@@ -81,7 +81,7 @@ def mock_app(mock_main):
         @property
         def script_args_type(self):
             return Sb3TrainScriptSettings
-        
+
     app = TestTrainSB3Command(app, logger).make()
     return app.meta
 
@@ -127,7 +127,9 @@ def test_ppo_cli_default_args(mock_app, mock_main):
 
 def test_ppo_seed_argument(mock_app, mock_main):
     """Test PPO command accepts --seed under Environment Arguments."""
-    command, bound, _ = mock_app.parse_args(["ppo", "--seed", "42"], exit_on_error=False)
+    command, bound, _ = mock_app.parse_args(
+        ["ppo", "--seed", "42"], exit_on_error=False
+    )
     command(*bound.args, **bound.kwargs)
 
     mock_main.assert_called_once()

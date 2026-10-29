@@ -62,7 +62,7 @@ class _FakeSimulator(BaseSimulator):
 
 
 def test_reset_int_seed_stays_non_negative():
-    """``reset(seed=2)``generates a large number that can overflow np.uint16 and cause 
+    """``reset(seed=2)``generates a large number that can overflow np.uint16 and cause
     a negative seed to be passed to a sub-environment.
     """
     protocol = _RecordingProtocol()

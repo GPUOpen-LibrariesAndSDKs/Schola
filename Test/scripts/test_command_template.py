@@ -45,10 +45,15 @@ class FakeAlgoBeta:
 
     beta_steps: Annotated[int, Parameter(validator=validators.Number(gte=1))] = 11
 
+
 @dataclass
 class FakeEnvironmentSettings(EnvironmentSettings[AllSimulatorConfigs]):
     """Fake environment settings for testing."""
-    simulator_settings: Annotated[AllSimulatorConfigs, IgnoreParameter] = field(default_factory=ExternalSimulatorConfig)
+
+    simulator_settings: Annotated[AllSimulatorConfigs, IgnoreParameter] = field(
+        default_factory=ExternalSimulatorConfig
+    )
+
 
 @dataclass
 class FakeScriptSettings:
@@ -63,6 +68,7 @@ class FakeScriptSettings:
     ] = field(default_factory=FakeAlgoAlpha)
 
     base_level_parameter: int = 1
+
 
 FULL_ALGORITHM_TABLE: Dict[str, Type[Any]] = {
     "alpha": FakeAlgoAlpha,
@@ -159,6 +165,7 @@ def no_alg_meta_app(mock_main: MagicMock):
     )
     built = cls(app, logger).make()
     return built.meta
+
 
 def test_yaml_split_meta_no_alg_config_handler():
     """Like ``make_train_config_handler``: only ``environment.simulator`` is removed; ``algorithm`` stays."""
@@ -598,9 +605,7 @@ def test_meta_alg_cli_algorithm_simulator_count_matrix(
     """Every count of algorithms (0 / 1 / 2+) × simulators (0 / 1 / 3) routes to ``main`` as expected."""
     exe = tmp_path / "FakeGame.exe"
     exe.write_bytes(b"")
-    resolved_cli = [
-        str(exe) if t == _EXE_PLACEHOLDER else t for t in case.cli_tokens
-    ]
+    resolved_cli = [str(exe) if t == _EXE_PLACEHOLDER else t for t in case.cli_tokens]
     meta = _build_meta_alg_app(
         mock_main,
         case.algorithm_keys,

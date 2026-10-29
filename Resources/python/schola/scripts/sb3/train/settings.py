@@ -1,4 +1,4 @@
-# Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
+# Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
 """
 Cyclopts dataclasses for Stable-Baselines3 training with Schola (PPO, SAC, checkpoints, resume).
@@ -374,13 +374,13 @@ class Sb3VecNormalizeSettings:
     ] = 0.99
     "Discount factor used when normalizing rewards."
 
-    vecnorm_epsilon: Annotated[float, Parameter(validator=validators.Number(gt=0.0))] = (
-        1e-8
-    )
+    vecnorm_epsilon: Annotated[
+        float, Parameter(validator=validators.Number(gt=0.0))
+    ] = 1e-8
     "Term added to the variance when normalizing, to avoid division by zero."
 
-    vecnorm_obs_keys: Annotated[list[str], Parameter(consume_multiple=True)] = (
-        field(default_factory=list)
+    vecnorm_obs_keys: Annotated[list[str], Parameter(consume_multiple=True)] = field(
+        default_factory=list
     )
     "Dict observation keys to normalize. Leave empty to normalize every key."
 

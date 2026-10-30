@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+// Copyright (c) 2023-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
 #include "Spaces/BoxSpace.h"
 
@@ -152,6 +152,10 @@ ESpaceValidationResult FBoxSpace::Validate(const TInstancedStruct<FPoint>& Point
 FBoxPoint FBoxSpace::NormalizeObservation(const FBoxPoint& Observation) const
 {
 	FBoxPoint OutObservation = FBoxPoint(this->GetFlattenedSize());
+	if (Shape.Num() > 0)
+	{
+		OutObservation.Shape = Shape;
+	}
 	// Use bounding box to normalize the observations, we can safely do so because it has already been validated
 	for (int i = 0; i < Dimensions.Num(); i++)
 	{

@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+// Copyright (c) 2023-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
 #include "Actuators/RotationActuator.h"
 #include "LogScholaInteractors.h"
@@ -64,21 +64,21 @@ FRotator URotationActuator::ConvertActionToFRotator(const FBoxPoint& Action)
 		}
 	}
 
-	if (bHasRoll)
-	{	
-		Roll = Action[Offset++];
-		if (bNormalizeAndRescale)
-		{
-			Roll = RollBounds.RescaleValue(Roll);
-		}
-	}
-
 	if (bHasYaw)
 	{
 		Yaw = Action[Offset++];
 		if (bNormalizeAndRescale)
 		{
 			Yaw = YawBounds.RescaleValue(Yaw);
+		}
+	}
+
+	if (bHasRoll)
+	{
+		Roll = Action[Offset++];
+		if (bNormalizeAndRescale)
+		{
+			Roll = RollBounds.RescaleValue(Roll);
 		}
 	}
 

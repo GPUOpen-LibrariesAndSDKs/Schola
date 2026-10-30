@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+# Copyright (c) 2023-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 """
 Async gRPC protocol for non-blocking connections to the gRPC server.
 """
@@ -41,8 +41,10 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
         port: int | None = None,
         environment_start_timeout: int | None = 45,
         credential_mode: Literal["local", "insecure"] = "local",
+        grpc_close_timeout: float = 5.0,
     ):
         super().__init__(url, port, environment_start_timeout, credential_mode)
+        self.grpc_close_timeout = grpc_close_timeout
         self.channel: grpc.aio.Channel | None = None
 
     async def close(self) -> None:
@@ -57,7 +59,9 @@ class AsyncGrpcProtocol(AsyncBaseRLProtocol, BaseGrpcProtocol):
                 state_update = state_updates.StateUpdate(
                     status=state_updates.CommunicatorStatus.CLOSED
                 )
-                await self.gym_stub.UpdateState(state_update)
+                await self.gym_stub.UpdateState(
+                    state_update, timeout=self.grpc_close_timeout
+                )
             except grpc.RpcError as e:
                 # Unreal may have already closed the connection, which is fine
                 logger.debug(

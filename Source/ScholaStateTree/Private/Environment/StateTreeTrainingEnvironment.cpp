@@ -583,12 +583,20 @@ void AStateTreeTrainingEnvironment::Step(const TMap<FString, FInstancedStruct>& 
 			}
 		}
 
-		// Cleanup
+		// Agents that exited this step still need a terminal state for RLlib.
 		for (const FString& DoneAgentId : PendingDoneAgents)
 		{
+			if (!EpisodeDoneAgents.Contains(DoneAgentId))
+			{
+				FAgentState& State = OutAgentStates.FindOrAdd(DoneAgentId);
+				State.bTerminated = true;
+				State.bTruncated = false;
+				EpisodeDoneAgents.Add(DoneAgentId);
+			}
 			ActiveAgents.Remove(DoneAgentId);
 			CurrentActions.Remove(DoneAgentId);
 		}
+		PendingDoneAgents.Empty();
 
 		UE_LOGFMT(LogScholaStateTree, Verbose, "AStateTreeTrainingEnvironment::Step(): Step {CurrentStep} - Episode ended, returning {NumAgents} agents", CurrentStep, OutAgentStates.Num());
 		return;
@@ -656,12 +664,20 @@ void AStateTreeTrainingEnvironment::Step(const TMap<FString, FInstancedStruct>& 
 		}
 	}
 
-	// Cleanup exiting tasks
+	// Agents that deactivated or unregistered this step are terminated once.
 	for (const FString& DoneAgentId : PendingDoneAgents)
 	{
+		if (!EpisodeDoneAgents.Contains(DoneAgentId))
+		{
+			FAgentState& State = OutAgentStates.FindOrAdd(DoneAgentId);
+			State.bTerminated = true;
+			State.bTruncated = false;
+			EpisodeDoneAgents.Add(DoneAgentId);
+		}
 		ActiveAgents.Remove(DoneAgentId);
 		CurrentActions.Remove(DoneAgentId);
 	}
+	PendingDoneAgents.Empty();
 
 	UE_LOGFMT(LogScholaStateTree, Verbose, "AStateTreeTrainingEnvironment::Step(): Step {CurrentStep} - Returning {NumAgents} agents", CurrentStep, OutAgentStates.Num());
 }

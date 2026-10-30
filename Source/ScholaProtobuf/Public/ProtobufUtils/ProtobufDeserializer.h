@@ -102,7 +102,11 @@ public:
 	void Deserialize(const Schola::BoxPoint& InBoxPoint) 
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("ScholaProtobuf: Deserialize BoxPoint");
-		DeserializedPoint.InitializeAs<FBoxPoint>(InBoxPoint.values().data(), InBoxPoint.values_size());
+		DeserializedPoint.InitializeAs<FBoxPoint>(
+			InBoxPoint.values().data(),
+			InBoxPoint.values_size(),
+			InBoxPoint.shape().data(),
+			InBoxPoint.shape_size());
 	};
 
 	/** Deserializes multi-discrete indices into FMultiDiscretePoint. */

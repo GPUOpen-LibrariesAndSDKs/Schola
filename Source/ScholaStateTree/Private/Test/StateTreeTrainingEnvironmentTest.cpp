@@ -160,4 +160,20 @@ bool FStateTreeTrainingEnvSpecialCharAgentIdTest::RunTest(const FString& Paramet
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStateTreeTrainingEnvDeactivatedAgentTerminatedTest, "Schola.StateTree.Environment.TrainingEnv.DeactivatedAgentTerminated", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+bool FStateTreeTrainingEnvDeactivatedAgentTerminatedTest::RunTest(const FString& Parameters)
+{
+	AStateTreeTrainingEnvironment* Env = NewObject<AStateTreeTrainingEnvironment>();
+
+	Env->ActivateAgent(TEXT("forward"));
+	TMap<FString, FAgentState> States;
+	States.Add(TEXT("forward"));
+	Env->DeactivateAgent(TEXT("forward"));
+	TMap<FString, FInstancedStruct> Actions;
+	Env->Step(Actions, States);
+	TestTrue(TEXT("Deactivated agent is present and terminated"), States.Contains(TEXT("forward")) && States[TEXT("forward")].bTerminated);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

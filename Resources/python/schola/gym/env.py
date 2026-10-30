@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Advanced Micro Devices, Inc. All Rights Reserved.
+# Copyright (c) 2024-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
 """
 Implementation of gym.vector.VectorEnv backed by a Schola Environment.
@@ -302,7 +302,7 @@ class GymVectorEnv(VectorEnv):
                 self._np_random = np.random.default_rng(self.seed_sequence.spawn(1)[0])
                 self._np_random_seed = seed
                 seed = [
-                    np.int32(x.generate_state(1)).item()
+                    np.int32(x.generate_state(1).astype(np.uint16)).item()
                     for x in self.seed_sequence.spawn(num_unreal_envs)
                 ]
             if isinstance(seed, list):

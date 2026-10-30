@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+# Copyright (c) 2023-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 """
 Base class for connections that use the gRPC server.
 """
@@ -121,9 +121,14 @@ class BaseGrpcProtocol(SocketProtocolMixin):
         state_update = state_updates.StateUpdate(step=state_updates.Step())
         state_update.status = state_updates.CommunicatorStatus.GOOD
 
-        for env_id in actions:
-            env_update = state_update.step.environments.add()
-            for agent_id, action in actions[env_id].items():
+        # allocate all the messages first, so we can index into the list later
+        # note that we don't support stepping only some of the environments via protobuf
+        for env_id in range(len(actions)):
+            state_update.step.environments.add()
+
+        for env_id, env_actions in actions.items():
+            env_update = state_update.step.environments[env_id]
+            for agent_id, action in env_actions.items():
                 fill_generic(
                     to_proto(action_space[agent_id], action),
                     env_update.updates[agent_id],

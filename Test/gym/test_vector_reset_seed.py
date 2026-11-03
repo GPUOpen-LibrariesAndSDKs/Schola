@@ -62,8 +62,11 @@ class _FakeSimulator(BaseSimulator):
 
 
 def test_reset_int_seed_stays_non_negative():
-    """``reset(seed=2)``generates a large number that can overflow np.uint16 and cause
-    a negative seed to be passed to a sub-environment.
+    """``reset(seed=2)`` derives sub-environment seeds that must stay non-negative.
+
+    SeedSequence state is a uint32. Values above ``2**31 - 1`` become negative
+    if stored in a signed int32 (the protobuf seed field). The reset path masks
+    to 31 bits, the same way the RLlib vector env does.
     """
     protocol = _RecordingProtocol()
     simulator = _FakeSimulator(type(protocol))

@@ -301,8 +301,11 @@ class GymVectorEnv(VectorEnv):
                 self.seed_sequence = np.random.SeedSequence(entropy=seed)
                 self._np_random = np.random.default_rng(self.seed_sequence.spawn(1)[0])
                 self._np_random_seed = seed
+                # Generate seeds and ensure they fit in int32 range
                 seed = [
-                    np.int32(x.generate_state(1).astype(np.uint16)).item()
+                    int(
+                        x.generate_state(1).item() & 0x7FFFFFFF
+                    )  # Mask to fit in signed int32
                     for x in self.seed_sequence.spawn(num_unreal_envs)
                 ]
             if isinstance(seed, list):

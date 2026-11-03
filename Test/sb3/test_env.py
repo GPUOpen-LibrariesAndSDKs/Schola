@@ -91,6 +91,23 @@ def make_stub_vec_env(stub_protocol_class, stub_simulator_class):
     return _factory
 
 
+def test_seed_none_stays_in_positive_int32(make_stub_vec_env):
+    """An omitted seed is a non-negative int32, and each slot offset stays in range."""
+    env = make_stub_vec_env()
+    int32_max = int(np.iinfo(np.int32).max)
+
+    for _ in range(32):
+        seeds = env.seed(None)
+        assert seeds == [seeds[0] + i for i in range(env.num_envs)]
+        assert all(0 <= value <= int32_max for value in seeds)
+
+
+def test_seed_explicit_value_is_offset_per_slot(make_stub_vec_env):
+    """A caller-supplied seed is forwarded as ``seed + index`` for each slot."""
+    env = make_stub_vec_env()
+    assert env.seed(7) == [7 + i for i in range(env.num_envs)]
+
+
 def test_set_options_then_reset_forwards_to_protocol(make_stub_vec_env):
     """After ``set_options(opts)``, the next ``reset()`` forwards the broadcast
     options list to ``protocol.send_reset_msg(options=...)``."""

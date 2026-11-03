@@ -261,6 +261,29 @@ class BaseVecEnv(Sb3VecEnv):
             "set_attr is not implemented for Schola environments, as sub-environments are not individually accessible."
         )
 
+    def seed(self, seed: int | None = None) -> list[int]:
+        """
+        Set the seeds sent on the next reset.
+
+        Parameters
+        ----------
+        seed : int or None, default None
+            Base seed. When ``None``, a non-negative ``int32`` is sampled.
+            The draw stops short of ``2**31 - 1`` by ``num_envs`` so that
+            ``seed + index`` still fits in the protobuf ``int32`` seed field.
+
+        Returns
+        -------
+        list of int
+            Seed for each flattened environment slot, equal to ``seed + index``.
+        """
+        if seed is None:
+            upper = int(np.iinfo(np.int32).max) - self.num_envs + 1
+            seed = int(np.random.randint(0, upper))
+        seeds = [int(seed) + idx for idx in range(self.num_envs)]
+        self._seeds = seeds  # type: ignore
+        return seeds
+
 
 class VecEnv(BaseVecEnv):
     """

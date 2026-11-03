@@ -305,13 +305,6 @@ class AsyncVecEnv(BaseVecEnv):
         for sim in self.simulators:
             sim.stop()
 
-    def seed(self, seed: int | None = None) -> list[int]:
-        if seed is None:
-            seed = int(np.random.randint(0, np.iinfo(np.uint32).max, dtype=np.uint32))
-        seeds = [int(seed + i) for i in range(self.num_envs)]
-        self._seeds = seeds  # type: ignore
-        return seeds
-
     def set_options(
         self, options: list[dict[str, Any]] | dict[str, Any] | None = None
     ) -> None:

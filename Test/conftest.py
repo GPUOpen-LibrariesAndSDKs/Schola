@@ -353,6 +353,9 @@ def check_onnx_metadata(
 
     ``metadata`` is keyed by input name, then by metadata property key. When
     ``metadata`` is ``None``, the embedded-metadata comparison is skipped.
+
+    Each state-input field must also appear on the model metadata as
+    ``{input_name}.{field}``. Matching ``state_out`` names are not copied there.
     """
     if state_shapes is None:
         state_shapes = {}
@@ -380,6 +383,7 @@ def check_onnx_metadata(
     if metadata is None:
         return
 
+    model_metadata = {prop.key: prop.value for prop in model.metadata_props}
     found_metadata = 0
     for inp in model.graph.input:
         if inp.name in metadata:
@@ -394,6 +398,11 @@ def check_onnx_metadata(
             assert found_metadata_key == len(
                 inp_metadata
             ), f"Expected to find {len(inp_metadata)} metadata keys for {inp.name}. Found {found_metadata_key}"
+            for key, value in inp_metadata.items():
+                global_key = f"{inp.name}.{key}"
+                assert (
+                    model_metadata.get(global_key) == value
+                ), f"Global metadata {global_key} should be {value!r}"
             found_metadata += 1
     assert found_metadata == len(
         metadata

@@ -398,7 +398,8 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
         The model has the following properties:
         - Inputs are named based on they key in the observation space.
         - Outputs are named based on they key in the action space.
-        - State Inputs have metadata that contains the sequence dimension and max sequence length if they have a sequence dimension.
+        - State inputs have metadata that contains the sequence dimension and max sequence length if they have a sequence dimension.
+        - Those same fields are copied onto the model metadata as ``{state_input_name}.{field}`` (for example ``state_in_actor_h.has_seq_dim``).
 
         Parameters
         ----------
@@ -487,12 +488,14 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
 
             ir_passes: Any = ir.passes
             ir_passes.common.shape_inference.infer_shapes(onnx_program.model)
-            # Embed state metadata on each state input's doc_string
+            # Embed state metadata on each state input, and copy those fields
+            # onto the model metadata as "{input_name}.{field}".
             for inp in onnx_program.model.graph.inputs:
                 if inp.name in self.input_state_metadata:
-                    inp.metadata_props.update(
-                        self.input_state_metadata[inp.name].to_dict()
-                    )
+                    props = self.input_state_metadata[inp.name].to_dict()
+                    inp.metadata_props.update(props)
+                    for key, value in props.items():
+                        onnx_program.model.metadata_props[f"{inp.name}.{key}"] = value
             return onnx_program
 
     def save_as_onnx(

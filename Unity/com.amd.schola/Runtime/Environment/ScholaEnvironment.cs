@@ -14,7 +14,7 @@ namespace AMD.Schola
     public sealed class ScholaEnvironment : MonoBehaviour, IEnvironment
     {
         /// <summary>
-        /// Agent-id key Unreal's single-agent adapter injects. Unused by US3 tests; reserved for US4.
+        /// Agent-id key <see cref="SingleAgentEnvironmentAdapter"/> injects. Matches Unreal.
         /// </summary>
         public const string DefaultAgentId = "SingleAgent";
 

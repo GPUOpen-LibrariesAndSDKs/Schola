@@ -97,6 +97,12 @@ namespace AMD.Schola.Tests.Environment
 
             public List<InitialAgentState> InitialStates { get; } = new List<InitialAgentState>();
 
+            public List<IReadOnlyDictionary<string, AgentState>> StateMaps { get; } =
+                new List<IReadOnlyDictionary<string, AgentState>>();
+
+            public List<IReadOnlyDictionary<string, InitialAgentState>> InitialStateMaps { get; } =
+                new List<IReadOnlyDictionary<string, InitialAgentState>>();
+
             public void SubmitState(AgentState state)
             {
                 States.Add(state);
@@ -105,6 +111,16 @@ namespace AMD.Schola.Tests.Environment
             public void SubmitInitialState(InitialAgentState state)
             {
                 InitialStates.Add(state);
+            }
+
+            public void SubmitStates(IReadOnlyDictionary<string, AgentState> states)
+            {
+                StateMaps.Add(states);
+            }
+
+            public void SubmitInitialStates(IReadOnlyDictionary<string, InitialAgentState> states)
+            {
+                InitialStateMaps.Add(states);
             }
         }
 

@@ -1,22 +1,30 @@
 # Copyright (c) 2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
-from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import numpy as np
-import onnx_ir as ir
 import pytest
 import torch as th
 from gymnasium.spaces import Box, Dict
 from lerobot.configs.types import FeatureType, NormalizationMode, PolicyFeature
 from lerobot.policies.act.configuration_act import ACTConfig
+from lerobot.policies.act.modeling_act import ACTPolicy
 from lerobot.processor.normalize_processor import (
     NormalizerProcessorStep,
     UnnormalizerProcessorStep,
 )
 from lerobot_env_schola.export import LeRobotACTScholaModule
-from lerobot_env_schola.export.act import action_chunking_metadata
+from lerobot_env_schola.export.action_processors import (
+    ACTProcessor,
+    TemporalEnsembleProcessor,
+)
 from lerobot_env_schola.export.export import check_observations_cover_features
+from Test.conftest import (
+    ExpectedActionChunking,
+    check_onnx_metadata,
+    check_onnx_model_loads,
+    check_onnx_runtime,
+)
 
 
 @pytest.fixture
@@ -61,6 +69,8 @@ def make_act_module():
         normalizers: (
             tuple[NormalizerProcessorStep, UnnormalizerProcessorStep] | None
         ) = None,
+        config: ACTConfig | None = None,
+        action_processor: str | None = None,
     ) -> tuple[LeRobotACTScholaModule, MagicMock]:
         if observation_space is None:
             observation_space = Dict(
@@ -71,6 +81,10 @@ def make_act_module():
         )
         policy = MagicMock()
         policy.eval.return_value = policy
+        if config is None:
+            chunk_size = chunk.shape[1] if chunk is not None else 4
+            config = ACTConfig(chunk_size=chunk_size, n_action_steps=chunk_size)
+        policy.config = config
         if chunk is not None:
             policy.predict_action_chunk.return_value = chunk
         normalizer, unnormalizer = normalizers or (None, None)
@@ -81,6 +95,7 @@ def make_act_module():
                 action_space,
                 normalizer=normalizer,
                 unnormalizer=unnormalizer,
+                action_processor=action_processor,
             ),
             policy,
         )
@@ -92,10 +107,53 @@ def test_act_module_returns_full_chunk(make_act_module):
     chunk = th.arange(24, dtype=th.float32).reshape(2, 4, 3)
     model, policy = make_act_module(state_dim=2, action_dim=3, chunk=chunk)
     assert not model.is_stateful
-    (out,) = model.forward(th.zeros(2, 2))
+    out, _ = model.forward(th.zeros(2, 2))
     th.testing.assert_close(out, chunk)
     batch = policy.predict_action_chunk.call_args.args[0]
     assert list(batch) == ["observation.state"]
+
+
+def test_act_module_returns_n_action_steps_of_chunk(make_act_module):
+    chunk = th.arange(12, dtype=th.float32).reshape(1, 4, 3)
+    model, _ = make_act_module(
+        state_dim=2,
+        action_dim=3,
+        chunk=chunk,
+        config=ACTConfig(chunk_size=4, n_action_steps=2),
+    )
+    assert isinstance(model.action_processor, ACTProcessor)
+    assert model.output_names == ["action", "action_processor.ACTActionProcessor"]
+    out, _ = model.forward(th.zeros(1, 2))
+    th.testing.assert_close(out, chunk[:, :2])
+
+
+def test_temporal_ensemble_returns_full_chunk_and_coeff(make_act_module):
+    chunk = th.arange(12, dtype=th.float32).reshape(1, 4, 3)
+    model, _ = make_act_module(
+        state_dim=2,
+        action_dim=3,
+        chunk=chunk,
+        config=ACTConfig(chunk_size=4, n_action_steps=1, temporal_ensemble_coeff=0.5),
+    )
+    assert isinstance(model.action_processor, TemporalEnsembleProcessor)
+    assert model.output_names == [
+        "action",
+        "temporal_ensemble_coeff",
+        "action_processor.TemporalEnsembleActionProcessor",
+    ]
+    out, coeff, _ = model.forward(th.zeros(1, 2))
+    th.testing.assert_close(out, chunk)
+    th.testing.assert_close(coeff, th.tensor([0.5]))
+
+
+def test_act_module_rejects_outputs_not_matching_extra_output_names(
+    make_act_module, monkeypatch
+):
+    chunk = th.arange(12, dtype=th.float32).reshape(1, 4, 3)
+    model, _ = make_act_module(state_dim=2, action_dim=3, chunk=chunk)
+    monkeypatch.setattr(ACTProcessor, "forward", lambda self, chunk: (chunk, chunk))
+    with pytest.raises(ValueError, match="ACTProcessor returned 2 outputs, expected"):
+        model.forward(th.zeros(1, 2))
 
 
 def test_act_module_maps_model_input_names_to_lerobot_batch_keys(make_act_module):
@@ -168,7 +226,7 @@ def test_act_module_applies_lerobot_mean_std(make_act_module, make_normalizers):
         "observation.state": state,
         "observation.environment_state": env,
     }
-    (action,) = model.forward(*(values[key] for key in model.input_obs_keys))
+    action, _ = model.forward(*(values[key] for key in model.input_obs_keys))
     seen = policy.predict_action_chunk.call_args.args[0]
     th.testing.assert_close(
         seen["observation.state"],
@@ -215,7 +273,7 @@ def test_act_module_applies_lerobot_range_normalization(
         ),
     )
 
-    (action,) = model.forward(th.tensor([[4.0]]))
+    action, _ = model.forward(th.tensor([[4.0]]))
     seen = policy.predict_action_chunk.call_args.args[0]
     th.testing.assert_close(seen["observation.state"], th.zeros(1, 1))
     th.testing.assert_close(action, th.tensor([[[4.0]]]))
@@ -245,55 +303,99 @@ def test_act_module_scales_uint8_images_to_unit_range(make_act_module):
     th.testing.assert_close(batch["observation.state"], inputs["state"])
 
 
+ACT_EXPORT_OBSERVATION_SPACE = Dict(
+    {
+        "state": Box(-1, 1, shape=(2,), dtype=np.float32),
+        "environment_state": Box(-1, 1, shape=(3,), dtype=np.float32),
+    }
+)
+ACT_EXPORT_ACTION_SPACE = Dict(
+    {"action": Box(-np.inf, np.inf, shape=(3,), dtype=np.float32)}
+)
+
+
+def make_tiny_act_policy(**config_kwargs) -> ACTPolicy:
+    """A small untrained ACT policy over ``ACT_EXPORT_*_SPACE`` that exports in seconds."""
+    config = ACTConfig(
+        input_features={
+            "observation.state": PolicyFeature(type=FeatureType.STATE, shape=(2,)),
+            "observation.environment_state": PolicyFeature(
+                type=FeatureType.ENV, shape=(3,)
+            ),
+        },
+        output_features={
+            "action": PolicyFeature(type=FeatureType.ACTION, shape=(3,))
+        },
+        chunk_size=4,
+        dim_model=16,
+        n_heads=2,
+        dim_feedforward=32,
+        n_encoder_layers=1,
+        n_decoder_layers=1,
+        use_vae=False,
+        device="cpu",
+        **config_kwargs,
+    )
+    return ACTPolicy(config)
+
+
 @pytest.mark.parametrize(
-    ("config", "expected"),
+    ("config_kwargs", "action_processor", "expected_chunking"),
     [
         pytest.param(
-            ACTConfig(),
-            {
-                "schola.action_chunking.chunk_mode": "queue",
-                "schola.action_chunking.num_action_steps": "100",
-            },
-            id="default-queue",
+            {"n_action_steps": 2},
+            None,
+            ExpectedActionChunking(processor="ACTActionProcessor", chunk_size=2),
+            id="act",
         ),
         pytest.param(
-            ACTConfig(chunk_size=50, n_action_steps=20),
-            {
-                "schola.action_chunking.chunk_mode": "queue",
-                "schola.action_chunking.num_action_steps": "20",
-            },
-            id="partial-queue",
-        ),
-        pytest.param(
-            ACTConfig(n_action_steps=1, temporal_ensemble_coeff=0.01),
-            {
-                "schola.action_chunking.chunk_mode": "temporal_ensemble",
-                "schola.action_chunking.temporal_ensemble_coeff": "0.01",
-            },
+            {"n_action_steps": 1, "temporal_ensemble_coeff": 0.01},
+            None,
+            ExpectedActionChunking(
+                processor="TemporalEnsembleActionProcessor",
+                chunk_size=4,
+                extra_outputs={
+                    "temporal_ensemble_coeff": np.array([0.01], dtype=np.float32)
+                },
+            ),
             id="temporal-ensemble",
+        ),
+        pytest.param(
+            {"n_action_steps": 1, "temporal_ensemble_coeff": 0.01},
+            "act",
+            ExpectedActionChunking(processor="ACTActionProcessor", chunk_size=1),
+            id="act-named-over-ensemble-config",
         ),
     ],
 )
-def test_action_chunking_metadata_matches_act_config(config, expected):
-    assert action_chunking_metadata(config) == expected
-
-
-def test_act_export_writes_action_chunking_metadata(make_act_module, monkeypatch):
-    # A real th.onnx.export imports this as a side effect; the stub below does not
-    import onnx_ir.passes.common  # noqa: F401
-
-    model, policy = make_act_module(state_dim=2, action_dim=3)
-    policy.config = ACTConfig(chunk_size=50, n_action_steps=20)
-    empty_model = ir.Model(ir.Graph([], [], nodes=[]), ir_version=10)
-    monkeypatch.setattr(
-        th.onnx, "export", lambda *args, **kwargs: SimpleNamespace(model=empty_model)
+def test_act_export_passes_onnx_checks(
+    tmp_path, config_kwargs, action_processor, expected_chunking
+):
+    model = LeRobotACTScholaModule(
+        make_tiny_act_policy(**config_kwargs),
+        ACT_EXPORT_OBSERVATION_SPACE,
+        ACT_EXPORT_ACTION_SPACE,
+        action_processor=action_processor,
     )
+    model.save_as_onnx(tmp_path / "act.onnx")
 
-    onnx_program = model.export_onnx_program()
-
-    assert onnx_program.model.metadata_props == action_chunking_metadata(
-        policy.config
+    onnx_model = check_onnx_model_loads(tmp_path / "act.onnx")
+    check_onnx_metadata(
+        onnx_model,
+        ACT_EXPORT_OBSERVATION_SPACE,
+        ACT_EXPORT_ACTION_SPACE,
+        action_chunking=expected_chunking,
+        batch_size=1,
     )
+    check_onnx_runtime(
+        onnx_model,
+        ACT_EXPORT_OBSERVATION_SPACE,
+        ACT_EXPORT_ACTION_SPACE,
+        num_samples=4,
+        action_chunking=expected_chunking,
+        batch_size=1,
+    )
+    assert not onnx_model.metadata_props
 
 
 POLICY_INPUT_FEATURES = {

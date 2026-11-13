@@ -8,7 +8,6 @@ import gymnasium as gym
 import numpy as np
 import onnx_ir as ir
 import torch as th
-from lerobot.policies.act.configuration_act import ACTConfig
 from lerobot.policies.act.modeling_act import ACTPolicy
 from lerobot.processor import TransitionKey, create_transition
 from lerobot.processor.normalize_processor import (
@@ -18,6 +17,7 @@ from lerobot.processor.normalize_processor import (
 from schola.core.model import ScholaModel, fix_slice_nodes_for_onnx
 
 from ..feature_mapping import is_image_policy_key
+from .action_processors import make_action_processor
 
 
 def _lerobot_observation_key(model_input_name: str) -> str:
@@ -27,35 +27,15 @@ def _lerobot_observation_key(model_input_name: str) -> str:
     return f"observation.{model_input_name}"
 
 
-def action_chunking_metadata(config: ACTConfig) -> dict[str, str]:
-    """
-    Describe how each predicted chunk should be played, as ONNX ``metadata_props``.
-
-    The keys mirror Unreal's ``FActionChunkerSettings``. A ``temporal_ensemble_coeff``
-    selects the temporal ensemble; otherwise ``n_action_steps`` actions are played
-    from each chunk before predicting again.
-    """
-    if config.temporal_ensemble_coeff is not None:
-        return {
-            "schola.action_chunking.chunk_mode": "temporal_ensemble",
-            "schola.action_chunking.temporal_ensemble_coeff": str(
-                config.temporal_ensemble_coeff
-            ),
-        }
-    return {
-        "schola.action_chunking.chunk_mode": "queue",
-        "schola.action_chunking.num_action_steps": str(config.n_action_steps),
-    }
-
-
 class LeRobotACTScholaModule(ScholaModel):
     """
     Expose an ACT policy through Schola's named ONNX tensor contract.
 
-    The graph is stateless and outputs the whole action chunk
-    ``[batch, chunk_size, action_dim]``. Executing the chunk (action queue or
-    temporal ensemble) is left to the runtime; the exported model records the
-    policy's playback settings in its metadata (see ``action_chunking_metadata``).
+    The graph is stateless. How the predicted chunks are played is decided here, at export:
+    the action processor named by ``action_processor`` (see ``action_processors``) shapes the
+    exported outputs and adds a marker output naming itself, and Unreal's ``UNNEPolicy`` creates
+    the processor that marker names, with no setting of its own. ``None`` uses the processor
+    that is the default for the policy's config.
 
     ``uint8`` image inputs are scaled to ``[0, 1]`` float, matching the
     conversion LeRobot policies see during training.
@@ -68,6 +48,7 @@ class LeRobotACTScholaModule(ScholaModel):
         action_space: gym.Space,
         normalizer: NormalizerProcessorStep | None = None,
         unnormalizer: UnnormalizerProcessorStep | None = None,
+        action_processor: str | None = None,
     ):
         super().__init__(
             observation_space=observation_space,
@@ -77,6 +58,7 @@ class LeRobotACTScholaModule(ScholaModel):
         self.policy.eval()
         self.normalizer = normalizer
         self.unnormalizer = unnormalizer
+        self.action_processor = make_action_processor(policy.config, action_processor)
         self._uint8_image_keys = frozenset(
             key
             for key in self.input_obs_keys
@@ -101,14 +83,32 @@ class LeRobotACTScholaModule(ScholaModel):
         transition = self.unnormalizer(create_transition(action=action))
         return transition[TransitionKey.ACTION]
 
+    @property
+    def output_names(self) -> list[str]:
+        """Names of the exported outputs, in ``forward`` order."""
+        return [
+            *self.output_action_keys,
+            *self.action_processor.extra_output_names,
+            self.action_processor.marker_output_name,
+        ]
+
     def forward(self, *args: th.Tensor) -> tuple[th.Tensor, ...]:
         """Normalize observations, predict an ACT action chunk, and restore action units."""
         batch = {
             _lerobot_observation_key(key): self._to_policy_input(key, value)
             for key, value in zip(self.input_obs_keys, args, strict=True)
         }
-        chunk = self.policy.predict_action_chunk(self._normalize(batch))
-        return (self._unnormalize_action(chunk),)
+        chunk = self._unnormalize_action(
+            self.policy.predict_action_chunk(self._normalize(batch))
+        )
+        outputs = self.action_processor(chunk)
+        expected = 1 + len(self.action_processor.extra_output_names)
+        if len(outputs) != expected:
+            raise ValueError(
+                f"{type(self.action_processor).__name__} returned {len(outputs)} outputs, expected "
+                f"the action and one per name in extra_output_names, {expected} in total."
+            )
+        return (*outputs, self.action_processor.marker)
 
     def export_onnx_program(self, onnx_opset: int = 21) -> th.onnx.ONNXProgram:
         """
@@ -127,7 +127,7 @@ class LeRobotACTScholaModule(ScholaModel):
                 self,
                 args=example_inputs,
                 input_names=self.input_obs_keys,
-                output_names=self.output_action_keys,
+                output_names=self.output_names,
                 opset_version=onnx_opset,
                 dynamo=True,
                 report=False,
@@ -137,7 +137,4 @@ class LeRobotACTScholaModule(ScholaModel):
         assert onnx_program is not None
         fix_slice_nodes_for_onnx(onnx_program.model)
         ir.passes.common.shape_inference.infer_shapes(onnx_program.model)
-        onnx_program.model.metadata_props.update(
-            action_chunking_metadata(self.policy.config)
-        )
         return onnx_program

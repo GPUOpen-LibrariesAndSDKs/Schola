@@ -42,7 +42,7 @@ def export(
     policy_checkpoint_path: types.ExistingFile,
     output_path: types.File,
     algorithm: AlgorithmIdentifier,
-    spaces_path: types.ExistingFile | None = None,
+    spaces_path: types.ExistingYamlPath | None = None,
 ):
     """
     Export a SB3 policy to ONNX format.
@@ -54,7 +54,7 @@ def export(
         The path to save the ONNX model to.
     algorithm : AlgorithmIdentifier
         The SB3 algorithm used to train the policy being loaded.
-    spaces_path : types.ExistingFile, optional
+    spaces_path : types.ExistingYamlPath, optional
         YAML model-space configuration used instead of checkpoint spaces.
     """
     configure_logging(logging.INFO)

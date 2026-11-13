@@ -13,6 +13,7 @@ def export(
     policy_pretrained_path: str,
     output_path: types.File,
     spaces_path: types.ExistingFile,
+    action_processor: str | None = None,
 ):
     """
     Convert a pretrained ACT policy to ONNX.
@@ -25,6 +26,10 @@ def export(
         Destination ``.onnx`` file.
     spaces_path : path
         YAML file describing ONNX observation and action tensors.
+    action_processor : str, optional
+        Name of the action processor that sets how Unreal plays each predicted action
+        chunk, one of those registered in ``lerobot_env_schola.export.action_processors``.
+        Defaults to the processor matching the policy's config.
     """
     from lerobot_env_schola.export import convert_pretrained_to_onnx
 
@@ -32,6 +37,7 @@ def export(
         pretrained_path=str(policy_pretrained_path),
         export_path=str(output_path),
         spaces_path=str(spaces_path),
+        action_processor=action_processor,
     )
 
 

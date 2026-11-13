@@ -132,10 +132,9 @@ def _(
         )
 
 
-@export_onnx_from_policy.register(str)
-@export_onnx_from_policy.register(pathlib.Path)
+@export_onnx_from_policy.register
 def _(
-    arg: str | pathlib.Path,
+    arg: str,
     path: pathlib.Path,
     observation_space: gym.Space[Any] | dict[str, gym.Space[Any]] | None = None,
     action_space: gym.Space[Any] | dict[str, gym.Space[Any]] | None = None,
@@ -168,7 +167,19 @@ def _(
         export_onnx_from_policy(policies, path, observation_spaces, action_spaces)
 
 
-def _load_checkpoint_policies(checkpoint: str | pathlib.Path) -> Any:
+@export_onnx_from_policy.register
+def _(
+    arg: pathlib.Path,
+    path: pathlib.Path,
+    observation_space: gym.Space[Any] | dict[str, gym.Space[Any]] | None = None,
+    action_space: gym.Space[Any] | dict[str, gym.Space[Any]] | None = None,
+):
+    return export_onnx_from_policy(
+        str(arg), path, observation_space, action_space
+    )
+
+
+def _load_checkpoint_policies(checkpoint: str) -> Any:
     """Load a new API stack ``MultiRLModule``, or old API stack policies."""
     try:
         module_dir = rl_module_dir_from_algorithm_checkpoint(pathlib.Path(checkpoint))

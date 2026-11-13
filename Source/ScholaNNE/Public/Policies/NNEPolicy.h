@@ -10,7 +10,7 @@
 #include "NNEUtils/NNEWrappers.h"
 #include "NNEUtils/NNEBuffer.h"
 #include "Policies/PolicyInterface.h"
-#include "Policies/ActionChunker.h"
+#include "Policies/ActionProcessor.h"
 #include "Policies/NNEPolicyState.h"
 #include <atomic>
 #include "NNEPolicy.generated.h"
@@ -23,8 +23,10 @@
  * Supports both CPU and GPU inference runtimes.
  *
  * Models whose action output holds several actions per inference, such as LeRobot ACT
- * with output [1, chunk_size, action_dim], are detected in Init. Each Think then plays
- * one action from the chunk as configured by ActionChunking.
+ * with output [1, chunk_size, action_dim], are detected in Init. Such a model names its
+ * ActionProcessor in an output called FActionProcessor::MarkerOutputPrefix followed by the processor's
+ * struct name without its F, e.g. action_processor.ACTActionProcessor, and Init fails without one. Each state gets a copy of the
+ * processor that turns that agent's chunks into one action per Think.
  *
  * @note Text spaces (FTextSpace) are not yet supported for NNE inference. Supported spaces are
  * Box, Discrete, MultiDiscrete, MultiBinary, and Dict (and nested combinations thereof).
@@ -52,9 +54,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ExposeOnSpawn = true, ClampMin = 1), Category = "Policy Properties")
 	int MaxStateSequenceLength = 1;
 
-	/** How a model that predicts action chunks, such as ACT, plays each chunk. Ignored for other models. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Policy Properties")
-	FActionChunkerSettings ActionChunking;
+	/** @return The processor Init created from the model's outputs, see ActionProcessor */
+	const TInstancedStruct<FActionProcessor>& GetActionProcessor() const { return this->ActionProcessor; }
 
 	/** Actions the model predicts per inference, found in Init. 1 for models that predict a single action. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, AdvancedDisplay, Category = "Policy Properties")
@@ -123,7 +124,7 @@ public:
 	/**
 	 * @brief Creates a zeroed UNNEPolicyState matching the model's state tensors
 	 *
-	 * For models that predict action chunks, the state's ActionChunker is also set up to hold the chunk being played.
+	 * For models that predict action chunks, the state also gets its own copy of ActionProcessor.
 	 *
 	 * @param[out] OutState Receives the new state, with no buffers if the model is stateless
 	 * @return true if the state was created, false if the policy is not initialized
@@ -151,8 +152,8 @@ public:
 	 * into the state, so the state only changes on success. Stateless models use a
 	 * UNNEPolicyState with no buffers.
 	 *
-	 * For models that predict action chunks, inference only runs when the state's chunk
-	 * needs a new prediction, and OutActions is the next action from the chunk.
+	 * For models that predict action chunks, inference only runs when the state's action
+	 * processor needs a new chunk, and OutActions is the action the processor plays this step.
 	 *
 	 * @param[in] InObservations The observation point to process
 	 * @param[in,out] InOutState The recurrent state from the previous step, advanced in place to the next state
@@ -224,7 +225,7 @@ protected:
 	/**
 	 * @brief Checks that a state object was created by this policy for the current model
 	 * @param[in] InState The state to check
-	 * @return true if InState has one buffer per model state tensor, with the same shape, state size and buffer size, and an ActionChunker sized for this model's action chunk
+	 * @return true if InState has one buffer per model state tensor, with the same shape, state size and buffer size, and, for a chunked model, an action processor of the same type and chunk layout as ActionProcessor
 	 */
 	bool IsStateCompatible(const UNNEPolicyState& InState) const;
 	/**
@@ -248,11 +249,25 @@ protected:
 	bool InitNonStateBindings(const FInteractionDefinition& InDefinition);
 
 	/**
-	 * @brief Detects an action output that holds several actions and binds it to ActionChunkBuffer
+	 * @brief Creates the ActionProcessor the model's outputs ask for, which turns the model's output into one action per Think
+	 *
+	 * Models that predict one action need no processor. For a model whose action output holds several actions,
+	 * the output is bound to ActionChunkBuffer, FActionProcessor::CreateForModel creates the processor the model names,
+	 * and BindExtraOutputs binds the other outputs it reads.
+	 *
 	 * @param[in] InModelInstance The model instance whose output tensors are checked
-	 * @return true if the outputs match the action space, false if an action output is not a whole number of actions
+	 * @return true if the outputs match the action space, false if an action output is not a whole number of actions,
+	 * the model does not name exactly one struct derived from FActionProcessor, the processor rejects the chunk layout,
+	 * or an output the processor reads is missing or not a fixed-shape float tensor
 	 */
-	bool InitActionChunking(TSharedPtr<IModelInstanceRunSync> InModelInstance);
+	bool InitActionProcessing(TSharedPtr<IModelInstanceRunSync> InModelInstance);
+
+	/**
+	 * @brief Binds each output the ActionProcessor's GetExtraOutputNames() lists to ExtraOutputBuffers, in that order
+	 * @param[in] OutputTensorDescs The model's output tensors
+	 * @return true if the model has every listed output as a float tensor with a fixed shape
+	 */
+	bool BindExtraOutputs(TConstArrayView<UE::NNE::FTensorDesc> OutputTensorDescs);
 
 	/**
 	 * @brief Sets up all buffers and bindings for the policy
@@ -264,6 +279,14 @@ protected:
 
 	
 private:
+	/**
+	 * How a model that predicts action chunks, such as ACT, turns each chunk into one action per step.
+	 * The exported model decides it: Init creates it from the model's outputs and copies it into each state.
+	 * Empty for models that predict one action.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient, AdvancedDisplay, Category = "Policy Properties", meta = (AllowPrivateAccess = "true"))
+	TInstancedStruct<FActionProcessor> ActionProcessor;
+
 	/** The runtime interface used for neural network inference */
 	TUniquePtr<IRuntimeInterface> Runtime;
 
@@ -290,6 +313,12 @@ private:
 
 	/** Model output of a chunked model, [chunk_size, action_dim], bound in place of the action buffer */
 	TArray<float> ActionChunkBuffer;
+
+	/** Outputs of a chunked model that the ActionProcessor reads, in the order of its GetExtraOutputNames() */
+	TArray<TArray<float>> ExtraOutputBuffers;
+
+	/** Views of ExtraOutputBuffers, passed to the ActionProcessor with each new chunk */
+	TArray<TConstArrayView<float>> ExtraOutputViews;
 
 	/** The memory in ActionBuffer that the chunked output was bound to, which receives one action from the chunk each step. Empty if the model is not chunked */
 	TArrayView<float> ChunkedAction;

@@ -120,6 +120,25 @@ def test_load_model_spaces_flattens_deep_implicit_dicts(make_spaces_yaml):
     assert observation_space["robot.joints"].shape == (6,)
 
 
+def test_load_model_spaces_allows_space_named_type(make_spaces_yaml):
+    path = make_spaces_yaml("""
+        observation:
+          type:
+            type: box
+            shape: [2]
+            dtype: float32
+        action:
+          type: box
+          shape: [1]
+          dtype: float32
+        """)
+
+    observation_space, _ = load_model_spaces(path)
+
+    assert list(observation_space.spaces) == ["type"]
+    assert observation_space["type"].shape == (2,)
+
+
 def test_load_model_spaces_names_root_leaves_obs_and_action(make_spaces_yaml):
     path = make_spaces_yaml("""
         observation:
@@ -150,6 +169,50 @@ def test_load_model_spaces_rejects_unknown_space_type(make_spaces_yaml):
           dtype: float32
         """)
     with pytest.raises(ValueError, match="unsupported space type"):
+        load_model_spaces(path)
+
+
+def test_load_model_spaces_reports_missing_leaf_fields(make_spaces_yaml):
+    path = make_spaces_yaml("""
+        observation:
+          camera:
+            type: box
+            shape: [3, 32, 32]
+        action:
+          type: box
+          shape: [1]
+          dtype: float32
+        """)
+
+    with pytest.raises(
+        ValueError,
+        match=r"camera: expected 'box' leaf fields .*missing \['dtype'\]",
+    ):
+        load_model_spaces(path)
+
+
+def test_load_model_spaces_rejects_mixed_leaf_and_intermediate_node(
+    make_spaces_yaml,
+):
+    path = make_spaces_yaml("""
+        observation:
+          type: box
+          shape: [2]
+          dtype: float32
+          camera:
+            type: box
+            shape: [3, 32, 32]
+            dtype: float32
+        action:
+          type: box
+          shape: [1]
+          dtype: float32
+        """)
+
+    with pytest.raises(
+        ValueError,
+        match=r"obs: expected 'box' leaf fields .*unexpected \['camera'\]",
+    ):
         load_model_spaces(path)
 
 

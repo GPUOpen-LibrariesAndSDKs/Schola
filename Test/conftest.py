@@ -322,17 +322,53 @@ def gym_id_and_wrappers(request):
     return env_id, wrappers
 
 
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from gymnasium.vector.utils import batch_space, concatenate, create_empty_array
 import onnx
 import onnxruntime as ort
 
+ACTION_PROCESSOR_MARKER_PREFIX = "action_processor."
+"""Start of the output whose name tells Unreal which C++ action processor plays the model's chunks."""
+
+
+@dataclass(frozen=True)
+class ExpectedActionChunking:
+    """The action-chunking outputs expected in an export that predicts action chunks.
+
+    ``processor`` is the C++ processor struct the marker output names, without its ``F``.
+    Each action output holds ``chunk_size`` actions. ``extra_outputs`` maps every other
+    output the processor reads to its expected value.
+    """
+
+    processor: str
+    chunk_size: int
+    extra_outputs: Mapping[str, np.ndarray] = field(default_factory=dict)
+
+    @property
+    def marker_output_name(self) -> str:
+        return f"{ACTION_PROCESSOR_MARKER_PREFIX}{self.processor}"
+
+    @property
+    def output_names(self) -> set[str]:
+        """Names of the outputs that are not actions or states."""
+        return {*self.extra_outputs, self.marker_output_name}
+
+
+def _tensor_dims(value_info: onnx.ValueInfoProto) -> list[int | str]:
+    return [
+        dim.dim_value if dim.HasField("dim_value") else dim.dim_param
+        for dim in value_info.type.tensor_type.shape.dim
+    ]
+
 
 def _check_inputs_have_valid_shape(
     model: onnx.ModelProto,
+    batch_size: int | None = None,
 ) -> None:
-    """Require every exported input to support dynamic batching."""
+    """Require every exported input to have a dynamic batch dimension, or ``batch_size`` if set."""
     graph_inputs = {inp.name: inp for inp in model.graph.input}
     for input_name, inp in graph_inputs.items():
         dims = inp.type.tensor_type.shape.dim
@@ -341,9 +377,44 @@ def _check_inputs_have_valid_shape(
         ), f"Expected input '{input_name}' to have non-empty dimensions. Must have at least one dimension."
 
         batch_dim = dims[0]
+        if batch_size is None:
+            assert (
+                not batch_dim.dim_value and batch_dim.dim_param
+            ), f"Expected input '{input_name}' to have a dynamic batch dimension. Got {batch_dim}"
+        else:
+            assert (
+                batch_dim.dim_value == batch_size
+            ), f"Expected input '{input_name}' to have a fixed batch size of {batch_size}. Got {batch_dim}"
+
+
+def _check_action_chunking_outputs(
+    model: onnx.ModelProto,
+    action_space: gym.spaces.Dict,
+    action_chunking: ExpectedActionChunking | None,
+) -> None:
+    """Require the marker and extra outputs of ``action_chunking``, or no marker if it is ``None``."""
+    output_dims = {output.name: _tensor_dims(output) for output in model.graph.output}
+    markers = [
+        name for name in output_dims if name.startswith(ACTION_PROCESSOR_MARKER_PREFIX)
+    ]
+    if action_chunking is None:
         assert (
-            not batch_dim.dim_value and batch_dim.dim_param
-        ), f"Expected input '{input_name}' to have a dynamic batch dimension. Got {batch_dim}"
+            not markers
+        ), f"Expected no action processor output for a model without action chunks. Got {markers}"
+        return
+
+    assert markers == [
+        action_chunking.marker_output_name
+    ], f"Expected one action processor output named '{action_chunking.marker_output_name}'. Got {markers}"
+    for action_name, space in action_space.spaces.items():
+        expected = [action_chunking.chunk_size, *space.shape]
+        assert (
+            output_dims[action_name][1:] == expected
+        ), f"Expected action output '{action_name}' to have shape [batch, {', '.join(map(str, expected))}]. Got {output_dims[action_name]}"
+    for name, value in action_chunking.extra_outputs.items():
+        assert output_dims[name] == list(
+            np.shape(value)
+        ), f"Expected output '{name}' to have shape {list(np.shape(value))}. Got {output_dims[name]}"
 
 
 def check_onnx_model_loads(model_path) -> onnx.ModelProto:
@@ -364,11 +435,17 @@ def check_onnx_metadata(
     action_space,
     state_shapes: Dict[str, Tuple[int, ...]] | None = None,
     metadata: Dict[str, Dict[str, str]] | None = None,
+    action_chunking: ExpectedActionChunking | None = None,
+    batch_size: int | None = None,
 ) -> None:
     """Check graph input and output names, shapes, and embedded metadata.
 
     ``metadata`` is keyed by input name, then by metadata property key. When
     ``metadata`` is ``None``, the embedded-metadata comparison is skipped.
+
+    ``action_chunking`` describes the action-chunking outputs of a model that predicts
+    action chunks. When it is ``None``, the model must not have any. ``batch_size`` is the
+    fixed batch size of every input, or ``None`` when inputs must have a dynamic batch dimension.
     """
     if state_shapes is None:
         state_shapes = {}
@@ -388,10 +465,16 @@ def check_onnx_metadata(
     assert (
         set(input_names) == expected_input_names
     ), "Input names should be the keys of the observation space or state inputs"
-    assert set(output_names) == set(action_space.spaces.keys()) | {
+    _check_action_chunking_outputs(model, action_space, action_chunking)
+    expected_output_names = set(action_space.spaces.keys()) | {
         f"state_out_{k}" for k in state_shapes.keys()
-    }, "Output names should be the keys of the action space or 'state_out'"
-    _check_inputs_have_valid_shape(model)
+    }
+    if action_chunking is not None:
+        expected_output_names |= action_chunking.output_names
+    assert (
+        set(output_names) == expected_output_names
+    ), "Output names should be the keys of the action space, 'state_out', or the action-chunking outputs"
+    _check_inputs_have_valid_shape(model, batch_size)
 
     if metadata is None:
         return
@@ -548,12 +631,18 @@ def check_onnx_runtime(
     action_space,
     state_shapes: Dict[str, Tuple[int, ...]] | None = None,
     num_samples: int = 32,
+    action_chunking: ExpectedActionChunking | None = None,
+    batch_size: int | None = None,
 ) -> None:
     """Run inference on fake samples and check that the outputs match the spaces.
 
     ``num_samples`` is the number of inputs to draw. Edge cases from
     ``make_fake_space_samples`` are always included, so the batch can be longer
     than ``num_samples``.
+
+    With ``action_chunking``, every action of each chunk must be in the action space and
+    each extra output must hold its expected value. A model with a fixed ``batch_size``
+    is run that many samples at a time.
     """
     if state_shapes is None:
         state_shapes = {}
@@ -562,34 +651,65 @@ def check_onnx_runtime(
         observation_space = gym.spaces.Dict({"obs": observation_space})
 
     input_data = make_fake_space_samples(observation_space, num_samples)
-    batch_size = _sample_batch_size(input_data)
+    num_rows = _sample_batch_size(input_data)
+    run_size = num_rows if batch_size is None else batch_size
+    assert (
+        num_rows % run_size == 0
+    ), f"Expected the {num_rows} samples to split into runs of {run_size}"
 
     if not isinstance(action_space, gym.spaces.Dict):
         action_space = gym.spaces.Dict({"action": action_space})
 
-    action_space = cast(gym.spaces.Dict, batch_space(action_space, n=batch_size))
+    chunk_size = 1 if action_chunking is None else action_chunking.chunk_size
+    action_space = cast(
+        gym.spaces.Dict, batch_space(action_space, n=num_rows * chunk_size)
+    )
 
     output_names = [output.name for output in model.graph.output]
+    chunking_output_names = (
+        set() if action_chunking is None else action_chunking.output_names
+    )
 
     # no-op if state_shapes is empty
     for k, v in state_shapes.items():
-        input_data[f"state_in_{k}"] = np.random.rand(batch_size, *v).astype(
+        input_data[f"state_in_{k}"] = np.random.rand(num_rows, *v).astype(
             np.float32
         )
 
     ort_sess = ort.InferenceSession(model.SerializeToString())
-    outputs = ort_sess.run(None, input_data)
+    runs = [
+        ort_sess.run(
+            None, {k: v[start : start + run_size] for k, v in input_data.items()}
+        )
+        for start in range(0, num_rows, run_size)
+    ]
+    outputs_by_name = {
+        name: [run[i] for run in runs] for i, name in enumerate(output_names)
+    }
 
+    if action_chunking is not None:
+        for name, expected in action_chunking.extra_outputs.items():
+            for value in outputs_by_name[name]:
+                np.testing.assert_allclose(
+                    value, expected, err_msg=f"Expected output '{name}' to hold {expected}"
+                )
+
+    batched_outputs = {
+        name: np.concatenate(values)
+        for name, values in outputs_by_name.items()
+        if name not in chunking_output_names
+    }
     output_states = {
-        k: v for k, v in zip(output_names, outputs) if k.startswith("state_out_")
+        k: v for k, v in batched_outputs.items() if k.startswith("state_out_")
     }
     output_actions = {
-        k: v
-        for k, v in zip(output_names, outputs)
-        if not k.startswith("state_out_")
+        k: v for k, v in batched_outputs.items() if not k.startswith("state_out_")
     }
 
     for action_name, action in output_actions.items():
+        if action_chunking is not None:
+            # [rows, chunk_size, *action_shape] -> one row per action of every chunk
+            action = action.reshape(-1, *action.shape[2:])
         assert action_space.spaces[action_name].contains(
             action
         ), f"Expected Action '{action_name}' to be in action space. Got {action}"
@@ -599,6 +719,6 @@ def check_onnx_runtime(
     }, f"Expected output states to be the keys of the state shapes. Got {output_states.keys()} != {state_shapes.keys()}"
     for state_name, state in output_states.items():
         assert state.shape == (
-            batch_size,
+            num_rows,
             *state_shapes[state_name[len("state_out_") :]],
         ), f"Expected output state '{state_name}' to have shape {state_shapes[state_name[len('state_out_'):]]}. Got {state.shape}"

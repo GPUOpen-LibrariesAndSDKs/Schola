@@ -4,8 +4,9 @@
 
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
+#include "StructUtils/InstancedStruct.h"
 #include "NNEUtils/NNEBuffer.h"
-#include "Policies/ActionChunker.h"
+#include "Policies/ActionProcessor.h"
 #include "Policies/PolicyStateInterface.h"
 #include "NNEPolicyState.generated.h"
 
@@ -14,7 +15,7 @@
  *
  * Holds one buffer per state tensor pair in the model (inputs named state_in*, outputs
  * named state_out*), in the order they appear in the model. For models that predict
- * action chunks, such as ACT, also holds the chunk being played in ActionChunker.
+ * action chunks, also holds this agent's copy of the policy's action processor.
  * Created by UNNEPolicy::CreateInitialState.
  */
 UCLASS(BlueprintType)
@@ -27,31 +28,34 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Policy Data")
 	TArray<FNNEStateBuffer> Buffers;
 
-	/** Action-chunk queue or temporal ensemble. Not bound to NNE tensors. Empty unless the model predicts action chunks. */
+	/** Plays this agent's action chunks. Not bound to NNE tensors. Empty unless the model predicts action chunks. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Policy Data")
-	FActionChunker ActionChunker;
+	TInstancedStruct<FActionProcessor> ActionProcessor;
 
-	/** Zeroes every state buffer and the action chunk, matching the state at the start of an episode. */
+	/** Zeroes every state buffer and resets the action processor, matching the state at the start of an episode. */
 	void Reset() override
 	{
 		for (FNNEStateBuffer& Buffer : Buffers)
 		{
 			Buffer.Reset();
 		}
-		ActionChunker.Reset();
+		if (FActionProcessor* Processor = ActionProcessor.GetMutablePtr())
+		{
+			Processor->Reset();
+		}
 	}
 
 	/**
-	 * @brief Copies the buffers and action chunk of another UNNEPolicyState into this one in place.
+	 * @brief Copies the buffers and action processor of another UNNEPolicyState into this one in place.
 	 *
 	 * The buffers are never reallocated, since UNNEPolicy binds the model tensors to them.
 	 * @param[in] Other The state to copy from.
-	 * @return True if Other is a UNNEPolicyState with the same buffer sizes and chunk layout, false otherwise.
+	 * @return True if Other is a UNNEPolicyState with the same buffer sizes and action processor layout, false otherwise.
 	 */
 	bool CopyFrom(const IPolicyState& Other) override
 	{
 		const UNNEPolicyState* OtherState = Cast<UNNEPolicyState>(Other._getUObject());
-		if (!OtherState || OtherState->Buffers.Num() != Buffers.Num() || !ActionChunker.HasSameLayout(OtherState->ActionChunker))
+		if (!OtherState || OtherState->Buffers.Num() != Buffers.Num() || !FActionProcessor::IsSameLayout(ActionProcessor, OtherState->ActionProcessor))
 		{
 			return false;
 		}
@@ -66,7 +70,7 @@ public:
 		{
 			FMemory::Memcpy(Buffers[i].StateBuffer.GetData(), OtherState->Buffers[i].StateBuffer.GetData(), Buffers[i].StateBuffer.Num() * sizeof(float));
 		}
-		return ActionChunker.CopyFrom(OtherState->ActionChunker);
+		return FActionProcessor::CopyInPlace(ActionProcessor, OtherState->ActionProcessor);
 	}
 
 	/**

@@ -21,7 +21,7 @@ export_onnx_app = App(
 def export(
     policy_checkpoint_path: types.ExistingDirectory,
     output_path: types.Directory | None = None,
-    spaces_path: types.ExistingFile | None = None,
+    spaces_path: types.ExistingYamlPath | None = None,
 ):
     """
     Export an RLlib Algorithm Checkpoint to Schola ONNX format.
@@ -32,7 +32,7 @@ def export(
         The path to the RLlib Algorithm Checkpoint.
     output_path : types.Directory | None
         The path to save the ONNX model to. If not provided, the model will be saved in the same directory as the checkpoint.
-    spaces_path : types.ExistingFile, optional
+    spaces_path : types.ExistingYamlPath, optional
         YAML model-space configuration used instead of checkpoint spaces,
         either shared by every policy or keyed by policy ID (only listed
         policies are exported).

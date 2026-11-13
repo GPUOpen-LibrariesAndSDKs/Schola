@@ -101,10 +101,11 @@ state, two cameras, and a continuous action vector. Save it as
 That produces these ONNX names:
 
 * inputs: ``state``, ``images.wrist``, ``images.front``
-* output: ``action`` with shape ``[1, chunk_size, 6]`` (the whole action chunk)
+* outputs: ``action`` with shape ``[1, n_action_steps, 6]`` (the actions played from each chunk),
+  and ``action_processor.ACTActionProcessor``, which tells Unreal how to play them
 
 The YAML ``action`` describes a single action. The chunk dimension comes from
-the policy's ``chunk_size``.
+the policy, see `What the ONNX Graph Contains`_.
 
 Copy shapes and dtypes from the policy's ``config.json``. Inputs use the
 corresponding LeRobot features that ``predict_action_chunk`` expects, except that
@@ -133,6 +134,9 @@ For example, after training an ACT policy locally:
        Content/Schola/Models/act_so101.onnx \
        spaces.yaml
 
+Add ``--action-processor act`` or ``--action-processor temporal_ensemble`` to choose how Unreal
+plays the action chunks, see `What the ONNX Graph Contains`_.
+
 The same conversion is available in Python:
 
 .. code-block:: python
@@ -143,6 +147,7 @@ The same conversion is available in Python:
        pretrained_path="outputs/train/act_so101/checkpoints/last/pretrained_model",
        export_path="Content/Schola/Models/act_so101.onnx",
        spaces_path="spaces.yaml",
+       action_processor="act",
    )
 
 Writing the ``.onnx`` file into a Content folder that Unreal auto-reimports
@@ -154,22 +159,25 @@ What the ONNX Graph Contains
 
 The wrapper packs named observation tensors into a LeRobot batch, normalizes
 them, calls ``predict_action_chunk``, and unnormalizes the result. The graph
-is stateless and outputs the whole chunk, ``[1, chunk_size, action_dim]``.
-Every input and output has a fixed batch size of 1, because ACT cannot be
-exported with a dynamic batch dimension.
-It does not keep an action queue or a temporal ensemble. ``UNNEPolicy`` detects the chunk output
+is stateless and does not keep an action queue or a temporal ensemble.
+Every input and the action output have a fixed batch size of 1, because ACT cannot be
+exported with a dynamic batch dimension. ``UNNEPolicy`` detects the chunk output
 and plays one action per step; see the action chunking section of :doc:`setting_up_inference`.
 
-The model's metadata records how the policy was configured to play each chunk:
+``--action-processor`` (``action_processor`` in Python) sets how Unreal plays each chunk:
 
-* ``schola.action_chunking.chunk_mode``: ``queue``, or ``temporal_ensemble`` when the policy
-  sets ``temporal_ensemble_coeff``.
-* ``schola.action_chunking.num_action_steps``: the policy's ``n_action_steps``, in ``queue`` mode.
-* ``schola.action_chunking.temporal_ensemble_coeff``: the policy's ``temporal_ensemble_coeff``,
-  in ``temporal_ensemble`` mode.
+* ``act``: ``action`` is the first ``n_action_steps`` actions of each chunk,
+  ``[1, n_action_steps, action_dim]``, which Unreal plays in order before predicting again, like
+  LeRobot's action queue.
+* ``temporal_ensemble``: ``action`` is the whole chunk, ``[1, chunk_size, action_dim]``. Unreal
+  runs the model every step and plays a weighted average of every prediction for the current step,
+  like LeRobot's temporal ensemble. The policy must set ``temporal_ensemble_coeff``, which is
+  exported as an output of the same name.
 
-Unreal does not read these values. Set ``Action Chunking`` on the ``UNNEPolicy`` to match
-them; the defaults match ACT's defaults, which play the whole chunk.
+Without the flag, export uses ``temporal_ensemble`` if the policy sets ``temporal_ensemble_coeff``,
+and ``act`` otherwise. To change how chunks are played, export again. The export also adds an
+output named after the processor, such as ``action_processor.ACTActionProcessor``, that tells
+Unreal which one to use.
 
 Troubleshooting
 ---------------
@@ -186,6 +194,15 @@ Troubleshooting
    the ``observation.`` prefix. This also happens when the YAML
    ``observation`` section is a single leaf; nest it under its feature name,
    for example ``observation`` → ``state``.
+
+``ValueError: Unknown action processor [...]``
+   ``--action-processor`` must name a registered processor, such as ``act`` or
+   ``temporal_ensemble``. The error lists every registered name.
+
+``ValueError`` mentioning ``temporal_ensemble_coeff``
+   ``temporal_ensemble`` needs the policy's ``temporal_ensemble_coeff``, and the coefficient must
+   give finite weights over the chunk. Fix it in the policy's ``config.json``, or export with
+   ``--action-processor act``.
 
 ``ValueError: unsupported space type``
    A YAML leaf used a ``type`` other than ``box``, ``discrete``,

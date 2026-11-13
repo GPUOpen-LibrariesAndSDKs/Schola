@@ -27,8 +27,14 @@ def get_schola_lerobot_model(
     action_space: gym.Space,
     normalizer: NormalizerProcessorStep | None = None,
     unnormalizer: UnnormalizerProcessorStep | None = None,
+    action_processor: str | None = None,
 ) -> ScholaModel:
-    """Wrap a supported LeRobot policy for Schola ONNX export."""
+    """
+    Wrap a supported LeRobot policy for Schola ONNX export.
+
+    ``action_processor`` names how Unreal plays ACT's action chunks, one of
+    ``ACTION_PROCESSORS`` in ``action_processors``. ``None`` uses the one matching the policy's config.
+    """
     if isinstance(policy, ACTPolicy):
         return LeRobotACTScholaModule(
             policy,
@@ -36,6 +42,7 @@ def get_schola_lerobot_model(
             action_space,
             normalizer=normalizer,
             unnormalizer=unnormalizer,
+            action_processor=action_processor,
         )
     raise TypeError(
         "Schola ONNX export currently supports only LeRobot ACT "
@@ -60,8 +67,14 @@ def convert_pretrained_to_onnx(
     pretrained_path: str,
     export_path: str,
     spaces_path: str,
+    action_processor: str | None = None,
 ) -> None:
-    """Load a pretrained LeRobot policy and export it to ONNX for Unreal."""
+    """
+    Load a pretrained LeRobot policy and export it to ONNX for Unreal.
+
+    ``action_processor`` names how Unreal plays ACT's action chunks, one of
+    ``ACTION_PROCESSORS`` in ``action_processors``. ``None`` uses the one matching the policy's config.
+    """
     from lerobot.configs import PreTrainedConfig
     from lerobot.policies.factory import get_policy_class, make_pre_post_processors
 
@@ -89,5 +102,6 @@ def convert_pretrained_to_onnx(
         action_space,
         normalizer=normalizer,
         unnormalizer=unnormalizer,
+        action_processor=action_processor,
     )
     model.save_as_onnx(export_path)

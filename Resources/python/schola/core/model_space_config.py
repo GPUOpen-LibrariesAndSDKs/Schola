@@ -69,22 +69,63 @@ def _iter_leaf_spaces(
 ) -> Iterator[tuple[str, gym.Space]]:
     """Yield ``(dotted path, space)`` for every leaf below ``node``."""
     space_type = node.get("type")
-    if space_type is not None:
+    if isinstance(space_type, str):
         leaf_name = path or default_name
         yield leaf_name, _leaf_to_space(node, leaf_name)
         return
 
+    node_name = path or default_name
+    scalar_leaf_fields = {
+        key
+        for key in ("type", "shape", "dtype")
+        if key in node and not isinstance(node[key], Mapping)
+    }
+    if scalar_leaf_fields:
+        raise ValueError(
+            f"{node_name}: expected a leaf node with a string 'type' and its "
+            f"required fields, or an intermediate node containing only child "
+            f"mappings; got fields {sorted(node)}"
+        )
+
     for key, child in node.items():
         child_path = f"{path}.{key}" if path else key
         if not isinstance(child, Mapping):
-            raise TypeError(f"{child_path}: space definition must be a mapping")
+            raise TypeError(
+                f"{child_path}: expected a child mapping; got "
+                f"{type(child).__name__}"
+            )
         yield from _iter_leaf_spaces(child, child_path, default_name)
 
 
 def _leaf_to_space(leaf: Mapping[str, Any], path: str) -> gym.Space:
     """Build one Gym space from a ``type``/``shape``(/``dtype``) leaf."""
+    space_type = leaf["type"]
+    required_fields = {
+        "box": {"type", "shape", "dtype"},
+        "discrete": {"type", "shape"},
+        "multi_discrete": {"type", "shape"},
+        "multi_binary": {"type", "shape"},
+    }
+    if space_type not in required_fields:
+        raise ValueError(f"{path}: unsupported space type {space_type!r}")
+
+    expected = required_fields[space_type]
+    actual = set(leaf)
+    missing = expected - actual
+    unexpected = actual - expected
+    if missing or unexpected:
+        details = []
+        if missing:
+            details.append(f"missing {sorted(missing)}")
+        if unexpected:
+            details.append(f"unexpected {sorted(unexpected)}")
+        raise ValueError(
+            f"{path}: expected {space_type!r} leaf fields {sorted(expected)}; "
+            f"got {sorted(actual)} ({'; '.join(details)})"
+        )
+
     shape = tuple(leaf["shape"])
-    match leaf["type"]:
+    match space_type:
         case "box":
             dtype = np.dtype(leaf["dtype"])
             # Bounds only need to keep sampling valid; ONNX ignores them.
@@ -100,5 +141,5 @@ def _leaf_to_space(leaf: Mapping[str, Any], path: str) -> gym.Space:
             return MultiDiscrete(list(shape))
         case "multi_binary":
             return MultiBinary(list(shape))
-        case unsupported:
-            raise ValueError(f"{path}: unsupported space type {unsupported!r}")
+        case _:
+            raise AssertionError(f"unhandled validated space type {space_type!r}")

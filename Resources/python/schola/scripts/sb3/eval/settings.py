@@ -5,17 +5,16 @@ Cyclopts dataclasses for evaluating a saved SB3 policy with Schola.
 """
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
 from pathlib import Path
 from cyclopts import Parameter, validators
-from schola.scripts.common.settings import (
-    AllSimulatorConfigs,
-    EnvironmentSettings,
-    ExternalSimulatorConfig,
-    IgnoreParameter,
+from schola.scripts.common.settings import IgnoreParameter
+from schola.scripts.sb3.settings import (
+    BasePPOSettings,
+    BaseSACSettings,
+    Sb3BaseLoggingSettings,
+    Sb3EnvironmentSettings,
 )
-from schola.scripts.sb3.settings import Sb3BaseLoggingSettings, Sb3EnvironmentSettings
-from schola.scripts.sb3.settings import BasePPOSettings, BaseSACSettings
 
 
 @dataclass

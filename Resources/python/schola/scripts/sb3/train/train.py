@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+# Copyright (c) 2024-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
 """
 Script to train a Stable Baselines3 model using Schola.
@@ -159,6 +159,28 @@ def main(args: Sb3TrainScriptSettings) -> (tuple[float, float]) | None:
                 )
                 env = VecMergeDictActionWrapper(env)
 
+            # Wrap before the model is created or loaded so training uses the
+            # saved observation/reward statistics.
+            # A loaded wrapper is preferred over a fresh one when both
+            # vecnormalize_settings and load_vecnormalize are provided.
+            vecnormalize_settings = args.training_settings.vecnormalize_settings
+            vecnormalize_loaded = False
+            if args.resume_settings.load_vecnormalize:
+                try:
+                    env = VecNormalize.load(
+                        str(args.resume_settings.load_vecnormalize), env
+                    )
+                    vecnormalize_loaded = True
+                except Exception as e:
+                    logger.warning(
+                        "Error loading saved VecNormalize parameters from '%s': %s.",
+                        args.resume_settings.load_vecnormalize,
+                        e,
+                    )
+
+            if not vecnormalize_loaded and vecnormalize_settings.enabled:
+                env = vecnormalize_settings.make_wrapper(env)
+
             model_loaded = False
             if args.resume_settings.resume_from:
                 try:
@@ -223,21 +245,6 @@ def main(args: Sb3TrainScriptSettings) -> (tuple[float, float]) | None:
                 )
 
             assert model is not None, "Model is None. This should never happen."
-
-            if args.resume_settings.load_vecnormalize:
-                if model.get_vec_normalize_env() is None:
-                    try:
-                        VecNormalize.load(
-                            str(args.resume_settings.load_vecnormalize), env
-                        )
-                    except Exception:
-                        logger.warning(
-                            "Error loading saved VecNormalize parameters. Skipping."
-                        )
-                else:
-                    logger.warning(
-                        "resume_settings.load_vecnormalize was true but no VecNormalize wrapper exists to load to. Skipping."
-                    )
 
             if args.resume_settings.load_replay_buffer:
                 if isinstance(model, OffPolicyAlgorithm):
@@ -340,6 +347,8 @@ def main(args: Sb3TrainScriptSettings) -> (tuple[float, float]) | None:
                 )
 
             if not args.training_settings.disable_eval:
+                if isinstance(env, VecNormalize):
+                    env.training = False
                 logger.info("... Evaluating the model")
                 env_with_monitor = VecMonitor(env)
                 mean_reward, std_reward = evaluate_policy(

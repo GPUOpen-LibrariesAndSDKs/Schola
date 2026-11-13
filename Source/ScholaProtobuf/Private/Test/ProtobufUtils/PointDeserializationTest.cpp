@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
+// Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
 #include "Misc/AutomationTest.h"
 
@@ -98,6 +98,32 @@ bool FProtobufBoxPointDeserializationTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("Box[0] approx 0.1"), FMath::IsNearlyEqual(Box->Values[0], 0.1f));
 		TestTrue(TEXT("Box[1] approx 0.2"), FMath::IsNearlyEqual(Box->Values[1], 0.2f));
 		TestTrue(TEXT("Box[2] approx 0.3"), FMath::IsNearlyEqual(Box->Values[2], 0.3f));
+	}
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProtobufBoxPointShapeDeserializationTest, "Schola.Protobuf.Deserialization.Points.BoxShape", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FProtobufBoxPointShapeDeserializationTest::RunTest(const FString& Parameters)
+{
+	Schola::Point InProto;
+	auto* BoxProto = InProto.mutable_box_point();
+	BoxProto->add_values(0.25f);
+	BoxProto->add_values(0.5f);
+	BoxProto->add_values(0.75f);
+	BoxProto->add_values(1.0f);
+	BoxProto->add_shape(2);
+	BoxProto->add_shape(2);
+
+	TInstancedStruct<FPoint> Out;
+	ProtobufDeserializer::FromProto(InProto, Out);
+
+	const FBoxPoint* Box = Out.GetPtr<FBoxPoint>();
+	TestTrue(TEXT("Box point deserialized as box_point"), Box != nullptr);
+	if (Box)
+	{
+		TestEqual(TEXT("Box shape is {2, 2}"), Box->Shape, TArray<int>({2, 2}));
+		TestEqual(TEXT("Box values count == 4"), Box->Values.Num(), 4);
 	}
 
 	return true;

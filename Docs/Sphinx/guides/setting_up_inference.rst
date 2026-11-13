@@ -25,16 +25,42 @@ If you did not export to Onnx during training you will need to convert a checkpo
     .. group-tab:: Stable Baselines 3
         .. code-block:: bash
             
-            schola sb3 export --policy-checkpoint-path <CHECKPOINT_PATH> --output-path <ONNX_PATH> --algorithm <ALGORITHM>
+            schola sb3 export --policy-checkpoint-path <CHECKPOINT_PATH> --output-path <ONNX_PATH> --algorithm <ALGORITHM> [--spaces-path <SPACES.yaml>]
     
     .. group-tab:: Ray RLlib
         .. code-block:: bash
 
-            schola rllib export --policy-checkpoint-path <CHECKPOINT_DIR> [--output-path <OUTPUT_DIR>]
+            schola rllib export --policy-checkpoint-path <CHECKPOINT_DIR> [--output-path <OUTPUT_DIR>] [--spaces-path <SPACES.yaml>]
+
+    .. group-tab:: LeRobot
+        .. code-block:: bash
+
+            lerobot-to-onnx <PRETRAINED_PATH> <OUTPUT.onnx> <SPACES.yaml>
 
 For SB3, ``<ALGORITHM>`` must match how the checkpoint was trained (for example ``PPO`` or ``SAC``); allowed values are the same as the export command's ``--algorithm`` choices in ``schola sb3 export --help``.
 
 For RLlib, ``<CHECKPOINT_DIR>`` is the algorithm checkpoint **directory** produced by Ray. ``--output-path`` is optional; if omitted, ONNX output is written alongside the checkpoint (see ``schola rllib export --help``).
+
+For SB3 and RLlib, ``--spaces-path`` is optional. Use it when exporting without
+usable environment-space metadata, or when the checkpoint contains flattened
+spaces. The YAML defines the exported model's named observation and action
+interface; without it, Schola uses the spaces stored in the checkpoint.
+
+For RLlib checkpoints with several policies whose interfaces differ, key the
+YAML by policy ID. Only the policies listed in the file are exported, and the
+others are named in a warning. Output files are named by policy ID, as without
+``--spaces-path``:
+
+.. code-block:: yaml
+
+    attacker:
+      observation: {type: box, shape: [8], dtype: float32}
+      action: {type: discrete, shape: [4]}
+    defender:
+      observation: {type: box, shape: [12], dtype: float32}
+      action: {type: box, shape: [2], dtype: float32}
+
+For LeRobot, ``<PRETRAINED_PATH>`` is a local pretrained directory or Hugging Face Hub id with ``config.json`` and ``model.safetensors``, and ``<SPACES.yaml>`` names the ONNX tensors with the dotted keys below its ``observation`` and ``action`` sections, without an ``observation.`` prefix (Unreal ``Define()`` keys must match those strings). The exported model predicts a chunk of actions per inference, see `Action Chunking Models`_. Only ACT is supported. See :doc:`lerobot_export`.
 
 These commands produce an ONNX model in Schola's export layout for use in the next section.
 
@@ -164,6 +190,25 @@ store the result in a variable that you pass to every ``Think`` call for that ag
 If a state input has a dynamic sequence dimension, ``Max State Sequence Length`` controls the
 allocated history length. On each successful inference Schola drops the oldest entry and appends the
 newest state. The default history length is one.
+
+Action Chunking Models
+""""""""""""""""""""""
+
+Some models, such as LeRobot ACT, predict several future actions per inference. Use the same
+``UNNEPolicy`` for them. ``Init()`` detects the chunk, ``Action Chunk Size`` shows how many
+actions it holds, and every ``Think`` returns one action from it. Each agent plays its own chunks.
+
+How each chunk becomes one action per step is chosen when the model is exported, with
+``--action-processor`` (see :doc:`lerobot_export`), and cannot be changed in Unreal. The policy
+shows the processor it uses, read-only, as ``Action Processor`` in the advanced section of
+``Policy Properties``:
+
+* :cpp:struct:`FACTActionProcessor`: plays the actions of each chunk in order, then runs the
+  model again.
+* :cpp:struct:`FTemporalEnsembleActionProcessor`: runs the model every step and plays a weighted
+  average of every prediction made for the current step, like LeRobot's temporal ensemble.
+
+Each ``Think`` plays one action, so call it at the control rate the training data was recorded at.
 
 Step 3: Create and Initialize the Stepper
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -56,6 +56,7 @@ dependencies = [
     "onnx>=1.18",
     "onnxscript>=0.6.2", # 0.6.2 is the earliest version of onnxscript that works with LSTMs
     "gymnasium>=1.1.0",
+    "pyyaml>=6.0",
     "backports.strenum; python_version<'3.11'",
     "cyclopts>=4.0,<5", # 5.x changes meta-app parsing and rejects existing CLI flags
     "rich",

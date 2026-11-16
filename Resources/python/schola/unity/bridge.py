@@ -80,6 +80,22 @@ def _decode_tree(nodes: list[dict], *, space: bool):
                 value.discrete_space.high = node["high"]
             else:
                 value.discrete_point.value = node["value"]
+        elif kind == "multi_binary":
+            if space:
+                shape = node.get("shape")
+                if (
+                    not isinstance(shape, list)
+                    or len(shape) != 1
+                    or type(shape[0]) is not int
+                    or shape[0] < 0
+                ):
+                    raise ValueError("Invalid MultiBinary shape")
+                value.multi_binary_space.shape = shape[0]
+            else:
+                data = node.get("boolValues") or []
+                if not isinstance(data, list) or not all(type(flag) is bool for flag in data):
+                    raise ValueError("MultiBinary values must be booleans")
+                value.multi_binary_point.values.extend(data)
         else:
             raise ValueError(f"Unsupported Unity type: {kind}")
         result.append(value)
@@ -126,6 +142,11 @@ def _encode_point(point: points.Point) -> list[dict]:
             _shape(node, len(data))
         elif kind == "discrete_point":
             node.update(kind="discrete", value=value.discrete_point.value)
+        elif kind == "multi_binary_point":
+            node.update(
+                kind="multi_binary",
+                boolValues=list(value.multi_binary_point.values),
+            )
         else:
             raise ValueError(f"Unsupported Unity action type: {kind}")
 

@@ -57,8 +57,10 @@ class SB3ScholaModel(ScholaModel, Generic[T]):
     ----------
     policy : stable_baselines3.common.policies.BasePolicy
         The policy to wrap.
-    action_space : gym.spaces.Dict
-        The action space to wrap.
+    observation_space : gym.Space, optional
+        The observation space to export. Defaults to the policy's observation space.
+    action_space : gym.Space, optional
+        The action space to export. Defaults to the policy's action space.
 
     Attributes
     ----------
@@ -69,12 +71,20 @@ class SB3ScholaModel(ScholaModel, Generic[T]):
         The wrapped action network.
     """
 
-    def __init__(self, policy: T, action_space: gym.Space | None = None):
+    def __init__(
+        self,
+        policy: T,
+        observation_space: gym.Space | None = None,
+        action_space: gym.Space | None = None,
+    ):
         super().__init__(
-            observation_space=policy.observation_space,
+            observation_space=observation_space or policy.observation_space,
             action_space=action_space or policy.action_space,
         )
         self.policy = policy
+        self.policy_observation_space_is_dict = isinstance(
+            policy.observation_space, gym.spaces.Dict
+        )
         self.policy.set_training_mode(False)
 
         for key, space in self.action_space.spaces.items():
@@ -113,12 +123,16 @@ class SB3ScholaModel(ScholaModel, Generic[T]):
             )
 
         # Reconstruct observation for the policy, by applying default SB3 preprocessing
-        # If observation_space_is_natively_dict is False, we wrapped it in a Dict with key "obs" so unwrap
-
-        if self.observation_space_is_natively_dict:
+        # If the policy does not take a Dict, the single exported input is unwrapped
+        if self.policy_observation_space_is_dict:
             x = obs_dict
         else:
-            x = obs_dict["obs"]
+            if len(obs_dict) != 1:
+                raise ValueError(
+                    "A non-dictionary SB3 observation space requires exactly one "
+                    "model observation input"
+                )
+            x = next(iter(obs_dict.values()))
 
         logits = self.get_logits(x)
         action_outputs = self.make_outputs(logits)
@@ -142,9 +156,12 @@ class SB3PPOModel(SB3ScholaModel[ActorCriticPolicy]):
     """
 
     def __init__(
-        self, policy: ActorCriticPolicy, action_space: gym.Space | None = None
+        self,
+        policy: ActorCriticPolicy,
+        observation_space: gym.Space | None = None,
+        action_space: gym.Space | None = None,
     ):
-        super().__init__(policy, action_space)
+        super().__init__(policy, observation_space, action_space)
 
     def get_logits(self, x):
         # discard the extracted features from the value function
@@ -211,8 +228,13 @@ class SB3SACModel(SB3ScholaModel[SACPolicy]):
     SB3ScholaModel
     """
 
-    def __init__(self, policy: SACPolicy, action_space: gym.Space | None = None):
-        super().__init__(policy, action_space)
+    def __init__(
+        self,
+        policy: SACPolicy,
+        observation_space: gym.Space | None = None,
+        action_space: gym.Space | None = None,
+    ):
+        super().__init__(policy, observation_space, action_space)
 
     def get_logits(self, x):
         x = self.policy.actor.extract_features(x, self.policy.actor.features_extractor)
@@ -242,8 +264,13 @@ class SB3TD3Model(SB3ScholaModel[TD3Policy]):
     SB3ScholaModel
     """
 
-    def __init__(self, policy: TD3Policy, action_space: gym.Space | None = None):
-        super().__init__(policy, action_space)
+    def __init__(
+        self,
+        policy: TD3Policy,
+        observation_space: gym.Space | None = None,
+        action_space: gym.Space | None = None,
+    ):
+        super().__init__(policy, observation_space, action_space)
 
     def get_logits(self, x):
         x = self.policy.actor.extract_features(x, self.policy.actor.features_extractor)
@@ -286,7 +313,9 @@ class SB3DQNModel(SB3ScholaModel):
 
 
 def get_scholasb3_model(
-    model: BaseAlgorithm, action_space: gym.Space | None = None
+    model: BaseAlgorithm,
+    observation_space: gym.Space | None = None,
+    action_space: gym.Space | None = None,
 ) -> ScholaModel:
     """
     Get the ScholaModel for a stable baselines algorithm.
@@ -295,6 +324,8 @@ def get_scholasb3_model(
     ----------
     model : stable_baselines3.common.base_class.BaseAlgorithm
         The model to get the ScholaModel for.
+    observation_space : gym.Space | None
+        The externally named observation space to use for the exported model.
     action_space : gym.Space | None
         The action space to use for the model. Useful for when the model has a merged dictionary action space (e.g. Dict with two Box Subspaces).
 
@@ -304,24 +335,26 @@ def get_scholasb3_model(
         The ScholaModel for the given model.
     """
     if isinstance(model, sb3.PPO):
-        return SB3PPOModel(model.policy, action_space)
+        return SB3PPOModel(model.policy, observation_space, action_space)
     elif isinstance(model, sb3.A2C):
-        return SB3A2CModel(model.policy, action_space)
+        return SB3A2CModel(model.policy, observation_space, action_space)
     elif isinstance(model, sb3.SAC):
-        return SB3SACModel(model.policy, action_space)
+        return SB3SACModel(model.policy, observation_space, action_space)
     elif isinstance(model, sb3.TD3):
-        return SB3TD3Model(model.policy, action_space)
+        return SB3TD3Model(model.policy, observation_space, action_space)
     elif isinstance(model, sb3.DDPG):
-        return SB3DDPGModel(model.policy, action_space)
+        return SB3DDPGModel(model.policy, observation_space, action_space)
     elif isinstance(model, sb3.DQN):
-        return SB3DQNModel(model.policy, action_space)
+        return SB3DQNModel(model.policy, observation_space, action_space)
     else:
         raise ValueError(f"Unsupported model type: {type(model)}")
 
 
 # end of adapted code
 def save_model_as_onnx(
-    model: BaseAlgorithm, export_path: str, action_space: gym.Space | None = None
+    model: BaseAlgorithm,
+    export_path: str,
+    action_space: gym.Space | None = None,
 ) -> None:
     """
     Save a stable baselines model as ONNX.
@@ -332,10 +365,10 @@ def save_model_as_onnx(
         The model to save as ONNX.
     export_path : str
         The path to save the model to.
-    action_space : gym.Space
+    action_space : gym.Space, optional
         The action space to use for the model. Useful for when the model has a merged dictionary action space (e.g. Dict with two Box Subspaces).
     """
-    schola_model = get_scholasb3_model(model, action_space)
+    schola_model = get_scholasb3_model(model, action_space=action_space)
     schola_model.save_as_onnx(export_path)
 
 
@@ -343,6 +376,7 @@ def convert_ckpt_to_onnx_for_unreal(
     trainer=sb3.PPO,
     model_path="./ckpt/ppo_final.zip",
     export_path="./ckpt/OnnxFiles/Model.onnx",
+    spaces_path: str | None = None,
 ) -> None:
     """
     Convert a stable baselines model to ONNX for use in Unreal.
@@ -355,8 +389,25 @@ def convert_ckpt_to_onnx_for_unreal(
         The path to the model to convert.
     export_path : str
         The path to save the converted model to.
+    spaces_path : str, optional
+        YAML model-space configuration. When supplied, its observation and
+        action spaces override those recovered from the checkpoint.
     """
     model = trainer.load(model_path, device="cpu")
-    action_space = getattr(model, "__unmerged_action_space", None)
-    model = get_scholasb3_model(model, action_space)
+    if spaces_path is not None:
+        from schola.core.model_space_config import load_model_spaces
+
+        observation_space, action_space = load_model_spaces(spaces_path)
+    else:
+        logger.info(
+            "No spaces YAML provided; using observation and action spaces "
+            "stored in the SB3 checkpoint."
+        )
+        observation_space = None
+        action_space = getattr(model, "__unmerged_action_space", None)
+    model = get_scholasb3_model(
+        model,
+        observation_space=observation_space,
+        action_space=action_space,
+    )
     model.save_as_onnx(export_path)

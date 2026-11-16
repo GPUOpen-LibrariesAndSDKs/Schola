@@ -82,24 +82,39 @@ bool UNNEPolicy::Think(
 		return false;
 	}
 
-	FNNEPointToBufferConverter::ConvertPointToBuffer(InObservations, ObservationBuffer, PolicyDefinition.ObsSpaceDefn);
-
-	if ((int)ModelInstance->RunSync(InputBindings, OutputBindings) != 0)
+	// A chunked model only runs when the state's action processor needs a new chunk
+	FActionProcessor* Processor = IsActionChunked() ? NNEState->ActionProcessor.GetMutablePtr() : nullptr;
+	const bool bRunModel = !Processor || Processor->NeedsNewChunk();
+	if (bRunModel)
 	{
-		UE_LOGFMT(LogScholaNNE, Error, "NNEPolicy::Think(): Model inference failed");
-		return false;
+		FNNEPointToBufferConverter::ConvertPointToBuffer(InObservations, ObservationBuffer, PolicyDefinition.ObsSpaceDefn);
+		if ((int)ModelInstance->RunSync(InputBindings, OutputBindings) != 0)
+		{
+			UE_LOGFMT(LogScholaNNE, Error, "NNEPolicy::Think(): Model inference failed");
+			return false;
+		}
+	}
+
+	if (Processor)
+	{
+		const FActionChunk NewChunk = bRunModel ? FActionChunk{ ActionChunkBuffer, ExtraOutputViews } : FActionChunk();
+		if (!Processor->Process(NewChunk, ChunkedAction))
+		{
+			UE_LOGFMT(LogScholaNNE, Error, "NNEPolicy::Think(): {0} failed to play this step's action from the action chunk",
+				NNEState->ActionProcessor.GetScriptStruct()->GetName());
+			return false;
+		}
 	}
 
 	// Materialize all inference outputs before committing the caller-owned recurrent state.
 	FNNEPointCreator::CreatePoint(ActionBuffer, OutAction, PolicyDefinition.ActionSpaceDefn);
 
 	// The model wrote its new state into each buffer's pending slot; this moves it into the sequence.
-	if (!NNEState->NotifyStateUpdate())
+	if (bRunModel && !NNEState->NotifyStateUpdate())
 	{
 		UE_LOGFMT(LogScholaNNE, Error, "NNEPolicy::Think(): NotifyStateUpdate failed");
 		return false;
 	}
-
 	return true;
 }
 
@@ -169,6 +184,10 @@ bool UNNEPolicy::IsStateCompatible(const UNNEPolicyState& InState) const
 	{
 		return false;
 	}
+	if (IsActionChunked() ? !FActionProcessor::IsSameLayout(InState.ActionProcessor, this->ActionProcessor) : InState.ActionProcessor.IsValid())
+	{
+		return false;
+	}
 	for (int i = 0; i < InState.Buffers.Num(); i++)
 	{
 		const FNNEStateBuffer& Buffer = InState.Buffers[i];
@@ -187,7 +206,7 @@ bool UNNEPolicy::BindState(UNNEPolicyState& InOutState)
 {
 	if (!IsStateCompatible(InOutState))
 	{
-		UE_LOGFMT(LogScholaNNE, Error, "UNNEPolicy::BindState(): {0} does not match this model's state tensors, it must be created by CreateInitialState for this model",
+		UE_LOGFMT(LogScholaNNE, Error, "UNNEPolicy::BindState(): {0} does not match this model's state tensors or action processor, it must be created by CreateInitialState for this model",
 			InOutState.GetName());
 		return false;
 	}
@@ -216,6 +235,10 @@ bool UNNEPolicy::CreateInitialState(TScriptInterface<IPolicyState>& OutState) co
 		return false;
 	}
 	UNNEPolicyState* State = NewObject<UNNEPolicyState>(GetTransientPackage());
+	if (IsActionChunked())
+	{
+		State->ActionProcessor = this->ActionProcessor;
+	}
 	State->Buffers.Reserve(this->StateLayouts.Num());
 	for (const FNNEStateLayout& Layout : this->StateLayouts)
 	{
@@ -245,6 +268,142 @@ bool UNNEPolicy::InitNonStateBindings(const FInteractionDefinition& InDefinition
 	{
 		UE_LOGFMT(LogScholaNNE, Error, "UNNEPolicy::InitNonStateBindings(): Failed to create bindings for Action Space");
 		return false;
+	}
+	return true;
+}
+
+int32 UNNEPolicy::GetActionChunkSize(TConstArrayView<int32> OutputShape, int32 ActionDim)
+{
+	if (ActionDim <= 0)
+	{
+		return 1;
+	}
+	int64 NumElements = 1;
+	for (int32 i = 0; i < OutputShape.Num(); i++)
+	{
+		if (OutputShape[i] < 0)
+		{
+			if (i != 0)
+			{
+				return 1;
+			}
+			continue;
+		}
+		NumElements *= OutputShape[i];
+	}
+	if (NumElements <= ActionDim)
+	{
+		return 1;
+	}
+	return NumElements % ActionDim == 0 ? static_cast<int32>(NumElements / ActionDim) : 0;
+}
+
+bool UNNEPolicy::InitActionProcessing(TSharedPtr<IModelInstanceRunSync> InModelInstance)
+{
+	this->ActionChunkSize = 1;
+	this->ActionChunkBuffer.Reset();
+	this->ExtraOutputBuffers.Reset();
+	this->ExtraOutputViews.Reset();
+	this->ChunkedAction = TArrayView<float>();
+	this->ActionProcessor.Reset();
+
+	TConstArrayView<UE::NNE::FTensorDesc> OutputTensorDescs = InModelInstance->GetOutputTensorDescs();
+	for (int32 i = 0; i < OutputTensorDescs.Num(); i++)
+	{
+		// State outputs are only bound per Think in BindState, so here they have no data
+		const UE::NNE::FTensorDesc& TensorDesc = OutputTensorDescs[i];
+		const UE::NNE::FTensorBindingCPU& Binding = this->OutputBindings[i];
+		if (!Binding.Data || TensorDesc.GetDataType() != ENNETensorDataType::Float)
+		{
+			continue;
+		}
+
+		const int32 ActionDim = static_cast<int32>(Binding.SizeInBytes / sizeof(float));
+		const int32 ChunkSize = GetActionChunkSize(TensorDesc.GetShape().GetData(), ActionDim);
+		if (ChunkSize == 0)
+		{
+			UE_LOGFMT(LogScholaNNE, Error, "UNNEPolicy::InitActionProcessing(): Output {0} is larger than its action of size {1} but is not a whole number of actions",
+				TensorDesc.GetName(), ActionDim);
+			return false;
+		}
+		if (ChunkSize > 1)
+		{
+			if (IsActionChunked())
+			{
+				UE_LOGFMT(LogScholaNNE, Error, "UNNEPolicy::InitActionProcessing(): Output {0} is a second action chunk, only models with one chunked action output are supported",
+					TensorDesc.GetName());
+				return false;
+			}
+
+			this->ActionChunkSize = ChunkSize;
+			this->ChunkedAction = TArrayView<float>(static_cast<float*>(Binding.Data), ActionDim);
+			this->ActionChunkBuffer.SetNumZeroed(ChunkSize * ActionDim);
+			this->OutputBindings[i] = { (void*)this->ActionChunkBuffer.GetData(), this->ActionChunkBuffer.Num() * sizeof(float) };
+			UE_LOGFMT(LogScholaNNE, Log, "UNNEPolicy::InitActionProcessing(): Output {0} predicts {1} actions per inference", TensorDesc.GetName(), ChunkSize);
+		}
+	}
+
+	if (!IsActionChunked())
+	{
+		return true;
+	}
+
+	TArray<FString> OutputNames;
+	for (const UE::NNE::FTensorDesc& TensorDesc : OutputTensorDescs)
+	{
+		OutputNames.Add(TensorDesc.GetName());
+	}
+	this->ActionProcessor = FActionProcessor::CreateForModel(OutputNames);
+	if (!this->ActionProcessor.IsValid())
+	{
+		UE_LOGFMT(LogScholaNNE, Error, "UNNEPolicy::InitActionProcessing(): The model does not name an action processor that can play its chunks");
+		return false;
+	}
+
+	const FString ProcessorStructName = this->ActionProcessor.GetScriptStruct()->GetName();
+	if (!this->ActionProcessor.GetMutable().Init(this->ActionChunkSize, this->ChunkedAction.Num()))
+	{
+		UE_LOGFMT(LogScholaNNE, Error, "UNNEPolicy::InitActionProcessing(): {0} cannot play chunks of {1} actions of size {2}",
+			ProcessorStructName, this->ActionChunkSize, this->ChunkedAction.Num());
+		this->ActionProcessor.Reset();
+		return false;
+	}
+	if (!BindExtraOutputs(OutputTensorDescs))
+	{
+		this->ActionProcessor.Reset();
+		return false;
+	}
+	UE_LOGFMT(LogScholaNNE, Log, "UNNEPolicy::InitActionProcessing(): Playing action chunks with {0}", ProcessorStructName);
+	return true;
+}
+
+bool UNNEPolicy::BindExtraOutputs(TConstArrayView<UE::NNE::FTensorDesc> OutputTensorDescs)
+{
+	const FString ProcessorStructName = this->ActionProcessor.GetScriptStruct()->GetName();
+	for (const FString& OutputName : this->ActionProcessor.Get().GetExtraOutputNames())
+	{
+		const int32 OutputIndex = OutputTensorDescs.IndexOfByPredicate([&OutputName](const UE::NNE::FTensorDesc& TensorDesc)
+			{ return TensorDesc.GetName().Equals(OutputName, ESearchCase::CaseSensitive); });
+		if (OutputIndex == INDEX_NONE)
+		{
+			UE_LOGFMT(LogScholaNNE, Error, "UNNEPolicy::BindExtraOutputs(): {0} reads output {1}, which the model does not have",
+				ProcessorStructName, OutputName);
+			return false;
+		}
+		const UE::NNE::FTensorDesc& TensorDesc = OutputTensorDescs[OutputIndex];
+		if (TensorDesc.GetDataType() != ENNETensorDataType::Float || !TensorDesc.GetShape().IsConcrete())
+		{
+			UE_LOGFMT(LogScholaNNE, Error, "UNNEPolicy::BindExtraOutputs(): Output {0} that {1} reads must be a float tensor with a fixed shape",
+				OutputName, ProcessorStructName);
+			return false;
+		}
+		TArray<float>& Buffer = this->ExtraOutputBuffers.AddDefaulted_GetRef();
+		Buffer.SetNumZeroed(static_cast<int32>(UE::NNE::FTensorShape::MakeFromSymbolic(TensorDesc.GetShape()).Volume()));
+		this->OutputBindings[OutputIndex] = { (void*)Buffer.GetData(), Buffer.Num() * sizeof(float) };
+	}
+	for (const TArray<float>& Buffer : this->ExtraOutputBuffers)
+	{
+		this->ExtraOutputViews.Add(Buffer);
 	}
 	return true;
 }
@@ -284,6 +443,13 @@ bool UNNEPolicy::SetupBuffersAndBindings(const FInteractionDefinition& InDefinit
 
 	// Bind the remaining inputs and outputs to the Action and Observation buffers
 	InitNonStateBindings(InDefinition);
+
+	// Create the action processor the model's outputs ask for, e.g. to play ACT's action chunks
+	if (!InitActionProcessing(InModelInstance))
+	{
+		UE_LOGFMT(LogScholaNNE, Error, "UNNEPolicy::SetupBuffersAndBindings(): Failed to initialize action processing");
+		return false;
+	}
 
 	if (!InitInputTensorShapes(InModelInstance))
 	{

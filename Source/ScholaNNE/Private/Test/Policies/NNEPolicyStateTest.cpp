@@ -54,6 +54,37 @@ bool FNNEPolicyStateCopyFromTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNNEPolicyStateActionProcessorCopyFromTest, "Schola.Policies.NNE.NNEPolicyState.Action Processor CopyFrom", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FNNEPolicyStateActionProcessorCopyFromTest::RunTest(const FString& Parameters)
+{
+	UNNEPolicyState* Source = NewObject<UNNEPolicyState>();
+	UNNEPolicyState* Target = NewObject<UNNEPolicyState>();
+	Source->ActionProcessor = TInstancedStruct<FActionProcessor>::Make();
+	Target->ActionProcessor = TInstancedStruct<FActionProcessor>::Make();
+	Source->ActionProcessor.GetMutable().Init(2, 1);
+	Target->ActionProcessor.GetMutable().Init(2, 1);
+	Source->Buffers.Emplace(TArray<int32> { -1, 2 });
+	Target->Buffers.Emplace(TArray<int32> { -1, 2 });
+	Source->Buffers[0].StateBuffer[0] = 9.0f;
+
+	const FActionProcessor* TargetProcessor = Target->ActionProcessor.GetPtr();
+	TestTrue(TEXT("CopyFrom a state with the same processor layout succeeds"), Target->CopyFrom(*Source));
+	TestEqual(TEXT("NNE buffer copied"), Target->Buffers[0].StateBuffer[0], 9.0f);
+	TestTrue(TEXT("Processor is copied in place"), Target->ActionProcessor.GetPtr() == TargetProcessor);
+
+	UNNEPolicyState* Unchunked = NewObject<UNNEPolicyState>();
+	Unchunked->Buffers.Emplace(TArray<int32> { -1, 2 });
+	Unchunked->Buffers[0].StateBuffer[0] = 7.0f;
+	TestFalse(TEXT("CopyFrom rejects a state without an action processor"), Target->CopyFrom(*Unchunked));
+	TestEqual(TEXT("Rejected CopyFrom leaves NNE buffers unchanged"), Target->Buffers[0].StateBuffer[0], 9.0f);
+
+	Target->Reset();
+	TestTrue(TEXT("Reset keeps the action processor"), Target->ActionProcessor.IsValid());
+	TestEqual(TEXT("Reset zeroes NNE buffers"), Target->Buffers[0].StateBuffer[0], 0.0f);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNNEPolicyStateNotifyStateUpdateTest, "Schola.Policies.NNE.NNEPolicyState.NotifyStateUpdate", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
 bool FNNEPolicyStateNotifyStateUpdateTest::RunTest(const FString& Parameters)
@@ -94,6 +125,20 @@ bool FNNEPolicyBlueprintCreateInitialStateRequiresInitTest::RunTest(const FStrin
 
 	AddExpectedMessage(TEXT("Network not loaded"), EAutomationExpectedMessageFlags::Contains, 1);
 	TestNull(TEXT("Blueprint wrapper returns null before Init"), Policy->CreateInitialState().GetObject());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNNEPolicyGetActionChunkSizeTest, "Schola.Policies.NNE.NNEPolicy.GetActionChunkSize", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FNNEPolicyGetActionChunkSizeTest::RunTest(const FString& Parameters)
+{
+	TestEqual(TEXT("Dynamic batch with one action is not chunked"), UNNEPolicy::GetActionChunkSize({ -1, 6 }, 6), 1);
+	TestEqual(TEXT("Fixed batch with one action is not chunked"), UNNEPolicy::GetActionChunkSize({ 1, 6 }, 6), 1);
+	TestEqual(TEXT("ACT output holds chunk_size actions"), UNNEPolicy::GetActionChunkSize({ 1, 100, 6 }, 6), 100);
+	TestEqual(TEXT("Dynamic batch with a fixed chunk is chunked"), UNNEPolicy::GetActionChunkSize({ -1, 4, 3 }, 3), 4);
+	TestEqual(TEXT("Dynamic dimensions after the batch cannot be resolved"), UNNEPolicy::GetActionChunkSize({ 1, -1, 6 }, 6), 1);
+	TestEqual(TEXT("Output smaller than an action is left alone"), UNNEPolicy::GetActionChunkSize({ 1, 2 }, 6), 1);
+	TestEqual(TEXT("Partial actions are an error"), UNNEPolicy::GetActionChunkSize({ 1, 10 }, 6), 0);
 	return true;
 }
 

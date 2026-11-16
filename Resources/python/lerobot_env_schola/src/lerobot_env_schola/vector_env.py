@@ -359,7 +359,9 @@ class LeRobotScholaVectorEnv(gym.vector.VectorEnv):
         if self._latest_observation is None:
             raise RuntimeError("reset() must be called before render()")
         if self._render_key is None:
-            raise ValueError("Schola rendering requires a configured image observation")
+            # Even size: LeRobot's MP4 writer crops odd dimensions for yuv420p.
+            frame = np.zeros((2, 2, 3), dtype=np.uint8)
+            return tuple(frame.copy() for _ in range(self.num_envs))
         frames = np.asarray(self._latest_observation[self._render_key])
         if (
             frames.ndim != BATCHED_IMAGE_NDIMS

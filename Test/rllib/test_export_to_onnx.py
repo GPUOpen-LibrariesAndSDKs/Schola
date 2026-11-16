@@ -16,7 +16,12 @@ from ray.rllib import Policy
 from ray.rllib.algorithms.algorithm import Algorithm
 from ray.rllib.connectors.env_to_module import FlattenObservations
 from ray.rllib.env import PettingZooEnv
-from schola.rllib.export import export_onnx_from_policy
+from schola.rllib.export import (
+    _require_policy_spaces,
+    _select_policies,
+    _spaces_by_policy,
+    export_onnx_from_policy,
+)
 from schola.scripts.rllib.rllib_to_onnx import export_onnx_app
 from Test.conftest import (
     check_onnx_metadata,
@@ -334,12 +339,16 @@ def _recording_sub_env(vector_env):
     base = getattr(vector_env, "unwrapped", vector_env)
     envs = getattr(base, "envs", None)
     if not envs:
-        raise AssertionError(f"Expected a vector env with sub-envs, got {type(vector_env)}")
+        raise AssertionError(
+            f"Expected a vector env with sub-envs, got {type(vector_env)}"
+        )
     env = envs[0]
     return env.unwrapped if hasattr(env, "unwrapped") else env
 
 
-def _onnx_inputs(observation: Any, observation_space: gym.Space) -> dict[str, np.ndarray]:
+def _onnx_inputs(
+    observation: Any, observation_space: gym.Space
+) -> dict[str, np.ndarray]:
     if isinstance(observation_space, gym.spaces.Dict):
         return {
             key: np.expand_dims(np.asarray(observation[key]), axis=0)
@@ -355,7 +364,9 @@ def _unbatch_onnx_output(value: np.ndarray) -> np.ndarray:
     return array
 
 
-def _initial_onnx_state(state_shapes: Dict[str, Tuple[int, ...]]) -> dict[str, np.ndarray]:
+def _initial_onnx_state(
+    state_shapes: Dict[str, Tuple[int, ...]],
+) -> dict[str, np.ndarray]:
     return {
         f"state_in_{name}": np.zeros((1, *shape), dtype=np.float32)
         for name, shape in state_shapes.items()
@@ -386,10 +397,13 @@ def evaluate_onnx_policy(
         )
         output_map = dict(zip(output_names, outputs))
         for name in state:
-            state[name] = np.asarray(output_map["state_out_" + name[len("state_in_") :]])
+            state[name] = np.asarray(
+                output_map["state_out_" + name[len("state_in_") :]]
+            )
         if isinstance(action_space, gym.spaces.Dict):
             action = {
-                key: _unbatch_onnx_output(output_map[key]) for key in action_space.spaces
+                key: _unbatch_onnx_output(output_map[key])
+                for key in action_space.spaces
             }
         else:
             action = _unbatch_onnx_output(output_map["action"])
@@ -410,9 +424,13 @@ def _assert_recorded_actions_match(
         "RLlib and ONNX evaluations recorded different numbers of actions: "
         f"{len(rllib_actions)} != {len(onnx_actions)}"
     )
-    for step, (rllib_action, onnx_action) in enumerate(zip(rllib_actions, onnx_actions)):
+    for step, (rllib_action, onnx_action) in enumerate(
+        zip(rllib_actions, onnx_actions)
+    ):
         np.testing.assert_allclose(
-            np.asarray(gym.spaces.flatten(action_space, rllib_action), dtype=np.float64),
+            np.asarray(
+                gym.spaces.flatten(action_space, rllib_action), dtype=np.float64
+            ),
             np.asarray(gym.spaces.flatten(action_space, onnx_action), dtype=np.float64),
             rtol=1e-4,
             atol=1e-4,
@@ -420,7 +438,9 @@ def _assert_recorded_actions_match(
         )
 
 
-def _as_numpy(value: dict[str, Any] | np.ndarray | th.Tensor) -> dict[str, Any] | np.ndarray:
+def _as_numpy(
+    value: dict[str, Any] | np.ndarray | th.Tensor,
+) -> dict[str, Any] | np.ndarray:
     if isinstance(value, dict):
         return {key: _as_numpy(item) for key, item in value.items()}
     if isinstance(value, th.Tensor):
@@ -434,7 +454,9 @@ def _record_new_api_actions(
     episode_length: int,
 ) -> tuple[list[Any], type]:
     """Record one deterministic episode from the new-API env runner."""
-    assert algo.env_runner is not None, "Unexpected Error, env_runner was None during test"
+    assert (
+        algo.env_runner is not None
+    ), "Unexpected Error, env_runner was None during test"
     sub_env = _recording_sub_env(algo.env_runner.env)
     env_cls = type(sub_env)
     sub_env.record_actions = True
@@ -466,7 +488,9 @@ def _record_old_api_actions(
     unsquashes normalized actions. Calling the policy directly skips both, so
     its outputs do not match the exported graph.
     """
-    assert algo.env_runner is not None, "Unexpected Error, env_runner was None during test"
+    assert (
+        algo.env_runner is not None
+    ), "Unexpected Error, env_runner was None during test"
     sub_env = algo.env_runner.env
     sub_env = getattr(sub_env, "unwrapped", sub_env)
     env_cls = type(sub_env)
@@ -570,7 +594,10 @@ def _summable_multi_action_logp():
 rl_module_export_cases = [
     ExportParams("ppo", box_obs_space, box_action_space),
     ExportParams(
-        "ppo", box_obs_space, offset_box_action_space, custom_id="PPO(Box, BoxWithOffset)"
+        "ppo",
+        box_obs_space,
+        offset_box_action_space,
+        custom_id="PPO(Box, BoxWithOffset)",
     ),
     ExportParams("ppo", discrete_obs_space, box_action_space),
     ExportParams("ppo", box_obs_space, dict_action_space),
@@ -808,6 +835,79 @@ class TestExportScript:
     """End-to-end tests for the rllib-to-onnx CLI script."""
 
     @pytest.mark.parametrize(
+        "spaces_yaml",
+        [
+            pytest.param(
+                """
+                observation:
+                  type: box
+                  shape: [4]
+                  dtype: float32
+                action:
+                  type: box
+                  shape: [3]
+                  dtype: float32
+                """,
+                id="shared",
+            ),
+            pytest.param(
+                """
+                default_policy:
+                  observation:
+                    type: box
+                    shape: [4]
+                    dtype: float32
+                  action:
+                    type: box
+                    shape: [3]
+                    dtype: float32
+                """,
+                id="per_policy",
+            ),
+        ],
+    )
+    def test_spaces_yaml_overrides_checkpoint_interface(
+        self,
+        tmp_path,
+        make_algo,
+        make_spaces_yaml,
+        ray_cluster,
+        spaces_yaml,
+    ):
+        params = ExportParams("ppo", box_obs_space, box_action_space)
+        algo: Algorithm = make_algo(params)
+        checkpoint_path = tmp_path / "checkpoint"
+        export_path = tmp_path / "model.onnx"
+        spaces_path = make_spaces_yaml(spaces_yaml)
+        algo.save(checkpoint_path)
+
+        export_onnx_app(
+            [
+                str(checkpoint_path),
+                str(export_path),
+                "--spaces-path",
+                str(spaces_path),
+            ],
+            result_action="return_value",
+            exit_on_error=False,
+        )
+
+        onnx_model = check_onnx_model_loads(export_path)
+        check_onnx_metadata(
+            onnx_model,
+            box_obs_space,
+            box_action_space,
+            state_shapes=params.state_shapes,
+            metadata=params.metadata,
+        )
+        check_onnx_runtime(
+            onnx_model,
+            box_obs_space,
+            box_action_space,
+            state_shapes=params.state_shapes,
+        )
+
+    @pytest.mark.parametrize(
         "alg_params",
         [
             ExportParams("ppo", box_obs_space, box_action_space),
@@ -822,9 +922,7 @@ class TestExportScript:
         ],
         ids=str,
     )
-    def test_rllib_to_onnx_script(
-        self, tmp_path, make_algo, alg_params, ray_cluster
-    ):
+    def test_rllib_to_onnx_script(self, tmp_path, make_algo, alg_params, ray_cluster):
         """Test the rllib-to-onnx script: save checkpoint, run script, verify ONNX output."""
         algo: Algorithm = make_algo(alg_params)
         checkpoint_path = tmp_path / "checkpoint"
@@ -887,3 +985,37 @@ class TestExportOnnxFromPolicyEdgeCases:
             TypeError, match="Cannot export ONNX from Policy/Checkpoint"
         ):
             export_onnx_from_policy(None, path)
+
+
+def test_spaces_by_policy_shares_space_or_looks_up_policy_id():
+    a_space = gym.spaces.Box(0, 1, (2,))
+    b_space = gym.spaces.Box(0, 1, (3,))
+    assert _spaces_by_policy(a_space, ["a", "b"]) == {"a": a_space, "b": a_space}
+    assert _spaces_by_policy({"a": a_space, "b": b_space}, ["a"]) == {"a": a_space}
+
+
+def test_select_policies_keeps_only_listed_policies(caplog):
+    with caplog.at_level("WARNING", logger="schola.rllib.export"):
+        assert _select_policies({"a": 1, "b": 2}, ["a", "typo"]) == {"a": 1}
+    assert "['typo']" in caplog.text
+    assert "missing from the spaces config: ['b']" in caplog.text
+
+
+def test_select_policies_rejects_when_nothing_matches():
+    with pytest.raises(ValueError, match="None of the policy IDs"):
+        _select_policies({"a": 1}, ["typo"])
+
+
+def test_require_policy_spaces_defaults_every_policy_to_none():
+    assert _require_policy_spaces(None, ["a", "b"], "observation") == {
+        "a": None,
+        "b": None,
+    }
+
+
+@pytest.mark.parametrize("mapping_type", [dict, gym.spaces.Dict], ids=str)
+def test_require_policy_spaces_rejects_missing_policy_ids(mapping_type):
+    spaces = mapping_type({"a": gym.spaces.Box(0, 1, (2,))})
+    assert _require_policy_spaces(spaces, ["a"], "action") is spaces
+    with pytest.raises(KeyError, match=r"No action space given for policy IDs \['b'\]"):
+        _require_policy_spaces(spaces, ["a", "b"], "action")

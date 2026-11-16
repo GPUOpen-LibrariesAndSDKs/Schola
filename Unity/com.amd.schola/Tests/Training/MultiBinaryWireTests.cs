@@ -56,7 +56,8 @@ namespace AMD.Schola.Tests.Training
             Assert.That(emptySpace[0].shape, Is.EqualTo(new[] { 0 }));
 
             var point = new MultiBinaryPoint { Values = { true, false, true } };
-            var decoded = (MultiBinaryPoint)TrainingWire.DecodePoint(TrainingWire.EncodePoint(point));
+            var decoded = (MultiBinaryPoint)
+                TrainingWire.DecodePoint(TrainingWire.EncodePoint(point));
             Assert.That(decoded.Values, Is.EqualTo(new[] { true, false, true }));
 
             var emptyDecoded = (MultiBinaryPoint)

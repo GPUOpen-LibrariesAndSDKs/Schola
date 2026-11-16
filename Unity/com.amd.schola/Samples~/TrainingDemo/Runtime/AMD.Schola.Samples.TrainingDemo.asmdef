@@ -1,8 +1,4 @@
 {
-  "name": "AMD.Schola.Samples.TrainingDemo",
-  "references": [
-    "AMD.Schola.Runtime",
-    "AMD.Schola.Training",
-    "AMD.Schola.Inference"
-  ]
+    "name": "AMD.Schola.Samples.TrainingDemo",
+    "references": ["AMD.Schola.Runtime", "AMD.Schola.Training"]
 }

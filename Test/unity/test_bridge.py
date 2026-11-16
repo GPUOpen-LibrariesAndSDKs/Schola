@@ -37,7 +37,29 @@ def test_nested_point_roundtrip_preserves_keys_shape_and_values():
         [1, 2]
     )
     point.dict_point.values["choice"].discrete_point.value = 3
+    point.dict_point.values["flags"].multi_binary_point.values.extend([True, False, True])
     assert _decode_tree(_encode_point(point), space=False) == point
+
+
+def test_multi_binary_space_and_point_roundtrip():
+    space = _decode_tree(
+        [dict(parent=-1, kind="multi_binary", shape=[4])],
+        space=True,
+    )
+    assert space.multi_binary_space.shape == 4
+
+    empty = _decode_tree(
+        [dict(parent=-1, kind="multi_binary", shape=[0])],
+        space=True,
+    )
+    assert empty.multi_binary_space.shape == 0
+
+    point = points.Point()
+    point.multi_binary_point.values.extend([False, True])
+    assert _decode_tree(_encode_point(point), space=False) == point
+    assert _encode_point(point) == [
+        dict(parent=-1, key=None, kind="multi_binary", boolValues=[False, True])
+    ]
 
 
 @pytest.mark.parametrize(
@@ -53,11 +75,25 @@ def test_nested_point_roundtrip_preserves_keys_shape_and_values():
         ],
         [dict(parent=-1, kind="box", values=[1], shape=[2])],
         [dict(parent=-1, kind="box", values=[float("nan")])],
+        [dict(parent=-1, kind="multi_binary", boolValues=[1, 0])],
     ],
 )
 def test_malformed_tree_is_rejected(nodes):
     with pytest.raises(ValueError):
         _decode_tree(nodes, space=False)
+
+
+@pytest.mark.parametrize(
+    "nodes",
+    [
+        [dict(parent=-1, kind="multi_binary", shape=[-1])],
+        [dict(parent=-1, kind="multi_binary", shape=[])],
+        [dict(parent=-1, kind="multi_binary", shape=3)],
+    ],
+)
+def test_malformed_multi_binary_space_is_rejected(nodes):
+    with pytest.raises(ValueError):
+        _decode_tree(nodes, space=True)
 
 
 def test_space_keeps_unbounded_dimensions_and_float32_shape():

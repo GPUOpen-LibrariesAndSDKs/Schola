@@ -18,6 +18,11 @@
   },
   "samples": [
     {
+      "displayName": "Setup Demo",
+      "description": "Create a cube-to-target scene using Schola observations, Act and TranslateActuator with a deterministic controller. No Python or model required. See README.md in the imported sample.",
+      "path": "Samples~/SetupDemo"
+    },
+    {
       "displayName": "Training Demo",
       "description": "Train a cube to reach a target using Schola's Python PPO trainer, rewards, episode resets and the Unity training connection. See README.md in the imported sample.",
       "path": "Samples~/TrainingDemo"

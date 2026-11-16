@@ -1,27 +1,14 @@
-# Training Demo (US4)
+# Training and inference demo
 
-1. Install Schola's Python package from the repository root:
-   `python -m pip install -e "./Resources/python[sb3]"`.
-2. Import **Training Demo** from the AMD Schola package in Package Manager.
-3. Select **Tools > Schola > Create Training Demo Scene** and save the scene.
-4. Enable **Run In Background** in Player settings so training continues when the
-   Python terminal has focus. Enter Play Mode.
-5. In the Python environment where Schola was installed, run:
-   `schola unity train --timesteps 10000 --checkpoint ckpt/unity_ppo`.
+Import this sample and open **Scenes/ScholaTrainingDemo.unity**. Enable **Run In Background**, enter Play Mode, and run from the repository's Python environment:
 
-The cube receives three world-space displacements per action, each bounded to
-[-0.1, 0.1]. Observations are `agent_position` and `target_position`. Progress
-toward the target earns reward, reaching it earns a bonus, and each step has a
-small cost. Success terminates the episode; 128 steps truncate it. Schola resets
-the agent and preserves the terminal observation for the trainer. Training saves
-an SB3 checkpoint; the sample does not load that checkpoint for Unity inference.
+```powershell
+python -m pip install -e "./Resources/python[sb3]"
+schola unity train --unity-port 8001 --seed 0 --timesteps 10000 --checkpoint ckpt/unity_ppo --export-onnx
+```
 
-The sample has no deterministic controller. Unity waits for Python actions;
-movement and resets may look fast or irregular during training. This is a
-Transform-based example; each Python step invokes `ScholaEnvironment.Step`
-once and does not simulate a physics interval. A short run demonstrates training
-and checkpointing, not guaranteed convergence.
+The environment rewards progress, terminates at the target, truncates after 128 steps, and resets starting poses. Actions are three world-space displacements bounded to [-0.1, 0.1]. Training advances Transform steps rather than physics intervals. A short run does not guarantee convergence.
 
-Default Unity port: **8001**, bound to loopback only. Run only one trainer against
-that port. Change the Training Server's Port and pass `--unity-port` to use another
-instance. See `Documentation~/training.md` in the package for the complete guide.
+Stop Play Mode and Python, open **Scenes/ScholaInferenceDemo.unity**, and press Play to run the bundled ONNX policy on CPU. The overlay announces arrival and stops the runner. To use your output, import `ckpt/unity_ppo.onnx` into Assets and assign it to **Policy Runner > Model**. Do not assign the `.zip` checkpoint. The inference scene has no Training Server.
+
+Builders: **Tools > Schola > Create Training Demo Scene** and **Create Inference Demo Scene**. Duplicate scenes before adapting; reimporting can overwrite sample assets. See **Models/README.md** for model provenance and `Documentation~/setup.md` in the package for the full installation/adaptation guide and troubleshooting.

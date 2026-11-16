@@ -1,0 +1,6 @@
+{
+    "name": "AMD.Schola.Samples.SetupDemo.Editor",
+    "rootNamespace": "AMD.Schola.Samples.Editor",
+    "references": ["AMD.Schola.Runtime", "AMD.Schola.Samples.SetupDemo"],
+    "includePlatforms": ["Editor"]
+}

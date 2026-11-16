@@ -1,5 +1,13 @@
 {
-    "name": "AMD.Schola.Samples.TrainingDemo.Editor",
-    "references": ["AMD.Schola.Runtime", "AMD.Schola.Training", "AMD.Schola.Samples.TrainingDemo"],
-    "includePlatforms": ["Editor"]
+  "name": "AMD.Schola.Samples.TrainingDemo.Editor",
+  "references": [
+    "AMD.Schola.Runtime",
+    "AMD.Schola.Training",
+    "AMD.Schola.Samples.TrainingDemo",
+    "AMD.Schola.Inference",
+    "Unity.InferenceEngine"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ]
 }

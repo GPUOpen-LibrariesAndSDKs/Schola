@@ -87,6 +87,8 @@ documentation/*.bkp
 
 #ONNX files
 *.onnx
+# Shipped US6 policy used by the ready-to-open inference sample.
+!Unity/com.amd.schola/Samples~/TrainingDemo/Models/reach_target.onnx
 !/basic_test_model.onnx
 
 # Don't ignore Bundled third party dependencies

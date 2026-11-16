@@ -1,0 +1,17 @@
+{
+  "name": "AMD.Schola.Samples.TrainingDemo.Tests",
+  "references": [
+    "AMD.Schola.Runtime",
+    "AMD.Schola.Training",
+    "AMD.Schola.Inference",
+    "AMD.Schola.Samples.TrainingDemo",
+    "AMD.Schola.Samples.TrainingDemo.Editor",
+    "Unity.InferenceEngine"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ]
+}

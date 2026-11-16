@@ -1,0 +1,11 @@
+{
+    "name": "AMD.Schola.Samples.SetupDemo.Tests",
+    "rootNamespace": "AMD.Schola.Samples.Tests",
+    "references": [
+        "AMD.Schola.Runtime",
+        "AMD.Schola.Samples.SetupDemo",
+        "AMD.Schola.Samples.SetupDemo.Editor"
+    ],
+    "includePlatforms": ["Editor"],
+    "optionalUnityReferences": ["TestAssemblies"]
+}

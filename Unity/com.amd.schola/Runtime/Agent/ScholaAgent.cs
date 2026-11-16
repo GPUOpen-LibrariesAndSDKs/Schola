@@ -100,23 +100,12 @@ namespace AMD.Schola
         }
 
         /// <summary>
-        /// Applies a DictPoint action to attached actuators keyed by <see cref="TranslateActuator.ActionKey"/>.
-        /// All keys are checked before any actuator is applied so a missing key leaves the scene unchanged.
+        /// Checks that <paramref name="action"/> is a <see cref="DictPoint"/> whose keys and
+        /// payloads match every attached actuator. Does not move anything.
         /// </summary>
-        public void Act(Point action)
+        public void ValidateAction(Point action)
         {
-            if (action == null)
-            {
-                throw new ArgumentNullException(nameof(action));
-            }
-
-            if (!(action is DictPoint dictPoint))
-            {
-                throw new ArgumentException(
-                    $"Expected {nameof(DictPoint)}, got {action.GetType().Name}.",
-                    nameof(action)
-                );
-            }
+            var dictPoint = RequireDictPoint(action);
 
             foreach (var actuator in m_Actuators)
             {
@@ -144,8 +133,46 @@ namespace AMD.Schola
                     continue;
                 }
 
+                actuator.ValidateAction(dictPoint.Points[actuator.ActionKey]);
+            }
+        }
+
+        /// <summary>
+        /// Applies a DictPoint action to attached actuators keyed by <see cref="TranslateActuator.ActionKey"/>.
+        /// Keys and payloads are checked before any actuator is applied so a bad action leaves the scene unchanged.
+        /// </summary>
+        public void Act(Point action)
+        {
+            ValidateAction(action);
+
+            var dictPoint = (DictPoint)action;
+            foreach (var actuator in m_Actuators)
+            {
+                if (actuator == null)
+                {
+                    continue;
+                }
+
                 actuator.TakeAction(dictPoint.Points[actuator.ActionKey]);
             }
+        }
+
+        static DictPoint RequireDictPoint(Point action)
+        {
+            if (action == null)
+            {
+                throw new ArgumentNullException(nameof(action));
+            }
+
+            if (!(action is DictPoint dictPoint))
+            {
+                throw new ArgumentException(
+                    $"Expected {nameof(DictPoint)}, got {action.GetType().Name}.",
+                    nameof(action)
+                );
+            }
+
+            return dictPoint;
         }
 
         string FormatExpectedActionKeys()

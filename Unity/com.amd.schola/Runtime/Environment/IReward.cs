@@ -10,7 +10,8 @@ namespace AMD.Schola
     {
         /// <summary>
         /// Clears per-episode reward state. Called by <see cref="ScholaEnvironment.Reset"/>
-        /// after restoring snapshot poses and before collecting initial observations.
+        /// and <see cref="ScholaMultiAgentEnvironment.Reset"/> after restoring snapshot poses
+        /// and before collecting initial observations.
         /// </summary>
         void OnEpisodeReset();
 

@@ -144,8 +144,9 @@ namespace AMD.Schola
         }
 
         /// <summary>
-        /// Applies each agent's action, then reports that agent's reward, episode flags, and
-        /// a fresh observation. The action map is checked before any <see cref="IAgent.Act"/>.
+        /// Applies every agent's action, then reports each agent's reward, episode flags, and
+        /// a fresh observation from the resulting scene. Ids and payloads are checked before
+        /// any <see cref="IAgent.Act"/>, so one bad action leaves every agent unmoved.
         /// </summary>
         public IReadOnlyDictionary<string, AgentState> Step(
             IReadOnlyDictionary<string, Point> actions
@@ -154,12 +155,20 @@ namespace AMD.Schola
             EnsureConfigured();
             ValidateActions(actions);
 
+            foreach (var slot in m_Agents)
+            {
+                slot.Agent.ValidateAction(actions[slot.Id]);
+            }
+
+            foreach (var slot in m_Agents)
+            {
+                slot.Agent.Act(actions[slot.Id]);
+            }
+
             var states = new Dictionary<string, AgentState>();
             foreach (var slot in m_Agents)
             {
                 var agent = slot.Agent;
-                agent.Act(actions[slot.Id]);
-
                 var reward = 0f;
                 var rewardHook = ResolveHook<IReward>(agent);
                 if (rewardHook != null)
@@ -215,7 +224,8 @@ namespace AMD.Schola
                 );
             }
 
-            var seen = new HashSet<string>();
+            var seenIds = new HashSet<string>();
+            var seenAgents = new HashSet<ScholaAgent>();
             foreach (var slot in m_Agents)
             {
                 if (slot == null || slot.Agent == null)
@@ -232,10 +242,17 @@ namespace AMD.Schola
                     );
                 }
 
-                if (!seen.Add(slot.Id))
+                if (!seenIds.Add(slot.Id))
                 {
                     throw new InvalidOperationException(
                         $"{nameof(ScholaMultiAgentEnvironment)} agent id '{slot.Id}' is duplicated."
+                    );
+                }
+
+                if (!seenAgents.Add(slot.Agent))
+                {
+                    throw new InvalidOperationException(
+                        $"{nameof(ScholaMultiAgentEnvironment)} agent '{slot.Agent.name}' is registered more than once."
                     );
                 }
             }
@@ -295,7 +312,43 @@ namespace AMD.Schola
                 return onAgent;
             }
 
-            return agent.GetComponentInChildren<T>(true);
+            return FindHookInChildren<T>(agent.transform);
+        }
+
+        /// <summary>
+        /// Depth-first search of active descendants. A nested <see cref="ScholaAgent"/> owns
+        /// its own reward and status, so its subtree is not searched for the parent agent.
+        /// </summary>
+        static T FindHookInChildren<T>(Transform parent)
+            where T : class
+        {
+            for (var i = 0; i < parent.childCount; i++)
+            {
+                var child = parent.GetChild(i);
+                if (!child.gameObject.activeInHierarchy)
+                {
+                    continue;
+                }
+
+                if (child.GetComponent<ScholaAgent>() != null)
+                {
+                    continue;
+                }
+
+                var onChild = child.GetComponent<T>();
+                if (onChild != null)
+                {
+                    return onChild;
+                }
+
+                var nested = FindHookInChildren<T>(child);
+                if (nested != null)
+                {
+                    return nested;
+                }
+            }
+
+            return null;
         }
 
         void SnapshotPoses()

@@ -65,7 +65,21 @@ namespace AMD.Schola
             return space;
         }
 
+        /// <summary>
+        /// Checks that <paramref name="action"/> is a 3-float in-bounds <see cref="BoxPoint"/>.
+        /// Does not move the transform.
+        /// </summary>
+        public void ValidateAction(Point action)
+        {
+            ReadTranslation(action);
+        }
+
         public void TakeAction(Point action)
+        {
+            transform.position += ReadTranslation(action);
+        }
+
+        Vector3 ReadTranslation(Point action)
         {
             if (action == null)
             {
@@ -102,11 +116,7 @@ namespace AMD.Schola
                     );
             }
 
-            transform.position += new Vector3(
-                boxPoint.Values[0],
-                boxPoint.Values[1],
-                boxPoint.Values[2]
-            );
+            return new Vector3(boxPoint.Values[0], boxPoint.Values[1], boxPoint.Values[2]);
         }
     }
 }

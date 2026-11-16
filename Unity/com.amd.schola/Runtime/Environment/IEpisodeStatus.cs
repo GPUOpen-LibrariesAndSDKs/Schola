@@ -10,8 +10,8 @@ namespace AMD.Schola
     {
         /// <summary>
         /// Clears per-episode status state (step counters, latched flags). Called by
-        /// <see cref="ScholaEnvironment.Reset"/> after restoring snapshot poses and
-        /// before collecting initial observations.
+        /// <see cref="ScholaEnvironment.Reset"/> and <see cref="ScholaMultiAgentEnvironment.Reset"/>
+        /// after restoring snapshot poses and before collecting initial observations.
         /// </summary>
         void OnEpisodeReset();
 

@@ -179,6 +179,94 @@ namespace AMD.Schola.Tests.Environment
         }
 
         [Test]
+        public void Step_ObservationsAreTakenAfterEveryAgentActs()
+        {
+            var sharedActuator = m_AgentA.GetComponent<TranslateActuator>();
+            m_AgentB.SetActuators(new[] { sharedActuator });
+            m_Environment.Initialize();
+
+            var states = m_Environment.Step(
+                new Dictionary<string, Point>
+                {
+                    [AgentAId] = Translate(0.4f),
+                    [AgentBId] = Translate(0f, 0.7f),
+                }
+            );
+
+            AssertPosition(
+                ScholaEnvironmentTestFixture.PositionFromObservations(
+                    states[AgentAId].Observations
+                ),
+                StartA + new Vector3(0.4f, 0.7f, 0f)
+            );
+            AssertPosition(
+                ScholaEnvironmentTestFixture.PositionFromObservations(
+                    states[AgentBId].Observations
+                ),
+                StartB
+            );
+        }
+
+        [Test]
+        public void Step_MalformedAction_DoesNotMoveAnyAgent()
+        {
+            m_Environment.Initialize();
+            var beforeA = m_AgentA.transform.position;
+            var beforeB = m_AgentB.transform.position;
+            var malformed = new DictPoint
+            {
+                Points =
+                {
+                    [ScholaEnvironmentTestFixture.TranslateKey] = new BoxPoint { Values = { 1f } },
+                },
+            };
+
+            Assert.Throws<ArgumentException>(() =>
+                m_Environment.Step(
+                    new Dictionary<string, Point>
+                    {
+                        [AgentAId] = Translate(1f),
+                        [AgentBId] = malformed,
+                    }
+                )
+            );
+
+            AssertPosition(m_AgentA.transform.position, beforeA);
+            AssertPosition(m_AgentB.transform.position, beforeB);
+            Assert.That(m_Sink.StateMaps, Is.Empty);
+        }
+
+        [Test]
+        public void Step_UsesRewardOnAgentDescendant()
+        {
+            UnityEngine.Object.DestroyImmediate(m_RewardA);
+            var rewardGo = new GameObject("RewardChild");
+            rewardGo.transform.SetParent(m_AgentA.transform);
+            var childReward = rewardGo.AddComponent<ScholaEnvironmentTestFixture.ScriptedReward>();
+            childReward.Reward = 3f;
+            m_Environment.Initialize();
+
+            var states = m_Environment.Step(ZeroActions());
+
+            Assert.That(states[AgentAId].Reward, Is.EqualTo(3f));
+            Assert.That(states[AgentBId].Reward, Is.EqualTo(0f));
+        }
+
+        [Test]
+        public void Step_NestedAgentDoesNotShareRewardWithParent()
+        {
+            UnityEngine.Object.DestroyImmediate(m_RewardA);
+            m_AgentB.transform.SetParent(m_AgentA.transform);
+            m_RewardB.Reward = 4f;
+            m_Environment.Initialize();
+
+            var states = m_Environment.Step(ZeroActions());
+
+            Assert.That(states[AgentAId].Reward, Is.EqualTo(0f));
+            Assert.That(states[AgentBId].Reward, Is.EqualTo(4f));
+        }
+
+        [Test]
         public void Initialize_DuplicateAgentId_Throws()
         {
             m_Environment.SetAgents(
@@ -210,6 +298,29 @@ namespace AMD.Schola.Tests.Environment
             );
 
             Assert.Throws<InvalidOperationException>(() => m_Environment.Initialize());
+        }
+
+        [Test]
+        public void Initialize_SameAgentRegisteredTwice_Throws()
+        {
+            m_Environment.SetAgents(
+                new[]
+                {
+                    new KeyValuePair<string, ScholaAgent>(AgentAId, m_AgentA),
+                    new KeyValuePair<string, ScholaAgent>(AgentBId, m_AgentA),
+                }
+            );
+
+            Assert.Throws<InvalidOperationException>(() => m_Environment.Initialize());
+        }
+
+        Dictionary<string, Point> ZeroActions()
+        {
+            return new Dictionary<string, Point>
+            {
+                [AgentAId] = Translate(0f),
+                [AgentBId] = Translate(0f),
+            };
         }
 
         void AssertActionMapRejected(IReadOnlyDictionary<string, Point> actions)

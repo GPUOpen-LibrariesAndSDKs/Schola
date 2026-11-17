@@ -84,17 +84,20 @@ finally:
 The adapter uses the shared `.proto` messages without modifying generated Python
 bindings. Internally it converts messages to versioned, length-prefixed UTF-8
 JSON consumed by Unity's `JsonUtility`. Flat trees preserve dictionary keys,
-shapes, optional bounds and FLOAT32 values without recursive serialization.
-This adapter is part of Schola; environment authors do not implement it.
+shapes, optional bounds, FLOAT32 Box values and MultiBinary bools without
+recursive serialization. This adapter is part of Schola; environment authors do
+not implement it.
 
 ## Scope and lifecycle
 
 - One environment, ID **0**, with one agent, ID **SingleAgent**, per endpoint.
   Run independent Unity instances/ports for independent endpoints. General
   multi-agent and in-process vector environments are outside this implementation.
-- Supported values/spaces: **Dict**, **Box** with FLOAT32, and **Discrete**.
-  Unsupported types, mismatched action keys/shapes, NaN/infinity, and actions
-  outside declared bounds fail explicitly before the environment is stepped.
+- Supported values/spaces: **Dict**, **Box** with FLOAT32, **Discrete**, and
+  **MultiBinary** (boolean vector; wire kind `multi_binary` with `shape` /
+  `boolValues`). Unsupported types, mismatched action keys/shapes/lengths,
+  NaN/infinity, and actions outside declared bounds fail explicitly before the
+  environment is stepped.
 - Startup initializes sensors/actuators and snapshots reset poses once. A reset
   is required before the first step and after an operation fails. Disconnecting
   and reconnecting preserves the original snapshot while requiring a fresh reset.

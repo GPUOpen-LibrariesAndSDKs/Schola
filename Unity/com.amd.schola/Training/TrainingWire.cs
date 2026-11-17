@@ -16,6 +16,7 @@ namespace AMD.Schola.Training
         public string kind;
         public int[] shape;
         public float[] values;
+        public bool[] boolValues;
         public TrainingDimension[] dimensions;
         public int high;
         public int value;
@@ -67,7 +68,7 @@ namespace AMD.Schola.Training
         public TrainingEntry[] initialInfo;
     }
 
-    /// <summary>Conversions for the Box, Dict and Discrete types supported by Unity.</summary>
+    /// <summary>Conversions for Box, Dict, Discrete and MultiBinary types.</summary>
     public static class TrainingWire
     {
         public const int Version = 1;
@@ -119,9 +120,17 @@ namespace AMD.Schola.Training
                 node.kind = "discrete";
                 node.high = discrete.High;
             }
+            else if (space is MultiBinarySpace multiBinary && multiBinary.Shape > 0)
+            {
+                // Proto MultiBinarySpace.shape is a scalar; wire as a one-element array
+                // so TrainingNode can keep Box's int[] shape field. Shape must be
+                // positive: Gymnasium MultiBinary(0) and Unreal both reject empty.
+                node.kind = "multi_binary";
+                node.shape = new[] { multiBinary.Shape };
+            }
             else
                 throw new NotSupportedException(
-                    "Training supports Box, Dict and positive Discrete spaces."
+                    "Training supports Box, Dict, and positive Discrete or MultiBinary spaces."
                 );
         }
 
@@ -156,8 +165,15 @@ namespace AMD.Schola.Training
                 node.kind = "discrete";
                 node.value = discrete.Value;
             }
+            else if (point is MultiBinaryPoint multiBinary)
+            {
+                node.kind = "multi_binary";
+                node.boolValues = multiBinary.Values.ToArray();
+            }
             else
-                throw new NotSupportedException("Training supports Box, Dict and Discrete points.");
+                throw new NotSupportedException(
+                    "Training supports Box, Dict, Discrete and MultiBinary points."
+                );
         }
 
         public static Point DecodePoint(TrainingNode[] nodes)
@@ -186,6 +202,12 @@ namespace AMD.Schola.Training
                         break;
                     case "discrete":
                         points[i] = new DiscretePoint { Value = node.value };
+                        break;
+                    case "multi_binary":
+                        points[i] = new MultiBinaryPoint
+                        {
+                            Values = (node.boolValues ?? Array.Empty<bool>()).ToList(),
+                        };
                         break;
                     default:
                         throw new ArgumentException("Unsupported action type.");
@@ -250,6 +272,14 @@ namespace AMD.Schola.Training
                 && value.Value < discrete.High
             )
                 return;
+            if (space is MultiBinarySpace multiBinary && point is MultiBinaryPoint flags)
+            {
+                if (flags.Values.Count != multiBinary.Shape)
+                    throw new ArgumentException(
+                        "Action length does not match the declared MultiBinary space."
+                    );
+                return;
+            }
             throw new ArgumentException("Action does not match the declared space.");
         }
 

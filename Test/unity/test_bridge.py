@@ -48,12 +48,6 @@ def test_multi_binary_space_and_point_roundtrip():
     )
     assert space.multi_binary_space.shape == 4
 
-    empty = _decode_tree(
-        [dict(parent=-1, kind="multi_binary", shape=[0])],
-        space=True,
-    )
-    assert empty.multi_binary_space.shape == 0
-
     point = points.Point()
     point.multi_binary_point.values.extend([False, True])
     assert _decode_tree(_encode_point(point), space=False) == point
@@ -87,6 +81,7 @@ def test_malformed_tree_is_rejected(nodes):
     "nodes",
     [
         [dict(parent=-1, kind="multi_binary", shape=[-1])],
+        [dict(parent=-1, kind="multi_binary", shape=[0])],
         [dict(parent=-1, kind="multi_binary", shape=[])],
         [dict(parent=-1, kind="multi_binary", shape=3)],
     ],

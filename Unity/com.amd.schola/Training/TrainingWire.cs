@@ -68,7 +68,7 @@ namespace AMD.Schola.Training
         public TrainingEntry[] initialInfo;
     }
 
-    /// <summary>Conversions for the Box, Dict, Discrete and MultiBinary types supported by Unity.</summary>
+    /// <summary>Conversions for Box, Dict, Discrete and MultiBinary types.</summary>
     public static class TrainingWire
     {
         public const int Version = 1;
@@ -120,16 +120,17 @@ namespace AMD.Schola.Training
                 node.kind = "discrete";
                 node.high = discrete.High;
             }
-            else if (space is MultiBinarySpace multiBinary && multiBinary.Shape >= 0)
+            else if (space is MultiBinarySpace multiBinary && multiBinary.Shape > 0)
             {
                 // Proto MultiBinarySpace.shape is a scalar; wire as a one-element array
-                // so TrainingNode can keep Box's int[] shape field.
+                // so TrainingNode can keep Box's int[] shape field. Shape must be
+                // positive: Gymnasium MultiBinary(0) and Unreal both reject empty.
                 node.kind = "multi_binary";
                 node.shape = new[] { multiBinary.Shape };
             }
             else
                 throw new NotSupportedException(
-                    "Training supports Box, Dict, positive Discrete and non-negative MultiBinary spaces."
+                    "Training supports Box, Dict, and positive Discrete or MultiBinary spaces."
                 );
         }
 

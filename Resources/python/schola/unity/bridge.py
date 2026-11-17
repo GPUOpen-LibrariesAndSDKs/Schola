@@ -87,7 +87,7 @@ def _decode_tree(nodes: list[dict], *, space: bool):
                     not isinstance(shape, list)
                     or len(shape) != 1
                     or type(shape[0]) is not int
-                    or shape[0] < 0
+                    or shape[0] <= 0
                 ):
                     raise ValueError("Invalid MultiBinary shape")
                 value.multi_binary_space.shape = shape[0]

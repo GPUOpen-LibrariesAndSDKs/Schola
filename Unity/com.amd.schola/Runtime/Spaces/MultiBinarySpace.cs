@@ -3,7 +3,7 @@
 namespace AMD.Schola
 {
     /// <summary>
-    /// Independent boolean dimensions. Mirrors Unreal FMultiBinarySpace / Proto MultiBinarySpace.
+    /// Independent boolean dimensions. Mirrors Unreal/Proto MultiBinarySpace.
     /// </summary>
     public sealed class MultiBinarySpace : Space
     {

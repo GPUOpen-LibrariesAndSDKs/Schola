@@ -5,7 +5,7 @@ using System.Collections.Generic;
 namespace AMD.Schola
 {
     /// <summary>
-    /// Boolean vector observation/action. Mirrors Unreal FMultiBinaryPoint / Proto MultiBinaryPoint.
+    /// Boolean vector observation/action. Mirrors Unreal/Proto MultiBinaryPoint.
     /// </summary>
     public sealed class MultiBinaryPoint : Point
     {

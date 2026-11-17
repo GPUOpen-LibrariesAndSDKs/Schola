@@ -17,16 +17,13 @@ namespace AMD.Schola.Tests.Training
         }
 
         [Test]
-        public void Validate_AcceptsMatchingLengthIncludingEmpty()
+        public void Validate_AcceptsMatchingLength()
         {
             Assert.DoesNotThrow(() =>
                 TrainingWire.Validate(
                     new MultiBinaryPoint { Values = { true, false, true } },
                     new MultiBinarySpace(3)
                 )
-            );
-            Assert.DoesNotThrow(() =>
-                TrainingWire.Validate(new MultiBinaryPoint(), new MultiBinarySpace())
             );
         }
 
@@ -52,17 +49,10 @@ namespace AMD.Schola.Tests.Training
             Assert.That(spaceNodes[0].kind, Is.EqualTo("multi_binary"));
             Assert.That(spaceNodes[0].shape, Is.EqualTo(new[] { 3 }));
 
-            var emptySpace = TrainingWire.EncodeSpace(new MultiBinarySpace());
-            Assert.That(emptySpace[0].shape, Is.EqualTo(new[] { 0 }));
-
             var point = new MultiBinaryPoint { Values = { true, false, true } };
             var decoded = (MultiBinaryPoint)
                 TrainingWire.DecodePoint(TrainingWire.EncodePoint(point));
             Assert.That(decoded.Values, Is.EqualTo(new[] { true, false, true }));
-
-            var emptyDecoded = (MultiBinaryPoint)
-                TrainingWire.DecodePoint(TrainingWire.EncodePoint(new MultiBinaryPoint()));
-            Assert.That(emptyDecoded.Values, Is.Empty);
         }
 
         [Test]
@@ -89,8 +79,11 @@ namespace AMD.Schola.Tests.Training
         }
 
         [Test]
-        public void EncodeSpace_RejectsNegativeShape()
+        public void EncodeSpace_RejectsNonPositiveShape()
         {
+            Assert.Throws<NotSupportedException>(() =>
+                TrainingWire.EncodeSpace(new MultiBinarySpace())
+            );
             Assert.Throws<NotSupportedException>(() =>
                 TrainingWire.EncodeSpace(new MultiBinarySpace(-1))
             );

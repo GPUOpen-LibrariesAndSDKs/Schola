@@ -253,10 +253,6 @@ Third-party dependencies such as Unity Inference Engine, gRPC and Protobuf keep 
 
 ## Getting Started (Unreal)
 
-### Unity integration (US6)
-
-The Unity package is in [`Unity/com.amd.schola`](Unity/com.amd.schola), separate from the Unreal plugin described below. Follow the [Unity setup and adaptation guide](Unity/com.amd.schola/Documentation~/setup.md) to install it and import the **Setup Demo**. The demo uses real Schola position observations and sends deterministic actions through `ScholaAgent.Act()` and `TranslateActuator`; it requires neither Python nor a trained model. Unity Editor validation is still required; the guide includes the checklist and current US3–5 limitations.
-
 ### Install Unreal Engine
 As the upstream Schola plugin is an Unreal Engine project, you will need to first install Unreal Engine. Refer to the below table to identify the correct version of Unreal Engine for each version of Schola. 
 
@@ -328,6 +324,6 @@ For questions about Schola, contact the team at [Schola@amd.com](mailto:Schola@a
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for issue and pull request guidelines, coding standards, and testing expectations.
 
-## Unity setup and adaptation (US6)
+## AI Usage
 
-Follow the [complete setup guide](Unity/com.amd.schola/Documentation~/setup.md) to install the package, open the supplied scenes, train a policy, export ONNX, run inference without Python, and adapt the sample to your project. Import both **Setup Demo** and **Training Demo** from Package Manager.
+Claude Opus 5.5  was used to co-develop the Unity Sentis Policy

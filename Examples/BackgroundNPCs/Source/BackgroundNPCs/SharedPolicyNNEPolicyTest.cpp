@@ -11,6 +11,8 @@
 #include "SharedPolicyNNETestAgent.h"
 #include "Steppers/SharedPolicyStepper.h"
 
+#include <limits>
+
 // Named, not anonymous: unity builds would collide on an anonymous helper.
 namespace SharedPolicyNNEPolicyTest
 {
@@ -399,12 +401,12 @@ bool FSharedPolicyNNEInvalidRequestTest::RunTest(const FString&)
 	}
 	{
 		auto Request = Valid({{0, 1}, {1, 2}});
-		Request.Key[1].GetMutable<FBoxPoint>().Values[5] = TNumericLimits<float>::QuietNaN();
+		Request.Key[1].GetMutable<FBoxPoint>().Values[5] = std::numeric_limits<float>::quiet_NaN();
 		ExpectRejected(TEXT("NaN observation"), TEXT("Row 1 is not a finite FBoxPoint"), Request.Key, Request.Value);
 	}
 	{
 		auto Request = Valid({{0, 1}, {1, 2}});
-		Request.Key[0].GetMutable<FBoxPoint>().Values[0] = TNumericLimits<float>::Infinity();
+		Request.Key[0].GetMutable<FBoxPoint>().Values[0] = std::numeric_limits<float>::infinity();
 		ExpectRejected(TEXT("infinite observation"), TEXT("Row 0 is not a finite FBoxPoint"), Request.Key,
 			Request.Value);
 	}

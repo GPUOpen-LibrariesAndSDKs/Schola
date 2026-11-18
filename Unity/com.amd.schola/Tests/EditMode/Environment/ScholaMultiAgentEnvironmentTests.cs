@@ -144,9 +144,7 @@ namespace AMD.Schola.Tests.Environment
         [Test]
         public void Step_MissingAgentId_DoesNotMoveAnyAgent()
         {
-            AssertActionMapRejected(
-                new Dictionary<string, Point> { [AgentAId] = Translate(1f) }
-            );
+            AssertActionMapRejected(new Dictionary<string, Point> { [AgentAId] = Translate(1f) });
         }
 
         [Test]
@@ -283,9 +281,7 @@ namespace AMD.Schola.Tests.Environment
         [Test]
         public void Initialize_EmptyAgentId_Throws()
         {
-            m_Environment.SetAgents(
-                new[] { new KeyValuePair<string, ScholaAgent>(" ", m_AgentA) }
-            );
+            m_Environment.SetAgents(new[] { new KeyValuePair<string, ScholaAgent>(" ", m_AgentA) });
 
             Assert.Throws<InvalidOperationException>(() => m_Environment.Initialize());
         }
@@ -441,10 +437,7 @@ namespace AMD.Schola.Tests.Environment
                 initial[ScholaEnvironment.DefaultAgentId],
                 Is.InstanceOf<InitialAgentState>()
             );
-            Assert.That(
-                initial[ScholaEnvironment.DefaultAgentId],
-                Is.Not.InstanceOf<AgentState>()
-            );
+            Assert.That(initial[ScholaEnvironment.DefaultAgentId], Is.Not.InstanceOf<AgentState>());
             AssertPosition(
                 ScholaEnvironmentTestFixture.PositionFromObservations(
                     initial[ScholaEnvironment.DefaultAgentId].Observations

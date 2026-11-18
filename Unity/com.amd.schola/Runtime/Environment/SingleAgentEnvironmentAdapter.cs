@@ -58,10 +58,7 @@ namespace AMD.Schola
             {
                 if (pair.Key != ScholaEnvironment.DefaultAgentId)
                 {
-                    throw new ArgumentException(
-                        $"Unknown agent id '{pair.Key}'.",
-                        nameof(actions)
-                    );
+                    throw new ArgumentException($"Unknown agent id '{pair.Key}'.", nameof(actions));
                 }
             }
 

@@ -275,10 +275,7 @@ namespace AMD.Schola
             {
                 if (!ids.Contains(pair.Key))
                 {
-                    throw new ArgumentException(
-                        $"Unknown agent id '{pair.Key}'.",
-                        nameof(actions)
-                    );
+                    throw new ArgumentException($"Unknown agent id '{pair.Key}'.", nameof(actions));
                 }
             }
 

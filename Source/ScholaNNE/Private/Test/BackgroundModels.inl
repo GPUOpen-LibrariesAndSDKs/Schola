@@ -1,3 +1,4 @@
+#pragma once
 // Embedded test models (deterministic arithmetic, no trained weights).
 // BackgroundTypedONNX: inputs x float[batch,2], z int64[batch,2]; sum = x + float(z),
 //   choice = ArgMax(sum, axis 1), positive = sum > 0. BackgroundFixedONNX: same graph, batch fixed at 16.

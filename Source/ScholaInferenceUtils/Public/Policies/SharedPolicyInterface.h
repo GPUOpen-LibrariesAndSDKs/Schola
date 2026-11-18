@@ -10,8 +10,8 @@
 /**
  * @brief Multi-head batch inference for a shared-policy model.
  *
- * IPolicy::BatchedThink cannot name a head per NPC. This interface is the
- * contract a future ScholaNNE implementation should satisfy; the stepper lives
+ * IPolicy::BatchedThink cannot name a head per NPC. UNNESharedPolicy in ScholaNNE
+ * implements this interface with one NNE model call per batch; the stepper lives
  * in ScholaInferenceUtils so that module does not depend on ScholaNNE.
  *
  * Parallel arrays, one row per NPC:

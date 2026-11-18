@@ -254,10 +254,19 @@ bool UNNESharedPolicy::BatchedThinkWithHeads(const TArray<TInstancedStruct<FPoin
 	Input.SetNumUninitialized(Rows * ObservationWidth);
 	for (int32 Row = 0; Row < Rows; ++Row)
 	{
-		if (!Codec->Encode(Observations[Row], MakeArrayView(Input).Slice(Row * ObservationWidth, ObservationWidth)))
+		const FBoxPoint* Box = Observations[Row].GetPtr<FBoxPoint>();
+		if (!Box)
+		{
+			return Fail(FString::Printf(TEXT("Row %d is not a FBoxPoint."), Row));
+		}
+		if (Box->Values.Num() != ObservationWidth)
 		{
 			return Fail(FString::Printf(
-				TEXT("Row %d is not a finite FBoxPoint of %d values."), Row, ObservationWidth));
+				TEXT("Row %d has %d values, expected %d."), Row, Box->Values.Num(), ObservationWidth));
+		}
+		if (!Codec->Encode(Observations[Row], MakeArrayView(Input).Slice(Row * ObservationWidth, ObservationWidth)))
+		{
+			return Fail(FString::Printf(TEXT("Row %d has a non-finite value."), Row));
 		}
 	}
 

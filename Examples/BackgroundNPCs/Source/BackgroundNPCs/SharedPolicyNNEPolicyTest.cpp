@@ -362,7 +362,7 @@ bool FSharedPolicyNNEInvalidRequestTest::RunTest(const FString&)
 	{
 		auto Request = Valid({{0, 1}});
 		Request.Value[0] = NAME_None;
-		ExpectRejected(TEXT("unset head"), TEXT("unknown head"), Request.Key, Request.Value);
+		ExpectRejected(TEXT("unset head"), TEXT("unknown head 'None'"), Request.Key, Request.Value);
 	}
 	{
 		auto Request = Valid({{0, 1}, {1, 2}});
@@ -384,30 +384,30 @@ bool FSharedPolicyNNEInvalidRequestTest::RunTest(const FString&)
 	{
 		auto Request = Valid({{0, 1}, {1, 2}});
 		Request.Key[1] = MakeObservation(1.f, ObservationWidth - 1);
-		ExpectRejected(TEXT("observation one value short"), TEXT("Row 1 is not a finite FBoxPoint of 64 values"),
+		ExpectRejected(TEXT("observation one value short"), TEXT("Row 1 has 63 values"),
 			Request.Key, Request.Value);
 	}
 	{
 		auto Request = Valid({{0, 1}, {1, 2}});
 		Request.Key[0] = MakeObservation(1.f, ObservationWidth + 1);
-		ExpectRejected(TEXT("observation one value long"), TEXT("Row 0 is not a finite FBoxPoint of 64 values"),
+		ExpectRejected(TEXT("observation one value long"), TEXT("Row 0 has 65 values"),
 			Request.Key, Request.Value);
 	}
 	{
 		auto Request = Valid({{0, 1}, {1, 2}});
 		Request.Key[1].InitializeAs<FMultiDiscretePoint>(TArray<int>{1});
-		ExpectRejected(TEXT("observation of the wrong point type"), TEXT("Row 1 is not a finite FBoxPoint"),
+		ExpectRejected(TEXT("observation of the wrong point type"), TEXT("Row 1 is not a FBoxPoint"),
 			Request.Key, Request.Value);
 	}
 	{
 		auto Request = Valid({{0, 1}, {1, 2}});
 		Request.Key[1].GetMutable<FBoxPoint>().Values[5] = std::numeric_limits<float>::quiet_NaN();
-		ExpectRejected(TEXT("NaN observation"), TEXT("Row 1 is not a finite FBoxPoint"), Request.Key, Request.Value);
+		ExpectRejected(TEXT("NaN observation"), TEXT("Row 1 has a non-finite value"), Request.Key, Request.Value);
 	}
 	{
 		auto Request = Valid({{0, 1}, {1, 2}});
 		Request.Key[0].GetMutable<FBoxPoint>().Values[0] = std::numeric_limits<float>::infinity();
-		ExpectRejected(TEXT("infinite observation"), TEXT("Row 0 is not a finite FBoxPoint"), Request.Key,
+		ExpectRejected(TEXT("infinite observation"), TEXT("Row 0 has a non-finite value"), Request.Key,
 			Request.Value);
 	}
 	{

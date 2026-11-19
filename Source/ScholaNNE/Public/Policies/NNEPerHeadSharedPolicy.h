@@ -62,7 +62,18 @@ public:
 	/** Number of model calls made by BatchedThinkWithHeads, including calls that failed. */
 	int64 GetModelCallCount() const { return ModelCallCount; }
 
-	/** Not implemented yet; always fails and leaves OutActions unchanged. */
+	/**
+	 * @brief Groups rows by head, runs each present head's model once on its rows, and returns actions in input order.
+	 *
+	 * Every row is validated and encoded before any model runs: the batch must be non-empty,
+	 * Observations and InHeads must have equal length, each head must be registered and its row count
+	 * within MaxBatchSize, and each observation must be a finite FBoxPoint of ObservationWidth values.
+	 * Any failure returns false, logs the reason, and leaves OutActions unchanged.
+	 *
+	 * @param[in] Observations One FBoxPoint per NPC.
+	 * @param[in] InHeads One registered head name per NPC.
+	 * @param[out] OutActions One FBoxPoint per NPC, sized to that NPC's head. Written only on success.
+	 */
 	virtual bool BatchedThinkWithHeads(const TArray<TInstancedStruct<FPoint>>& Observations,
 		const TArray<FName>& InHeads, TArray<TInstancedStruct<FPoint>>& OutActions) override;
 

@@ -1,8 +1,9 @@
 #pragma once
-// Embedded per-head test models (deterministic arithmetic, no trained weights). Both have one input
-// "observations" and one output "actions" float[batch,2], computed as MatMul(observations, weights).
-// PerHeadNarrowONNX: observations float[batch,2], weights [[2,0],[0,3]], so actions = [2*x0, 3*x1].
-// PerHeadWideONNX: observations float[batch,3], weights [[1,0],[0,1],[1,1]], so actions = [x0+x2, x1+x2].
+// Embedded per-head test models (deterministic arithmetic, no trained weights). Each has one input
+// "observations" float[batch,obs] and one output "actions" float[batch,act], computed as MatMul(observations, weights).
+// PerHeadNarrowONNX: obs 2, act 2, weights [[2,0],[0,3]], so actions = [2*x0, 3*x1].
+// PerHeadWideONNX: obs 3, act 2, weights [[1,0],[0,1],[1,1]], so actions = [x0+x2, x1+x2].
+// PerHeadSumONNX: obs 2, act 1, weights [[1],[1]], so actions = [x0+x1].
 static const uint8 PerHeadNarrowONNX[] = {
     8,8,18,0,58,174,1,10,40,10,12,111,98,115,101,114,118,97,116,105,111,110,115,10,
     7,119,101,105,103,104,116,115,18,7,97,99,116,105,111,110,115,34,6,77,97,116,77,117,
@@ -23,4 +24,14 @@ static const uint8 PerHeadWideONNX[] = {
     18,5,98,97,116,99,104,10,2,8,3,98,30,10,7,97,99,116,105,111,110,115,18,19,
     10,17,8,1,18,13,10,7,18,5,98,97,116,99,104,10,2,8,2,66,4,10,0,16,
     13,
+};
+static const uint8 PerHeadSumONNX[] = {
+    8,8,18,0,58,163,1,10,40,10,12,111,98,115,101,114,118,97,116,105,111,110,115,10,
+    7,119,101,105,103,104,116,115,18,7,97,99,116,105,111,110,115,34,6,77,97,116,77,117,
+    108,18,23,83,99,104,111,108,97,80,101,114,72,101,97,100,83,117,109,70,105,120,116,117,
+    114,101,42,25,8,2,8,1,16,1,66,7,119,101,105,103,104,116,115,74,8,0,0,128,
+    63,0,0,128,63,90,35,10,12,111,98,115,101,114,118,97,116,105,111,110,115,18,19,10,
+    17,8,1,18,13,10,7,18,5,98,97,116,99,104,10,2,8,2,98,30,10,7,97,99,
+    116,105,111,110,115,18,19,10,17,8,1,18,13,10,7,18,5,98,97,116,99,104,10,2,
+    8,1,66,4,10,0,16,13,
 };

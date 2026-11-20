@@ -128,46 +128,58 @@ def create_session_options(
     return options
 
 
-def _artifact_names(roles: tuple[str, ...]) -> tuple[str, ...]:
-    names = ["A_all_heads", "B_masked", "D_conditional", "E_backbone"]
-    names.extend(f"C_{role}" for role in roles)
-    names.extend(f"E_{role}_head" for role in roles)
-    return tuple(names)
+def _validate_architectures(architectures: Sequence[str]) -> tuple[str, ...]:
+    selected = tuple(architectures)
+    if not selected:
+        raise ValueError("at least one architecture is required")
+    if len(set(selected)) != len(selected):
+        raise ValueError("architectures must be unique")
+    unsupported = sorted(set(selected) - set(SUPPORTED_ARCHITECTURES))
+    if unsupported:
+        raise ValueError(f"unsupported architectures: {unsupported}")
+    return selected
 
 
 def _expected_contracts(
     roles: tuple[str, ...],
+    architectures: Sequence[str] = SUPPORTED_ARCHITECTURES,
 ) -> dict[str, tuple[tuple[str, ...], tuple[str, ...]]]:
-    """Return required public input and output names for every artifact."""
+    """Return required public input and output names for selected artifacts."""
 
-    contracts = {
-        "A_all_heads": (
+    contracts: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {}
+    if "A" in architectures:
+        contracts["A_all_heads"] = (
             ("observations",),
             tuple(f"{role}_actions" for role in roles),
-        ),
-        "B_masked": (
+        )
+    if "B" in architectures:
+        contracts["B_masked"] = (
             ("observations", "role_masks"),
             ("selected_actions",),
-        ),
-        "D_conditional": (
+        )
+    if "D" in architectures:
+        contracts["D_conditional"] = (
             ("observations", "use_first_expert"),
             ("actions",),
-        ),
-        "E_backbone": (("observations",), ("features",)),
-    }
+        )
+    if "E" in architectures:
+        contracts["E_backbone"] = (("observations",), ("features",))
     for role in roles:
-        contracts[f"C_{role}"] = (("observations",), ("actions",))
-        contracts[f"E_{role}_head"] = (("features",), ("actions",))
+        if "C" in architectures:
+            contracts[f"C_{role}"] = (("observations",), ("actions",))
+        if "E" in architectures:
+            contracts[f"E_{role}_head"] = (("features",), ("actions",))
     return contracts
 
 
 def _validate_session_contracts(
     sessions: Mapping[str, ort.InferenceSession],
     roles: tuple[str, ...],
+    architectures: Sequence[str] = SUPPORTED_ARCHITECTURES,
 ) -> None:
     """Reject missing or unexpectedly named public tensors before requests."""
 
-    contracts = _expected_contracts(roles)
+    contracts = _expected_contracts(roles, architectures)
     if set(sessions) != set(contracts):
         missing = sorted(set(contracts) - set(sessions))
         extra = sorted(set(sessions) - set(contracts))
@@ -191,6 +203,7 @@ def _load_sessions(
     profile_dir: Path,
     roles: tuple[str, ...],
     settings: RuntimeSettings,
+    architectures: Sequence[str] = SUPPORTED_ARCHITECTURES,
 ) -> dict[str, ort.InferenceSession]:
     """Create every session once so requests never reload model files."""
 
@@ -202,7 +215,7 @@ def _load_sessions(
         )
 
     sessions: dict[str, ort.InferenceSession] = {}
-    for artifact in _artifact_names(roles):
+    for artifact in _expected_contracts(roles, architectures):
         model_path = profile_dir / f"{artifact}.onnx"
         if not model_path.is_file():
             raise FileNotFoundError(f"missing ONNX artifact: {model_path}")
@@ -211,26 +224,32 @@ def _load_sessions(
             sess_options=create_session_options(settings),
             providers=[settings.provider],
         )
-    _validate_session_contracts(sessions, roles)
+    _validate_session_contracts(sessions, roles, architectures)
     return sessions
 
 
 class BenchmarkRuntime:
-    """Persistent A–E sessions with shared validation and routing behavior."""
+    """Persistent sessions for selected A–E architectures with shared routing."""
 
     def __init__(
         self,
         config: BenchmarkConfig,
         profile_name: str,
         sessions: Mapping[str, ort.InferenceSession],
+        architectures: Sequence[str] = SUPPORTED_ARCHITECTURES,
     ) -> None:
         self.dimensions = config.dimensions(profile_name)
         self.roles = self.dimensions.roles
+        self.architectures = _validate_architectures(architectures)
         self._role_indices = {
             role: index for index, role in enumerate(self.roles)
         }
         self._sessions = dict(sessions)
-        _validate_session_contracts(self._sessions, self.roles)
+        _validate_session_contracts(
+            self._sessions,
+            self.roles,
+            self.architectures,
+        )
 
     @classmethod
     def from_paths(
@@ -241,15 +260,32 @@ class BenchmarkRuntime:
     ) -> BenchmarkRuntime:
         """Load configuration and persistent sessions for one model profile."""
 
-        config = load_benchmark_config(config_path)
-        settings = load_runtime_settings(config_path)
-        profile_dir = Path(artifacts_dir) / profile_name
+        return cls.from_config(
+            load_benchmark_config(config_path),
+            load_runtime_settings(config_path),
+            artifacts_dir,
+            profile_name,
+        )
+
+    @classmethod
+    def from_config(
+        cls,
+        config: BenchmarkConfig,
+        settings: RuntimeSettings,
+        artifacts_dir: str | Path,
+        profile_name: str,
+        architectures: Sequence[str] = SUPPORTED_ARCHITECTURES,
+    ) -> BenchmarkRuntime:
+        """Load sessions for an explicit config, such as an N-role variant."""
+
+        selected = _validate_architectures(architectures)
         sessions = _load_sessions(
-            profile_dir,
+            Path(artifacts_dir) / profile_name,
             config.roles,
             settings,
+            selected,
         )
-        return cls(config, profile_name, sessions)
+        return cls(config, profile_name, sessions, selected)
 
     @property
     def loaded_artifacts(self) -> tuple[str, ...]:
@@ -266,6 +302,11 @@ class BenchmarkRuntime:
         if architecture not in SUPPORTED_ARCHITECTURES:
             raise ValueError(
                 f"unknown architecture {architecture!r}; expected A, B, C, D, or E"
+            )
+        if architecture not in self.architectures:
+            raise ValueError(
+                f"architecture {architecture} was not loaded; loaded "
+                f"{list(self.architectures)}"
             )
         if not isinstance(observations, np.ndarray):
             raise TypeError("observations must be a NumPy array")

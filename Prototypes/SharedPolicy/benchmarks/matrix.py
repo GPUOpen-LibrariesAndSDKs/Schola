@@ -11,7 +11,7 @@ import tempfile
 import time
 from dataclasses import asdict
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import Callable, Mapping, Sequence
 
 from benchmarks.benchmark import (
     TrialSpec,
@@ -120,7 +120,6 @@ def validate_matrix_trials(
             f"missing={missing}, extra={extra}"
         )
 
-    previous_finished_ns: int | None = None
     for spec, report in zip(specs, reports, strict=True):
         if _trial_identity_from_report(report) != _trial_identity_from_spec(spec):
             raise ValueError("matrix worker reports are out of planned order")
@@ -128,7 +127,14 @@ def validate_matrix_trials(
             raise ValueError("matrix worker report failed its correctness gate")
         if set(report.get("results", {})) != set(spec.measured_architectures):
             raise ValueError("matrix worker report has unexpected measured results")
+    validate_worker_intervals(reports)
 
+
+def validate_worker_intervals(reports: Sequence[Mapping[str, object]]) -> None:
+    """Reject missing worker timing or workers that ran concurrently."""
+
+    previous_finished_ns: int | None = None
+    for report in reports:
         worker = report.get("worker")
         if not isinstance(worker, dict):
             raise ValueError("matrix worker report is missing worker identity")
@@ -165,32 +171,24 @@ def _worker_command(
     ]
 
 
-def run_benchmark_matrix(
-    config_path: str | Path,
-    artifacts_dir: str | Path,
-    measured_architectures: Sequence[str] = DEFAULT_MEASURED_ARCHITECTURES,
-) -> dict[str, object]:
-    """Run every configured trial sequentially in a fresh Python process."""
+def run_sequential_workers(
+    count: int,
+    build_command: Callable[[int, Path], list[str]],
+) -> list[dict[str, object]]:
+    """Run `count` worker processes one at a time and collect their reports.
 
-    config_file = Path(config_path).resolve()
-    artifact_root = Path(artifacts_dir).resolve()
-    config = load_benchmark_config(config_file)
-    experiment = load_experiment_settings(config_file)
-    specs = build_matrix_specs(config_file, measured_architectures)
+    `build_command(index, output_path)` must return a command that writes one
+    JSON object to `output_path`. The first failure stops the run.
+    """
+
     reports: list[dict[str, object]] = []
     project_dir = Path(__file__).parents[1]
-
     with tempfile.TemporaryDirectory(prefix="shared-policy-matrix-") as temporary:
         temporary_dir = Path(temporary)
-        for index, spec in enumerate(specs):
+        for index in range(count):
             worker_output = temporary_dir / f"trial-{index:04d}.json"
             completed = subprocess.run(
-                _worker_command(
-                    config_file,
-                    artifact_root,
-                    worker_output,
-                    spec,
-                ),
+                build_command(index, worker_output),
                 cwd=project_dir,
                 capture_output=True,
                 text=True,
@@ -210,6 +208,30 @@ def run_benchmark_matrix(
             if not isinstance(decoded, dict):
                 raise ValueError(f"matrix worker {index} report must be an object")
             reports.append(decoded)
+    return reports
+
+
+def run_benchmark_matrix(
+    config_path: str | Path,
+    artifacts_dir: str | Path,
+    measured_architectures: Sequence[str] = DEFAULT_MEASURED_ARCHITECTURES,
+) -> dict[str, object]:
+    """Run every configured trial sequentially in a fresh Python process."""
+
+    config_file = Path(config_path).resolve()
+    artifact_root = Path(artifacts_dir).resolve()
+    config = load_benchmark_config(config_file)
+    experiment = load_experiment_settings(config_file)
+    specs = build_matrix_specs(config_file, measured_architectures)
+    reports = run_sequential_workers(
+        len(specs),
+        lambda index, output: _worker_command(
+            config_file,
+            artifact_root,
+            output,
+            specs[index],
+        ),
+    )
 
     validate_matrix_trials(specs, reports)
     first_report = reports[0]

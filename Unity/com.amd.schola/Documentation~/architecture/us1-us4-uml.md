@@ -314,6 +314,8 @@ classDiagram
     <<placeholder>>
     +SubmitState(AgentState)
     +SubmitInitialState(InitialAgentState)
+    +SubmitStates(map)
+    +SubmitInitialStates(map)
   }
   class ScholaAgent
 
@@ -405,7 +407,7 @@ sequenceDiagram
 - `Initialize()` inits sensors/actuators, snapshots local poses of the agent hierarchy plus configured actuator transforms, and returns `InteractionDefinition(agent.Define(), agent.DefineActionSpace())`.
 - `Reset()` calls `Initialize()` if not yet initialized, restores the snapshot, calls `OnEpisodeReset` on reward/status, observes, and returns `InitialAgentState` (obs + info only). No reward or done flags on reset.
 - `Seed` and `SetOptions` are no-ops. `AgentState.Info` is allocated empty and never populated.
-- `DefaultAgentId = "SingleAgent"` is declared on the environment. The Python bridge keys proto maps with agent id `"SingleAgent"` and env index `0`; `TrainingSession` wraps the single-agent `IEnvironment` without reading that field.
+- `DefaultAgentId = "SingleAgent"` is the key `SingleAgentEnvironmentAdapter` injects when a single-agent environment is viewed as a multi-agent map. `ScholaEnvironment` itself still steps one agent and does not implement `IMultiAgentEnvironment`. The Python bridge also keys proto maps with agent id `"SingleAgent"` and env index `0`; `TrainingSession` wraps the single-agent `IEnvironment` without reading that field.
 - Reward and status may be assigned in the inspector (`GetComponentInChildren`) or via setters. The sink is **not** auto-resolved; it must be `SetTrainingStateSink`. The shipped training connector does not set or use the sink.
 
 Sources: `Runtime/Environment/`, `Runtime/TrainingDataTypes/`, `Runtime/Common/InteractionDefinition.cs`, `Samples~/TrainingDemo/Runtime/TrainingDemoTask.cs`.
@@ -455,7 +457,7 @@ Proto RPCs still used by trainers: `StartGymConnector`, `RequestTrainingDefiniti
 
 ### 4.2 Protocol cardinality
 
-**What to take away:** Proto and Unreal nest many envs and many agents. Unity’s shipped stack is one env, one agent. The bridge injects `"SingleAgent"` and env index `0`.
+**What to take away:** Proto and Unreal nest many envs and many agents. Unity’s shipped training stack is one env, one agent: the bridge injects `"SingleAgent"` and env index `0`. `IMultiAgentEnvironment`, implemented by `ScholaMultiAgentEnvironment`, returns `map<string, AgentState>` (and the matching definition and initial-state maps). `SingleAgentEnvironmentAdapter` injects the key `SingleAgent`, the same key Unreal's single-agent adapter uses. `TrainingSession` does not call that multi-agent environment. Python `GymEnv` also assumes 1 env, 1 agent. `GymVectorEnv` / SB3 flatten `(env, agent)` slots; `RayEnv` uses true multi-agent dicts.
 
 Proto message nesting (identity lives in maps and repeated env slots):
 
@@ -517,16 +519,24 @@ flowchart LR
   session["TrainingSession one env"]
   env["ScholaEnvironment one agent"]
   state["AgentState has no agent-id field"]
+  adapter["SingleAgentEnvironmentAdapter injects SingleAgent"]
+  multi["ScholaMultiAgentEnvironment many agents by id"]
   bridge --> session --> env --> state
+  adapter -.-> env
+  multi --> state
 ```
+
+`IEnvironment` stays one agent. `SingleAgentEnvironmentAdapter` is what injects the key `SingleAgent`. `ScholaMultiAgentEnvironment` is a separate environment and is not on the `TrainingSession` path.
 
 | Layer | Environments | Agents per env | How identity is keyed |
 | --- | --- | --- | --- |
 | Proto `TrainingState` / `TrainingDefinition` | Many (`repeated`) | Many (`map<string, …>`) | env index, then `agent_id` |
 | Unreal `IScholaEnvironment` | Connector holds `TArray` of envs | Many (`TMap<FString, …>`) | `agent_id` string |
 | Unreal `ISingleAgentScholaEnvironment` | One | One, adapter injects `"SingleAgent"` | injected key |
-| Unity `ScholaEnvironment` | One | One | none on the C# state; bridge injects `"SingleAgent"` |
+| Unity `ScholaEnvironment` | One | One | none on the C# state; bridge and `SingleAgentEnvironmentAdapter` inject `"SingleAgent"` |
 | Unity `TrainingSession` (US4) | One | One | JSON commands; bridge maps to proto keys |
+| Unity `ScholaMultiAgentEnvironment` | One | Many | `agent_id` string |
+| Unity `SingleAgentEnvironmentAdapter` | One | One | injected key `SingleAgent` |
 | Python `GymEnv` | One | One | 1:1 wrap |
 | Python `GymVectorEnv` / `sb3.VecEnv` | Many slots | Flattened `(env, agent)`; agents in one env finish together | slot index |
 | Python `RayEnv` | Many | True multi-agent dicts | `agent_id` |
@@ -716,7 +726,7 @@ Differences that matter for Unity training:
 
 - Unreal `IAgent` also has `Define`, `GetStatus`, `SetStatus`. Unity `IAgent` is Observe/Act only; `ScholaAgent.Define` is concrete.
 - Unreal environments fill `FAgentState.Reward` / `bTerminated` / `bTruncated` inside `Step`. They have no `IReward` / `IEpisodeStatus`.
-- Unreal `IMultiAgentScholaEnvironment` has **no Unity equivalent** on `main`.
+- Unity `IMultiAgentEnvironment` matches Unreal `IMultiAgentScholaEnvironment`: maps keyed by agent id, with reward and episode flags filled per agent inside `Step`. `TrainingSession` still drives `IEnvironment` only.
 - Unreal hosts `GymService` via `URPCGymConnector` / `UCommunicationManager`. Unity hosts TCP JSON; Python `schola.unity.bridge` hosts `GymService`.
 
 Sources: `Source/Schola/Public/Agent/AgentInterface.h`, `Source/ScholaTraining/Public/Environment/`, `Source/ScholaProtobuf/Public/GymConnectors/gRPC/gRPCGymConnector.h`.
@@ -743,7 +753,7 @@ Sources: `Source/Schola/Public/Agent/AgentInterface.h`, `Source/ScholaTraining/P
 | `IEpisodeStatus` | US3 | placeholder | Independent terminated / truncated; sample `TrainingDemoTask` |
 | `AgentState` / `InitialAgentState` | US3 | implemented | Hand-written proto mirrors; no agent-id field |
 | `InteractionDefinition` | US3 | implemented | ObservationSpace + ActionSpace |
-| `ITrainingStateSink` | US4 | placeholder | `SubmitState` / `SubmitInitialState`; unused by training connector |
+| `ITrainingStateSink` | US4 | placeholder | Singular submit plus `SubmitStates` / `SubmitInitialStates` for agent-id maps; unused by the training connector |
 | `TrainingServer` | US4 | implemented | Loopback TCP; one request per `Update` |
 | `TrainingSession` | US4 | implemented | `start` / `definition` / `reset` / `step` / `close`; autoreset modes |
 | `TrainingWire` | US4 | implemented | JSON encode/decode/validate including `multi_binary` |
@@ -752,4 +762,7 @@ Sources: `Source/Schola/Public/Agent/AgentInterface.h`, `Source/ScholaTraining/P
 | `PolicyRunner` | US5 | implemented | Inspector entry: agents + `ModelAsset` → Sentis + stepper |
 | `IStepper` / `SimpleStepper` / `StepperRunner` | US5 | implemented | Observe-think-act; no reward or reset |
 | Unity-hosted `GymService` | US4 | optional | Direct gRPC / `Training/Generated/` / `-ScholaPort=`; not shipped |
-| `IMultiAgentScholaEnvironment` | Unreal | Unreal | No Unity equivalent on `main` |
+| `IMultiAgentEnvironment` | multi-agent | implemented | Mirrors Unreal `IMultiAgentScholaEnvironment`; `Step` returns `Dictionary<string, AgentState>` |
+| `ScholaMultiAgentEnvironment` | multi-agent | implemented | One environment, many `ScholaAgent`s keyed by id. Reward and status resolve per agent |
+| `SingleAgentEnvironmentAdapter` | multi-agent | implemented | Wraps `IEnvironment` under the key `SingleAgent` |
+| `IMultiAgentScholaEnvironment` | Unreal | Unreal | Comparison type. Unity equivalent is `IMultiAgentEnvironment` |

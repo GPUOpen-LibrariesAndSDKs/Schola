@@ -764,7 +764,7 @@ Sources: `Source/Schola/Public/Agent/AgentInterface.h`, `Source/ScholaTraining/P
 | `PolicyRunner` | US5 | implemented | Inspector entry: agents + `ModelAsset` → Sentis + stepper |
 | `IStepper` / `SimpleStepper` / `StepperRunner` | US5 | implemented | Observe-think-act; no reward or reset |
 | Unity-hosted `GymService` | US4 | optional | Direct gRPC / `Training/Generated/` / `-ScholaPort=`; not shipped |
-| `IMultiAgentEnvironment` | multi-agent | implemented | Mirrors Unreal `IMultiAgentScholaEnvironment`; finished agents keep terminal state until `Reset` |
+| `IMultiAgentEnvironment` | multi-agent | implemented | Mirrors Unreal `IMultiAgentScholaEnvironment`; omit action to keep terminal state, send action to revive |
 | `ScholaMultiAgentEnvironment` | multi-agent | implemented | One environment, many `ScholaAgent`s keyed by id. On the `TrainingSession` path |
 | `SingleAgentEnvironmentAdapter` | multi-agent | implemented | Wraps `IEnvironment` under the key `SingleAgent` for `TrainingSession` |
 | `IMultiAgentScholaEnvironment` | Unreal | Unreal | Comparison type. Unity equivalent is `IMultiAgentEnvironment` |

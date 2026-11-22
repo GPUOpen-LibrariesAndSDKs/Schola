@@ -19,5 +19,24 @@ namespace AMD.Schola
         public bool Truncated { get; set; }
 
         public Dictionary<string, string> Info { get; set; } = new Dictionary<string, string>();
+
+        /// <summary>
+        /// Copy used when a finished agent keeps reporting its terminal state. Callers must
+        /// not be able to mutate the stored terminal flags or info through a returned map.
+        /// </summary>
+        public AgentState Copy()
+        {
+            return new AgentState
+            {
+                Observations = Observations,
+                Reward = Reward,
+                Terminated = Terminated,
+                Truncated = Truncated,
+                Info =
+                    Info == null
+                        ? new Dictionary<string, string>()
+                        : new Dictionary<string, string>(Info),
+            };
+        }
     }
 }

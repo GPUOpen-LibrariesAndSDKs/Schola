@@ -11,9 +11,8 @@ namespace AMD.Schola
     /// adapter, which injects the key <c>SingleAgent</c> into the multi-agent maps.
     /// </summary>
     /// <remarks>
-    /// Follows the <see cref="IMultiAgentEnvironment"/> rule for finished agents: once the
-    /// wrapped environment reports terminated or truncated it is not stepped again until
-    /// <see cref="Reset"/> is called on this adapter, and its terminal state is repeated.
+    /// Follows the <see cref="IMultiAgentEnvironment"/> finished-agent rule: omit the action
+    /// to keep the terminal state; send an action to step again.
     /// </remarks>
     public sealed class SingleAgentEnvironmentAdapter : IMultiAgentEnvironment
     {
@@ -70,18 +69,19 @@ namespace AMD.Schola
                 }
             }
 
-            if (m_Finished != null)
+            var hasAction =
+                actions.TryGetValue(ScholaEnvironment.DefaultAgentId, out var action)
+                && action != null;
+
+            if (m_Finished != null && !hasAction)
             {
                 return new Dictionary<string, AgentState>
                 {
-                    [ScholaEnvironment.DefaultAgentId] = m_Finished,
+                    [ScholaEnvironment.DefaultAgentId] = m_Finished.Copy(),
                 };
             }
 
-            if (
-                !actions.TryGetValue(ScholaEnvironment.DefaultAgentId, out var action)
-                || action == null
-            )
+            if (!hasAction)
             {
                 throw new ArgumentException(
                     $"Missing action for agent '{ScholaEnvironment.DefaultAgentId}'.",
@@ -89,10 +89,11 @@ namespace AMD.Schola
                 );
             }
 
+            m_Finished = null;
             var state = m_Environment.Step(action);
             if (state != null && (state.Terminated || state.Truncated))
             {
-                m_Finished = state;
+                m_Finished = state.Copy();
             }
 
             return new Dictionary<string, AgentState>

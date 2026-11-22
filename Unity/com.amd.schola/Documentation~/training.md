@@ -128,8 +128,9 @@ not implement it.
   is required before the first step and after an operation fails. Disconnecting
   and reconnecting preserves the original snapshot while requiring a fresh reset.
 - The environment is complete only when **every** agent has reported terminated
-  or truncated. Until then a finished agent keeps its terminal state, is not
-  stepped again, and needs no action. Matches Unreal's gym connector.
+  or truncated. Until then a finished agent may be omitted from the action map
+  and keeps its terminal state. If an action is sent for that agent, it is
+  stepped again. Matches Unreal's gym connector.
 - **SAME_STEP** (SB3 default): when every agent is done, return final states and
   separate reset observations for every agent in the same response.
   **NEXT_STEP**: the next step ignores its actions and returns the reset state
@@ -194,16 +195,6 @@ Mode and stays alive until its dedicated process is terminated. Without the
 port environment variable the live tests skip. This verifies the connection and a
 short optimizer run; it does not measure task convergence or player/IL2CPP support.
 
-### Local validation on 2026-10-27
-
-- Unity 6000.3.24f1: **65 EditMode tests passed**, including action/observation,
-  environment lifecycle, training sessions, main-thread dispatch and shutdown.
-- Python: **17 adapter/live tests passed** against a real batch Unity Editor,
-  including terminal observations, truncation, all reset modes, a 32-step PPO
-  optimizer run, checkpoint save/reload and another action from the reloaded policy.
-- The installed `schola unity train --unity-port 8017 --timesteps 128` command
-  completed against the batch host and saved an SB3 checkpoint.
-- Package manifest, metadata and C#/Python formatting checks passed. The 15 fast
-  manifest/metadata validator tests passed. Two unrelated existing code-generation
-  tests fail on this Windows host (mocked Windows platform detection and the
-  Bash/Git baseline-deletion check); no code-generation implementation was changed.
+Run EditMode tests in Unity Test Runner and `Test/unity` under pytest before
+merging training changes. Live Editor numbers vary by host; treat CI
+`unity-tests` and `python` jobs as the source of truth.

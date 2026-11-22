@@ -65,8 +65,8 @@ namespace AMD.Schola.Tests.Training
 
         /// <summary>
         /// Two agents with different action bounds. Follows the
-        /// <see cref="IMultiAgentEnvironment"/> rule that a finished agent is not stepped
-        /// again and repeats its terminal state until <see cref="Reset"/>.
+        /// <see cref="IMultiAgentEnvironment"/> finished-agent rule: omit the action to
+        /// keep the terminal state; send an action to step again.
         /// </summary>
         sealed class TeamEnvironment : IMultiAgentEnvironment
         {
@@ -135,11 +135,13 @@ namespace AMD.Schola.Tests.Training
                 var states = new Dictionary<string, AgentState>();
                 foreach (var id in s_Ids)
                 {
-                    if (m_Finished.TryGetValue(id, out var terminal))
+                    var hasAction = actions.TryGetValue(id, out var action) && action != null;
+                    if (m_Finished.TryGetValue(id, out var terminal) && !hasAction)
                     {
-                        states[id] = terminal;
+                        states[id] = terminal.Copy();
                         continue;
                     }
+                    m_Finished.Remove(id);
                     Position[id] += ((BoxPoint)actions[id]).Values[0];
                     var state = new AgentState
                     {
@@ -150,7 +152,7 @@ namespace AMD.Schola.Tests.Training
                     };
                     states[id] = state;
                     if (state.Terminated || state.Truncated)
-                        m_Finished[id] = state;
+                        m_Finished[id] = state.Copy();
                 }
                 if (OmitFromStep != null)
                     states.Remove(OmitFromStep);
@@ -448,14 +450,29 @@ namespace AMD.Schola.Tests.Training
             Assert.That(Observation(finished), Is.EqualTo(0.5f));
             Assert.That(Observation(State(second.states, TeamEnvironment.B)), Is.EqualTo(1.75f));
 
-            // An action sent for the finished agent anyway is ignored, even an invalid one.
-            var third = session.Handle(
+            // An invalid action for a finished agent is rejected (it would revive and step).
+            var invalid = session.Handle(
                 TeamStep(Action(TeamEnvironment.A, 99), Action(TeamEnvironment.B, 0.25f))
             );
-            Assert.That(third.ok, Is.True, third.error);
-            Assert.That(env.LastActions.Keys, Is.EquivalentTo(new[] { TeamEnvironment.B }));
-            Assert.That(Observation(State(third.states, TeamEnvironment.A)), Is.EqualTo(0.5f));
-            Assert.That(env.Resets, Is.EqualTo(1));
+            Assert.That(invalid.ok, Is.False);
+            Assert.That(env.Steps, Is.EqualTo(2));
+
+            session.Handle(Request("reset"));
+            env.Terminate.Add(TeamEnvironment.A);
+            Assert.That(session.Handle(TeamStep()).ok, Is.True);
+            env.Terminate.Remove(TeamEnvironment.A);
+
+            // A valid action for a finished agent steps it again.
+            var revived = session.Handle(
+                TeamStep(Action(TeamEnvironment.A, 0.5f), Action(TeamEnvironment.B, 0.25f))
+            );
+            Assert.That(revived.ok, Is.True, revived.error);
+            Assert.That(
+                env.LastActions.Keys,
+                Is.EquivalentTo(new[] { TeamEnvironment.A, TeamEnvironment.B })
+            );
+            Assert.That(State(revived.states, TeamEnvironment.A).terminated, Is.False);
+            Assert.That(Observation(State(revived.states, TeamEnvironment.A)), Is.EqualTo(1f));
         }
 
         [Test]

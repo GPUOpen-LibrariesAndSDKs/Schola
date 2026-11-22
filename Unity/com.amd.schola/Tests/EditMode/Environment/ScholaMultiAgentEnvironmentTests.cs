@@ -276,9 +276,12 @@ namespace AMD.Schola.Tests.Environment
             var first = m_Environment.Step(MoveBoth());
             countingReward.Reward = 9f;
             m_RewardB.Reward = 2f;
-            var second = m_Environment.Step(MoveBoth());
+            // Omit the finished agent so it stays frozen (Unreal: no action => terminal).
+            var second = m_Environment.Step(
+                new Dictionary<string, Point> { [AgentBId] = Translate(0f, 0.7f) }
+            );
 
-            Assert.That(second[AgentAId], Is.SameAs(first[AgentAId]));
+            Assert.That(second[AgentAId], Is.Not.SameAs(first[AgentAId]));
             Assert.That(second[AgentAId].Reward, Is.EqualTo(1.5f));
             Assert.That(second[AgentAId].Terminated, Is.True);
             Assert.That(countingReward.Calls, Is.EqualTo(1));
@@ -307,9 +310,29 @@ namespace AMD.Schola.Tests.Environment
             );
 
             Assert.That(second.Keys, Is.EquivalentTo(new[] { AgentAId, AgentBId }));
-            Assert.That(second[AgentAId], Is.SameAs(first[AgentAId]));
+            Assert.That(second[AgentAId], Is.Not.SameAs(first[AgentAId]));
             Assert.That(second[AgentAId].Truncated, Is.True);
             AssertPosition(m_AgentB.transform.position, StartB + new Vector3(0f, 1.4f, 0f));
+        }
+
+        [Test]
+        public void Step_FinishedAgent_ActionRevivesAndStepsAgain()
+        {
+            UnityEngine.Object.DestroyImmediate(m_RewardA);
+            var countingReward = m_AgentA.gameObject.AddComponent<CountingReward>();
+            countingReward.Reward = 1.5f;
+            m_Environment.Initialize();
+            m_StatusA.Terminated = true;
+            m_Environment.Step(MoveBoth());
+
+            m_StatusA.Terminated = false;
+            countingReward.Reward = 3f;
+            var revived = m_Environment.Step(MoveBoth());
+
+            Assert.That(countingReward.Calls, Is.EqualTo(2));
+            Assert.That(revived[AgentAId].Reward, Is.EqualTo(3f));
+            Assert.That(revived[AgentAId].Terminated, Is.False);
+            AssertPosition(m_AgentA.transform.position, StartA + new Vector3(0.8f, 0f, 0f));
         }
 
         [Test]
@@ -349,8 +372,10 @@ namespace AMD.Schola.Tests.Environment
 
             var second = m_Environment.Step(new Dictionary<string, Point>());
 
-            Assert.That(second[AgentAId], Is.SameAs(first[AgentAId]));
-            Assert.That(second[AgentBId], Is.SameAs(first[AgentBId]));
+            Assert.That(second[AgentAId].Terminated, Is.True);
+            Assert.That(second[AgentBId].Truncated, Is.True);
+            Assert.That(second[AgentAId].Reward, Is.EqualTo(first[AgentAId].Reward));
+            Assert.That(second[AgentBId].Reward, Is.EqualTo(first[AgentBId].Reward));
             AssertPosition(m_AgentA.transform.position, afterA);
             AssertPosition(m_AgentB.transform.position, afterB);
         }
@@ -639,11 +664,25 @@ namespace AMD.Schola.Tests.Environment
 
             Assert.That(
                 second[ScholaEnvironment.DefaultAgentId],
-                Is.SameAs(first[ScholaEnvironment.DefaultAgentId])
+                Is.Not.SameAs(first[ScholaEnvironment.DefaultAgentId])
             );
             Assert.That(second[ScholaEnvironment.DefaultAgentId].Terminated, Is.True);
+            Assert.That(second[ScholaEnvironment.DefaultAgentId].Reward, Is.EqualTo(2f));
             AssertPosition(m_Fixture.AgentGo.transform.position, afterTerminal);
             Assert.That(m_Fixture.Sink.States, Has.Count.EqualTo(1));
+
+            // An action for a finished agent steps it again.
+            m_Fixture.Status.Terminated = false;
+            m_Fixture.Reward.Reward = 4f;
+            var revived = adapter.Step(
+                new Dictionary<string, Point>
+                {
+                    [ScholaEnvironment.DefaultAgentId] = m_Fixture.TranslateAction(0.5f),
+                }
+            );
+            Assert.That(revived[ScholaEnvironment.DefaultAgentId].Terminated, Is.False);
+            Assert.That(revived[ScholaEnvironment.DefaultAgentId].Reward, Is.EqualTo(4f));
+            Assert.That(m_Fixture.Sink.States, Has.Count.EqualTo(2));
 
             adapter.Reset();
             var third = adapter.Step(

@@ -154,11 +154,11 @@ namespace AMD.Schola
         /// before any <see cref="IAgent.Act"/>, so one bad action leaves every agent unmoved.
         /// </summary>
         /// <remarks>
-        /// An agent that reported terminated or truncated is finished until
-        /// <see cref="Reset"/>. It does not act, its reward and status hooks are not called,
-        /// and its terminal <see cref="AgentState"/> is returned again unchanged. An action
-        /// for it is optional and ignored, because trainers such as RLlib stop sending
-        /// actions for agents that are done. Matches Unreal's <c>TScholaEnvironment::Step</c>.
+        /// An agent that reported terminated or truncated stays finished while the trainer
+        /// omits its action: hooks are not called and a copy of the terminal
+        /// <see cref="AgentState"/> is returned. If the trainer sends an action for that
+        /// agent, it is live again and stepped. Matches Unreal
+        /// <c>TScholaEnvironment::Step</c> (RLlib omits done agents; an action means revive).
         /// </remarks>
         public IReadOnlyDictionary<string, AgentState> Step(
             IReadOnlyDictionary<string, Point> actions
@@ -169,7 +169,7 @@ namespace AMD.Schola
 
             foreach (var slot in m_Agents)
             {
-                if (!m_Finished.ContainsKey(slot.Id))
+                if (IsLive(slot.Id, actions))
                 {
                     slot.Agent.ValidateAction(actions[slot.Id]);
                 }
@@ -177,8 +177,9 @@ namespace AMD.Schola
 
             foreach (var slot in m_Agents)
             {
-                if (!m_Finished.ContainsKey(slot.Id))
+                if (IsLive(slot.Id, actions))
                 {
+                    m_Finished.Remove(slot.Id);
                     slot.Agent.Act(actions[slot.Id]);
                 }
             }
@@ -188,7 +189,7 @@ namespace AMD.Schola
             {
                 if (m_Finished.TryGetValue(slot.Id, out var terminalState))
                 {
-                    states[slot.Id] = terminalState;
+                    states[slot.Id] = terminalState.Copy();
                     continue;
                 }
 
@@ -218,7 +219,7 @@ namespace AMD.Schola
                 states[slot.Id] = state;
                 if (terminated || truncated)
                 {
-                    m_Finished[slot.Id] = state;
+                    m_Finished[slot.Id] = state.Copy();
                 }
             }
 
@@ -310,7 +311,7 @@ namespace AMD.Schola
 
             foreach (var slot in m_Agents)
             {
-                if (m_Finished.ContainsKey(slot.Id))
+                if (!IsLive(slot.Id, actions))
                 {
                     continue;
                 }
@@ -323,6 +324,16 @@ namespace AMD.Schola
                     );
                 }
             }
+        }
+
+        bool IsLive(string id, IReadOnlyDictionary<string, Point> actions)
+        {
+            if (!m_Finished.ContainsKey(id))
+            {
+                return true;
+            }
+
+            return actions.TryGetValue(id, out var action) && action != null;
         }
 
         void NotifyEpisodeReset()

@@ -35,13 +35,14 @@ namespace AMD.Schola
         /// </summary>
         /// <param name="actions">
         /// One action for every live agent. An agent that already reported terminated or
-        /// truncated is finished until <see cref="Reset"/>: its action may be left out and
-        /// is ignored if present. An id that <see cref="Initialize"/> did not return, or a
-        /// missing action for a live agent, is an error and must leave the scene unchanged.
+        /// truncated may be omitted; if an action is present for that agent, it is live
+        /// again and stepped (Unreal <c>TScholaEnvironment::Step</c>). An id that
+        /// <see cref="Initialize"/> did not return, or a missing action for a live agent,
+        /// is an error and must leave the scene unchanged.
         /// </param>
         /// <returns>
-        /// A fresh state for every live agent. A finished agent is not stepped again and
-        /// keeps reporting the state from the step on which it finished.
+        /// A fresh state for every live agent. A finished agent with no action keeps
+        /// reporting the state from the step on which it finished.
         /// </returns>
         IReadOnlyDictionary<string, AgentState> Step(IReadOnlyDictionary<string, Point> actions);
     }

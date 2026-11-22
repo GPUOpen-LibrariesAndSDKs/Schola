@@ -12,8 +12,8 @@ namespace AMD.Schola.Training
     /// </summary>
     /// <remarks>
     /// The environment is complete only when every agent has reported terminated or
-    /// truncated, matching Unreal's gym connector. Until then a finished agent keeps its
-    /// terminal state and needs no action.
+    /// truncated, matching Unreal's gym connector. Until then a finished agent may be
+    /// omitted from the action list; an action for that agent steps it again.
     /// </remarks>
     public sealed class TrainingSession
     {
@@ -161,15 +161,14 @@ namespace AMD.Schola.Training
                     throw new ArgumentException($"Unknown agent id '{entry?.id}'.");
                 if (!seen.Add(entry.id))
                     throw new ArgumentException($"Duplicate action for agent '{entry.id}'.");
-                // A finished agent's action is optional and ignored until the next reset.
-                if (m_Finished.Contains(entry.id))
-                    continue;
                 var action = TrainingWire.DecodePoint(entry.action);
                 TrainingWire.Validate(action, definition.ActionSpace);
                 actions.Add(entry.id, action);
             }
             foreach (var id in m_AgentIds)
             {
+                // Finished agents may be omitted. An included action is validated above and
+                // steps that agent again (Unreal TScholaEnvironment::Step).
                 if (!m_Finished.Contains(id) && !actions.ContainsKey(id))
                     throw new ArgumentException($"Missing action for agent '{id}'.");
             }
@@ -179,6 +178,7 @@ namespace AMD.Schola.Training
         TrainingAgentState[] EncodeStates(IReadOnlyDictionary<string, AgentState> states)
         {
             RequireEveryAgent(states?.Count);
+            m_Finished.Clear();
             var encoded = new TrainingAgentState[m_AgentIds.Count];
             for (var i = 0; i < m_AgentIds.Count; i++)
             {

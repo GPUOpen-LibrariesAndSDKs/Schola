@@ -1,5 +1,6 @@
 // Copyright (c) 2026 Advanced Micro Devices, Inc. All Rights Reserved.
 
+using System;
 using UnityEngine;
 
 namespace AMD.Schola.Samples.TrainingDemo
@@ -24,7 +25,7 @@ namespace AMD.Schola.Samples.TrainingDemo
         Transform m_Target;
 
         [SerializeField]
-        MultiAgentTrainingDemoTask[] m_Team = new MultiAgentTrainingDemoTask[0];
+        MultiAgentTrainingDemoTask[] m_Team = Array.Empty<MultiAgentTrainingDemoTask>();
 
         [SerializeField]
         int m_MaxSteps = 128;
@@ -36,11 +37,19 @@ namespace AMD.Schola.Samples.TrainingDemo
         bool m_ArrivalRewarded;
 
         public bool HasArrived =>
-            Vector3.Distance(m_Agent.position, m_Target.position) <= m_ArrivalDistance;
+            m_Agent != null
+            && m_Target != null
+            && Vector3.Distance(m_Agent.position, m_Target.position) <= m_ArrivalDistance;
 
         /// <param name="team">Every task in the environment, including this one.</param>
         public void Configure(Transform agent, Transform target, MultiAgentTrainingDemoTask[] team)
         {
+            if (agent == null)
+                throw new ArgumentNullException(nameof(agent));
+            if (target == null)
+                throw new ArgumentNullException(nameof(target));
+            if (team == null || team.Length == 0)
+                throw new ArgumentException("Team must include every agent task.", nameof(team));
             m_Agent = agent;
             m_Target = target;
             m_Team = team;
@@ -70,11 +79,19 @@ namespace AMD.Schola.Samples.TrainingDemo
 
         public void GetStatus(out bool terminated, out bool truncated)
         {
-            terminated = HasArrived;
+            if (m_Team == null || m_Team.Length == 0)
+            {
+                throw new InvalidOperationException(
+                    $"{nameof(MultiAgentTrainingDemoTask)} needs a non-empty team; call Configure."
+                );
+            }
+
+            // Missing teammates count as not arrived so the team cannot terminate early.
+            terminated = true;
             foreach (var task in m_Team)
             {
-                if (task != null)
-                    terminated &= task.HasArrived;
+                if (task == null || !task.HasArrived)
+                    terminated = false;
             }
             truncated = !terminated && m_Steps >= m_MaxSteps;
         }

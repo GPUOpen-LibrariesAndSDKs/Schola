@@ -70,7 +70,9 @@ def train(
         try:
             env = VecEnv(ExternalSimulator(), GrpcProtocol("127.0.0.1", adapter.port))
         except AssertionError as error:
-            # Schola's VecEnv asserts that every agent shares one pair of spaces.
+            # Only space-mismatch asserts map to the shared-policy guidance.
+            if "Space Mismatch" not in str(error):
+                raise
             raise ValueError(f"{_SHARED_POLICY_RULES}\n{error}") from error
         merge_wrapper = None
         try:

@@ -4,7 +4,8 @@
 
 The adapter owns a loopback-only, length-prefixed JSON connection to Unity. It
 uses the existing protobuf schema and gRPC clients without native Unity plugins.
-One adapter serves one environment with one agent, ``SingleAgent``.
+One adapter serves one environment, ID 0, with the agents that Unity declares. A
+single-agent Unity environment declares one agent, ``SingleAgent``.
 """
 
 from concurrent.futures import ThreadPoolExecutor
@@ -26,8 +27,9 @@ from schola.generated import Spaces_pb2 as spaces
 from schola.generated import State_pb2 as states
 from schola.generated import StateUpdates_pb2 as updates
 
-AGENT_ID = "SingleAgent"
-VERSION = 1
+# Wire format version; must equal TrainingWire.Version in the Unity package.
+# Version 2 keys every definition, action and state by agent id.
+VERSION = 2
 MAX_MESSAGE_BYTES = 4 * 1024 * 1024
 
 
@@ -212,7 +214,12 @@ class UnityConnection:
                 raise ConnectionError("Invalid Unity response length")
             response = json.loads(self._read_exact(self._socket, size, deadline))
             if response.get("version") != VERSION:
-                raise ConnectionError("Unsupported Unity training protocol version")
+                raise ConnectionError(
+                    "Unsupported Unity training protocol version "
+                    f"{response.get('version')}; this adapter speaks version {VERSION}. "
+                    "Update the schola Python package and the com.amd.schola Unity "
+                    "package to the same release."
+                )
             if not response.get("ok"):
                 raise UnityError(response.get("error") or "Unity rejected the request")
             return response
@@ -239,6 +246,8 @@ class UnityGymService(services.GymServiceServicer):
 
     def __init__(self, connection: UnityConnection):
         self.connection = connection
+        # Agent ids Unity declared for this session; fetched on first use.
+        self._agent_ids: frozenset[str] | None = None
 
     def _request(self, context, command, **kwargs):
         try:
@@ -255,23 +264,32 @@ class UnityGymService(services.GymServiceServicer):
             context.abort(grpc.StatusCode.UNAVAILABLE, str(error))
 
     def StartGymConnector(self, request, context):
+        # A new session may be a different Unity scene with different agents.
+        self._agent_ids = None
         self._request(context, "start", autoreset=request.autoreset_type)
         return connector.GymConnectorStartResponse()
 
+    def _definition(self, context) -> list[dict]:
+        agents = self._request(context, "definition")["agents"]
+        self._agent_ids = frozenset(agent["id"] for agent in agents)
+        return agents
+
     def RequestTrainingDefinition(self, request, context):
-        response = self._request(context, "definition")
         definition = definitions.TrainingDefinition()
-        agent = definition.environment_definitions.add().agent_definitions[AGENT_ID]
-        agent.agent_type = "Unity"
-        agent.obs_space.CopyFrom(_decode_tree(response["observationSpace"], space=True))
-        agent.action_space.CopyFrom(_decode_tree(response["actionSpace"], space=True))
+        environment = definition.environment_definitions.add()
+        for item in self._definition(context):
+            agent = environment.agent_definitions[item["id"]]
+            agent.agent_type = "Unity"
+            agent.obs_space.CopyFrom(_decode_tree(item["observationSpace"], space=True))
+            agent.action_space.CopyFrom(_decode_tree(item["actionSpace"], space=True))
         return definition
 
     @staticmethod
-    def _initial(target, observation, info):
-        agent = target.agent_states[AGENT_ID]
-        agent.observations.CopyFrom(_decode_tree(observation, space=False))
-        agent.info.update(_info(info))
+    def _initial(target, agent_states):
+        for item in agent_states:
+            agent = target.agent_states[item["id"]]
+            agent.observations.CopyFrom(_decode_tree(item["observations"], space=False))
+            agent.info.update(_info(item.get("info")))
 
     def UpdateState(self, request, context):
         if request.status == updates.CLOSED:
@@ -299,38 +317,46 @@ class UnityGymService(services.GymServiceServicer):
                 ]
             response = self._request(context, "reset", **kwargs)
             self._initial(
-                result.initial_state.environment_states[0],
-                response["observations"],
-                response.get("info"),
+                result.initial_state.environment_states[0], response["states"]
             )
         elif kind == "step":
-            if len(request.step.environments) != 1 or set(
-                request.step.environments[0].updates
-            ) != {AGENT_ID}:
+            if len(request.step.environments) != 1:
+                context.abort(
+                    grpc.StatusCode.INVALID_ARGUMENT, "Unity exposes environment 0 only"
+                )
+            # Trainers such as RLlib send actions for live agents only, so a subset
+            # of the declared agents is valid. Unknown ids never reach Unity.
+            agent_updates = request.step.environments[0].updates
+            if self._agent_ids is None:
+                self._definition(context)
+            unknown = sorted(set(agent_updates) - self._agent_ids)
+            if unknown:
                 context.abort(
                     grpc.StatusCode.INVALID_ARGUMENT,
-                    "Expected environment 0 / SingleAgent",
+                    f"Unknown Unity agent id: {', '.join(unknown)}",
                 )
             try:
-                action = _encode_point(request.step.environments[0].updates[AGENT_ID])
+                actions = [
+                    dict(id=agent_id, action=_encode_point(agent_updates[agent_id]))
+                    for agent_id in sorted(agent_updates)
+                ]
             except ValueError as error:
                 context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(error))
-            response = self._request(context, "step", action=action)
-            agent = result.training_state.environment_states.add().agent_states[
-                AGENT_ID
-            ]
-            agent.observations.CopyFrom(
-                _decode_tree(response["observations"], space=False)
-            )
-            agent.reward = response["reward"]
-            agent.terminated = response["terminated"]
-            agent.truncated = response["truncated"]
-            agent.info.update(_info(response.get("info")))
+            response = self._request(context, "step", actions=actions)
+            environment = result.training_state.environment_states.add()
+            for item in response["states"]:
+                agent = environment.agent_states[item["id"]]
+                agent.observations.CopyFrom(
+                    _decode_tree(item["observations"], space=False)
+                )
+                agent.reward = item["reward"]
+                agent.terminated = item["terminated"]
+                agent.truncated = item["truncated"]
+                agent.info.update(_info(item.get("info")))
             if response.get("hasInitial"):
                 self._initial(
                     result.initial_state.environment_states[0],
-                    response["initialObservations"],
-                    response.get("initialInfo"),
+                    response["initialStates"],
                 )
         else:
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, "Expected reset or step")

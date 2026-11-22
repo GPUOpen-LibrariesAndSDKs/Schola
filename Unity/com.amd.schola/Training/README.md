@@ -2,14 +2,17 @@
 
 This folder contains the Unity-side training connection. `TrainingServer` runs a
 loopback TCP endpoint and dispatches requests to `TrainingSession` on Unity's main
-thread. The packaged Python adapter exposes Schola's existing gRPC `GymService`
-and translates messages using `TrainingWire`'s versioned JSON format.
+thread. The session speaks `IMultiAgentEnvironment` (a single-agent
+`ScholaEnvironment` is wrapped under the id `SingleAgent`). The packaged Python
+adapter exposes Schola's existing gRPC `GymService` and translates messages using
+`TrainingWire`'s versioned JSON format (version 2 keys every agent by id).
 
 See [the training guide](../Documentation~/training.md) for setup and supported
-behavior. `schola unity train` starts the adapter and trains with existing Schola
-SB3 wrappers. `schola unity bridge` exposes the adapter for a separate trainer.
-Unity listens on port 8001 by default; the separate gRPC adapter defaults to 8000.
-Native gRPC and generated C# messages are not required by this implementation.
+behavior, including multi-agent scenes. `schola unity train` starts the adapter
+and trains with existing Schola SB3 wrappers. `schola unity bridge` exposes the
+adapter for a separate trainer such as RLlib. Unity listens on port 8001 by
+default; the separate gRPC adapter defaults to 8000. Native gRPC and generated
+C# messages are not required by this implementation.
 
 ## Optional direct-gRPC code generation tooling
 

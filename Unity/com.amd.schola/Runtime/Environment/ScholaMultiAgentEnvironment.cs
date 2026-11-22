@@ -33,6 +33,9 @@ namespace AMD.Schola
 
         ITrainingStateSink m_Sink;
         readonly List<TransformSnapshot> m_PoseSnapshot = new List<TransformSnapshot>();
+
+        // Terminal state of every agent that finished in the current episode, by agent id.
+        readonly Dictionary<string, AgentState> m_Finished = new Dictionary<string, AgentState>();
         bool m_Initialized;
 
         public void SetAgents(IEnumerable<KeyValuePair<string, ScholaAgent>> agents)
@@ -48,6 +51,7 @@ namespace AMD.Schola
                 m_Agents.Add(new AgentSlot { Id = pair.Key, Agent = pair.Value });
             }
 
+            m_Finished.Clear();
             m_Initialized = false;
         }
 
@@ -110,8 +114,8 @@ namespace AMD.Schola
 
         /// <summary>
         /// Restores every initialize snapshot, notifies each agent's episode hooks, and
-        /// returns one <see cref="InitialAgentState"/> per id. Does not auto-reset after a
-        /// terminal step.
+        /// returns one <see cref="InitialAgentState"/> per id. Every finished agent becomes
+        /// live again. Does not auto-reset after a terminal step.
         /// </summary>
         /// <remarks>
         /// Unity invokes a method named <c>Reset</c> when the component is first added, before
@@ -130,6 +134,7 @@ namespace AMD.Schola
                 Initialize();
             }
 
+            m_Finished.Clear();
             RestorePoses();
             NotifyEpisodeReset();
 
@@ -144,10 +149,17 @@ namespace AMD.Schola
         }
 
         /// <summary>
-        /// Applies every agent's action, then reports each agent's reward, episode flags, and
-        /// a fresh observation from the resulting scene. Ids and payloads are checked before
-        /// any <see cref="IAgent.Act"/>, so one bad action leaves every agent unmoved.
+        /// Applies every live agent's action, then reports each agent's reward, episode flags,
+        /// and a fresh observation from the resulting scene. Ids and payloads are checked
+        /// before any <see cref="IAgent.Act"/>, so one bad action leaves every agent unmoved.
         /// </summary>
+        /// <remarks>
+        /// An agent that reported terminated or truncated is finished until
+        /// <see cref="Reset"/>. It does not act, its reward and status hooks are not called,
+        /// and its terminal <see cref="AgentState"/> is returned again unchanged. An action
+        /// for it is optional and ignored, because trainers such as RLlib stop sending
+        /// actions for agents that are done. Matches Unreal's <c>TScholaEnvironment::Step</c>.
+        /// </remarks>
         public IReadOnlyDictionary<string, AgentState> Step(
             IReadOnlyDictionary<string, Point> actions
         )
@@ -157,17 +169,29 @@ namespace AMD.Schola
 
             foreach (var slot in m_Agents)
             {
-                slot.Agent.ValidateAction(actions[slot.Id]);
+                if (!m_Finished.ContainsKey(slot.Id))
+                {
+                    slot.Agent.ValidateAction(actions[slot.Id]);
+                }
             }
 
             foreach (var slot in m_Agents)
             {
-                slot.Agent.Act(actions[slot.Id]);
+                if (!m_Finished.ContainsKey(slot.Id))
+                {
+                    slot.Agent.Act(actions[slot.Id]);
+                }
             }
 
             var states = new Dictionary<string, AgentState>();
             foreach (var slot in m_Agents)
             {
+                if (m_Finished.TryGetValue(slot.Id, out var terminalState))
+                {
+                    states[slot.Id] = terminalState;
+                    continue;
+                }
+
                 var agent = slot.Agent;
                 var reward = 0f;
                 var rewardHook = ResolveHook<IReward>(agent);
@@ -184,13 +208,18 @@ namespace AMD.Schola
                     statusHook.GetStatus(out terminated, out truncated);
                 }
 
-                states[slot.Id] = new AgentState
+                var state = new AgentState
                 {
                     Observations = agent.Observe(),
                     Reward = reward,
                     Terminated = terminated,
                     Truncated = truncated,
                 };
+                states[slot.Id] = state;
+                if (terminated || truncated)
+                {
+                    m_Finished[slot.Id] = state;
+                }
             }
 
             m_Sink?.SubmitStates(states);
@@ -281,6 +310,11 @@ namespace AMD.Schola
 
             foreach (var slot in m_Agents)
             {
+                if (m_Finished.ContainsKey(slot.Id))
+                {
+                    continue;
+                }
+
                 if (!actions.TryGetValue(slot.Id, out var action) || action == null)
                 {
                     throw new ArgumentException(

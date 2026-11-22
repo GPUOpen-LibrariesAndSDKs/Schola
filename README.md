@@ -107,7 +107,7 @@ The terminal shows training progress while the cube moves. In our recorded run 2
 3. Select a GameObject and click **Add Component**. Search for **Policy Runner**, which also adds a Stepper Runner automatically. Add the `Agent` cube's `ScholaAgent` to its **Agents** list, and then drag the `.onnx` file into **Model**.
 4. Press **Play**. The model now controls the cube with no Python running. If the model does not fit the agent, for example because its input or output names or sizes differ, the Console explains why instead of failing silently.
 
-Keep in mind that training handles about one step per Unity frame, so it is slow, and that it supports one agent per environment. More options and limits are in the [training guide](Unity/com.amd.schola/Documentation~/training.md).
+Keep in mind that training handles about one step per Unity frame, so it is slow. A multi-agent scene trains one shared policy when every agent has the same spaces and finishes on the same step. More options and limits are in the [training guide](Unity/com.amd.schola/Documentation~/training.md).
 
 ### Configuration
 
@@ -131,7 +131,7 @@ Everything is built around one loop that repeats while the game runs. Sensors **
 | 1 | **Define what an agent sees** (US1) | Add a `ScholaAgent` and sensors such as `PositionSensor`. Observations are read fresh from the scene each time and keep a consistent format. | Done |
 | 2 | **Apply an agent's actions** (US2) | Add actuators such as `TranslateActuator`. Valid actions move the object, and invalid actions are rejected with a clear error. | Done |
 | 3 | **Control training episodes** (US3) | Use `ScholaEnvironment` to report rewards, episode endings (terminated or truncated) and resets, so that an agent can learn from repeated attempts. | Done, and reused by the training connection |
-| 4 | **Train through Schola** (US4) | Run `schola unity train` against a running scene, and add `--export-onnx` to save the result as an ONNX model. | New in D3, for one agent per environment with Transform-based movement |
+| 4 | **Train through Schola** (US4) | Run `schola unity train` against a running scene, and add `--export-onnx` to save the result as an ONNX model. | New in D3, for one or many agents with Transform-based movement |
 | 5 | **Run a trained policy** (US5) | Add a `PolicyRunner` component, or use `SentisPolicy` with `SimpleStepper` and `StepperRunner` directly. A model whose names or sizes do not fit the agent is rejected with a clear message, and outputs past the action limits are clamped. | Working, both with the demo model and with a model you train |
 | 6 | **Set up and try the package** (US6) | Follow a guide and sample scene to install the package and use a trained model. | In progress, and the [demo guide](deliverables/D2/demo/README.md) is the first version |
 
@@ -163,7 +163,7 @@ Schola for Unity is a developer package rather than a web app, so we applied the
 | **Production-readiness** | Every GitHub Actions job has a time limit, and CI runs formatting, `.meta`-file, Unity, Python and codegen checks on every pull request. There are 76 Unity tests and 10 Python test functions for the training adapter. | `.github/workflows/`, [Run the tests](#run-the-tests) |
 | **Accessibility** | There is no end-user UI to audit with Lighthouse. The demo overlay is the only on-screen UI, and it never relies on colour alone, because a text counter shows how many drones are home as well as the green colour. README images have alt text. We have not yet tested with assistive tools. | `deliverables/D2/demo/ReturnToBaseGame.cs` |
 
-There are still known limits. Training handles about one step per Unity frame, it supports one agent per environment, and it has not been tested in a built player (IL2CPP).
+There are still known limits. Training handles about one step per Unity frame, it does not advance physics between steps, and it has not been tested in a built player (IL2CPP).
 
 ## Unity package (developers)
 
@@ -206,13 +206,13 @@ Both test suites also run automatically on every pull request (see [Git/GitHub w
 
 ### Train Unity agents (US4)
 
-The step-by-step guide is in [Train and run your own agent](#train-and-run-your-own-agent). The packaged adapter connects Unity to Schola's existing Python environment wrappers, so nobody has to write a training connection. The [Unity training guide](Unity/com.amd.schola/Documentation~/training.md) covers the separate `schola unity bridge` command, the reset modes and the limits. The current version supports one agent per environment and moves objects directly, which means it does not advance physics between steps.
+The step-by-step guide is in [Train and run your own agent](#train-and-run-your-own-agent). The packaged adapter connects Unity to Schola's existing Python environment wrappers, so nobody has to write a training connection. The [Unity training guide](Unity/com.amd.schola/Documentation~/training.md) covers the separate `schola unity bridge` command, multi-agent scenes, the reset modes and the limits. Training moves objects directly and does not advance physics between steps.
 
 ### What is and is not included yet
 
 | Available on `main` | Not finished yet |
 | --- | --- |
-| Agents, sensors, actuators, spaces and points | Training with several agents, or with physics between steps |
+| Agents, sensors, actuators, spaces and points | Training with physics between steps |
 | Episodes and environments (`ScholaEnvironment`) | A packaged setup sample and full setup guide (US6), since the demo files still live in [`deliverables/D2/demo/`](deliverables/D2/demo/) |
 | ONNX inference (`SentisPolicy`, `PolicyRunner`) and steppers (`SimpleStepper`, `StepperRunner`) | A Unity player project for the CI smoke-test build and run jobs |
 | The Return to Base demo | Batched inference and the interface renames AMD asked for on 3 November |

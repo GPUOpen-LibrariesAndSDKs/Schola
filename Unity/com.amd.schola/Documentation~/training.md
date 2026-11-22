@@ -53,23 +53,25 @@ without changing the setting.
 
 ## Connect an existing scene
 
-1. Configure a `ScholaAgent` with sensors and actuators (US1/US2).
-2. Assign the agent to a `ScholaEnvironment` (US3). Provide `IReward` and
-   `IEpisodeStatus` components beneath the environment, or bind them in code
-   before training starts. Without them rewards remain zero and episodes do not end.
+1. Configure each `ScholaAgent` with sensors and actuators (US1/US2).
+2. Assign the agent to a `ScholaEnvironment` (US3), or assign several agents to a
+   `ScholaMultiAgentEnvironment`. Provide `IReward` and `IEpisodeStatus` on each
+   agent (or under that agent). Without them rewards remain zero and that agent
+   never finishes.
 3. Add **Schola > Training Server** to the environment GameObject, or assign its
-   Environment field explicitly. Default Port is **8001**.
+   Environment / Multi Agent Environment field explicitly. Default Port is
+   **8001**.
 4. For PPO with `TranslateActuator`, set **Max Displacement** above zero, e.g.
    **0.1**. This publishes and enforces per-axis finite bounds. Zero retains the
    existing unbounded action behavior, which the PPO convenience command rejects.
 5. Disable any deterministic sample controller or inference stepper that also
-   controls this agent. Enable Run In Background and enter Play Mode.
+   controls these agents. Enable Run In Background and enter Play Mode.
 6. Run `schola unity train --unity-port 8001`, optionally setting `--seed`,
    `--timesteps`, `--checkpoint`, `--timeout` (seconds per Unity exchange),
    `--export-onnx` and `--onnx-path`.
 
 Scene changes happen only on Unity's main thread. Each network step calls the
-existing synchronous `ScholaEnvironment.Step` exactly once, applying the action
+environment's synchronous `Step` exactly once, applying live agents' actions
 and immediately collecting reward, status and observations. **It does not advance
 Unity physics by a fixed interval.** Use this release with synchronous,
 Transform-based environments. Rigidbody simulation requires a separate stepper
@@ -112,9 +114,11 @@ not implement it.
 
 ## Scope and lifecycle
 
-- One environment, ID **0**, with one agent, ID **SingleAgent**, per endpoint.
-  Run independent Unity instances/ports for independent endpoints. General
-  multi-agent and in-process vector environments are outside this implementation.
+- One environment, ID **0**, per endpoint. The environment may declare one or
+  many agents. A single-agent `ScholaEnvironment` is presented under the id
+  **SingleAgent**. A `ScholaMultiAgentEnvironment` uses the ids you assign.
+  Run independent Unity instances/ports for independent endpoints. In-process
+  vector environments are outside this implementation.
 - Supported values/spaces: **Dict**, **Box** with FLOAT32, **Discrete**, and
   **MultiBinary** (boolean vector; wire kind `multi_binary` with `shape` /
   `boolValues`). Unsupported types, mismatched action keys/shapes/lengths,
@@ -123,20 +127,46 @@ not implement it.
 - Startup initializes sensors/actuators and snapshots reset poses once. A reset
   is required before the first step and after an operation fails. Disconnecting
   and reconnecting preserves the original snapshot while requiring a fresh reset.
-- **SAME_STEP** (SB3 default): return final observations/reward/flags and separate
-  reset observations in the same response. **NEXT_STEP**: the next step ignores
-  its action and returns the reset state with zero reward and cleared flags.
-  **DISABLED**: reject further steps after episode end until explicit reset.
-- Reset seeds/options are forwarded to `IEnvironment.Seed`/`SetOptions`. The
-  current `ScholaEnvironment` implements those as no-ops; randomized seeded resets
-  require environment support. The Python seed still configures PPO.
+- The environment is complete only when **every** agent has reported terminated
+  or truncated. Until then a finished agent keeps its terminal state, is not
+  stepped again, and needs no action. Matches Unreal's gym connector.
+- **SAME_STEP** (SB3 default): when every agent is done, return final states and
+  separate reset observations for every agent in the same response.
+  **NEXT_STEP**: the next step ignores its actions and returns the reset state
+  for every agent with zero reward and cleared flags. **DISABLED**: reject
+  further steps after episode end until explicit reset.
+- Reset seeds/options are forwarded to `Seed`/`SetOptions`. The current
+  `ScholaEnvironment` and `ScholaMultiAgentEnvironment` implement those as
+  no-ops; randomized seeded resets require environment support. The Python seed
+  still configures PPO.
 - Both listeners bind to loopback. One trainer owns an endpoint at a time. Pause,
   disconnection, an oversized frame or an exchange timeout produces an error;
   reconnect/start/reset to resume. Stopping Play Mode closes the listener and
   releases queued work. No background thread reads or mutates Unity scene state.
 - The maximum frame size is 4 MiB. Match the component's Request Timeout Seconds
   to the Python `--timeout` if changing it. Optimizer time between requests has
-  no idle timeout.
+  no idle timeout. Wire format version **2** keys every definition, action and
+  state by agent id; keep the Python package and Unity package on the same
+  release.
+
+## Multi-agent training
+
+1. Add a `ScholaMultiAgentEnvironment` and register each `ScholaAgent` under a
+   stable string id. Put `IReward` and `IEpisodeStatus` on each agent (or under
+   that agent, but not under a nested agent). An agent with no episode status
+   never finishes, so the environment never ends.
+2. Add **Schola > Training Server** to the same GameObject, or assign its
+   **Multi Agent Environment** field. Do not also assign the single-agent
+   **Environment** field.
+3. For `schola unity train` (SB3), every agent must share the same observation
+   and action spaces, and every agent must finish an episode on the same step.
+   The command trains one shared policy; each agent is one vectorized slot, so
+   one 128-step rollout collects 128 steps per agent. Use
+   **Tools > Schola > Create Multi-Agent Training Demo Scene** for a ready
+   example.
+4. When agents differ or finish at different times, run `schola unity bridge`
+   and train with RLlib's `RayEnv`, which keeps true multi-agent dicts and stops
+   sending actions for finished agents.
 
 ## Verification
 
@@ -150,7 +180,9 @@ package and lists `com.amd.schola` in the manifest's `testables`. Then run the
 installed Editor with `-batchmode -nographics -projectPath <project>` and
 `-executeMethod AMD.Schola.Tests.Training.TrainingIntegrationHost.Run`. Set
 `SCHOLA_TEST_UNITY_PORT` to an unused port in both the Editor process and test
-terminal. Once the Editor log contains `SCHOLA_US4_READY:<port>`, run:
+terminal. Set `SCHOLA_TEST_UNITY_AGENTS=2` on the Editor process for the
+two-agent live tests (omit it for the single-agent suite). Once the Editor log
+contains `SCHOLA_US4_READY:<port>`, run:
 
 ```powershell
 python -m pytest Test/unity --confcutdir=Test/unity -n 0
@@ -159,7 +191,7 @@ python -m pytest Test/unity --confcutdir=Test/unity -n 0
 The integration host uses real agent, sensor, actuator, environment and training
 server components. It pumps requests through Editor updates rather than Play
 Mode and stays alive until its dedicated process is terminated. Without the
-environment variable the live tests skip. This verifies the connection and a
+port environment variable the live tests skip. This verifies the connection and a
 short optimizer run; it does not measure task convergence or player/IL2CPP support.
 
 ### Local validation on 2026-10-27

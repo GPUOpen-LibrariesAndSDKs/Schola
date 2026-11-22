@@ -38,41 +38,101 @@ namespace AMD.Schola.Training
         public string value;
     }
 
+    // JsonUtility cannot serialize dictionaries, so per-agent data travels as lists
+    // whose entries carry the agent id.
     [Serializable]
-    public sealed class TrainingRequest
+    public sealed class TrainingAgentDefinition
     {
-        public int version = 1;
-        public string command;
-        public int autoreset;
-        public bool hasSeed;
-        public int seed;
-        public TrainingEntry[] options;
-        public TrainingNode[] action;
+        public string id;
+        public TrainingNode[] observationSpace;
+        public TrainingNode[] actionSpace;
     }
 
     [Serializable]
-    public sealed class TrainingResponse
+    public sealed class TrainingAgentAction
     {
-        public int version = 1;
-        public bool ok = true;
-        public string error;
-        public TrainingNode[] observationSpace;
-        public TrainingNode[] actionSpace;
+        public string id;
+        public TrainingNode[] action;
+    }
+
+    // Also carries an initial state, which leaves reward and both flags at their defaults.
+    [Serializable]
+    public sealed class TrainingAgentState
+    {
+        public string id;
         public TrainingNode[] observations;
         public float reward;
         public bool terminated;
         public bool truncated;
         public TrainingEntry[] info;
+    }
+
+    [Serializable]
+    public sealed class TrainingRequest
+    {
+        public int version = TrainingWire.Version;
+        public string command;
+        public int autoreset;
+        public bool hasSeed;
+        public int seed;
+        public TrainingEntry[] options;
+
+        // step: one action per live agent. Finished agents may be left out.
+        public TrainingAgentAction[] actions;
+    }
+
+    [Serializable]
+    public sealed class TrainingResponse
+    {
+        public int version = TrainingWire.Version;
+        public bool ok = true;
+        public string error;
+
+        // definition: one entry per agent.
+        public TrainingAgentDefinition[] agents;
+
+        // reset and step: one entry per agent.
+        public TrainingAgentState[] states;
+
+        // SAME_STEP reset: the new episode's first state for every agent.
         public bool hasInitial;
-        public TrainingNode[] initialObservations;
-        public TrainingEntry[] initialInfo;
+        public TrainingAgentState[] initialStates;
     }
 
     /// <summary>Conversions for Box, Dict, Discrete and MultiBinary types.</summary>
     public static class TrainingWire
     {
-        public const int Version = 1;
+        /// <summary>
+        /// Wire format version. Must equal <c>VERSION</c> in the Python adapter,
+        /// <c>schola/unity/bridge.py</c>. Version 2 keys every definition, action and
+        /// state by agent id.
+        /// </summary>
+        public const int Version = 2;
         public const int MaxMessageBytes = 4 * 1024 * 1024;
+
+        public static string VersionMismatch(int received) =>
+            $"Unsupported Unity training protocol version {received}; this Unity package "
+            + $"speaks version {Version}. Update the schola Python package and the "
+            + "com.amd.schola Unity package to the same release.";
+
+        public static TrainingAgentState EncodeState(string id, AgentState state) =>
+            new TrainingAgentState
+            {
+                id = id,
+                observations = EncodePoint(state.Observations),
+                reward = state.Reward,
+                terminated = state.Terminated,
+                truncated = state.Truncated,
+                info = Entries(state.Info),
+            };
+
+        public static TrainingAgentState EncodeInitialState(string id, InitialAgentState state) =>
+            new TrainingAgentState
+            {
+                id = id,
+                observations = EncodePoint(state.Observations),
+                info = Entries(state.Info),
+            };
 
         public static TrainingNode[] EncodeSpace(Space space)
         {
@@ -284,7 +344,9 @@ namespace AMD.Schola.Training
         }
 
         public static TrainingEntry[] Entries(IReadOnlyDictionary<string, string> values) =>
-            values.Select(x => new TrainingEntry { key = x.Key, value = x.Value }).ToArray();
+            values == null
+                ? Array.Empty<TrainingEntry>()
+                : values.Select(x => new TrainingEntry { key = x.Key, value = x.Value }).ToArray();
 
         static int[] Shape(IEnumerable<int> shape, int count)
         {

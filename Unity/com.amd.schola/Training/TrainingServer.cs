@@ -17,12 +17,25 @@ namespace AMD.Schola.Training
     /// a background thread; all environment operations and JSON conversion run in Update.
     /// One endpoint owns one environment and accepts one connection at a time.
     /// </summary>
+    /// <remarks>
+    /// Serves either a single-agent <see cref="ScholaEnvironment"/> or a
+    /// <see cref="ScholaMultiAgentEnvironment"/>. Assign at most one of the two fields.
+    /// With neither assigned, a <see cref="ScholaMultiAgentEnvironment"/> on this
+    /// GameObject is used, then a <see cref="ScholaEnvironment"/>.
+    /// </remarks>
     [DisallowMultipleComponent]
     [AddComponentMenu("Schola/Training Server")]
     public sealed class TrainingServer : MonoBehaviour
     {
+        // Wire form of the close command queued when a trainer disconnects.
+        static readonly string s_CloseRequest =
+            "{\"version\":" + TrainingWire.Version + ",\"command\":\"close\"}";
+
         [SerializeField]
         ScholaEnvironment m_Environment;
+
+        [SerializeField]
+        ScholaMultiAgentEnvironment m_MultiAgentEnvironment;
 
         [SerializeField]
         int m_Port = 8001;
@@ -82,13 +95,26 @@ namespace AMD.Schola.Training
 
         public void StartServer()
         {
-            if (m_Environment == null)
-                m_Environment = GetComponent<ScholaEnvironment>();
-            if (m_Environment == null)
+            if (m_Environment != null && m_MultiAgentEnvironment != null)
                 throw new InvalidOperationException(
-                    "Assign a ScholaEnvironment to the training server."
+                    "Assign either Environment or Multi Agent Environment to the training "
+                        + "server, not both."
                 );
-            StartServer(m_Environment, m_Port, m_RequestTimeoutSeconds);
+            if (m_Environment == null && m_MultiAgentEnvironment == null)
+            {
+                m_MultiAgentEnvironment = GetComponent<ScholaMultiAgentEnvironment>();
+                if (m_MultiAgentEnvironment == null)
+                    m_Environment = GetComponent<ScholaEnvironment>();
+            }
+            if (m_MultiAgentEnvironment != null)
+                StartServer(m_MultiAgentEnvironment, m_Port, m_RequestTimeoutSeconds);
+            else if (m_Environment != null)
+                StartServer(m_Environment, m_Port, m_RequestTimeoutSeconds);
+            else
+                throw new InvalidOperationException(
+                    "Assign a ScholaEnvironment or ScholaMultiAgentEnvironment to the "
+                        + "training server."
+                );
 
             // Passing -ScholaDisableScript on the command line overrides the setting
             if (m_RunScriptOnPlay && !IsScriptDisabledOnCommandLine() && !IsScriptRunning)
@@ -113,6 +139,28 @@ namespace AMD.Schola.Training
         {
             if (m_Running)
                 return;
+            ValidateEndpoint(port, requestTimeoutSeconds);
+            Listen(new TrainingSession(environment), port, requestTimeoutSeconds);
+        }
+
+        /// <summary>
+        /// Start on Unity's main thread, serving every agent of a multi-agent environment.
+        /// Port zero selects an available port for tests.
+        /// </summary>
+        public void StartServer(
+            IMultiAgentEnvironment environment,
+            int port,
+            int requestTimeoutSeconds = 30
+        )
+        {
+            if (m_Running)
+                return;
+            ValidateEndpoint(port, requestTimeoutSeconds);
+            Listen(new TrainingSession(environment), port, requestTimeoutSeconds);
+        }
+
+        static void ValidateEndpoint(int port, int requestTimeoutSeconds)
+        {
             if (
                 port < 0
                 || port > 65535
@@ -123,7 +171,11 @@ namespace AMD.Schola.Training
                     nameof(port),
                     "Invalid port or request timeout."
                 );
-            m_Session = new TrainingSession(environment);
+        }
+
+        void Listen(TrainingSession session, int port, int requestTimeoutSeconds)
+        {
+            m_Session = session;
             m_TimeoutMilliseconds = requestTimeoutSeconds * 1000;
             m_Listener = new TcpListener(IPAddress.Loopback, port);
             m_Listener.Start(1);
@@ -231,9 +283,7 @@ namespace AMD.Schola.Training
                     }
                     // Ordered ahead of the next connection's start request. Never touch the scene here.
                     if (!cancellation.IsCancellationRequested)
-                        m_Requests.Enqueue(
-                            new Pending { Json = "{\"version\":1,\"command\":\"close\"}" }
-                        );
+                        m_Requests.Enqueue(new Pending { Json = s_CloseRequest });
                 }
             }
         }

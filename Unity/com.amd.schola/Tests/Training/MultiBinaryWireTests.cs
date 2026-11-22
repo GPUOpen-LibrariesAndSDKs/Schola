@@ -68,9 +68,17 @@ namespace AMD.Schola.Tests.Training
             };
             var nodes = TrainingWire.EncodePoint(source);
             var request = JsonUtility.FromJson<TrainingRequest>(
-                JsonUtility.ToJson(new TrainingRequest { action = nodes })
+                JsonUtility.ToJson(
+                    new TrainingRequest
+                    {
+                        actions = new[]
+                        {
+                            new TrainingAgentAction { id = "agent", action = nodes },
+                        },
+                    }
+                )
             );
-            var decoded = (DictPoint)TrainingWire.DecodePoint(request.action);
+            var decoded = (DictPoint)TrainingWire.DecodePoint(request.actions[0].action);
             Assert.That(
                 ((MultiBinaryPoint)decoded.Points["flags"]).Values,
                 Is.EqualTo(new[] { false, true })

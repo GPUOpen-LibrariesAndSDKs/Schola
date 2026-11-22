@@ -10,9 +10,15 @@ namespace AMD.Schola
     /// under <see cref="ScholaEnvironment.DefaultAgentId"/>. Matches Unreal's single-agent
     /// adapter, which injects the key <c>SingleAgent</c> into the multi-agent maps.
     /// </summary>
+    /// <remarks>
+    /// Follows the <see cref="IMultiAgentEnvironment"/> rule for finished agents: once the
+    /// wrapped environment reports terminated or truncated it is not stepped again until
+    /// <see cref="Reset"/> is called on this adapter, and its terminal state is repeated.
+    /// </remarks>
     public sealed class SingleAgentEnvironmentAdapter : IMultiAgentEnvironment
     {
         readonly IEnvironment m_Environment;
+        AgentState m_Finished;
 
         public SingleAgentEnvironmentAdapter(IEnvironment environment)
         {
@@ -39,9 +45,11 @@ namespace AMD.Schola
 
         public IReadOnlyDictionary<string, InitialAgentState> Reset()
         {
+            var initial = m_Environment.Reset();
+            m_Finished = null;
             return new Dictionary<string, InitialAgentState>
             {
-                [ScholaEnvironment.DefaultAgentId] = m_Environment.Reset(),
+                [ScholaEnvironment.DefaultAgentId] = initial,
             };
         }
 
@@ -62,6 +70,14 @@ namespace AMD.Schola
                 }
             }
 
+            if (m_Finished != null)
+            {
+                return new Dictionary<string, AgentState>
+                {
+                    [ScholaEnvironment.DefaultAgentId] = m_Finished,
+                };
+            }
+
             if (
                 !actions.TryGetValue(ScholaEnvironment.DefaultAgentId, out var action)
                 || action == null
@@ -73,9 +89,15 @@ namespace AMD.Schola
                 );
             }
 
+            var state = m_Environment.Step(action);
+            if (state != null && (state.Terminated || state.Truncated))
+            {
+                m_Finished = state;
+            }
+
             return new Dictionary<string, AgentState>
             {
-                [ScholaEnvironment.DefaultAgentId] = m_Environment.Step(action),
+                [ScholaEnvironment.DefaultAgentId] = state,
             };
         }
     }

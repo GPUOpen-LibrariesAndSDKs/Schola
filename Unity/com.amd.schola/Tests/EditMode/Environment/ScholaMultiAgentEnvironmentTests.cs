@@ -265,6 +265,124 @@ namespace AMD.Schola.Tests.Environment
         }
 
         [Test]
+        public void Step_FinishedAgent_IsNotSteppedAndRepeatsItsTerminalState()
+        {
+            UnityEngine.Object.DestroyImmediate(m_RewardA);
+            var countingReward = m_AgentA.gameObject.AddComponent<CountingReward>();
+            countingReward.Reward = 1.5f;
+            m_Environment.Initialize();
+            m_StatusA.Terminated = true;
+
+            var first = m_Environment.Step(MoveBoth());
+            countingReward.Reward = 9f;
+            m_RewardB.Reward = 2f;
+            var second = m_Environment.Step(MoveBoth());
+
+            Assert.That(second[AgentAId], Is.SameAs(first[AgentAId]));
+            Assert.That(second[AgentAId].Reward, Is.EqualTo(1.5f));
+            Assert.That(second[AgentAId].Terminated, Is.True);
+            Assert.That(countingReward.Calls, Is.EqualTo(1));
+            AssertPosition(m_AgentA.transform.position, StartA + new Vector3(0.4f, 0f, 0f));
+            Assert.That(second[AgentBId].Reward, Is.EqualTo(2f));
+            Assert.That(second[AgentBId].Terminated, Is.False);
+            Assert.That(second[AgentBId].Truncated, Is.False);
+            AssertPosition(
+                ScholaEnvironmentTestFixture.PositionFromObservations(
+                    second[AgentBId].Observations
+                ),
+                StartB + new Vector3(0f, 1.4f, 0f)
+            );
+            Assert.That(m_Sink.StateMaps, Has.Count.EqualTo(2));
+        }
+
+        [Test]
+        public void Step_FinishedAgent_ActionIsOptional()
+        {
+            m_Environment.Initialize();
+            m_StatusA.Truncated = true;
+            var first = m_Environment.Step(MoveBoth());
+
+            var second = m_Environment.Step(
+                new Dictionary<string, Point> { [AgentBId] = Translate(0f, 0.7f) }
+            );
+
+            Assert.That(second.Keys, Is.EquivalentTo(new[] { AgentAId, AgentBId }));
+            Assert.That(second[AgentAId], Is.SameAs(first[AgentAId]));
+            Assert.That(second[AgentAId].Truncated, Is.True);
+            AssertPosition(m_AgentB.transform.position, StartB + new Vector3(0f, 1.4f, 0f));
+        }
+
+        [Test]
+        public void Step_LiveAgentMissingAction_ThrowsAfterAnotherAgentFinished()
+        {
+            m_Environment.Initialize();
+            m_StatusA.Terminated = true;
+            m_Environment.Step(MoveBoth());
+            var beforeB = m_AgentB.transform.position;
+
+            Assert.Throws<ArgumentException>(() =>
+                m_Environment.Step(new Dictionary<string, Point> { [AgentAId] = Translate(0.4f) })
+            );
+            Assert.Throws<ArgumentException>(() =>
+                m_Environment.Step(
+                    new Dictionary<string, Point>
+                    {
+                        [AgentBId] = Translate(0f, 0.7f),
+                        ["other"] = Translate(1f),
+                    }
+                )
+            );
+
+            AssertPosition(m_AgentB.transform.position, beforeB);
+            Assert.That(m_Sink.StateMaps, Has.Count.EqualTo(1));
+        }
+
+        [Test]
+        public void Step_EveryAgentFinished_NeedsNoActionsAndMovesNothing()
+        {
+            m_Environment.Initialize();
+            m_StatusA.Terminated = true;
+            m_StatusB.Truncated = true;
+            var first = m_Environment.Step(MoveBoth());
+            var afterA = m_AgentA.transform.position;
+            var afterB = m_AgentB.transform.position;
+
+            var second = m_Environment.Step(new Dictionary<string, Point>());
+
+            Assert.That(second[AgentAId], Is.SameAs(first[AgentAId]));
+            Assert.That(second[AgentBId], Is.SameAs(first[AgentBId]));
+            AssertPosition(m_AgentA.transform.position, afterA);
+            AssertPosition(m_AgentB.transform.position, afterB);
+        }
+
+        [Test]
+        public void Reset_MakesFinishedAgentsLiveAgain()
+        {
+            m_Environment.Initialize();
+            m_RewardA.Reward = 1.5f;
+            m_StatusA.Terminated = true;
+            m_Environment.Step(MoveBoth());
+
+            m_Environment.Reset();
+            m_RewardA.Reward = 3f;
+
+            Assert.Throws<ArgumentException>(() =>
+                m_Environment.Step(
+                    new Dictionary<string, Point> { [AgentBId] = Translate(0f, 0.7f) }
+                )
+            );
+            var states = m_Environment.Step(MoveBoth());
+            Assert.That(states[AgentAId].Reward, Is.EqualTo(3f));
+            Assert.That(states[AgentAId].Terminated, Is.False);
+            AssertPosition(
+                ScholaEnvironmentTestFixture.PositionFromObservations(
+                    states[AgentAId].Observations
+                ),
+                StartA + new Vector3(0.4f, 0f, 0f)
+            );
+        }
+
+        [Test]
         public void Initialize_DuplicateAgentId_Throws()
         {
             m_Environment.SetAgents(
@@ -310,12 +428,36 @@ namespace AMD.Schola.Tests.Environment
             Assert.Throws<InvalidOperationException>(() => m_Environment.Initialize());
         }
 
+        /// <summary>Test-only <see cref="IReward"/> that counts how often it is asked.</summary>
+        public sealed class CountingReward : MonoBehaviour, IReward
+        {
+            public float Reward;
+            public int Calls;
+
+            public void OnEpisodeReset() { }
+
+            public float ComputeReward()
+            {
+                Calls++;
+                return Reward;
+            }
+        }
+
         Dictionary<string, Point> ZeroActions()
         {
             return new Dictionary<string, Point>
             {
                 [AgentAId] = Translate(0f),
                 [AgentBId] = Translate(0f),
+            };
+        }
+
+        Dictionary<string, Point> MoveBoth()
+        {
+            return new Dictionary<string, Point>
+            {
+                [AgentAId] = Translate(0.4f),
+                [AgentBId] = Translate(0f, 0.7f),
             };
         }
 
@@ -476,6 +618,48 @@ namespace AMD.Schola.Tests.Environment
             );
 
             AssertPosition(m_Fixture.AgentGo.transform.position, before);
+        }
+
+        [Test]
+        public void Step_AfterTerminalStep_RepeatsTerminalStateUntilReset()
+        {
+            var adapter = new SingleAgentEnvironmentAdapter(m_Fixture.Environment);
+            adapter.Reset();
+            m_Fixture.Reward.Reward = 2f;
+            m_Fixture.Status.Terminated = true;
+            var first = adapter.Step(
+                new Dictionary<string, Point>
+                {
+                    [ScholaEnvironment.DefaultAgentId] = m_Fixture.TranslateAction(0.5f),
+                }
+            );
+            var afterTerminal = m_Fixture.AgentGo.transform.position;
+
+            var second = adapter.Step(new Dictionary<string, Point>());
+
+            Assert.That(
+                second[ScholaEnvironment.DefaultAgentId],
+                Is.SameAs(first[ScholaEnvironment.DefaultAgentId])
+            );
+            Assert.That(second[ScholaEnvironment.DefaultAgentId].Terminated, Is.True);
+            AssertPosition(m_Fixture.AgentGo.transform.position, afterTerminal);
+            Assert.That(m_Fixture.Sink.States, Has.Count.EqualTo(1));
+
+            adapter.Reset();
+            var third = adapter.Step(
+                new Dictionary<string, Point>
+                {
+                    [ScholaEnvironment.DefaultAgentId] = m_Fixture.TranslateAction(0.5f),
+                }
+            );
+
+            Assert.That(third[ScholaEnvironment.DefaultAgentId].Terminated, Is.False);
+            AssertPosition(
+                ScholaEnvironmentTestFixture.PositionFromObservations(
+                    third[ScholaEnvironment.DefaultAgentId].Observations
+                ),
+                ScholaEnvironmentTestFixture.StartPose + new Vector3(0.5f, 0f, 0f)
+            );
         }
 
         static void AssertPosition(Vector3 actual, Vector3 expected)

@@ -8,6 +8,13 @@ from cyclopts import App
 
 app = App(name="unity", help="Connect and train Unity environments through Schola.")
 
+_SHARED_POLICY_RULES = (
+    "schola unity train gives every agent its own slot of one shared PPO policy, "
+    "so every agent needs the same observation and action spaces and all agents "
+    "must finish an episode on the same step. For agents that differ or finish at "
+    "different times, run schola unity bridge and train with RLlib."
+)
+
 
 @app.command
 def bridge(unity_port: int = 8001, port: int = 8000, timeout: float = 30):
@@ -37,6 +44,11 @@ def train(
     Start Unity Play Mode with a TrainingServer first. Continuous action spaces
     must have finite bounds (set TranslateActuator.MaxDisplacement above zero).
 
+    A multi-agent Unity environment trains one shared policy: each agent is one
+    slot of the vectorized environment, so every agent needs the same observation
+    and action spaces and all agents must finish an episode on the same step.
+    One rollout collects 128 steps per agent, and timesteps counts agent steps.
+
     With --export-onnx (or --onnx-path), the final policy is also exported with
     Schola's ONNX exporter so Unity's SentisPolicy can run it.
     """
@@ -47,6 +59,7 @@ def train(
     from stable_baselines3 import PPO
     from stable_baselines3.common.vec_env import VecMonitor
 
+    from schola.core.error_manager import EnvironmentException
     from schola.core.protocols.protobuf.grpc_protocol import GrpcProtocol
     from schola.core.simulators.external_simulator import ExternalSimulator
     from schola.sb3.env import VecEnv
@@ -54,7 +67,11 @@ def train(
     from schola.unity.bridge import UnityBridgeServer
 
     with UnityBridgeServer(unity_port, port=0, timeout=timeout) as adapter:
-        env = VecEnv(ExternalSimulator(), GrpcProtocol("127.0.0.1", adapter.port))
+        try:
+            env = VecEnv(ExternalSimulator(), GrpcProtocol("127.0.0.1", adapter.port))
+        except AssertionError as error:
+            # Schola's VecEnv asserts that every agent shares one pair of spaces.
+            raise ValueError(f"{_SHARED_POLICY_RULES}\n{error}") from error
         merge_wrapper = None
         try:
             if isinstance(env.action_space, gym.spaces.Dict):
@@ -74,7 +91,11 @@ def train(
                 else "MlpPolicy"
             )
             model = PPO(policy, env, n_steps=128, batch_size=64, seed=seed, verbose=1)
-            model.learn(total_timesteps=timesteps)
+            try:
+                model.learn(total_timesteps=timesteps)
+            except EnvironmentException as error:
+                # Raised when agents of one environment finish on different steps.
+                raise RuntimeError(f"{_SHARED_POLICY_RULES}\n{error}") from error
 
             if merge_wrapper is not None:
                 action_space = merge_wrapper.unmerged_action_space

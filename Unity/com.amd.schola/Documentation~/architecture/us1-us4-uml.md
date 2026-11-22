@@ -7,7 +7,7 @@ US1 (observations), US2 (actions), US3 (episodes), US4 (train through Schola), a
 The Unity package has three cooperating layers:
 
 1. **Runtime agent and environment (US1–US3)** — Sensors collect observations, actuators apply actions, `ScholaAgent` aggregates them, and `ScholaEnvironment` runs episode step/reset with optional reward and status.
-2. **Training connection (US4)** — Python hosts Schola’s existing `GymService` gRPC API. A TCP/JSON bridge talks to Unity’s `TrainingServer` → `TrainingSession` → `TrainingWire` → `ScholaEnvironment`. Unity does **not** host `GymService` on the shipped path.
+2. **Training connection (US4)** — Python hosts Schola’s existing `GymService` gRPC API. A TCP/JSON bridge talks to Unity’s `TrainingServer` → `TrainingSession` → `TrainingWire` → `IMultiAgentEnvironment` (`ScholaMultiAgentEnvironment`, or `ScholaEnvironment` via `SingleAgentEnvironmentAdapter`). Unity does **not** host `GymService` on the shipped path.
 3. **Local inference (US5)** — `PolicyRunner` / `SentisPolicy` drive the same `IAgent.Observe` / `IAgent.Act` loop without rewards, episode flags, or Python.
 
 Both training and inference share the agent’s observation and action path. Only training uses the environment’s reward, terminated/truncated, reset, and wire protocol.
@@ -407,7 +407,7 @@ sequenceDiagram
 - `Initialize()` inits sensors/actuators, snapshots local poses of the agent hierarchy plus configured actuator transforms, and returns `InteractionDefinition(agent.Define(), agent.DefineActionSpace())`.
 - `Reset()` calls `Initialize()` if not yet initialized, restores the snapshot, calls `OnEpisodeReset` on reward/status, observes, and returns `InitialAgentState` (obs + info only). No reward or done flags on reset.
 - `Seed` and `SetOptions` are no-ops. `AgentState.Info` is allocated empty and never populated.
-- `DefaultAgentId = "SingleAgent"` is the key `SingleAgentEnvironmentAdapter` injects when a single-agent environment is viewed as a multi-agent map. `ScholaEnvironment` itself still steps one agent and does not implement `IMultiAgentEnvironment`. The Python bridge also keys proto maps with agent id `"SingleAgent"` and env index `0`; `TrainingSession` wraps the single-agent `IEnvironment` without reading that field.
+- `DefaultAgentId = "SingleAgent"` is the key `SingleAgentEnvironmentAdapter` injects when a single-agent environment is viewed as a multi-agent map. `ScholaEnvironment` itself still steps one agent and does not implement `IMultiAgentEnvironment`. `TrainingSession` speaks only `IMultiAgentEnvironment`; the `IEnvironment` constructor wraps through that adapter. The Python bridge forwards the agent ids Unity declares (env index `0`) and no longer injects `"SingleAgent"` itself.
 - Reward and status may be assigned in the inspector (`GetComponentInChildren`) or via setters. The sink is **not** auto-resolved; it must be `SetTrainingStateSink`. The shipped training connector does not set or use the sink.
 
 Sources: `Runtime/Environment/`, `Runtime/TrainingDataTypes/`, `Runtime/Common/InteractionDefinition.cs`, `Samples~/TrainingDemo/Runtime/TrainingDemoTask.cs`.
@@ -416,7 +416,7 @@ Sources: `Runtime/Environment/`, `Runtime/TrainingDataTypes/`, `Runtime/Common/I
 
 ## 4. Training through Schola (US4)
 
-**What to take away:** Trainers speak the usual Schola `GymService` RPCs. Python hosts that gRPC service and translates to Unity TCP/JSON. Unity runs `TrainingServer` on the main thread against `ScholaEnvironment`.
+**What to take away:** Trainers speak the usual Schola `GymService` RPCs. Python hosts that gRPC service and translates to Unity TCP/JSON. Unity runs `TrainingServer` on the main thread against `IMultiAgentEnvironment`.
 
 ### 4.1 Shipped connection
 
@@ -424,7 +424,7 @@ Sources: `Runtime/Environment/`, `Runtime/TrainingDataTypes/`, `Runtime/Common/I
 flowchart LR
   subgraph pythonSide ["Python"]
     cli["schola unity train"]
-    gymEnv["GymEnv / VecEnv"]
+    gymEnv["GymEnv / VecEnv / RayEnv"]
     grpcClient["GrpcProtocol"]
     gymService["UnityGymService"]
     bridge["TCP JSON client"]
@@ -435,10 +435,10 @@ flowchart LR
     server["TrainingServer"]
     session["TrainingSession"]
     wire["TrainingWire"]
-    env["ScholaEnvironment"]
+    multi["IMultiAgentEnvironment"]
     server --> session
     session --> wire
-    session --> env
+    session --> multi
   end
 
   bridge -->|"commands"| server
@@ -446,18 +446,18 @@ flowchart LR
 
 Roles:
 
-1. **`TrainingServer`** — MonoBehaviour; loopback TCP (default port 8001); one request per `Update` on the main thread.
-2. **`TrainingSession`** — Commands `start`, `definition`, `reset`, `step`, `close` against `IEnvironment`. Autoreset: `0=SAME_STEP`, `1=NEXT_STEP`, `2=DISABLED`.
-3. **`TrainingWire`** — Versioned JSON encode/decode/validate. Kinds: `"dict"` | `"box"` | `"discrete"` | `"multi_binary"` (`shape: [n]`, point `boolValues`).
-4. **`schola.unity.bridge`** — Hosts `GymService` gRPC (default port 8000); maps proto ↔ TCP JSON.
+1. **`TrainingServer`** — MonoBehaviour; loopback TCP (default port 8001); one request per `Update` on the main thread. Serves either `ScholaEnvironment` or `ScholaMultiAgentEnvironment`.
+2. **`TrainingSession`** — Commands `start`, `definition`, `reset`, `step`, `close` against `IMultiAgentEnvironment`. Autoreset: `0=SAME_STEP`, `1=NEXT_STEP`, `2=DISABLED`. The environment is done only when every agent is done.
+3. **`TrainingWire`** — Version 2 JSON encode/decode/validate, with per-agent definition, action and state lists. Kinds: `"dict"` | `"box"` | `"discrete"` | `"multi_binary"` (`shape: [n]`, point `boolValues`).
+4. **`schola.unity.bridge`** — Hosts `GymService` gRPC (default port 8000); maps proto ↔ TCP JSON using the agent ids Unity declared.
 
-Python `UpdateState` still carries `Reset` or `Step`. The bridge maps those to Unity `reset` / `step`. Auto-reset is a `TrainingSession` concern; `ScholaEnvironment` does not auto-reset. States return in the JSON response; `ITrainingStateSink` is unused.
+Python `UpdateState` still carries `Reset` or `Step`. The bridge maps those to Unity `reset` / `step`. Auto-reset is a `TrainingSession` concern; environments do not auto-reset. States return in the JSON response; `ITrainingStateSink` is unused.
 
 Proto RPCs still used by trainers: `StartGymConnector`, `RequestTrainingDefinition`, `UpdateState`.
 
 ### 4.2 Protocol cardinality
 
-**What to take away:** Proto and Unreal nest many envs and many agents. Unity’s shipped training stack is one env, one agent: the bridge injects `"SingleAgent"` and env index `0`. `IMultiAgentEnvironment`, implemented by `ScholaMultiAgentEnvironment`, returns `map<string, AgentState>` (and the matching definition and initial-state maps). `SingleAgentEnvironmentAdapter` injects the key `SingleAgent`, the same key Unreal's single-agent adapter uses. `TrainingSession` does not call that multi-agent environment. Python `GymEnv` also assumes 1 env, 1 agent. `GymVectorEnv` / SB3 flatten `(env, agent)` slots; `RayEnv` uses true multi-agent dicts.
+**What to take away:** Proto and Unreal nest many envs and many agents. Unity’s shipped training stack is one env (index `0`) with one or many agents. `TrainingSession` drives `IMultiAgentEnvironment`. `ScholaMultiAgentEnvironment` returns `map<string, AgentState>` (and the matching definition and initial-state maps). `SingleAgentEnvironmentAdapter` injects the key `SingleAgent`, the same key Unreal's single-agent adapter uses, so a `ScholaEnvironment` stays one entry on that path. Python `GymEnv` still assumes 1 env, 1 agent. `GymVectorEnv` / SB3 flatten `(env, agent)` slots (shared spaces, finish together); `RayEnv` uses true multi-agent dicts.
 
 Proto message nesting (identity lives in maps and repeated env slots):
 
@@ -515,26 +515,28 @@ How Unity fits that nesting:
 
 ```mermaid
 flowchart LR
-  bridge["Python bridge keys SingleAgent and env 0"]
+  bridge["Python bridge forwards agent ids and env 0"]
   session["TrainingSession one env"]
-  env["ScholaEnvironment one agent"]
+  multiIface["IMultiAgentEnvironment"]
   state["AgentState has no agent-id field"]
   adapter["SingleAgentEnvironmentAdapter injects SingleAgent"]
+  single["ScholaEnvironment one agent"]
   multi["ScholaMultiAgentEnvironment many agents by id"]
-  bridge --> session --> env --> state
-  adapter -.-> env
-  multi --> state
+  bridge --> session --> multiIface --> state
+  adapter --> multiIface
+  adapter --> single
+  multi --> multiIface
 ```
 
-`IEnvironment` stays one agent. `SingleAgentEnvironmentAdapter` is what injects the key `SingleAgent`. `ScholaMultiAgentEnvironment` is a separate environment and is not on the `TrainingSession` path.
+`IEnvironment` stays one agent. `SingleAgentEnvironmentAdapter` is what injects the key `SingleAgent` onto the `TrainingSession` path. `ScholaMultiAgentEnvironment` is the many-agent environment on that same path.
 
 | Layer | Environments | Agents per env | How identity is keyed |
 | --- | --- | --- | --- |
 | Proto `TrainingState` / `TrainingDefinition` | Many (`repeated`) | Many (`map<string, …>`) | env index, then `agent_id` |
 | Unreal `IScholaEnvironment` | Connector holds `TArray` of envs | Many (`TMap<FString, …>`) | `agent_id` string |
 | Unreal `ISingleAgentScholaEnvironment` | One | One, adapter injects `"SingleAgent"` | injected key |
-| Unity `ScholaEnvironment` | One | One | none on the C# state; bridge and `SingleAgentEnvironmentAdapter` inject `"SingleAgent"` |
-| Unity `TrainingSession` (US4) | One | One | JSON commands; bridge maps to proto keys |
+| Unity `ScholaEnvironment` | One | One | none on the C# state; adapter injects `"SingleAgent"` |
+| Unity `TrainingSession` (US4) | One | One or many | JSON agent lists; bridge maps to proto keys |
 | Unity `ScholaMultiAgentEnvironment` | One | Many | `agent_id` string |
 | Unity `SingleAgentEnvironmentAdapter` | One | One | injected key `SingleAgent` |
 | Python `GymEnv` | One | One | 1:1 wrap |
@@ -649,8 +651,8 @@ Both loops share `IAgent.Observe` / `IAgent.Act`. Only the environment/training 
 | Action source | Python trainer via bridge | `SentisPolicy.Think` |
 | Reward / terminated / truncated | Yes, via optional `IReward` / `IEpisodeStatus` | No |
 | Reset | `ScholaEnvironment.Reset`; autoreset in `TrainingSession` | No |
-| Agent identity | Bridge keys `"SingleAgent"` | List index |
-| Multi-agent | Not on shipped training env | Inference-only many agents, one policy |
+| Agent identity | Unity-declared agent ids (adapter injects `"SingleAgent"`) | List index |
+| Multi-agent | `ScholaMultiAgentEnvironment` on the training path | Inference-only many agents, one policy |
 | MultiBinary on wire | Supported in `TrainingWire` + bridge | Not supported in `SentisPolicy` |
 
 ---
@@ -716,7 +718,7 @@ classDiagram
   UnrealISingleAgent ..|> UnrealIScholaEnvironment : adapter key SingleAgent
   UnrealIMultiAgent ..|> UnrealIScholaEnvironment
   URPCGymConnector ..> UnrealIScholaEnvironment : TArray of envs
-  TrainingServer ..> UnityIEnvironment : TCP JSON session
+  TrainingServer ..> UnityIEnvironment : via SingleAgent adapter
   schola_unity_bridge ..> TrainingServer : bridge
   UnityIEnvironment ..> UnityIReward
   UnityIEnvironment ..> UnityIEpisodeStatus
@@ -726,7 +728,7 @@ Differences that matter for Unity training:
 
 - Unreal `IAgent` also has `Define`, `GetStatus`, `SetStatus`. Unity `IAgent` is Observe/Act only; `ScholaAgent.Define` is concrete.
 - Unreal environments fill `FAgentState.Reward` / `bTerminated` / `bTruncated` inside `Step`. They have no `IReward` / `IEpisodeStatus`.
-- Unity `IMultiAgentEnvironment` matches Unreal `IMultiAgentScholaEnvironment`: maps keyed by agent id, with reward and episode flags filled per agent inside `Step`. `TrainingSession` still drives `IEnvironment` only.
+- Unity `IMultiAgentEnvironment` matches Unreal `IMultiAgentScholaEnvironment`: maps keyed by agent id, with reward and episode flags filled per agent inside `Step`. `TrainingSession` drives that multi-agent interface; a single-agent environment is wrapped by `SingleAgentEnvironmentAdapter`.
 - Unreal hosts `GymService` via `URPCGymConnector` / `UCommunicationManager`. Unity hosts TCP JSON; Python `schola.unity.bridge` hosts `GymService`.
 
 Sources: `Source/Schola/Public/Agent/AgentInterface.h`, `Source/ScholaTraining/Public/Environment/`, `Source/ScholaProtobuf/Public/GymConnectors/gRPC/gRPCGymConnector.h`.
@@ -755,14 +757,14 @@ Sources: `Source/Schola/Public/Agent/AgentInterface.h`, `Source/ScholaTraining/P
 | `InteractionDefinition` | US3 | implemented | ObservationSpace + ActionSpace |
 | `ITrainingStateSink` | US4 | placeholder | Singular submit plus `SubmitStates` / `SubmitInitialStates` for agent-id maps; unused by the training connector |
 | `TrainingServer` | US4 | implemented | Loopback TCP; one request per `Update` |
-| `TrainingSession` | US4 | implemented | `start` / `definition` / `reset` / `step` / `close`; autoreset modes |
-| `TrainingWire` | US4 | implemented | JSON encode/decode/validate including `multi_binary` |
-| Python `schola.unity.bridge` | US4 | implemented | Hosts `GymService`; TCP JSON ↔ proto |
+| `TrainingSession` | US4 | implemented | Speaks `IMultiAgentEnvironment`; autoreset when every agent is done |
+| `TrainingWire` | US4 | implemented | Version 2 per-agent lists; JSON encode/decode/validate including `multi_binary` |
+| Python `schola.unity.bridge` | US4 | implemented | Hosts `GymService`; forwards Unity agent ids; TCP JSON ↔ proto |
 | `IPolicy` / `SentisPolicy` | US5 | implemented | Local ONNX; Box obs; Box/Discrete actions; no MultiBinary |
 | `PolicyRunner` | US5 | implemented | Inspector entry: agents + `ModelAsset` → Sentis + stepper |
 | `IStepper` / `SimpleStepper` / `StepperRunner` | US5 | implemented | Observe-think-act; no reward or reset |
 | Unity-hosted `GymService` | US4 | optional | Direct gRPC / `Training/Generated/` / `-ScholaPort=`; not shipped |
-| `IMultiAgentEnvironment` | multi-agent | implemented | Mirrors Unreal `IMultiAgentScholaEnvironment`; `Step` returns `Dictionary<string, AgentState>` |
-| `ScholaMultiAgentEnvironment` | multi-agent | implemented | One environment, many `ScholaAgent`s keyed by id. Reward and status resolve per agent |
-| `SingleAgentEnvironmentAdapter` | multi-agent | implemented | Wraps `IEnvironment` under the key `SingleAgent` |
+| `IMultiAgentEnvironment` | multi-agent | implemented | Mirrors Unreal `IMultiAgentScholaEnvironment`; finished agents keep terminal state until `Reset` |
+| `ScholaMultiAgentEnvironment` | multi-agent | implemented | One environment, many `ScholaAgent`s keyed by id. On the `TrainingSession` path |
+| `SingleAgentEnvironmentAdapter` | multi-agent | implemented | Wraps `IEnvironment` under the key `SingleAgent` for `TrainingSession` |
 | `IMultiAgentScholaEnvironment` | Unreal | Unreal | Comparison type. Unity equivalent is `IMultiAgentEnvironment` |

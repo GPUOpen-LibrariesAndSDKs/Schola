@@ -30,6 +30,14 @@ namespace AMD.Schola.Training
         [SerializeField]
         int m_RequestTimeoutSeconds = 30;
 
+        [SerializeField]
+        bool m_RunScriptOnPlay;
+
+        [SerializeField]
+        TrainingScriptSettings m_ScriptSettings = new TrainingScriptSettings();
+
+        LaunchableScript m_Script;
+
         sealed class Pending
         {
             public string Json;
@@ -53,6 +61,19 @@ namespace AMD.Schola.Training
         public int BoundPort { get; private set; }
         public string LastConnectionError { get; private set; }
 
+        /// <summary>
+        /// Launch the training script when the server starts.
+        /// </summary>
+        public bool RunScriptOnPlay
+        {
+            get { return m_RunScriptOnPlay; }
+            set { m_RunScriptOnPlay = value; }
+        }
+
+        public TrainingScriptSettings ScriptSettings => m_ScriptSettings;
+
+        public bool IsScriptRunning => m_Script != null && m_Script.IsRunning;
+
         void OnEnable()
         {
             if (Application.isPlaying)
@@ -68,6 +89,23 @@ namespace AMD.Schola.Training
                     "Assign a ScholaEnvironment to the training server."
                 );
             StartServer(m_Environment, m_Port, m_RequestTimeoutSeconds);
+
+            // Passing -ScholaDisableScript on the command line overrides the setting
+            if (m_RunScriptOnPlay && !IsScriptDisabledOnCommandLine() && !IsScriptRunning)
+            {
+                m_Script = m_ScriptSettings.GetLaunchableScript(BoundPort, m_RequestTimeoutSeconds);
+                m_Script.LaunchScript();
+            }
+        }
+
+        public static bool IsScriptDisabledOnCommandLine()
+        {
+            foreach (var arg in Environment.GetCommandLineArgs())
+            {
+                if (string.Equals(arg, "-ScholaDisableScript", StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            return false;
         }
 
         /// <summary>Start on Unity's main thread. Port zero selects an available port for tests.</summary>
@@ -216,6 +254,8 @@ namespace AMD.Schola.Training
 
         public void StopServer()
         {
+            m_Script?.KillScript();
+            m_Script = null;
             m_Running = false;
             m_Cancellation?.Cancel();
             m_Listener?.Stop();

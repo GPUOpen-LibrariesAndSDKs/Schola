@@ -29,6 +29,28 @@ Ctrl+C interrupts training; a checkpoint is saved on normal completion. There is
 no Unity-native gRPC library to install. A checkpoint is an SB3 model, not a Unity
 inference asset; model export and loading belong to US5.
 
+## Run training on Play
+
+Like Unreal's **Run Script On Play** on the gRPC Gym Connector, the **Training
+Server** can launch the trainer itself, so no terminal is needed.
+
+1. Select the object with the **Training Server** and tick **Run Script On Play**.
+2. Under **Python Env Settings**, choose the Python that has Schola installed:
+   **System PATH Python Env**, **Conda Env** (enter the env name), or **Custom
+   Python Path** (for example `C:/path/to/repo/.venv/Scripts/python.exe`).
+3. Leave **Python Script** on **Builtin Schola Unity Training Script** and set
+   **Timesteps**, **Seed**, **Checkpoint Path** and **Export Final Model To Onnx**.
+   Set **Onnx Path** to, for example, `Assets/Models/cube.onnx` to save the model
+   inside the project. Relative paths start from the Unity project folder.
+4. Enter Play Mode. The Console shows the launch command and the training output,
+   prefixed with `[Schola script]`. Stopping Play Mode kills the script.
+
+Choose **Custom Training Script** to run your own Python file, or set **Script Type**
+to **Other** to launch any executable. Their **Args** are passed as `--Name Value`
+and **Flags** as `--Flag`. Every script also receives `--unity-port` and
+`--timeout`. Pass `-ScholaDisableScript` on the command line to skip the launch
+without changing the setting.
+
 ## Connect an existing scene
 
 1. Configure a `ScholaAgent` with sensors and actuators (US1/US2).

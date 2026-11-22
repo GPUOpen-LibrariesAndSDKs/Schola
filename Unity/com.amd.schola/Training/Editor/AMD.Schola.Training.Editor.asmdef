@@ -1,0 +1,7 @@
+{
+    "name": "AMD.Schola.Training.Editor",
+    "rootNamespace": "AMD.Schola.Training.Editor",
+    "references": ["AMD.Schola.Runtime", "AMD.Schola.Training"],
+    "includePlatforms": ["Editor"],
+    "autoReferenced": true
+}

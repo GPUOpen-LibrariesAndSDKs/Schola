@@ -30,7 +30,7 @@ public:
 	 * @details Set this to the type of connector you want to use (e.g., gRPC, Manual).
 	 */
 	UPROPERTY(EditAnywhere, Instanced, BlueprintReadWrite, Category = "Schola|Training")
-	UAbstractGymConnector* Connector = nullptr;
+	TObjectPtr<UAbstractGymConnector> Connector = nullptr;
 
 	/**
 	 * @brief Called every frame to update the connector state.

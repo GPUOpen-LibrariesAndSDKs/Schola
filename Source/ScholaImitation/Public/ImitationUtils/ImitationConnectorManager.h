@@ -30,7 +30,7 @@ public:
 	 * @details Set this to the type of connector you want to use (e.g., gRPC, Manual).
 	 */
 	UPROPERTY(EditAnywhere, Instanced, BlueprintReadWrite, Category = "Schola|Imitation")
-	UAbstractImitationConnector* Connector = nullptr;
+	TObjectPtr<UAbstractImitationConnector> Connector = nullptr;
 
 	/**
 	 * @brief Called every frame to update the connector state.

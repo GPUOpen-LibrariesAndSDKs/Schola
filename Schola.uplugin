@@ -59,6 +59,11 @@
 			"Name": "ScholaStateTree",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "ScholaMjcf",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
 		}
 	],
 	"Plugins": [
@@ -72,6 +77,10 @@
 		},
 		{
 			"Name": "GameplayStateTree",
+			"Enabled": true
+		},
+		{
+			"Name": "Interchange",
 			"Enabled": true
 		}
 	]

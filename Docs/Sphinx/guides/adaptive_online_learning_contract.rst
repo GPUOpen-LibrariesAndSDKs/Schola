@@ -147,7 +147,8 @@ Current integration limits:
 
 See ``Examples/AdaptiveSAC/README.md`` for host setup and
 ``Examples/AdaptiveTag/Evidence/SAC/README.md`` for learner results and limits.
-Checkpoint work is not yet merged, and adaptation after a runner-pattern switch
+Checkpoint save/load for the native RLtools learner is described in
+:doc:`native_rltools_checkpoints`. Adaptation after a runner-pattern switch
 has not been established for the current chase simulator. The original tag
 learner's matched learning-versus-frozen experiment is a separate result.
 

@@ -806,6 +806,19 @@ if (MigrationDay)
         <aside class="speaker-notes" data-time="0:15">For testing, there are 460 checks that run in CI on every PR, on Linux and Mac. That includes a bunch of broken and mismatched files, and all of them get rejected. I also reran the chase test starting from a saved checkpoint. It still adapts on all six seeds, and the frozen copy loaded from the same file doesn't change at all.</aside>
       </section>
 
+      <section class="slide" id="testing-adaptive" aria-labelledby="testing-adaptive-heading" data-title="Adaptive: testing and evaluation" data-section="Technical">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
+        <p class="eyebrow">Adaptive NPCs · testing · Chloe Lee</p>
+        <h2 id="testing-adaptive-heading">Testing</h2>
+        <p class="ck-lead">I also worked on testing:</p>
+        <div class="ck-cards">
+          <div><span class="ck-num">1</span><h3>Speed</h3><p>A decision takes about 5 µs, so the game doesn't slow down.</p></div>
+          <div><span class="ck-num">2</span><h3>Fair test</h3><p>We compare the learning NPC to a frozen copy.</p></div>
+          <div><span class="ck-num">3</span><h3>Clear rules</h3><p>Pass or fail is decided before we run the test.</p></div>
+        </div>
+        <aside class="speaker-notes" data-time="0:15">I also worked on testing. First, speed: a decision takes about five microseconds, so the game doesn't slow down. Second, to prove the NPC really adapts, we compare it to a frozen copy that doesn't learn. And third, we decide what counts as a pass before we run the test, so we can't fudge it afterwards.</aside>
+      </section>
+
 
 
       <section class="slide" id="tech-event" aria-labelledby="tech-event-heading" data-title="Event: design" data-section="Technical">

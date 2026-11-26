@@ -38,6 +38,7 @@
     if (focusedSlide && focusedSlide !== slides[current]) document.activeElement.blur();
     slides.forEach((slide, i) => {
       const active = i === current;
+      if (!active) slide.querySelectorAll("video").forEach(video => video.pause());
       slide.classList.toggle("is-active", active);
       slide.hidden = !active;
       slide.inert = !active;
@@ -124,6 +125,8 @@
     if (overview.open || help.open) return;
     if (event.target.closest("input, textarea, select, [contenteditable='true']")) return;
     if (event.target.closest("button, a") && [" ", "Enter"].includes(event.key)) return;
+    // Space plays or pauses a focused video instead of advancing the slide.
+    if (event.target.closest("video") && event.key === " ") return;
     const key = event.key.toLowerCase();
     if (["arrowright", "arrowdown", "pagedown"].includes(key) || (key === " " && !event.shiftKey)) {
       event.preventDefault();

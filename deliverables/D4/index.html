@@ -141,6 +141,163 @@
         <aside class="speaker-notes" data-time="1:00">Background subteam: replace this slot. Keep the demo from the user's perspective and within one minute.</aside>
       </section>
 
+      <section class="slide cover dark sp-slide sp-team-cover" id="shared-policy-team" aria-labelledby="shared-policy-team-heading" data-title="Shared Policy NPCs: team" data-section="Demo">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>CSC301 / Deliverable 04</span></header>
+        <div class="cover-content">
+          <div class="sp-reveal">
+            <p class="eyebrow">Advanced NPCs for AMD Schola</p>
+            <h1 id="shared-policy-team-heading">Shared Policy<br>team<span class="accent">.</span></h1>
+            <p class="lead">Shared Policy NPCs &middot; Deliverable 4</p>
+          </div>
+          <div class="cover-mark sp-team sp-reveal"><span>TEAM MEMBERS</span><ul><li>Clementine Yang</li><li>Hiu Yan (Jaela) Kwok</li></ul></div>
+        </div>
+        <aside class="speaker-notes" data-time="0:05">Introduce the Shared Policy team, Clementine Yang and Hiu Yan (Jaela) Kwok, in one sentence, then go straight into the demo.</aside>
+      </section>
+
+      <section class="slide sp-slide sp-nne-slide" id="shared-policy-nne-inference" aria-labelledby="shared-policy-nne-inference-heading" data-title="Shared Policy NPCs: NNE-backed inference" data-section="Demo">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Shared Policy / Deliverable 04</span></header>
+        <div class="sp-title-row">
+          <div><p class="eyebrow">Clementine Yang &middot; Runtime integration</p><h2 id="shared-policy-nne-inference-heading">From mock policy to real inference<span class="accent">.</span></h2></div>
+          <a class="sp-pr" href="https://github.com/csc301-2026-f/9-AMD-Advanced-NPCs/pull/51" target="_blank" rel="noopener noreferrer"><span class="sp-pr-number">PR #51</span><span class="sp-status">Merged</span></a>
+        </div>
+        <div class="chart-layout sp-nne-layout">
+          <figure>
+            <svg class="diagram" viewBox="0 0 860 430" role="img" aria-labelledby="sp-nne-title sp-nne-desc">
+              <title id="sp-nne-title">NNE-backed shared policy inference path</title>
+              <desc id="sp-nne-desc">Three NPCs, bound to expert heads 0, 1 and 0, hand their observations to the Shared Policy Stepper. The stepper passes one batch to the NNE Shared Policy, which makes a single model call using Architecture A. The model produces an Expert 0 output and an Expert 1 output, and the policy selects and routes the matching action back to each NPC.</desc>
+              <defs><marker id="sp-nne-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#50645c"/></marker></defs>
+              <g stroke="#173d38" stroke-width="2">
+                <rect x="0" y="0" width="256" height="64" fill="#f5f3ec"/><rect x="302" y="0" width="256" height="64" fill="#f5f3ec"/><rect x="604" y="0" width="256" height="64" fill="#f5f3ec"/>
+                <rect x="90" y="94" width="680" height="64" fill="#e7efe6"/>
+                <rect x="90" y="184" width="680" height="64" fill="#e9b65c"/>
+                <rect x="30" y="284" width="360" height="56" fill="#f5f3ec"/><rect x="470" y="284" width="360" height="56" fill="#f5f3ec"/>
+                <rect x="90" y="374" width="680" height="56" fill="#173d38"/>
+              </g>
+              <g text-anchor="middle" fill="#173d38">
+                <g font-size="24" font-weight="600"><text x="128" y="29">NPC 1</text><text x="430" y="29">NPC 2</text><text x="732" y="29">NPC 3</text></g>
+                <g font-size="20" fill="#50645c"><text x="128" y="52">Expert 0</text><text x="430" y="52">Expert 1</text><text x="732" y="52">Expert 0</text></g>
+                <text x="430" y="123" font-size="24" font-weight="600">Shared Policy Stepper</text><text x="430" y="147" font-size="19" fill="#50645c">Collect observations and head bindings</text>
+                <text x="430" y="213" font-size="24" font-weight="600">NNE Shared Policy</text><text x="430" y="237" font-size="19">Architecture A &#183; single batched model call</text>
+                <text x="210" y="319" font-size="22" font-weight="600">Expert 0 output</text><text x="650" y="319" font-size="22" font-weight="600">Expert 1 output</text>
+                <text x="430" y="408" font-size="23" font-weight="600" fill="#f5f3ec">Select and route actions back to NPCs</text>
+              </g>
+              <g stroke="#50645c" stroke-width="2.5" fill="none">
+                <path d="M128 64 V79 H732 V64"/><path d="M430 64 V79"/>
+                <line x1="430" y1="79" x2="430" y2="90" marker-end="url(#sp-nne-arrow)"/>
+                <line x1="430" y1="158" x2="430" y2="180" marker-end="url(#sp-nne-arrow)"/>
+                <path d="M430 248 V266 H210 V280" marker-end="url(#sp-nne-arrow)"/><path d="M430 266 H650 V280" marker-end="url(#sp-nne-arrow)"/>
+                <path d="M210 340 V357 H650 V340"/><line x1="430" y1="357" x2="430" y2="370" marker-end="url(#sp-nne-arrow)"/>
+              </g>
+            </svg>
+            <figcaption>Integrating batched ONNX inference into our Shared Policy workflow.</figcaption>
+          </figure>
+          <div class="side-facts sp-reveal">
+            <div><strong>6 / 6</strong><span>Unreal automation tests passed</span></div>
+            <div><strong>1</strong><span>model call per batch, however many NPCs and roles are in it</span></div>
+            <div><strong>Verified</strong><span>Inference outputs validated against Python ONNX Runtime</span></div>
+          </div>
+        </div>
+        <p class="source-line">Pull request: <a href="https://github.com/csc301-2026-f/9-AMD-Advanced-NPCs/pull/51" target="_blank" rel="noopener noreferrer">github.com/csc301-2026-f/9-AMD-Advanced-NPCs/pull/51</a> &middot; <code>UNNESharedPolicy</code> runs Architecture A through Unreal NNE</p>
+        <aside class="speaker-notes" data-time="0:30">My contribution is PR #51, which replaces the mock shared policy with real inference. Walk the diagram top to bottom. Three NPCs are bound to expert heads: NPC 1 and NPC 3 use expert 0 and NPC 2 uses expert 1. The Shared Policy Stepper collects their observations and head bindings into one batch. UNNESharedPolicy then makes a single model call for the whole batch, using Architecture A, so both experts' outputs come back together. The policy selects the output that matches each NPC's bound head and routes that action back to the NPC. Verification: six Unreal automation tests pass, covering initialisation, mixed-head routing, reference outputs, rejecting invalid requests and unsupported models, and the stepper integration. Outputs are validated against Python ONNX Runtime.</aside>
+      </section>
+
+      <section class="slide sp-slide sp-lyra-slide" id="shared-policy-lyra" aria-labelledby="shared-policy-lyra-heading" data-title="Shared Policy NPCs: Lyra integration" data-section="Demo">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Shared Policy / Deliverable 04</span></header>
+        <div class="sp-title-row">
+          <div><p class="eyebrow">Clementine Yang &middot; Gameplay integration</p><h2 id="shared-policy-lyra-heading">Bringing Schola into Lyra<span class="accent">.</span></h2></div>
+          <div class="sp-pr-pair"><a class="sp-pr" href="https://github.com/csc301-2026-f/9-AMD-Advanced-NPCs/pull/56" target="_blank" rel="noopener noreferrer"><span class="sp-pr-number">PR #56</span><span class="sp-status">Merged</span></a><a class="sp-pr" href="https://github.com/csc301-2026-f/9-AMD-Advanced-NPCs/pull/57" target="_blank" rel="noopener noreferrer"><span class="sp-pr-number">PR #57</span><span class="sp-status">Merged</span></a></div>
+        </div>
+        <p class="sp-roadmap-lead">Moving from isolated inference tests toward a real game environment.</p>
+        <div class="split sp-lyra-cards">
+          <article class="sp-card sp-reveal">
+            <span class="sp-plan-number">01</span>
+            <h3>Compatibility</h3>
+            <p>Resolved UE 5.8 UObject pointer issues so Lyra builds with Schola.</p>
+            <a class="sp-card-pr" href="https://github.com/csc301-2026-f/9-AMD-Advanced-NPCs/pull/56" target="_blank" rel="noopener noreferrer">PR #56</a>
+          </article>
+          <article class="sp-card sp-reveal">
+            <span class="sp-plan-number">02</span>
+            <h3>Reproducibility</h3>
+            <p>Automated setup and build scripts for macOS ARM64.</p>
+            <a class="sp-card-pr" href="https://github.com/csc301-2026-f/9-AMD-Advanced-NPCs/pull/57" target="_blank" rel="noopener noreferrer">PR #57</a>
+          </article>
+        </div>
+        <div class="takeaway sp-reveal"><span>Result</span><p><strong>Successfully built and launched Lyra with Schola enabled.</strong></p></div>
+        <aside class="speaker-notes" data-time="0:20">To move beyond isolated inference tests, I also worked on integrating Schola into the Lyra Starter Game. I resolved Unreal Engine 5.8 compatibility issues, PR #56, and added automated setup and build scripts for macOS ARM64, PR #57, making the integration easier to reproduce. We successfully built and launched Lyra with Schola enabled.</aside>
+      </section>
+
+      <section class="slide sp-slide sp-st-slide" id="shared-policy-statetree" aria-labelledby="shared-policy-statetree-heading" data-title="Shared Policy NPCs: StateTree-driven policy selection" data-section="Demo">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Shared Policy / Deliverable 04</span></header>
+        <div class="sp-title-row">
+          <div><p class="eyebrow">Clementine Yang &middot; StateTree integration</p><h2 id="shared-policy-statetree-heading">One StateTree, multiple NPCs<span class="accent">.</span></h2></div>
+          <a class="sp-pr" href="https://github.com/csc301-2026-f/9-AMD-Advanced-NPCs/pull/67" target="_blank" rel="noopener noreferrer"><span class="sp-pr-number">PR #67</span><span class="sp-status">Open</span></a>
+        </div>
+        <div class="sp-st-layout">
+          <div class="sp-st-col sp-reveal">
+            <p class="sp-column-label">Shared StateTree asset in Unreal Editor</p>
+            <figure class="sp-st-shot">
+              <img src="assets/statetree-patrol-chase.png" alt="StateTree editor showing a Root with two states. Patrol runs while Actor.Should Chase is False and can transition to Chase. Chase runs while Actor.Should Chase is True and can transition to Patrol.">
+              <figcaption>One asset defines both states; each NPC runs its own instance.</figcaption>
+            </figure>
+          </div>
+          <div class="sp-st-col sp-st-planned sp-reveal">
+            <p class="sp-column-label">Planned integration</p>
+            <div class="sp-st-policies">
+              <div class="sp-st-box sp-st-dashed"><strong>Patrol Policy</strong></div>
+              <div class="sp-st-box sp-st-dashed"><strong>Chase Policy</strong></div>
+            </div>
+            <div class="sp-st-bus is-merge" aria-hidden="true"></div>
+            <div class="sp-st-box sp-st-dashed sp-st-arch"><strong>Architecture C &middot; NNE Inference</strong></div>
+          </div>
+        </div>
+        <div class="sp-st-notes sp-reveal">
+          <p><strong>Verified:</strong> Multiple StateTree instances and runtime Patrol &harr; Chase transitions.</p>
+        </div>
+        <aside class="speaker-notes" data-time="0:25">PR #67 adds a StateTree-driven NPC demo in Lyra. The screenshot on the left is the shared StateTree asset in the Unreal Editor. It defines two states, Patrol and Chase, selected by the Actor's Should Chase value: Patrol while it is false, Chase while it is true. Each NPC runs its own instance of the asset, so one NPC can patrol while another chases. What is verified is that several StateTree instances run at once and switch between Patrol and Chase at runtime. The dashed part is planned, not built: map each active state to its own specialized policy, Patrol Policy or Chase Policy, served through Architecture C with NNE inference. The pull request is still open.</aside>
+      </section>
+
+      <section class="slide sp-slide sp-video-slide" id="shared-policy-statetree-demo" aria-labelledby="shared-policy-statetree-demo-heading" data-title="Shared Policy NPCs: Lyra runtime demo" data-section="Demo">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Runtime demonstration</span></header>
+        <div class="sp-title-row">
+          <div><h2 id="shared-policy-statetree-demo-heading">StateTree in action<span class="accent">.</span></h2></div>
+          <p class="sp-video-credit">Clementine Yang &middot; Lyra Runtime Demo &middot; 00:33</p>
+        </div>
+        <figure class="sp-video">
+          <video controls muted playsinline preload="metadata" aria-label="Lyra runtime demo: multiple NPC instances switching between Patrol and Chase at runtime">
+            <source src="assets/statetree-runtime-demo.mp4" type="video/mp4">
+            Your browser can't play this video. The file is deliverables/D4/assets/statetree-runtime-demo.mp4.
+          </video>
+          <figcaption>Multiple NPC instances &middot; Runtime state transitions</figcaption>
+        </figure>
+        <aside class="speaker-notes" data-time="0:33">Press play and narrate over the clip; don't let it run silently. In Lyra, several NPCs each run their own instance of the shared StateTree, and you can see them switch between Patrol and Chase at runtime. Be clear about scope: this shows StateTree-driven state changes, not different neural policies yet. Mapping each state to its own policy through Architecture C is the next step. Fallback use: if the live Lyra run fails, this clip is the recording of the same build.</aside>
+      </section>
+
+      <section class="slide sp-slide sp-rm-slide" id="shared-policy-roadmap" aria-labelledby="shared-policy-roadmap-heading" data-title="Shared Policy NPCs: from inference to gameplay" data-section="Demo">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Shared Policy / Deliverable 04</span></header>
+        <p class="eyebrow">Roadmap &middot; Towards D5</p>
+        <h2 id="shared-policy-roadmap-heading">From inference to gameplay<span class="accent">.</span></h2>
+        <p class="sp-roadmap-lead">Connecting our inference framework with StateTree-driven NPC behavior.</p>
+        <div class="sp-rm-flow sp-reveal">
+          <div class="sp-rm-sources">
+            <div class="sp-rm-box is-done"><span class="sp-rm-tag">Implemented</span><strong>Cube Demo</strong><span>Architecture C &middot; real NNE inference</span></div>
+            <div class="sp-rm-box is-done"><span class="sp-rm-tag">Implemented</span><strong>Lyra Demo</strong><span>StateTree &middot; runtime transitions</span></div>
+          </div>
+          <div class="sp-rm-merge" aria-hidden="true"><span>&rarr;</span></div>
+          <ol class="sp-rm-stages">
+            <li class="sp-rm-box is-planned"><span class="sp-rm-num">01</span><strong>Dynamic Policy Selection</strong><span>Map active states to specialized policies.</span></li>
+            <li class="sp-rm-box is-planned"><span class="sp-rm-num">02</span><strong>Runtime Batch Regrouping</strong><span>Group NPCs by their current policy.</span></li>
+            <li class="sp-rm-box is-planned"><span class="sp-rm-num">03</span><strong>End-to-End Gameplay</strong><span>Apply inference outputs to NPC behavior.</span></li>
+          </ol>
+          <div class="sp-rm-goal" aria-label="Final goal"><span class="sp-rm-tag">Goal</span><strong>D5 &middot; Integrated Gameplay Demo</strong></div>
+        </div>
+        <div class="legend-row sp-rm-legend"><span class="is-done">Implemented</span><span class="is-planned">Planned</span></div>
+        <div class="sp-rm-eval sp-reveal">
+          <p class="sp-column-label">Further evaluation</p>
+          <ul><li>Latency</li><li>Memory &amp; Storage</li><li>Scalability</li></ul>
+        </div>
+        <aside class="speaker-notes" data-time="0:20">So far we have two working pieces. The Cube demo runs Architecture C with real NNE inference, and the Lyra demo runs StateTrees with runtime Patrol and Chase transitions. For D5 we connect them in three steps: first, dynamic policy selection, which maps each NPC's active state to a specialized policy; second, runtime batch regrouping, which groups NPCs by their current policy so each group still goes through one batched call; and third, end-to-end gameplay, applying the inference outputs to NPC behavior. The goal is an integrated gameplay demo in D5. We will also keep evaluating latency, memory and storage, and scalability. Solid boxes are done; dashed boxes are planned.</aside>
+      </section>
+
       <section class="slide" id="demo-shared" aria-labelledby="demo-shared-heading" data-title="Demo: shared policy NPCs" data-section="Demo">
         <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Demo 3 / Shared Policy NPCs</span></header>
         <div class="slot">

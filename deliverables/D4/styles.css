@@ -269,6 +269,8 @@ dialog::backdrop { background: rgb(10 30 25 / 65%); }
 #help-dialog > p { font-size: 14px; margin: 25px 0 0; color: #50645c; }
 .notes-panel { position: fixed; right: 20px; bottom: 83px; z-index: 2; width: min(480px, calc(100% - 40px)); max-height: calc(100dvh - 110px); overflow: auto; padding: 25px; color: #173d38; background: #fffdf7; border: 1px solid #aebcac; border-radius: 6px; box-shadow: 0 10px 40px rgb(10 30 25 / 20%); }
 .notes-panel p { font-size: 16px; line-height: 1.6; }
+.notes-panel #notes-text { white-space: pre-line; }
+.dev-steps.plain li { grid-template-columns: 1fr; }
 .notes-panel #notes-time { font-size: 13px; font-weight: 600; color: #50645c; }
 .notes-panel .notes-warning { font-size: 12px; border-top: 1px solid #c5cec4; padding-top: 15px; margin-bottom: 0; }
 .no-script { padding: 20px; }

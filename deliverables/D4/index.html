@@ -69,60 +69,78 @@
 
       <section class="slide" id="demo-adaptive-change" aria-labelledby="demo-adaptive-change-heading" data-title="Adaptive: before and after" data-section="Demo">
         <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Demo 1 / Adaptive NPCs</span></header>
-        <p class="eyebrow">Adaptive NPCs · what changed for developers</p>
-        <h2 id="demo-adaptive-change-heading">From a frozen model to an NPC that keeps learning</h2>
+        <p class="eyebrow">Adaptive NPCs</p>
+        <h2 id="demo-adaptive-change-heading">An NPC that keeps learning</h2>
         <div class="before-after">
           <div class="before">
-            <span class="ba-label">Before · Schola as AMD shipped it</span>
+            <span class="ba-label">Before</span>
             <ol>
-              <li>Train the NPC in a separate Python program connected to the game.</li>
-              <li>Export what it learned as a fixed model file.</li>
-              <li>Ship that file. The NPC plays the same way forever; changing it means retraining and patching.</li>
+              <li>Train in Python</li>
+              <li>Export a fixed model</li>
+              <li>Ship it. It never changes.</li>
             </ol>
           </div>
           <div class="after">
-            <span class="ba-label">Now · with our adaptive NPCs</span>
+            <span class="ba-label">Now</span>
             <ol>
-              <li>The learner is built into the plugin. No Python, no second process.</li>
-              <li>Each NPC acts, gets a reward for how it went, and improves while the game runs.</li>
-              <li>Learning happens on background threads, so it never holds up a frame.</li>
+              <li>Learner inside the plugin</li>
+              <li>Improves while the game runs</li>
+              <li>Never holds up a frame</li>
             </ol>
           </div>
         </div>
         <div class="card-grid capability-grid">
-          <div><h3>Adapt to each player</h3><p>NPCs change strategy when the player changes theirs.</p></div>
-          <div><h3>Learn as a group</h3><p>A squad can pool its experience into one learner.</p></div>
-          <div><h3>Choose the algorithm</h3><p>SAC, TD3 or PPO, at any input and output size.</p></div>
-          <div><h3>Save, freeze, compare</h3><p>Checkpoint what an NPC learned, stop learning, or keep a frozen copy.</p></div>
+          <div><h3>Adapts to each player</h3></div>
+          <div><h3>Learns as a group</h3></div>
+          <div><h3>SAC, TD3 or PPO</h3></div>
+          <div><h3>Save and freeze</h3></div>
         </div>
-        <aside class="speaker-notes" data-time="0:30">Set up the demo in plain terms. Left: today a Schola NPC is trained offline in Python, exported to an ONNX file and shipped, so its behaviour is fixed. If players find a pattern it can't handle, it keeps failing until the developers retrain and patch. Right: we put a reinforcement-learning library, RLtools, inside the plugin in C++, so the NPC learns from its own outcomes while the game runs. The bottom row is what a developer can now do that they couldn't before. Then: "Here is what that looks like."</aside>
+        <aside class="speaker-notes" data-time="0:30">Set up the demo in plain terms.
+
+Before (Schola as AMD shipped it): an NPC is trained in a separate Python program, exported as a fixed model file, and shipped. It plays the same way forever. If players find a pattern it can't handle, it keeps failing until developers retrain and patch.
+
+Now: we put a learning library, RLtools, inside the plugin in C++. No Python, no second process. Each NPC acts, gets a reward for how it went, and improves while the game runs. Training runs on background threads, so it never holds up a frame.
+
+Bottom row, what a developer can now do: NPCs adapt when a player changes strategy; a squad can pool its experience into one shared learner; pick SAC, TD3 or PPO at any input and output size; save what an NPC learned, freeze learning, or keep a frozen copy to compare.
+
+Then: "Here is what that looks like."</aside>
       </section>
 
       <section class="slide dark an-demo" id="demo-adaptive" aria-labelledby="demo-adaptive-heading" data-title="Demo: adaptive NPC" data-section="Demo">
         <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Demo 1 / Adaptive NPCs</span></header>
-        <p class="eyebrow">User flow 1 · learning during gameplay</p>
-        <h2 id="demo-adaptive-heading">A chaser that adapts to a new runner</h2>
+        <p class="eyebrow">User flow 1</p>
+        <h2 id="demo-adaptive-heading">A chaser that adapts mid-game</h2>
         <div class="split demo-split">
           <div>
-            <h3>The developer writes four things</h3>
-            <ol class="dev-steps">
-              <li><span>01</span><p>What the NPC sees: where it and the runner are, and how fast each moves</p></li>
-              <li><span>02</span><p>What it can do: which way and how fast to move</p></li>
-              <li><span>03</span><p>Its reward: closing in, and catching the runner</p></li>
-              <li><span>04</span><p>When a round ends: a catch or a time limit</p></li>
-            </ol>
+            <h3>The developer writes</h3>
+            <ul class="dev-steps plain">
+              <li><p>1. What it sees</p></li>
+              <li><p>2. What it can do</p></li>
+              <li><p>3. Its reward</p></li>
+              <li><p>4. When a round ends</p></li>
+            </ul>
           </div>
           <div>
-            <h3>What we run live</h3>
+            <h3>In Unreal</h3>
             <ol class="dev-steps">
-              <li><span>A</span><p>The chaser learns to catch a runner that always turns right.</p></li>
-              <li><span>B</span><p>We freeze a copy, like a shipped model, and swap in a runner that flees to the corners.</p></li>
-              <li><span>C</span><p>Both struggle at first. Only the learner works out the new runner.</p></li>
+              <li><span>L</span><p>Freeze learning</p></li>
+              <li><span>1-6</span><p>Switch automatic runner pattern</p></li>
+              <li><span>Tab</span><p>Player-controlled runner (WASD)</p></li>
+              <li><span>L</span><p>Learning back on</p></li>
             </ol>
           </div>
         </div>
-        <div class="takeaway"><span>Watch for</span><p>Catch rate on the new runner: the learner climbs back above 0.80; the frozen copy stays near 0.20.</p></div>
-        <aside class="speaker-notes" data-time="1:00">Left column is the whole developer workload: in Unreal these are the IAgent and IAdaptiveAgent functions, all Blueprint-implementable, and one stepper call per tick runs the loop. Don't show code. Live: two minutes before the talk, start the plugin learner's chase run in a terminal so it reaches the switch around now. Point at the switch line (corner catch about 0.18), then the recovery lines above 0.80, then the PASS criterion lines. If the Unreal stepper test has passed on Windows by then, show it in the NativeLearning editor instead. Fallback if the laptop fails: walk through the committed log and the chart two slides on. Never play a recording without narrating it.</aside>
+        <aside class="speaker-notes" data-time="1:00">Setup, before the talk: open Examples/NativeLearning in Unreal 5.8 and press Play. Press F until the HUD says 12x/TICK, press 4 for the right-turn runner, and leave it running for a few minutes so it is already catching most rounds. Check the HUD says LEARNING: ON. Switch to the editor when you reach this slide.
+
+Say: "This is the plugin's learner running inside Unreal. Nothing else is running, no Python. Red is the chaser, our adaptive NPC. Green is the runner, on a right-turn habit. The panel shows the catch rate over the last 20 rounds, and how many training updates it has done."
+
+[Press L] "First, I freeze learning. This is what a shipped model is today."
+[Press 6] "Now the runner flees to the corners instead. The catch rate drops, and it stays down, because nothing is learning."
+[Press L] "Same NPC, same running game. I turn learning back on." Wait for the catch rate to climb. "It's working out the new runner while we watch."
+
+Left column, one sentence: "Those four things are all a developer writes: what it sees is both positions and speeds, its reward is closing in plus a catch bonus. The plugin does the rest." The keys on the right are the ones you press, in order.
+
+If it hasn't recovered by the end of the minute: say it usually takes 4,000 to 14,000 moves, and that the full controlled run is coming up in the technical section. Don't wait on it. If the editor fails, go straight to that evidence chart.</aside>
       </section>
 
       <section class="slide" id="demo-background" aria-labelledby="demo-background-heading" data-title="Demo: background NPCs" data-section="Demo">
@@ -393,7 +411,7 @@
           <title id="arch-title">Shared architecture of the four NPC types</title>
           <desc id="arch-desc">Game code sits on top. Below it, three Schola layers: the stepper decides when, the policy decides how, and the execution layer decides where. Each NPC type adds a box in one or more layers.</desc>
           <rect x="0" y="0" width="1420" height="64" fill="#173d38"/>
-          <text x="710" y="40" text-anchor="middle" font-size="24" fill="#f5f3ec" font-weight="600">Game code: agents observe and act (IAgent; IAdaptiveAgent adds reward and episode end)</text>
+          <text x="710" y="40" text-anchor="middle" font-size="24" fill="#f5f3ec" font-weight="600">Game code: agents observe and act</text>
           <g font-size="19" fill="#50645c" font-weight="600" letter-spacing="1.5">
             <text x="0" y="137">WHEN · stepper</text><text x="0" y="267">HOW · policy</text><text x="0" y="397">WHERE · execution</text>
           </g>
@@ -406,9 +424,9 @@
             <rect x="285" y="368" width="230" height="64" fill="#e9b65c"/><rect x="545" y="368" width="230" height="64" fill="#e9b65c"/><rect x="805" y="368" width="230" height="64" fill="#f5f3ec"/><rect x="1065" y="368" width="230" height="64" fill="#f5f3ec"/>
           </g>
           <g font-size="18" fill="#173d38" text-anchor="middle">
-            <text x="400" y="146">UAdaptiveStepper</text><text x="660" y="137">UBackgroundStepper</text><text x="660" y="159">Mass processors</text><text x="920" y="146">USharedPolicyStepper</text><text x="1180" y="146">UEventStepper</text>
-            <text x="400" y="276">URLToolsNPCPolicy</text><text x="660" y="267">UNPCInferencePolicy</text><text x="660" y="289">(Background)</text><text x="920" y="267">UNNESharedPolicy</text><text x="920" y="289">role heads</text><text x="1180" y="276">any Schola policy</text>
-            <text x="400" y="397">RLtools learner</text><text x="400" y="419">on a worker pool</text><text x="660" y="397">batch scheduler +</text><text x="660" y="419">NNE worker contexts</text><text x="920" y="406">Unreal NNE</text><text x="1180" y="406">caller's thread</text>
+            <text x="400" y="146">UAdaptiveStepper</text><text x="660" y="146">UBackgroundStepper</text><text x="920" y="146">USharedPolicyStepper</text><text x="1180" y="146">UEventStepper</text>
+            <text x="400" y="276">URLToolsNPCPolicy</text><text x="660" y="276">UNPCInferencePolicy</text><text x="920" y="276">UNNESharedPolicy</text><text x="1180" y="276">any Schola policy</text>
+            <text x="400" y="406">RLtools learner</text><text x="660" y="406">NNE workers</text><text x="920" y="406">Unreal NNE</text><text x="1180" y="406">caller's thread</text>
           </g>
           <g stroke="#50645c" stroke-width="2" marker-end="url(#arrow)">
             <line x1="400" y1="172" x2="400" y2="234"/><line x1="660" y1="172" x2="660" y2="234"/><line x1="920" y1="172" x2="920" y2="234"/><line x1="1180" y1="172" x2="1180" y2="234"/>
@@ -429,27 +447,26 @@
           <title id="ad-title">Adaptive NPC data flow</title>
           <desc id="ad-desc">On the game thread, the stepper gets an action from the latest published policy and later submits the outcome. Outcomes go through a bounded queue to a worker, where RLtools trains and publishes a new immutable policy version that the next decision uses.</desc>
           <rect x="0" y="0" width="1420" height="170" fill="#e7efe6"/><rect x="0" y="230" width="1420" height="170" fill="#efe9da"/>
-          <g font-size="18" font-weight="600" letter-spacing="1.5" fill="#50645c"><text x="20" y="32">GAME THREAD · every decision tick</text><text x="20" y="262">WORKER THREADS · never block a frame</text></g>
+          <g font-size="18" font-weight="600" letter-spacing="1.5" fill="#50645c"><text x="20" y="32">GAME THREAD</text><text x="20" y="262">WORKER THREAD</text></g>
           <g stroke="#173d38" stroke-width="2">
             <rect x="40" y="62" width="250" height="84" fill="#f5f3ec"/><rect x="400" y="62" width="260" height="84" fill="#e9b65c"/><rect x="770" y="62" width="300" height="84" fill="#e9b65c"/>
             <rect x="770" y="292" width="300" height="84" fill="#e9b65c"/><rect x="1150" y="292" width="240" height="84" fill="#e9b65c"/><rect x="1150" y="62" width="240" height="84" fill="#e9b65c"/>
           </g>
           <g font-size="20" fill="#173d38" text-anchor="middle">
-            <text x="165" y="98">NPC (agent)</text><text x="165" y="124" font-size="16" fill="#50645c">sees · acts · earns reward</text>
-            <text x="530" y="98">Adaptive stepper</text><text x="530" y="124" font-size="16" fill="#50645c">runs the loop each tick</text>
-            <text x="920" y="98">NPC policy</text><text x="920" y="124" font-size="16" fill="#50645c">answers at once · checks outcomes</text>
-            <text x="920" y="328">Learner (RLtools, C++)</text><text x="920" y="354" font-size="16" fill="#50645c">improves from recent outcomes</text>
-            <text x="1270" y="328">New version</text><text x="1270" y="354" font-size="16" fill="#50645c">published when ready</text>
-            <text x="1270" y="98">Latest version</text><text x="1270" y="124" font-size="16" fill="#50645c">used by the next decision</text>
+            <text x="165" y="111">NPC</text>
+            <text x="530" y="111">Adaptive stepper</text>
+            <text x="920" y="111">Policy</text>
+            <text x="920" y="341">Learner (C++)</text>
+            <text x="1270" y="341">New version</text>
+            <text x="1270" y="111">Latest version</text>
           </g>
           <g stroke="#50645c" stroke-width="2.5" fill="none" marker-end="url(#arrow2)">
             <line x1="290" y1="104" x2="396" y2="104"/><line x1="660" y1="104" x2="766" y2="104"/>
             <line x1="920" y1="146" x2="920" y2="288"/><line x1="1070" y1="334" x2="1146" y2="334"/><line x1="1270" y1="292" x2="1270" y2="150"/><line x1="1150" y1="104" x2="1074" y2="104"/>
           </g>
           <defs><marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#50645c"/></marker></defs>
-          <g font-size="16" fill="#50645c"><text x="934" y="205">what happened → queue</text><text x="1284" y="205">swap in</text><text x="1078" y="92" text-anchor="start">action</text></g>
+          <g font-size="16" fill="#50645c"><text x="934" y="205">outcome</text><text x="1284" y="205">swap in</text><text x="1078" y="92" text-anchor="start">action</text></g>
         </svg>
-        <div class="takeaway"><span>Key decision</span><p>We first planned to reuse Schola's Python trainer, but a shipped game can't run one. Learning in C++ adds nothing to ship and no network delay, and it tests without Unreal. Cost: a new input or output size needs a rebuild.</p></div>
         <aside class="speaker-notes" data-time="0:40">Follow the arrows once. The stepper asks the policy for an action, and the policy answers immediately from the latest published snapshot, so a decision never waits for training. The outcome goes through a bounded queue to a worker, where RLtools trains and publishes a new immutable version. Trade-offs: (1) native execution means a new observation or action size needs a C++ rebuild, which configuration assets automate; (2) a decision may use a policy a few versions old, and every outcome carries its version so attribution stays correct. Learners are independent by default; NPCs can opt into one shared learner per group.</aside>
       </section>
 
@@ -539,11 +556,11 @@
 <circle cx="753.0" cy="27.5" r="9" fill="transparent"><title>40,179 moves: learner 0.99</title></circle>
 <text x="765.0" y="33.5" class="series" fill="#173d38"><tspan fill="#00806b">■</tspan> Learner</text>
 <text x="765.0" y="315.4" class="series" fill="#173d38"><tspan fill="#b86a1f">■</tspan> Frozen copy</text><text x="765.0" y="339.4" class="tick">(no learning)</text>
-</svg><figcaption>Share of 100 fixed starting positions where the chaser catches the new runner. One run, seed 2.</figcaption></figure>
+</svg><figcaption>Catch rate over 100 fixed starts. One run, seed 2.</figcaption></figure>
           <div class="side-facts">
-            <div><strong>6 / 6</strong><span>runs, each with its own random seed, pass all five pass/fail criteria we fixed in D3</span></div>
-            <div><strong>4–14k</strong><span>moves to win back a 0.80 catch rate; the target was under 20k</span></div>
-            <div><strong>2 / 3</strong><span>pass when it remembers 60k past moves instead of 10k: old habits slow it down, so 10k is the default</span></div>
+            <div><strong>6 / 6</strong><span>seeds pass every criterion</span></div>
+            <div><strong>4–14k</strong><span>moves to recover (target: 20k)</span></div>
+            <div><strong>10k</strong><span>moves of memory. At 60k, only 2 / 3 pass</span></div>
           </div>
         </div>
         <aside class="speaker-notes" data-time="0:40">Point at the switch on the left, where the learner starts at 0.18 like its frozen copy, then at the recovery above the 0.80 line well before the 20,000-move window. The frozen copy is the control; a rising curve alone doesn't prove adaptation. Criteria were fixed in D3 and never loosened, and the comparison is in whole percentage points, so a gap of exactly 0.20 fails. Honest limits: after recovery the curve still dips (one seed down to 0.54), and we don't have a stability criterion yet. The Unreal version of this test is written but not yet run on Windows. Source: Tools/ScholaRLToolsNative/CHASE-ADAPTATION.md.</aside>
@@ -552,7 +569,7 @@
       <section class="slide" id="scaling-adaptive" aria-labelledby="scaling-adaptive-heading" data-title="Adaptive: what limits scale" data-section="Technical">
         <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
         <p class="eyebrow">Adaptive NPCs · scaling</p>
-        <h2 id="scaling-adaptive-heading">Decisions stay cheap; learning speed sets the limit</h2>
+        <h2 id="scaling-adaptive-heading">Decisions are cheap. Training is the limit.</h2>
         <div class="chart-layout">
           <figure><svg class="chart" viewBox="0 0 900 430" role="img" aria-labelledby="chart-scale-title chart-scale-desc"><title id="chart-scale-title">One shared learner: updates per second needed versus achieved</title><desc id="chart-scale-desc">Needed grows linearly with NPCs at 10 decisions per second. Achieved matches it up to 50 NPCs, then flattens near 910 updates per second.</desc>
 <line x1="90" x2="730" y1="372.0" y2="372.0" stroke="#d6dccf"/><text x="78" y="378.0" text-anchor="end" class="tick">0</text>
@@ -577,11 +594,11 @@
 <circle cx="730.0" cy="212.8" r="5" fill="#00806b" stroke="#f5f3ec" stroke-width="2"><title>200 NPCs: 915 updates/s achieved, 2,000 needed</title></circle>
 <text x="742.0" y="30.0" class="series" fill="#173d38"><tspan fill="#b86a1f">■</tspan> Needed</text>
 <text x="742.0" y="218.8" class="series" fill="#173d38"><tspan fill="#00806b">■</tspan> Achieved</text>
-</svg><figcaption>Learning steps per second for one shared learner on one background thread. Each decision needs one step.</figcaption></figure>
+</svg><figcaption>One shared learner on one background thread.</figcaption></figure>
           <div class="side-facts">
-            <div><strong>5–11 µs</strong><span>per NPC decision on the game thread, out of a 16,700 µs frame at 60 FPS</span></div>
-            <div><strong>60–90</strong><span>NPCs one shared learner keeps up with. Past that they still act, but adapt more slowly; split them into more groups</span></div>
-            <div><strong>8.6 MB</strong><span>of memory per independent learner, mostly its stored experience</span></div>
+            <div><strong>5–11 µs</strong><span>per decision. A frame is 16,700 µs</span></div>
+            <div><strong>60–90</strong><span>NPCs per shared learner before it falls behind</span></div>
+            <div><strong>8.6 MB</strong><span>per learner</span></div>
           </div>
         </div>
         <aside class="speaker-notes" data-time="0:25">The game thread is cheap at every size. The limit is training: one learner trains serially at about 650 to 900 updates per second, so past roughly 60 to 90 NPCs the backlog grows. NPCs keep acting; they just adapt more slowly. Independent learners scale with worker threads at about 750 updates per second each, at 8.6 MB per learner. Measured on one Apple M5 Pro without Unreal; in-engine, the world service also caps concurrent workers. Source: SCALING.md.</aside>
@@ -772,6 +789,7 @@
               <tr><th scope="row">Adaptive learner</th><td>460 learner and checkpoint checks</td><td><span class="status-pill status-ok">CI</span> every PR</td></tr>
               <tr><th scope="row">Chase simulator</th><td>7 smoke checks</td><td><span class="status-pill status-ok">CI</span> every PR</td></tr>
               <tr><th scope="row">Adaptive in Unreal</th><td>Policy, stepper, world service; script fails on a missing test</td><td>Local script</td></tr>
+              <tr><th scope="row">Chase demo</th><td>Played on Windows</td><td>Manual</td></tr>
               <tr><th scope="row">Background and Mass</th><td>43 automation tests</td><td>Local script</td></tr>
               <tr><th scope="row">Shared Policy</th><td>pytest; 48 NNE reports gated on correctness</td><td>Local script</td></tr>
             </tbody>
@@ -783,7 +801,7 @@
           </div>
         </div>
         <div class="takeaway"><span>Constraint</span><p>Hosted runners have no Unreal, so everything that builds without the engine runs in CI.</p></div>
-        <aside class="speaker-notes" data-time="0:25">Every job has a 5-minute timeout and narrow path triggers to stay inside the Actions budget. Unreal automation runs through local scripts that check every registered test reported a result. PRs need a teammate's review before merge. Fill the deployment box once the dev and release workflow is merged; don't claim it before then.</aside>
+        <aside class="speaker-notes" data-time="0:25">Every job has a 5-minute timeout and narrow path triggers to stay inside the Actions budget. Unreal automation runs through local scripts that check every registered test reported a result. The chase demo is the only part checked by playing it, so it is listed as manual. PRs need a teammate's review before merge. Fill the deployment box once the dev and release workflow is merged; don't claim it before then.</aside>
       </section>
 
       <section class="slide" id="nfr" aria-labelledby="nfr-heading" data-title="Non-functional requirements" data-section="Technical">
@@ -809,7 +827,7 @@
         <h2 id="access-heading">How AMD gets, runs and maintains it</h2>
         <div class="three-columns workflow">
           <div><span class="step-number">01</span><h3 style="color:var(--ink)">Get it</h3><p>The D4 GitHub release of the plugin source. Add it to a project as Plugins/Schola and build with Unreal Engine 5.8.</p></div>
-          <div><span class="step-number">02</span><h3 style="color:var(--ink)">Run it</h3><p>The README's core workflows: one per NPC type, each with commands and an example project.</p></div>
+          <div><span class="step-number">02</span><h3 style="color:var(--ink)">Run it</h3><p>The README's core workflows: one per NPC type, each with commands and an example project. Chase demo: open NativeLearning, press Play.</p></div>
           <div><span class="step-number">03</span><h3 style="color:var(--ink)">Maintain it</h3><p>DEVELOPMENT.md: layout, every test command with its expected result, extension points and ranked open work.</p></div>
         </div>
         <div class="takeaway"><span>Handoff</span><p>Merged main and the D4 release, plus a walkthrough of the maintainer guide with AMD.</p></div>
@@ -821,15 +839,16 @@
         <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Key learnings / Deliverable 4</span></header>
         <p class="eyebrow">If we did it again</p>
         <h2 id="learnings-heading">What we would change, and why</h2>
-        <div class="card-grid">
+        <div class="card-grid" style="grid-template-columns: repeat(4, 1fr); gap: 28px">
           <div><h3>Pick the stack from the shipping constraint</h3><p>We planned gRPC to a Python trainer. A shipped game can't carry one, so we moved to native C++ and rewrote the integration.</p><p class="because">Partner need → tech stack → what we could test.</p></div>
           <div><h3>Fix the experiment before tuning</h3><p>A frozen-copy control and criteria fixed in advance exposed what learning curves hid: the inherited 60k replay buffer adapted too slowly.</p><p class="because">Evaluation design → product default.</p></div>
           <div><h3>Make the core testable off-engine</h3><p>Course CI can't run Unreal, and several of us develop on macOS. An engine-free learner build put it in CI. We'd do it in week 1.</p><p class="because">Platform → process → quality.</p></div>
+          <div><h3>Press Play early</h3><p>Tests passed. The first real run in Unreal still broke.</p><p class="because">Headless tests → missed bugs → play it sooner.</p></div>
         </div>
         <div class="slot" style="flex:0 0 auto; padding: 16px 32px; margin-top: 24px">
           <span class="slot-owner">Other subteams · one technical learning each, with its cause and effect</span>
         </div>
-        <aside class="speaker-notes" data-time="1:30">Technical learnings score above process ones, and multi-dimensional thinking is what earns full marks, so name the chain on each card. 1: D1 planned gRPC to Python; the partner's need for learning in a shipped game made a separate Python process unacceptable, which drove the move to RLtools in C++. That change is also what made the learner testable without Unreal. 2: Without a frozen-copy control and fixed criteria we would have shipped chase_sim's 60k replay buffer; the controlled runs showed 2 of 3 seeds passing versus 6 of 6 at 10k. 3: Our Unreal C++ can only be verified on Windows, which slowed review. An engine-free build from the start would have put the numerics under CI from day one.</aside>
+        <aside class="speaker-notes" data-time="1:30">Technical learnings score above process ones, and multi-dimensional thinking is what earns full marks, so name the chain on each card. 1: D1 planned gRPC to Python; the partner's need for learning in a shipped game made a separate Python process unacceptable, which drove the move to RLtools in C++. That change is also what made the learner testable without Unreal. 2: Without a frozen-copy control and fixed criteria we would have shipped chase_sim's 60k replay buffer; the controlled runs showed 2 of 3 seeds passing versus 6 of 6 at 10k. 3: Our Unreal C++ can only be verified on Windows, which slowed review. An engine-free build from the start would have put the numerics under CI from day one. 4: The engine-free tests prove the maths, not the game. Building the playable chase demo on Windows found problems none of them could: modules that compiled but didn't link, an empty level with no light so everything rendered black, and a decision loop that spent a frame per step and halved the speed. We'd press Play in week 1, next to the engine-free tests.</aside>
       </section>
 
       <!-- ============ 6. QUESTIONS ============ -->

@@ -52,6 +52,9 @@ content, keep the slide's `id` and its time budget, and update its speaker notes
 
 ## Adaptive NPC sources
 
+The live adaptive demo is the chase demo in `Examples/NativeLearning` (see its README, "Chase demo",
+for controls). It is shown live and is not a source for any number on the slides.
+
 Every number on the adaptive slides comes from committed evidence:
 
 - Adaptation: [CHASE-ADAPTATION.md](../../Tools/ScholaRLToolsNative/CHASE-ADAPTATION.md) and

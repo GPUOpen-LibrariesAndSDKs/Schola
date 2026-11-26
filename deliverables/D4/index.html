@@ -708,40 +708,40 @@
       <section class="slide" id="checkpoints-adaptive" aria-labelledby="checkpoints-adaptive-heading" data-title="Adaptive: saving what an NPC learned" data-section="Technical">
         <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
         <p class="eyebrow">Adaptive NPCs · checkpoints 1 of 3</p>
-        <h2 id="checkpoints-adaptive-heading">Save what an NPC learned, load it later</h2>
+        <h2 id="checkpoints-adaptive-heading">Saving and loading NPCs</h2>
         <ul class="ck-points">
-            <li><strong>Ship pretrained NPCs:</strong> save just the trained actor</li>
-            <li><strong>Pause and resume:</strong> save the whole learner, or the learner plus its stored experience</li>
-            <li><strong>From Blueprint or C++:</strong> one call to save, one to load</li>
-            <li><strong>Never stalls the game:</strong> saving and loading run off the game thread</li>
+            <li>Save a trained NPC and load it later</li>
+            <li>3 options: just the model, the whole learner, or the learner plus its past experience</li>
+            <li>Works from Blueprint or C++</li>
+            <li>Runs in the background, so the game doesn't freeze</li>
         </ul>
-        <aside class="speaker-notes" data-time="0:15">A developer can save what an NPC has learned and load it later: ship pretrained weights, or pause and resume learning exactly where it stopped. It's one Blueprint or C++ call each way, and the file work happens on the learner's thread, so the game never waits.</aside>
+        <aside class="speaker-notes" data-time="0:15">You can save what an NPC has learned and load it later, for example to ship a pretrained NPC or to pick up learning where you left off. It works from Blueprint or C++, and it runs in the background so the game doesn't freeze.</aside>
       </section>
 
       <section class="slide" id="checkpoints-safe" aria-labelledby="checkpoints-safe-heading" data-title="Adaptive: a bad file never crashes the game" data-section="Technical">
         <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
         <p class="eyebrow">Adaptive NPCs · checkpoints 2 of 3</p>
-        <h2 id="checkpoints-safe-heading">A bad file never crashes the game</h2>
+        <h2 id="checkpoints-safe-heading">Loading a bad file is safe</h2>
         <ul class="ck-points">
-            <li><strong>The problem:</strong> RLtools crashes the whole program if a file doesn't match</li>
-            <li><strong>So we check first:</strong> header, size, checksum, profile, structure</li>
-            <li><strong>Any check fails:</strong> the file is refused and the NPC keeps running unchanged</li>
-            <li><strong>Safe saves:</strong> write a temp file, then rename, so a crash never leaves half a file</li>
+            <li>RLtools crashes the program if you load a file that doesn't match</li>
+            <li>So we check the file first: header, size, checksum, profile, structure</li>
+            <li>If a check fails, we skip the load and the NPC keeps its current model</li>
+            <li>We save to a temp file and rename it, so a crash mid-save doesn't break anything</li>
         </ul>
-        <aside class="speaker-notes" data-time="0:15">The library we use, RLtools, calls abort on a mismatched file, which would take the game down. So before RLtools sees a file, we run five checks in order. If any fails, the load is refused and the NPC carries on with what it had. Saves are atomic for the same reason. Trade-off: a file only loads into the same NPC setup that saved it.</aside>
+        <aside class="speaker-notes" data-time="0:15">RLtools, the library we use, crashes the whole program if the file doesn't match. So we check the file ourselves before RLtools sees it, and if anything is off we just skip the load. Saves go to a temp file first, so a crash halfway through never leaves a broken save.</aside>
       </section>
 
       <section class="slide" id="checkpoints-evidence" aria-labelledby="checkpoints-evidence-heading" data-title="Adaptive: checkpoints are tested" data-section="Technical">
         <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
         <p class="eyebrow">Adaptive NPCs · checkpoints 3 of 3</p>
-        <h2 id="checkpoints-evidence-heading">How we know it works</h2>
+        <h2 id="checkpoints-evidence-heading">Testing</h2>
         <ul class="ck-points">
-            <li><strong>460 automated checks</strong> on SAC, TD3 and PPO, run on Linux and macOS for every PR</li>
-            <li><strong>Corrupt and wrong files</strong> are all refused without changing the NPC</li>
-            <li><strong>Restart from a saved file:</strong> the NPC still adapts on 6 of 6 seeds</li>
-            <li><strong>Frozen copy from the same file</strong> stays frozen: it refused every one of 40,376 moves</li>
+            <li>460 tests, run on every PR on Linux and Mac</li>
+            <li>Broken or wrong files get rejected</li>
+            <li>An NPC loaded from a save still learns the new runner (6/6 seeds)</li>
+            <li>A frozen copy loaded from the same save stays the same</li>
         </ul>
-        <aside class="speaker-notes" data-time="0:15">Evidence in one breath: 460 checks in CI on two platforms, including every kind of bad file. And in the chase test, an NPC restarted from a saved file still learns the new runner on all six seeds, while a frozen copy loaded from the same file never changes. Per-seed numbers are on the backup slide.</aside>
+        <aside class="speaker-notes" data-time="0:15">There are 460 tests that run on every PR on Linux and Mac, including lots of broken files. We also reran the chase test starting from a saved file: the NPC still learned the new runner on all 6 seeds, and a frozen copy from the same file didn't change. The per-seed numbers are on the backup slide.</aside>
       </section>
 
       <section class="slide" id="tech-background" aria-labelledby="tech-background-heading" data-title="Background: design" data-section="Technical">

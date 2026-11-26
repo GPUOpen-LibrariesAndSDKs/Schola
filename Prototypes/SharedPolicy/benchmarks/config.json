@@ -34,8 +34,18 @@
       0.0
     ],
     "scaling_role_counts": [
+      2,
       4,
-      8
+      8,
+      16
+    ],
+    "scaling_profiles": [
+      "balanced",
+      "expensive_heads"
+    ],
+    "scaling_mixes": [
+      "equal",
+      "homogeneous"
     ]
   },
   "runtime": {

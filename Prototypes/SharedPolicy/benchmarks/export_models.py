@@ -32,6 +32,7 @@ from benchmarks.models import (
 
 
 OPSET_VERSION = 21
+ALL_ARCHITECTURES = ("A", "B", "C", "D", "E")
 BATCH_DIMENSION_NAME = "batch_size"
 DEFAULT_OUTPUT_DIR = Path(__file__).with_name("artifacts")
 _REGISTRATION_LOGGER_NAME = "torch.onnx._internal.exporter._registration"
@@ -80,9 +81,13 @@ def _component_hashes(
 
 def _build_export_specs(
     source: SharedPolicyBenchmarkModel,
+    architectures: Sequence[str] = ALL_ARCHITECTURES,
 ) -> tuple[ExportSpec, ...]:
-    """Arrange one seeded policy into the required A–E models."""
+    """Arrange one seeded policy into the selected A–E models."""
 
+    unsupported = sorted(set(architectures) - set(ALL_ARCHITECTURES))
+    if unsupported:
+        raise ValueError(f"unsupported architectures: {unsupported}")
     dimensions = source.dimensions
     observations = torch.zeros(
         (2, dimensions.observation),
@@ -102,75 +107,85 @@ def _build_export_specs(
         f"{role}_head" for role in source.roles
     )
 
-    specs = [
-        ExportSpec(
-            name="A_all_heads",
-            architecture="A",
-            model=source,
-            example_inputs=(observations,),
-            input_names=("observations",),
-            output_names=tuple(f"{role}_actions" for role in source.roles),
-            components=all_components,
-        ),
-        ExportSpec(
-            name="B_masked",
-            architecture="B",
-            model=MaskedPolicyModel(source).eval(),
-            example_inputs=(observations, role_masks),
-            input_names=("observations", "role_masks"),
-            output_names=("selected_actions",),
-            components=all_components,
-        ),
-        ExportSpec(
-            name="D_conditional",
-            architecture="D",
-            model=ConditionalPolicyModel(source).eval(),
-            example_inputs=(
-                observations,
-                torch.tensor(True, dtype=torch.bool),
-            ),
-            input_names=("observations", "use_first_expert"),
-            output_names=("actions",),
-            components=all_components,
-        ),
-    ]
-
-    for role in source.roles:
+    specs: list[ExportSpec] = []
+    if "A" in architectures:
         specs.append(
             ExportSpec(
-                name=f"C_{role}",
-                architecture="C",
-                model=CompleteRoleModel(source, role).eval(),
+                name="A_all_heads",
+                architecture="A",
+                model=source,
                 example_inputs=(observations,),
                 input_names=("observations",),
+                output_names=tuple(f"{role}_actions" for role in source.roles),
+                components=all_components,
+            )
+        )
+    if "B" in architectures:
+        specs.append(
+            ExportSpec(
+                name="B_masked",
+                architecture="B",
+                model=MaskedPolicyModel(source).eval(),
+                example_inputs=(observations, role_masks),
+                input_names=("observations", "role_masks"),
+                output_names=("selected_actions",),
+                components=all_components,
+            )
+        )
+    if "D" in architectures:
+        specs.append(
+            ExportSpec(
+                name="D_conditional",
+                architecture="D",
+                model=ConditionalPolicyModel(source).eval(),
+                example_inputs=(
+                    observations,
+                    torch.tensor(True, dtype=torch.bool),
+                ),
+                input_names=("observations", "use_first_expert"),
                 output_names=("actions",),
-                components=("backbone", f"{role}_head"),
+                components=all_components,
             )
         )
 
-    specs.append(
-        ExportSpec(
-            name="E_backbone",
-            architecture="E",
-            model=BackboneModel(source).eval(),
-            example_inputs=(observations,),
-            input_names=("observations",),
-            output_names=("features",),
-            components=("backbone",),
-        )
-    )
-    for role in source.roles:
+    if "C" in architectures:
+        for role in source.roles:
+            specs.append(
+                ExportSpec(
+                    name=f"C_{role}",
+                    architecture="C",
+                    model=CompleteRoleModel(source, role).eval(),
+                    example_inputs=(observations,),
+                    input_names=("observations",),
+                    output_names=("actions",),
+                    components=("backbone", f"{role}_head"),
+                )
+            )
+
+    if "E" in architectures:
         specs.append(
             ExportSpec(
-                name=f"E_{role}_head",
+                name="E_backbone",
                 architecture="E",
-                model=RoleHeadModel(source, role).eval(),
-                example_inputs=(features,),
-                input_names=("features",),
-                output_names=("actions",),
-                components=(f"{role}_head",),
+                model=BackboneModel(source).eval(),
+                example_inputs=(observations,),
+                input_names=("observations",),
+                output_names=("features",),
+                components=("backbone",),
             )
         )
+        for role in source.roles:
+            specs.append(
+                ExportSpec(
+                    name=f"E_{role}_head",
+                    architecture="E",
+                    model=RoleHeadModel(source, role).eval(),
+                    example_inputs=(features,),
+                    input_names=("features",),
+                    output_names=("actions",),
+                    components=(f"{role}_head",),
+                )
+            )
     return tuple(specs)
 
 
@@ -285,8 +300,9 @@ def export_profile(
     config: BenchmarkConfig,
     profile_name: str,
     output_dir: str | Path,
+    architectures: Sequence[str] = ALL_ARCHITECTURES,
 ) -> dict[str, object]:
-    """Export every implemented architecture for one configured profile."""
+    """Export the selected architectures for one configured profile."""
 
     source = build_seeded_policy(config, profile_name)
     profile_dir = Path(output_dir) / profile_name
@@ -294,7 +310,7 @@ def export_profile(
     component_hashes = _component_hashes(source)
 
     artifacts: dict[str, object] = {}
-    for spec in _build_export_specs(source):
+    for spec in _build_export_specs(source, architectures):
         destination = profile_dir / f"{spec.name}.onnx"
         artifacts[spec.name] = _export_one(
             spec,

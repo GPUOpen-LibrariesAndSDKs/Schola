@@ -1,0 +1,29 @@
+# ci for the native RLtools learner: builds the engine-free checkpoint tests and runs them
+name: native-learner CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "Source/ScholaRLTools/Private/Learning/**"
+      - "Source/ThirdParty/RLTools/**"
+      - "Tools/ScholaRLToolsNative/**"
+      - ".github/workflows/native-learner-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "Source/ScholaRLTools/Private/Learning/**"
+      - "Source/ThirdParty/RLTools/**"
+      - "Tools/ScholaRLToolsNative/**"
+      - ".github/workflows/native-learner-ci.yml"
+
+jobs:
+  checkpoint-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5 # required by the course on every job
+    steps:
+      - uses: actions/checkout@v7 # same version the course example uses
+
+      # builds RLToolsLearner.cpp without Unreal and runs every check; fails on any FAIL line
+      - name: build and run checkpoint tests
+        run: CXX=g++ sh Tools/ScholaRLToolsNative/build.sh Saved/ScholaRLToolsNative

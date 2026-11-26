@@ -1,0 +1,43 @@
+RESULT seed=1 profile=sac/chase-r10k lr=0.001
+PASS criterion1 rightturn-before-switch: 0.87 (>= 0.50)
+PASS criterion2 corner-after-switch: 0.37 (<= 0.80)
+PASS criterion3 recovered: >= 0.80 at 12039 moves (<= 20000)
+PASS criterion4 snapshot-gap at 20329 moves: learner 0.75, snapshot 0.37, gap 0.38 (> 0.20)
+INFO post-window stability (33 evals over 20000 moves): min 0.54, max 1.00, final 1.00
+INFO wall time 3831 s, 58004 moves
+RESULT seed=2 profile=sac/chase-r10k lr=0.001
+PASS criterion1 rightturn-before-switch: 0.87 (>= 0.50)
+PASS criterion2 corner-after-switch: 0.18 (<= 0.80)
+PASS criterion3 recovered: >= 0.80 at 10916 moves (<= 20000)
+PASS criterion4 snapshot-gap at 20232 moves: learner 0.87, snapshot 0.18, gap 0.69 (> 0.20)
+INFO post-window stability (34 evals over 20000 moves): min 0.74, max 1.00, final 0.99
+INFO wall time 3842 s, 59393 moves
+RESULT seed=3 profile=sac/chase-r10k lr=0.001
+PASS criterion1 rightturn-before-switch: 1.00 (>= 0.50)
+PASS criterion2 corner-after-switch: 0.38 (<= 0.80)
+PASS criterion3 recovered: >= 0.80 at 4396 moves (<= 20000)
+PASS criterion4 snapshot-gap at 20590 moves: learner 1.00, snapshot 0.38, gap 0.62 (> 0.20)
+INFO post-window stability (33 evals over 20000 moves): min 0.81, max 1.00, final 0.99
+INFO wall time 3836 s, 58635 moves
+RESULT seed=4 profile=sac/chase-r10k lr=0.001
+PASS criterion1 rightturn-before-switch: 0.78 (>= 0.50)
+PASS criterion2 corner-after-switch: 0.10 (<= 0.80)
+PASS criterion3 recovered: >= 0.80 at 11367 moves (<= 20000)
+PASS criterion4 snapshot-gap at 20404 moves: learner 0.98, snapshot 0.10, gap 0.88 (> 0.20)
+INFO post-window stability (35 evals over 20000 moves): min 0.68, max 1.00, final 0.88
+INFO wall time 3832 s, 58049 moves
+RESULT seed=5 profile=sac/chase-r10k lr=0.001
+PASS criterion1 rightturn-before-switch: 0.96 (>= 0.50)
+PASS criterion2 corner-after-switch: 0.27 (<= 0.80)
+PASS criterion3 recovered: >= 0.80 at 10162 moves (<= 20000)
+PASS criterion4 snapshot-gap at 20277 moves: learner 0.94, snapshot 0.27, gap 0.67 (> 0.20)
+INFO post-window stability (34 evals over 20000 moves): min 0.72, max 1.00, final 0.98
+INFO wall time 3837 s, 58868 moves
+RESULT seed=6 profile=sac/chase-r10k lr=0.001
+PASS criterion1 rightturn-before-switch: 0.98 (>= 0.50)
+PASS criterion2 corner-after-switch: 0.21 (<= 0.80)
+PASS criterion3 recovered: >= 0.80 at 13999 moves (<= 20000)
+PASS criterion4 snapshot-gap at 20571 moves: learner 1.00, snapshot 0.21, gap 0.79 (> 0.20)
+INFO post-window stability (34 evals over 20000 moves): min 0.74, max 1.00, final 1.00
+INFO wall time 3840 s, 59280 moves
+PASS criterion5: criteria 1-4 hold on seeds 1 2 3 4 5 6

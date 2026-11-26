@@ -80,10 +80,44 @@ The initial controlled matrix uses two roles and sweeps:
 - homogeneous, approximately 50:50, and approximately 90:10 role mixtures;
 - deterministic shuffled row order and identical observations per comparison.
 
-After the two-role experiment is valid, add 4- and 8-role scaling workloads to
-measure how model storage, call count, routing overhead, and unused-head cost grow
-with the number of experts. Synthetic dimensions are stress profiles, not claims
-about AMD's production network; real team dimensions should be added when known.
+Synthetic dimensions are stress profiles, not claims about AMD's production
+network; real team dimensions should be added when known.
+
+## Head-count scaling: A vs C
+
+The two-role matrix above timed C and D, with A as an untimed oracle. The
+scaling run (`scaling.py`) times **A and C** at `scaling_role_counts`
+(2/4/8/16 heads) for `scaling_profiles` × `batch_sizes` × `scaling_mixes` ×
+`trials`, one fresh worker per trial, with A as the correctness oracle.
+
+- `equal` spreads rows across all K heads as evenly as integers allow, so every
+  head is present once the batch has at least K rows.
+- `homogeneous` sends every row to `expert_0`, so C makes one call while A still
+  runs all K heads.
+- Roles are `expert_0` … `expert_{K-1}` from the same seed. The backbone and the
+  first heads keep identical weights as K grows, and K=2 matches the C/D models.
+- Reported per cell: warmed complete-request p50 (median, min, and max over
+  trials), model calls (A=1, C=heads present), and ONNX file bytes (A is one
+  file, C is the sum of K files). File bytes are storage, not runtime memory.
+- A cell says `C faster` or `A faster` only when every trial p50 of one
+  architecture is below every trial p50 of the other; otherwise it is
+  `inconclusive`. `c_faster_from_role_count` is the smallest K from which C is
+  faster at that K and every larger K tested.
+
+**Excluded:** D is a two-branch ONNX `If` (`ConditionalPolicyModel`) and does not
+generalize past two roles, so it is not exported for scaling. B executes every
+head like A and is not timed. E is exported in the 2/4/8-role tests to check that
+it still matches A, but it is not timed.
+
+```bash
+uv run python -m benchmarks.scaling export
+uv run python -m benchmarks.scaling run --output benchmarks/runs/scaling-results.json
+uv run python -m benchmarks.scaling summarize --input benchmarks/runs/scaling-results.json
+```
+
+These results describe Python ONNX Runtime on the CPU of the machine that ran
+them. They do not replace the Unreal C/D result above or measure Unreal NNE,
+`USharedPolicyStepper`, gameplay, or memory.
 
 ## Measurement contract
 
@@ -157,6 +191,7 @@ roles might change that decision.
 | `runtime.py` | Reuses loaded ONNX sessions, groups roles where needed, and restores original row order |
 | `benchmark.py` | Runs the correctness gate, warm-up, smoke timings, and raw JSON reporting |
 | `matrix.py` | Plans the configured matrix and runs each C/D trial in a fresh sequential worker process |
+| `scaling.py` | Exports A/C at 2/4/8/16 heads, times them in fresh workers, and summarizes the crossover |
 | `profiling.py` | Captures ORT operator events and maps optimized nodes back to backbone/head stages |
 | `tests/test_benchmark_models.py` | Checks that those shared pieces have the correct shapes and repeatable weights |
 | `tests/test_benchmark_exports.py` | Checks the exported contracts and proves equivalent action values |
@@ -164,6 +199,7 @@ roles might change that decision.
 | `tests/test_benchmark_measurement.py` | Checks workload generation, timing summaries, configuration failures, and smoke reports |
 | `tests/test_benchmark_matrix.py` | Checks matrix expansion, worker isolation, failure handling, and aggregate reports |
 | `tests/test_benchmark_profiling.py` | Proves A/B execute both heads while each D call executes only its selected branch |
+| `tests/test_benchmark_scaling.py` | Checks that C and E match A at 2/4/8 heads, the call counts, the crossover rule, and a reduced scaling run |
 
 The older model, exporter, demo, and their tests now live in `../legacy/`. We
 keep them as a working baseline while building the benchmark.

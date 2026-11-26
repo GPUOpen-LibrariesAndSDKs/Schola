@@ -1,0 +1,77 @@
+Lyra CommonUser compatibility fixes for Unreal Engine 5.8.4 (macOS / Apple clang)
+
+Apply from the root of a Lyra project (the directory containing
+LyraStarterGame.uproject) with `git apply -p1`. Tools/Lyra/setup_mac.sh does
+this safely and repeatably. Changes, and nothing else:
+
+  CommonUserBasicPresence.cpp
+    Remove the four `break;` statements that follow a `return` in
+    UCommonUserBasicPresence::SessionStateToBackendKey (unreachable code).
+  CommonSessionSubsystem.cpp
+    UCommonSessionSubsystem::HandleQuickPlaySearchFinished: replace the loop
+    that returns on its first iteration with direct access to Results[0]. The
+    existing `ResultCount > 0` guard is kept.
+    UCommonSessionSubsystem::OnFindSessionsComplete (OSSv1 path): remove
+    only the unreachable `if (0)` fake-session test block.
+
+diff --git a/Plugins/CommonUser/Source/CommonUser/Private/CommonUserBasicPresence.cpp b/Plugins/CommonUser/Source/CommonUser/Private/CommonUserBasicPresence.cpp
+--- a/Plugins/CommonUser/Source/CommonUser/Private/CommonUserBasicPresence.cpp
++++ b/Plugins/CommonUser/Source/CommonUser/Private/CommonUserBasicPresence.cpp
+@@ -44,17 +44,13 @@
+ 	{
+ 	case ECommonSessionInformationState::OutOfGame:
+ 		return PresenceStatusMainMenu;
+-		break;
+ 	case ECommonSessionInformationState::Matchmaking:
+ 		return PresenceStatusMatchmaking;
+-		break;
+ 	case ECommonSessionInformationState::InGame:
+ 		return PresenceStatusInGame;
+-		break;
+ 	default:
+ 		UE_LOG(LogUserBasicPresence, Error, TEXT("UCommonUserBasicPresence::SessionStateToBackendKey: Found unknown enum value %d"), (uint8)SessionStatus);
+ 		return TEXT("Unknown");
+-		break;
+ 
+ 	}
+ }
+diff --git a/Plugins/CommonUser/Source/CommonUser/Private/CommonSessionSubsystem.cpp b/Plugins/CommonUser/Source/CommonUser/Private/CommonSessionSubsystem.cpp
+--- a/Plugins/CommonUser/Source/CommonUser/Private/CommonSessionSubsystem.cpp
++++ b/Plugins/CommonUser/Source/CommonUser/Private/CommonSessionSubsystem.cpp
+@@ -966,11 +966,7 @@
+ 		if (ResultCount > 0)
+ 		{
+ 			//@TODO: We should probably look at ping?  maybe some other factors to find the best.  Idk if they come pre-sorted or not.
+-			for (UCommonSession_SearchResult* Result : SearchSettings->SearchRequest->Results)
+-			{
+-				JoinSession(JoiningOrHostingPlayer.Get(), Result);
+-				return;
+-			}
++			JoinSession(JoiningOrHostingPlayer.Get(), SearchSettings->SearchRequest->Results[0]);
+ 		}
+ 		else
+ 		{
+@@ -1132,23 +1128,6 @@
+ 		SearchSettingsV1.SearchRequest->Results.Empty();
+ 	}
+ 
+-	if (0)
+-	{
+-		// Fake Sessions OSSV1
+-		for (int i = 0; i < 10; i++)
+-		{
+-			UCommonSession_SearchResult* Entry = NewObject<UCommonSession_SearchResult>(SearchSettings->SearchRequest);
+-			FOnlineSessionSearchResult FakeResult;
+-			FakeResult.Session.OwningUserName = TEXT("Fake User");
+-			FakeResult.Session.SessionSettings.NumPublicConnections = 10;
+-			FakeResult.Session.SessionSettings.bShouldAdvertise = true;
+-			FakeResult.Session.SessionSettings.bAllowJoinInProgress = true;
+-			FakeResult.PingInMs=99;
+-			Entry->Result = FakeResult;
+-			SearchSettingsV1.SearchRequest->Results.Add(Entry);
+-		}
+-	}
+-	
+ 	SearchSettingsV1.SearchRequest->NotifySearchFinished(bWasSuccessful, bWasSuccessful ? FText() : LOCTEXT("Error_FindSessionV1Failed", "Find session failed"));
+ 	SearchSettings.Reset();
+ }

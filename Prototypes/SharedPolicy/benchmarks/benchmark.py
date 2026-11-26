@@ -288,6 +288,108 @@ def _serialize_calls(result: RunResult) -> list[dict[str, int | str]]:
     ]
 
 
+def gate_and_measure(
+    runtime: BenchmarkRuntime,
+    observations: npt.NDArray[np.float32],
+    roles: tuple[str, ...],
+    *,
+    measured_architectures: Sequence[str],
+    correctness_oracle: str,
+    warmup_requests: int,
+    measured_requests: int,
+    seed: int,
+    tolerances: Tolerances,
+) -> tuple[dict[str, dict[str, object]], dict[str, object], list[list[str]]]:
+    """Gate every architecture on the oracle, then time the measured ones.
+
+    Returns first-run evidence, per-architecture raw samples plus summaries,
+    and the shuffled candidate order used for each measured request.
+    """
+
+    first_runs: dict[str, dict[str, object]] = {}
+    correctness_architectures = (
+        correctness_oracle,
+        *(
+            architecture
+            for architecture in measured_architectures
+            if architecture != correctness_oracle
+        ),
+    )
+    baseline: npt.NDArray[np.float32] | None = None
+    for architecture in correctness_architectures:
+        result, duration_ns = _timed_request(
+            runtime,
+            architecture,
+            observations,
+            roles,
+        )
+        if baseline is None:
+            baseline = result.actions
+        else:
+            assert_equivalent(
+                architecture,
+                result.actions,
+                baseline,
+                tolerances,
+            )
+        first_runs[architecture] = {
+            "request_ns": duration_ns,
+            "calls": _serialize_calls(result),
+        }
+
+    order_rng = random.Random(seed)
+    for _ in range(warmup_requests):
+        order = list(measured_architectures)
+        order_rng.shuffle(order)
+        for architecture in order:
+            runtime.run(architecture, observations, roles)
+
+    raw_results: dict[str, dict[str, object]] = {
+        architecture: {
+            "request_samples_ns": [],
+            "model_samples_ns": [],
+            "call_samples": [],
+        }
+        for architecture in measured_architectures
+    }
+    measured_orders: list[list[str]] = []
+    for _ in range(measured_requests):
+        order = list(measured_architectures)
+        order_rng.shuffle(order)
+        measured_orders.append(order)
+        for architecture in order:
+            result, request_ns = _timed_request(
+                runtime,
+                architecture,
+                observations,
+                roles,
+            )
+            model_ns = sum(call.duration_ns for call in result.calls)
+            raw_results[architecture]["request_samples_ns"].append(request_ns)
+            raw_results[architecture]["model_samples_ns"].append(model_ns)
+            raw_results[architecture]["call_samples"].append(
+                _serialize_calls(result)
+            )
+
+    results: dict[str, object] = {}
+    for architecture, raw in raw_results.items():
+        call_counts = {len(calls) for calls in raw["call_samples"]}
+        if len(call_counts) != 1:
+            raise RuntimeError(
+                f"architecture {architecture} changed model-call count"
+            )
+        results[architecture] = {
+            **raw,
+            "call_count_per_request": call_counts.pop(),
+            "summary": summarize_samples(
+                raw["request_samples_ns"],
+                raw["model_samples_ns"],
+                len(roles),
+            ),
+        }
+    return first_runs, results, measured_orders
+
+
 def _smoke_selection(settings: ExperimentSettings) -> tuple[int, float]:
     """Choose one useful mixed workload without running the full matrix."""
 
@@ -331,90 +433,17 @@ def run_benchmark_trial(
     )
     initialization_ns = time.perf_counter_ns() - initialization_started_ns
 
-    first_runs: dict[str, dict[str, object]] = {}
-    correctness_architectures = (
-        spec.correctness_oracle,
-        *(
-            architecture
-            for architecture in spec.measured_architectures
-            if architecture != spec.correctness_oracle
-        ),
+    first_runs, results, measured_orders = gate_and_measure(
+        runtime,
+        observations,
+        roles,
+        measured_architectures=spec.measured_architectures,
+        correctness_oracle=spec.correctness_oracle,
+        warmup_requests=spec.warmup_requests,
+        measured_requests=spec.measured_requests,
+        seed=spec.seed,
+        tolerances=experiment.tolerances,
     )
-    baseline: npt.NDArray[np.float32] | None = None
-    for architecture in correctness_architectures:
-        result, duration_ns = _timed_request(
-            runtime,
-            architecture,
-            observations,
-            roles,
-        )
-        if baseline is None:
-            baseline = result.actions
-        else:
-            assert_equivalent(
-                architecture,
-                result.actions,
-                baseline,
-                experiment.tolerances,
-            )
-        first_runs[architecture] = {
-            "request_ns": duration_ns,
-            "calls": _serialize_calls(result),
-        }
-
-    order_rng = random.Random(spec.seed)
-    for _ in range(spec.warmup_requests):
-        order = list(spec.measured_architectures)
-        order_rng.shuffle(order)
-        for architecture in order:
-            runtime.run(architecture, observations, roles)
-
-    raw_results: dict[str, dict[str, object]] = {
-        architecture: {
-            "request_samples_ns": [],
-            "model_samples_ns": [],
-            "call_samples": [],
-        }
-        for architecture in spec.measured_architectures
-    }
-    measured_orders: list[list[str]] = []
-    for _ in range(spec.measured_requests):
-        order = list(spec.measured_architectures)
-        order_rng.shuffle(order)
-        measured_orders.append(order)
-        for architecture in order:
-            result, request_ns = _timed_request(
-                runtime,
-                architecture,
-                observations,
-                roles,
-            )
-            model_ns = sum(call.duration_ns for call in result.calls)
-            raw_results[architecture]["request_samples_ns"].append(request_ns)
-            raw_results[architecture]["model_samples_ns"].append(model_ns)
-            raw_results[architecture]["call_samples"].append(
-                _serialize_calls(result)
-            )
-
-    results: dict[str, object] = {}
-    for architecture, raw in raw_results.items():
-        request_samples = raw["request_samples_ns"]
-        model_samples = raw["model_samples_ns"]
-        call_samples = raw["call_samples"]
-        call_counts = {len(calls) for calls in call_samples}
-        if len(call_counts) != 1:
-            raise RuntimeError(
-                f"architecture {architecture} changed model-call count"
-            )
-        results[architecture] = {
-            **raw,
-            "call_count_per_request": call_counts.pop(),
-            "summary": summarize_samples(
-                request_samples,
-                model_samples,
-                spec.batch_size,
-            ),
-        }
 
     manifest_path = Path(artifacts_dir) / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))

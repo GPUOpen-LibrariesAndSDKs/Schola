@@ -84,6 +84,32 @@ Results: with a 10k replay buffer the learner meets all five adaptation criteria
 
 The first command builds a host with the whole plugin and runs the policy, stepper and world-service
 tests. The second runs the same adaptation test through `UAdaptiveStepper` and `URLToolsNPCPolicy`.
+The first command builds a minimal Unreal host with the complete plugin and runs the actual policy/world-service workflow: configure, initialize, request a decision, submit its outcome, and observe a newer policy version. First-time C++ compilation can take several minutes. The second command checks project configuration generation. Neither requires a Python training service or a downloaded model. Expected results are **40 passing Unreal tests** and **43 passing generator checks**; logs and the checked JSON summary are under `Examples/NativeLearning/Saved/NativeLearning`.
+
+To use another shape, create an RLtools Configuration Asset, set its Schola definitions and supported actor/critic settings, select **Generate Project Configuration**, rebuild, and assign the asset to the policy. See the [host instructions](Examples/NativeLearning/README.md), [policy guide](Docs/Sphinx/guides/native_adaptive_policy.rst), and [configuration guide](Docs/Sphinx/guides/rltools_configuration_generation.rst).
+
+**Non-functional requirements:** bounded queues and worker scheduling, validated decision attribution, explicit sharing compatibility, observable asynchronous operations and teardown tests address reliability and resource use. Blueprint controls and actionable configuration errors support the developer workflow. The [NFR evidence table](deliverables/D3/adaptive-npc-evidence.md#non-functional-requirements) links each concern to its checks. Scheduling is cooperative; no hard frame-time guarantee is claimed.
+
+**Delivery and CI/CD:** Schola is a source-distributed Unreal plugin, so the local build/test host is the repeatable evaluation path rather than a hosted URL. AMD has its own CI/CD checks; those checks are not integrated into this codebase yet, and we are working with the partner to set that up. The Unreal results ran locally, not in CI. The standalone chase simulator is the exception: a GitHub Actions workflow builds it and runs smoke tests on every PR to `main`.
+
+**Supported scope:** CPU feedforward SAC/TD3/PPO, Box observations and bounded continuous Box actions. The headless checks establish learning operations and integration, not rendering or useful gameplay adaptation. Automatic task collection, performance evaluation at realistic NPC counts and separate-project packaging remain follow-up work. In-memory inference snapshots and opt-in file checkpoints (policy export, training state, full resume) are implemented; see the [checkpoint guide](Docs/Sphinx/guides/native_rltools_checkpoints.rst).
+
+## Access the D2 product
+
+| Item | Location |
+| --- | --- |
+| Course repository | [9-AMD-Advanced-NPCs](https://github.com/csc301-2026-f/9-AMD-Advanced-NPCs) |
+| Adaptive NPC source | [Examples/AdaptiveTag](Examples/AdaptiveTag/README.md) |
+| Demo recording | [SAC Learner demo video](https://drive.google.com/file/d/1KCl6-ZuzqVPr-uehdEMz8i1f82DPB4sj/view?usp=sharing) |
+| Background NPC comparison source | [Examples/BackgroundNPCs](Examples/BackgroundNPCs/README.md) |
+| Background NPC side-by-side recording | [background-npc-side-by-side.mp4](deliverables/D2/evidence/background-npc-side-by-side.mp4) |
+| Background NPC API guide | [NPC inference paradigms: Background NPCs](Docs/Sphinx/guides/mock_inference_paradigms.rst) |
+| Shared Policy prototype | [Source, tests, and instructions](Prototypes/SharedPolicy/README.md) |
+| Shared Policy implementation PRs | [ONNX prototype PR #5](https://github.com/csc301-2026-f/9-AMD-Advanced-NPCs/pull/5), [head bindings PR #7](https://github.com/csc301-2026-f/9-AMD-Advanced-NPCs/pull/7), and [Stepper PR #13](https://github.com/csc301-2026-f/9-AMD-Advanced-NPCs/pull/13) |
+| Shared Policy planning | [Project guide](https://docs.google.com/document/d/1QPLZo8vqCXEwkyKr5YaowDqcifTEvgNM/edit) |
+| Shared Policy presentation | [D2 slide deck](https://docs.google.com/presentation/d/1oCS74S7zQehjbKYZ9ql0jUwtF_QFhtFMUqCipEH-tRk/edit) |
+
+**Current availability:** the repository includes the standalone Unreal project, arena assets, and pinned RLtools headers under `Examples/AdaptiveTag`. You can build and run the simulation from a clone using the instructions below. A downloadable D2 package, independent-machine check, and final release URL still need confirmation.
 
 **Playable demos.** `chase_sim` is an interactive terminal simulator of the chase task
 (`Examples/AdaptiveTag`, [demo video](https://drive.google.com/file/d/1J_AV8wG49tRTUB4X1vTzty05bYBZ5JJi/view?usp=sharing)):

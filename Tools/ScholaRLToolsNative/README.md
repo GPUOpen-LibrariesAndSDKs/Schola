@@ -7,6 +7,11 @@ The test lives here instead of under `Source/`. UnrealBuildTool compiles every `
 so a `main()` there would break the Unreal build. The Unreal automation counterpart is
 `Source/ScholaRLTools/Private/Test/RLToolsCheckpointTest.cpp` (`Schola.RLTools.Checkpoint.*`).
 
+## Scaling benchmark
+
+`run-scaling.sh` builds `ScalingBenchmark.cpp` and measures game-thread cost, shared-learner throughput and
+per-learner memory at 1–200 NPCs. Results and guidance: [SCALING.md](SCALING.md).
+
 ## Run
 
 ```sh
@@ -18,6 +23,9 @@ You need `clang++` or `g++` with C++20 (set `CXX` to pick one). The script compi
 together with `RLToolsLearner.cpp` and runs the binary. It prints one `PASS`/`FAIL`/`SKIP <profile> <check>: <detail>`
 line per check and a total, and exits non-zero if anything fails.
 
+CI: `.github/workflows/native-learner-ci.yml` runs the same script with `g++` on Ubuntu for every PR to `main`
+that touches the learner, the RLtools headers or this directory.
+
 ## Coverage (every compiled profile)
 
 - Round trip for each mode (PolicyExport, TrainingState, FullResume): the fresh learner's deterministic outputs are bit-identical to the saver's.
@@ -26,3 +34,9 @@ line per check and a total, and exits non-zero if anything fails.
 - Version never goes backwards and Generation increments. Decisions made before a load are retired.
 - Refusals leave the live learner unchanged: missing, empty, header-only, truncated or bit-flipped files, wrong magic, oversized payload declarations, other profile, other algorithm, other preprocessing, and a stopped learner.
 - `ReadCheckpointInfo` metadata, atomic writes (no `.tmp` left behind, `IoError` on unwritable paths), and a concurrency smoke test.
+
+## Chase adaptation on the plugin learner
+
+`run-chase.sh` builds `ChaseAdaptation.cpp` and runs the D3 chase adaptation test (train on `rightturn`,
+switch to `corner`) on `FLearner` with chase_sim's world and evaluation starts. With a 10k replay buffer it
+passes all five D3 criteria on seeds 1-6. Results and analysis: [CHASE-ADAPTATION.md](CHASE-ADAPTATION.md).

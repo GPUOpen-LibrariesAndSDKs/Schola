@@ -10,7 +10,7 @@ This demo adds StateTree to Lyra NPCs while keeping their existing Behavior Tree
 
 ## Setup
 
-1. Copy the `Plugins` folder from this directory into your Lyra project.
+1. Copy BP_AMD_LyraBot.uasset and ST_AMD_LyraBot.uasset into LyraStarterGame/Plugins/GameFeatures/ShooterCore/Content/Game/AMD/. Create the AMD folder if needed.
 2. Open `HeroData_ShooterGame` in ShooterCore.
 3. Temporarily change its Pawn Class to `BP_AMD_LyraBot`.
 4. Open `L_ShooterGym` and press Play.
@@ -18,7 +18,7 @@ This demo adds StateTree to Lyra NPCs while keeping their existing Behavior Tree
 
 Restore the original Pawn Class after testing, since this change affects both players and bots.
 
-For macOS setup, see [Lyra Integration](../../../../Docs/Lyra-Integration.md).
+For macOS setup, see [Lyra Integration](../../../Docs/Lyra-Integration.md)
 
 ## Verification
 

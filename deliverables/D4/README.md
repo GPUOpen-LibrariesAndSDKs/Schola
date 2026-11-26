@@ -27,13 +27,31 @@ questions. Each section follows the D4 presentation format.
 | Key learnings (1–2 min) | [learnings](index.html#learnings) | 1:30 | Team |
 | Questions | [questions](index.html#questions), backup: [adaptive per seed](index.html#backup-adaptive), [references](index.html#references) | ~5:00 | Team |
 
+### Shared Policy live route
+
+Present in deck order. Clementine introduces [Architecture A](index.html#shared-policy-nne-inference)
+and the Lyra setup. Jaela presents the [A versus C benchmark](index.html#shared-policy-scaling),
+the [merged Architecture C implementation](index.html#shared-policy-per-role),
+[what the beacon demo verifies](index.html#shared-policy-beacon-walkthrough), and
+the [stepper recording](index.html#demo-shared). Clementine then narrates the
+[Lyra recording](index.html#shared-policy-statetree-demo). Close with the
+[roadmap](index.html#shared-policy-roadmap).
+
+For the five-minute team demo, budget about 1:15 for Shared Policy. Use one sentence for A
+and jump to Jaela's benchmark. Use the detailed Lyra setup and StateTree slides for questions,
+cue the beacon recording around 0:15 and pause on the log around 0:28. Show about 20 seconds of the Lyra clip and give the roadmap in one sentence.
+Cover the architectural tradeoffs in the [technical section](index.html#tech-shared).
+
+Serve this directory over HTTP for both recordings. To demonstrate the beacon live, open
+`SharedPolicy.uproject`, load `LV_SharedPolicyD4`, and filter Unreal’s Output Log to `LogSharedPolicyD4`.
+
 ## What each subteam still has to add
 
 Slides with a dashed **slot** are reserved. Each slot lists what the slide must show. Replace the slot with
 content, keep the slide's `id` and its time budget, and update its speaker notes.
 
 - **Background NPCs:** `demo-background`, `tech-background`. Check the background numbers on `nfr` and `quality`.
-- **Shared Policy NPCs:** `demo-shared`, `tech-shared`. Check the shared-policy numbers on `nfr` and `quality`.
+- **Shared Policy NPCs:** Check the shared-policy numbers on `nfr` and `quality`.
 - **Event NPCs:** `demo-event`, `tech-event`, and the Event column on `architecture` if the design changed.
 - **Team:** the deployment box on `quality` once the dev/release workflow is live; one learning per
   subteam on `learnings`; references on `references`.

@@ -230,7 +230,7 @@
         <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Shared Policy / Deliverable 04</span></header>
         <div class="sp-title-row">
           <div><p class="eyebrow">Clementine Yang &middot; StateTree integration</p><h2 id="shared-policy-statetree-heading">One StateTree, multiple NPCs<span class="accent">.</span></h2></div>
-          <a class="sp-pr" href="https://github.com/csc301-2026-f/9-AMD-Advanced-NPCs/pull/67" target="_blank" rel="noopener noreferrer"><span class="sp-pr-number">PR #67</span><span class="sp-status">Open</span></a>
+          <a class="sp-pr" href="https://github.com/csc301-2026-f/9-AMD-Advanced-NPCs/pull/67" target="_blank" rel="noopener noreferrer"><span class="sp-pr-number">PR #67</span><span class="sp-status">Merged</span></a>
         </div>
         <div class="sp-st-layout">
           <div class="sp-st-col sp-reveal">
@@ -253,7 +253,103 @@
         <div class="sp-st-notes sp-reveal">
           <p><strong>Verified:</strong> Multiple StateTree instances and runtime Patrol &harr; Chase transitions.</p>
         </div>
-        <aside class="speaker-notes" data-time="0:25">PR #67 adds a StateTree-driven NPC demo in Lyra. The screenshot on the left is the shared StateTree asset in the Unreal Editor. It defines two states, Patrol and Chase, selected by the Actor's Should Chase value: Patrol while it is false, Chase while it is true. Each NPC runs its own instance of the asset, so one NPC can patrol while another chases. What is verified is that several StateTree instances run at once and switch between Patrol and Chase at runtime. The dashed part is planned, not built: map each active state to its own specialized policy, Patrol Policy or Chase Policy, served through Architecture C with NNE inference. The pull request is still open.</aside>
+        <aside class="speaker-notes" data-time="0:25">PR #67 adds a StateTree-driven NPC demo in Lyra. The screenshot on the left is the shared StateTree asset in the Unreal Editor. It defines two states, Patrol and Chase, selected by the Actor's Should Chase value: Patrol while it is false, Chase while it is true. Each NPC runs its own instance of the asset. Several instances ran at once and switched between Patrol and Chase. Actor-specific logs are still needed to verify independent state selection. The dashed part is planned, not built: map each active state to its own specialized policy, Patrol Policy or Chase Policy, served through Architecture C with NNE inference.</aside>
+      </section>
+
+      <section class="slide sp-slide" id="shared-policy-scaling" aria-labelledby="shared-policy-scaling-heading" data-title="Shared Policy NPCs: A versus C scaling benchmark" data-section="Technical">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Shared Policy / Deliverable 04</span></header>
+        <div class="sp-title-row">
+          <div><p class="eyebrow">Hiu Yan (Jaela) Kwok &middot; Benchmarking</p><h2 id="shared-policy-scaling-heading">Per-role models reduced request latency<span class="accent">.</span></h2></div>
+          <a class="sp-pr" href="https://github.com/csc301-2026-f/9-AMD-Advanced-NPCs/pull/55" target="_blank" rel="noopener noreferrer"><span class="sp-pr-number">PR #55</span><span class="sp-status">Merged</span></a>
+        </div>
+        <div class="split sp-lyra-cards">
+          <article class="sp-card"><h3>Architecture A · Baseline</h3><p>One ONNX model evaluates every head in a single call. Its selected actions serve as the reference.</p></article>
+          <article class="sp-card"><h3>Architecture C · Integration target</h3><p>One model per active role. C matched A’s actions and reduced median request latency across all 64 tested configurations, with larger model files.</p></article>
+        </div>
+        <div class="takeaway"><span>16 active heads · batch of 16</span><p>375 µs for A, 242 µs for C, measured end to end in Python ONNX Runtime on one Mac CPU.</p></div>
+        <aside class="speaker-notes" data-time="0:08">Say: “In D3, I used A’s outputs to verify C and timed C against D in Unreal. For D4, I timed A against C directly as the number of roles grew.” Point to the 16-head example. For questions: I built the scaling runner in PR #55 and measured warmed, complete-request latency at 2, 4, 8, and 16 heads. C matched A’s actions and had lower median latency in all 64 synthetic configurations. C stores a separate model per role, which increased total ONNX file size. A versus C performance in Unreal is still to be measured.</aside>
+      </section>
+
+      <section class="slide sp-slide" id="shared-policy-per-role" aria-labelledby="shared-policy-per-role-heading" data-title="Shared Policy NPCs: Architecture C implementation" data-section="Technical">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Shared Policy / Deliverable 04</span></header>
+        <div class="sp-title-row">
+          <div><p class="eyebrow">Hiu Yan (Jaela) Kwok &middot; Runtime implementation</p><h2 id="shared-policy-per-role-heading">Architecture C extends Schola’s inference runtime<span class="accent">.</span></h2></div>
+          <a class="sp-pr" href="https://github.com/csc301-2026-f/9-AMD-Advanced-NPCs/pull/52" target="_blank" rel="noopener noreferrer"><span class="sp-pr-number">PR #52</span><span class="sp-status">Merged</span></a>
+        </div>
+        <div class="chart-layout sp-nne-layout">
+          <figure>
+            <svg class="diagram" viewBox="0 0 840 360" role="img" aria-labelledby="sp-c-title sp-c-desc">
+              <title id="sp-c-title">Architecture C routes mixed-role observations through separate ONNX models</title>
+              <desc id="sp-c-desc">The input order is NPC 1 Toward, NPC 2 Away, NPC 3 Toward. C groups NPCs 1 and 3 into the Toward batch and NPC 2 into the Away batch. Each batch runs one model call. C restores the action order to NPC 1, NPC 2, NPC 3.</desc>
+              <defs>
+                <marker id="sp-c-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#50645c"/></marker>
+              </defs>
+              <g stroke="#173d38" stroke-width="2">
+                <rect x="80" y="2" width="680" height="66" fill="#f5f3ec"/>
+                <rect x="80" y="99" width="680" height="52" fill="#e7efe6"/>
+                <rect x="20" y="195" width="370" height="70" fill="#f5f3ec"/>
+                <rect x="450" y="195" width="370" height="70" fill="#f5f3ec"/>
+                <rect x="80" y="297" width="680" height="60" fill="#173d38"/>
+              </g>
+              <g fill="none" stroke="#50645c" stroke-width="2.5" marker-end="url(#sp-c-arrow)">
+                <path d="M420 68 V96"/>
+                <path d="M420 151 V173 H205 V192"/>
+                <path d="M420 151 V173 H635 V192"/>
+                <path d="M205 265 V281 H350 V294"/>
+                <path d="M635 265 V281 H490 V294"/>
+              </g>
+              <g fill="#173d38" text-anchor="middle">
+                <text x="420" y="29" font-size="24" font-weight="600">Mixed-role observations</text>
+                <text x="420" y="54" font-size="20">NPC 1 Toward · NPC 2 Away · NPC 3 Toward</text>
+                <text x="420" y="132" font-size="24" font-weight="600">Group by role</text>
+                <text x="205" y="223" font-size="23" font-weight="600">Toward model · 1 call</text>
+                <text x="205" y="251" font-size="20">Batch: NPCs 1 and 3</text>
+                <text x="635" y="223" font-size="23" font-weight="600">Away model · 1 call</text>
+                <text x="635" y="251" font-size="20">Batch: NPC 2</text>
+                <text x="420" y="334" font-size="23" font-weight="600" fill="#f5f3ec">Restore action order: NPC 1 · NPC 2 · NPC 3</text>
+              </g>
+            </svg>
+            <figcaption>Architecture C · one ONNX model call per active role</figcaption>
+          </figure>
+          <div>
+            <h3>One call per active role</h3>
+            <p>Unreal NNE runs the matching ONNX model on each role batch.</p>
+            <h3>One action per NPC</h3>
+            <p>Architecture C restores the input order so the stepper can deliver each action to its NPC.</p>
+          </div>
+        </div>
+        <div class="takeaway"><span>Same stepper API</span><p>Developers configure a role-to-model mapping. The existing Shared Policy Stepper works with either architecture.</p></div>
+        <aside class="speaker-notes" data-time="0:08">Say: “My merged implementation adds Architecture C to our Schola extension through the existing policy interface.” Trace NPCs 1 and 3 into the Toward batch and NPC 2 into the Away batch, then point to the restored order.</aside>
+      </section>
+
+      <section class="slide sp-slide" id="shared-policy-beacon-walkthrough" aria-labelledby="shared-policy-beacon-walkthrough-heading" data-title="Shared Policy NPCs: what the beacon demo verifies" data-section="Demo">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Shared Policy / Deliverable 04</span></header>
+        <div class="sp-title-row">
+          <div><p class="eyebrow">Hiu Yan (Jaela) Kwok &middot; Unreal gameplay verification</p><h2 id="shared-policy-beacon-walkthrough-heading">What the beacon demo verifies<span class="accent">.</span></h2></div>
+          <a class="sp-pr" href="https://github.com/csc301-2026-f/9-AMD-Advanced-NPCs/pull/66" target="_blank" rel="noopener noreferrer"><span class="sp-pr-number">PR #66</span><span class="sp-status">Unreal example</span></a>
+        </div>
+        <div class="split sp-lyra-cards">
+          <article class="sp-card"><h3>In the viewport</h3><p>Move the beacon with WASD. Three NPCs steer toward it and three steer away. Changing direction gives all six NPCs new observations.</p></article>
+          <article class="sp-card"><h3>In the Output Log</h3><p><code>LogSharedPolicyD4</code> reports six applied actions and two model calls per decision step. One call serves the Toward batch and the other serves the Away batch.</p></article>
+        </div>
+        <div class="takeaway"><span>What ties them together</span><p>The Shared Policy Stepper collects observations, submits them to Architecture C, and applies the returned action to each NPC.</p></div>
+        <aside class="speaker-notes" data-time="0:07">Say: “Watch both groups react to the beacon. Then look at the log: six steering actions, with one model call for each role.” The scene shows the observation-to-action loop. The log verifies the number of model calls.</aside>
+      </section>
+
+      <section class="slide sp-slide sp-video-slide" id="demo-shared" aria-labelledby="demo-shared-heading" data-title="Shared Policy NPCs: beacon runtime demo" data-section="Demo">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Runtime demonstration</span></header>
+        <div class="sp-title-row">
+          <div><h2 id="demo-shared-heading">From observations to steering in one step<span class="accent">.</span></h2></div>
+          <p class="sp-video-credit">Hiu Yan (Jaela) Kwok &middot; Unreal Runtime Demo &middot; 00:47</p>
+        </div>
+        <figure class="sp-video">
+          <video controls muted playsinline preload="metadata" style="aspect-ratio:1600 / 1132" aria-label="Unreal beacon demo showing the Toward and Away NPC groups and the Shared Policy decision log">
+            <source src="assets/beacon-demo.mp4" type="video/mp4">
+            <a href="assets/beacon-demo.mp4">Open the beacon demo recording</a>
+          </video>
+          <figcaption>The stepper applies six steering actions from two model calls per decision step. <a href="https://github.com/csc301-2026-f/9-AMD-Advanced-NPCs/pull/66">PR #66</a></figcaption>
+        </figure>
+        <aside class="speaker-notes" data-time="0:13">For the timed walkthrough, cue the recording around 0:15 and pause on the Output Log around 0:28. Narrate the shift in the beacon’s direction, the three Toward agents and the three Away agents. Explain that the stepper gathers observations, Architecture C runs one batch per role, and the stepper applies each returned action. Point out six actions and two model calls in LogSharedPolicyD4. The demo measures calls by reading Schola’s cumulative counter before and after the step. If time allows, show the full recording. Hand off: “We’ve shown the inference loop in a controlled Unreal scene. Clementine brought Schola into Lyra, Epic’s Unreal sample game, and will show bots switching between Patrol and Chase. Our next step is to use those states to select the models you just saw running.”</aside>
       </section>
 
       <section class="slide sp-slide sp-video-slide" id="shared-policy-statetree-demo" aria-labelledby="shared-policy-statetree-demo-heading" data-title="Shared Policy NPCs: Lyra runtime demo" data-section="Demo">
@@ -298,23 +394,6 @@
         <aside class="speaker-notes" data-time="0:20">So far we have two working pieces. The Cube demo runs Architecture C with real NNE inference, and the Lyra demo runs StateTrees with runtime Patrol and Chase transitions. For D5 we connect them in three steps: first, dynamic policy selection, which maps each NPC's active state to a specialized policy; second, runtime batch regrouping, which groups NPCs by their current policy so each group still goes through one batched call; and third, end-to-end gameplay, applying the inference outputs to NPC behavior. The goal is an integrated gameplay demo in D5. We will also keep evaluating latency, memory and storage, and scalability. Solid boxes are done; dashed boxes are planned.</aside>
       </section>
 
-      <section class="slide" id="demo-shared" aria-labelledby="demo-shared-heading" data-title="Demo: shared policy NPCs" data-section="Demo">
-        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Demo 3 / Shared Policy NPCs</span></header>
-        <div class="slot">
-          <span class="slot-owner">Shared Policy subteam · 1:00</span>
-          <h3 id="demo-shared-heading">User flow 3: one network, role-specific actions</h3>
-          <ul>
-            <li>What the developer configures: role heads and NPC-to-head bindings</li>
-            <li>Live: NPCs in different roles receiving their own actions from one batched call (Lyra integration if it is ready)</li>
-            <li>What to watch: one model call, correct routing per NPC</li>
-            <li>The fallback if the live run fails, with a reason</li>
-          </ul>
-          <p class="slot-known">On record: 48/48 Unreal NNE reports pass correctness; architecture C had lower request latency in 45/48 trials.</p>
-        </div>
-        <aside class="speaker-notes" data-time="1:00">Shared Policy subteam: replace this slot.</aside>
-      </section>
-
-      
       <section class="slide" id="demo-event" aria-labelledby="demo-event-heading" data-title="Demo: event NPCs" data-section="Demo">
         <header class="slide-header">
           <span class="wordmark">schola<span class="brand-dot">.</span></span>
@@ -604,17 +683,16 @@
 
       <section class="slide" id="tech-shared" aria-labelledby="tech-shared-heading" data-title="Shared Policy: design" data-section="Technical">
         <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Shared Policy NPCs / Deliverable 4</span></header>
-        <div class="slot">
-          <span class="slot-owner">Shared Policy subteam · 0:35</span>
-          <h3 id="tech-shared-heading">Design: choosing a shared-network architecture</h3>
-          <ul>
-            <li>A diagram of the chosen architecture and how actions route to roles (deliverables/D3/assets/shared-policy-architectures.svg)</li>
-            <li>Why C or D, the correctness gate, and the measured latency difference</li>
-            <li>What changed for D4 (memory comparison, Lyra integration)</li>
-          </ul>
-          <p class="slot-known">No code screenshots. Walk the diagram; don't just show it.</p>
+        <p class="eyebrow">Architecture C &middot; one model per role</p>
+        <h2 id="tech-shared-heading">Batch by role and return each action</h2>
+        <div class="three-columns workflow" aria-label="Collect observations, infer in role batches, and return individual actions">
+          <div><h3>Collect</h3><p>Read the observation and role for each NPC.</p></div>
+          <div><h3>Batch</h3><p>Group by role. Unreal NNE runs the Toward batch and the Away batch.</p></div>
+          <div><h3>Apply</h3><p>Return each action to its NPC. Each actor applies its own steering output.</p></div>
         </div>
-        <aside class="speaker-notes" data-time="0:35">Shared Policy subteam: replace this slot.</aside>
+        <div class="takeaway"><span>Why C</span><p>Correct in all 48 Unreal reports. Lower median request latency than D in 45 of 48 paired Apple Silicon CPU trials. C uses a separate model for each role.</p></div>
+        <p class="source-line"><a href="../../Prototypes/SharedPolicy/benchmarks/README.md">Shared Policy benchmark method and results</a></p>
+        <aside class="speaker-notes" data-time="0:35">Walk the flow once. Architecture A evaluates every output head in one model call. C groups the observations and calls only the model for each active role. We chose C for this example. All 48 correctness reports passed, and C had lower p50 than D in 45 paired Unreal NNE CPU trials on Apple Silicon. The benchmark times the routed request and uses synthetic observations. The separate models are a storage tradeoff. Lyra state-to-policy wiring is the next step.</aside>
       </section>
 
 

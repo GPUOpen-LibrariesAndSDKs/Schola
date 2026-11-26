@@ -537,3 +537,28 @@ dialog::backdrop { background: rgb(10 30 25 / 65%); }
 .background-steps { margin: 85px 0 0; padding-left: 40px; font-size: 33px; line-height: 1.5; }
 .background-steps li + li { margin-top: 27px; }
 .background-steps code { font-size: .88em; }
+
+/* Adaptive checkpoint slides: short points, one per line. */
+.ck-points { list-style: none; margin: 30px 0 0; padding: 0; display: flex; flex-direction: column; gap: 0; }
+.ck-points li { font-size: 34px; line-height: 1.3; padding: 26px 0; border-top: 1px solid var(--line); }
+.ck-points li:last-child { border-bottom: 1px solid var(--line); }
+.ck-points strong { font-weight: 600; color: #936025; }
+.ck-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; }
+.ck-cards > div { background: #efe9da; border-top: 6px solid #e9b65c; padding: 34px 32px 38px; }
+.ck-num { display: block; font-size: 64px; font-weight: 300; line-height: 1; color: #936025; margin-bottom: 22px; }
+.ck-cards h3 { font-size: 32px; margin: 0 0 12px; }
+.ck-cards p { font-size: 24px; margin: 0; color: #50645c; }
+.ck-foot { margin-top: auto; padding-top: 24px; border-top: 1px solid var(--line); font-size: 25px; color: #61756b; }
+.ck-lead { font-size: 30px; line-height: 1.35; margin: 18px 0 30px; max-width: 1250px; }
+.ck-flow { display: grid; grid-template-columns: 200px 1fr 430px; gap: 34px; align-items: center; }
+.ck-file { background: #f5f3ec; border: 2px solid #173d38; padding: 34px 20px; text-align: center; font-size: 26px; font-weight: 600; }
+.ck-checks { display: flex; flex-direction: column; gap: 10px; position: relative; }
+.ck-checks span { background: #e9b65c; padding: 12px 22px; font-size: 24px; font-weight: 600; text-align: center; }
+.ck-results { display: flex; flex-direction: column; gap: 22px; }
+.ck-results div { padding: 26px 26px; font-size: 26px; font-weight: 600; }
+.ck-ok { background: #cfe3d6; }
+.ck-no { background: #f2d3c4; }
+.ck-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 32px; }
+.ck-stats > div { border-top: 3px solid #173d38; padding-top: 22px; }
+.ck-stats strong { display: block; font-size: 96px; font-weight: 400; letter-spacing: -.05em; line-height: 1; color: #936025; margin-bottom: 14px; }
+.ck-stats span { display: block; font-size: 25px; line-height: 1.3; color: #50645c; }

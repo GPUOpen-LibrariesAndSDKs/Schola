@@ -67,6 +67,19 @@
         <aside class="speaker-notes" data-time="0:15">Say what the audience will see: one flow per NPC type, each from the developer's perspective. Keep each to its budget.</aside>
       </section>
 
+      <section class="slide cover dark sp-slide sp-team-cover" id="adaptive-team" aria-labelledby="adaptive-team-heading" data-title="Adaptive NPCs: team" data-section="Demo">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>CSC301 / Deliverable 04</span></header>
+        <div class="cover-content">
+          <div class="sp-reveal">
+            <p class="eyebrow">Advanced NPCs for AMD Schola</p>
+            <h1 id="adaptive-team-heading">Adaptive<br>team<span class="accent">.</span></h1>
+            <p class="lead">Adaptive NPCs &middot; Deliverable 4</p>
+          </div>
+          <div class="cover-mark sp-team sp-reveal"><span>TEAM MEMBERS</span><ul><li>Jace Mu</li><li>Jason Panusopone</li><li>Chloe Lee</li><li>Olivia Markow</li></ul></div>
+        </div>
+        <aside class="speaker-notes" data-time="0:05">Introduce the Adaptive team, Jace Mu, Jason Panusopone, Chloe Lee and Olivia Markow, in one sentence, then go straight into what changed for developers.</aside>
+      </section>
+
       <section class="slide" id="demo-adaptive-change" aria-labelledby="demo-adaptive-change-heading" data-title="Adaptive: before and after" data-section="Demo">
         <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Demo 1 / Adaptive NPCs</span></header>
         <p class="eyebrow">Adaptive NPCs · what changed for developers</p>
@@ -465,6 +478,19 @@ if (MigrationDay)
         <aside class="speaker-notes" data-time="0:20">So far we have two working pieces. The Cube demo runs Architecture C with real NNE inference, and the Lyra demo runs StateTrees with runtime Patrol and Chase transitions. For D5 we connect them in three steps: first, dynamic policy selection, which maps each NPC's active state to a specialized policy; second, runtime batch regrouping, which groups NPCs by their current policy so each group still goes through one batched call; and third, end-to-end gameplay, applying the inference outputs to NPC behavior. The goal is an integrated gameplay demo in D5. We will also keep evaluating latency, memory and storage, and scalability. Solid boxes are done; dashed boxes are planned.</aside>
       </section>
 
+      <section class="slide cover dark sp-slide sp-team-cover" id="event-team" aria-labelledby="event-team-heading" data-title="Event NPCs: team" data-section="Demo">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>CSC301 / Deliverable 04</span></header>
+        <div class="cover-content">
+          <div class="sp-reveal">
+            <p class="eyebrow">Advanced NPCs for AMD Schola</p>
+            <h1 id="event-team-heading">Event<br>team<span class="accent">.</span></h1>
+            <p class="lead">Event NPCs &middot; Deliverable 4</p>
+          </div>
+          <div class="cover-mark sp-team sp-reveal"><span>TEAM MEMBERS</span><ul><li>Prithvi Ajay</li></ul></div>
+        </div>
+        <aside class="speaker-notes" data-time="0:05">Introduce the Event team, Prithvi Ajay, in one sentence, then go straight into the demo.</aside>
+      </section>
+
       <section class="slide" id="demo-event" aria-labelledby="demo-event-heading" data-title="Demo: event NPCs" data-section="Demo">
         <header class="slide-header">
           <span class="wordmark">schola<span class="brand-dot">.</span></span>
@@ -737,19 +763,49 @@ if (MigrationDay)
         <aside class="speaker-notes" data-time="0:25">The game thread is cheap at every size. The limit is training: one learner trains serially at about 650 to 900 updates per second, so past roughly 60 to 90 NPCs the backlog grows. NPCs keep acting; they just adapt more slowly. Independent learners scale with worker threads at about 750 updates per second each, at 8.6 MB per learner. Measured on one Apple M5 Pro without Unreal; in-engine, the world service also caps concurrent workers. Source: SCALING.md.</aside>
       </section>
 
-      <section class="slide" id="tech-shared" aria-labelledby="tech-shared-heading" data-title="Shared Policy: design" data-section="Technical">
-        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Shared Policy NPCs / Deliverable 4</span></header>
-        <p class="eyebrow">Architecture C &middot; one model per role</p>
-        <h2 id="tech-shared-heading">Batch by role and return each action</h2>
-        <div class="three-columns workflow" aria-label="Collect observations, infer in role batches, and return individual actions">
-          <div><h3>Collect</h3><p>Read the observation and role for each NPC.</p></div>
-          <div><h3>Batch</h3><p>Group by role. Unreal NNE runs the Toward batch and the Away batch.</p></div>
-          <div><h3>Apply</h3><p>Return each action to its NPC. Each actor applies its own steering output.</p></div>
+      <section class="slide" id="checkpoints-adaptive" aria-labelledby="checkpoints-adaptive-heading" data-title="Adaptive: saving what an NPC learned" data-section="Technical">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
+        <p class="eyebrow">Adaptive NPCs · checkpoints 1 of 3 · Chloe Lee</p>
+        <h2 id="checkpoints-adaptive-heading">Saving and loading what an NPC learned</h2>
+        <p class="ck-lead">Once an NPC has learned something, you can save it and load it back later. There are 3 ways to save:</p>
+        <div class="ck-cards">
+          <div><span class="ck-num">1</span><h3>Model only</h3><p>for shipping an NPC that's already trained</p></div>
+          <div><span class="ck-num">2</span><h3>Full learner</h3><p>to pause training and continue later</p></div>
+          <div><span class="ck-num">3</span><h3>Full learner + its experience</h3><p>to pick up exactly where it stopped</p></div>
         </div>
-        <div class="takeaway"><span>Why C</span><p>Correct in all 48 Unreal reports. Lower median request latency than D in 45 of 48 paired Apple Silicon CPU trials. C uses a separate model for each role.</p></div>
-        <p class="source-line"><a href="../../Prototypes/SharedPolicy/benchmarks/README.md">Shared Policy benchmark method and results</a></p>
-        <aside class="speaker-notes" data-time="0:35">Walk the flow once. Architecture A evaluates every output head in one model call. C groups the observations and calls only the model for each active role. We chose C for this example. All 48 correctness reports passed, and C had lower p50 than D in 45 paired Unreal NNE CPU trials on Apple Silicon. The benchmark times the routed request and uses synthetic observations. The separate models are a storage tradeoff. Lyra state-to-policy wiring is the next step.</aside>
+        <p class="ck-foot">You call it from Blueprint or C++, and the saving and loading happen on a background thread.</p>
+        <aside class="speaker-notes" data-time="0:15">This part is mine, checkpoints. You can save what an NPC has learned and load it back later. There are three modes. Model only, if you just want to ship a trained NPC. The full learner, so you can pause training and pick it up later. Or the full learner plus its stored experience, which resumes exactly where it left off. You can call it from Blueprint or C++, and the file work happens off the game thread.</aside>
       </section>
+
+      <section class="slide" id="checkpoints-safe" aria-labelledby="checkpoints-safe-heading" data-title="Adaptive: a bad file never crashes the game" data-section="Technical">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
+        <p class="eyebrow">Adaptive NPCs · checkpoints 2 of 3 · Chloe Lee</p>
+        <h2 id="checkpoints-safe-heading">Making loading safe</h2>
+        <p class="ck-lead">The problem: RLtools crashes the whole program if you load a file that doesn't match. So before loading, we check the file in 5 steps:</p>
+        <div class="ck-flow">
+          <div class="ck-file">Saved file</div>
+          <div class="ck-checks"><span>header</span><span>size</span><span>checksum</span><span>profile</span><span>structure</span></div>
+          <div class="ck-results"><div class="ck-ok">✓ All pass → we load it</div><div class="ck-no">✗ Any fail → we don't load, and the NPC keeps its current model</div></div>
+        </div>
+        <p class="ck-foot">When saving, we write to a temp file and rename it at the end, so a crash halfway through can't leave a broken file.</p>
+        <aside class="speaker-notes" data-time="0:15">The tricky part was loading. RLtools just aborts the program if the file doesn't match what it expects. So before we give it the file, we check the header, the size, the checksum, the profile and the structure. If any of those fail, we don't load, and the NPC keeps its current model. For saving, we write to a temp file and rename it at the end, so a crash halfway through can't leave a broken file.</aside>
+      </section>
+
+      <section class="slide" id="checkpoints-evidence" aria-labelledby="checkpoints-evidence-heading" data-title="Adaptive: checkpoints are tested" data-section="Technical">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
+        <p class="eyebrow">Adaptive NPCs · checkpoints 3 of 3 · Chloe Lee</p>
+        <h2 id="checkpoints-evidence-heading">Checking that it works</h2>
+        <p class="ck-lead">I tested it two ways: automated tests, and rerunning the chase test from a saved file.</p>
+        <div class="ck-stats">
+          <div><strong>460</strong><span>tests run automatically on every PR</span></div>
+          <div><strong>2</strong><span>platforms: they run on both Linux and Mac</span></div>
+          <div><strong>6 / 6</strong><span>seeds: started from a saved file, the NPC still learned the new runner</span></div>
+          <div><strong>0</strong><span>changes: the frozen copy loaded from the same file stayed the same</span></div>
+        </div>
+        <p class="ck-foot">Every broken or mismatched file we tried was rejected, and the NPC kept working.</p>
+        <aside class="speaker-notes" data-time="0:15">For testing, there are 460 checks that run in CI on every PR, on Linux and Mac. That includes a bunch of broken and mismatched files, and all of them get rejected. I also reran the chase test starting from a saved checkpoint. It still adapts on all six seeds, and the frozen copy loaded from the same file doesn't change at all.</aside>
+      </section>
+
 
 
       <section class="slide" id="tech-event" aria-labelledby="tech-event-heading" data-title="Event: design" data-section="Technical">
@@ -987,6 +1043,7 @@ if (MigrationDay)
         <p class="source-line">Criteria: ≥0.50 before the switch, ≤0.80 right after, ≥0.80 within 20,000 moves, frozen copy more than 0.20 below at 20,000 moves, on every seed. Source: Tools/ScholaRLToolsNative/CHASE-ADAPTATION.md.</p>
         <aside class="speaker-notes" data-time="Backup">Runs are deterministic; a second full run reproduced every CSV row. Seed 3 shares pre-switch training at 20k and 60k because the buffer never filled before the switch, and that snapshot already catches 0.72 on the new runner, which leaves little room for criterion 4.</aside>
       </section>
+
 
       <section class="slide references" id="references" aria-labelledby="references-heading" data-title="References" data-section="Backup">
         <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Backup / References</span></header>

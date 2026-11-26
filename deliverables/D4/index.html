@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Deliverable 4: Advanced NPCs for AMD Schola, final MVP presentation.">
+  <title>Schola · Deliverable 4</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="slideshow.js" defer></script>
+</head>
+<body>
+  <main id="deck" aria-label="Deliverable 4 presentation">
+    <div id="stage">
+      <!-- One <section> per slide. Keep ids stable: README.md links to them.
+           data-time is the speaking budget shown with the notes (N). Budgets total about 14.5 minutes,
+           leaving about 5 minutes of the 20-minute limit for questions.
+           Slides with class "slot" are reserved for a subteam: replace the slot with content and keep its budget. -->
+
+      <!-- ============ 1. INTRODUCTION (1:45) ============ -->
+      <section class="slide cover dark" id="title" aria-labelledby="title-heading" data-title="Advanced NPCs for AMD Schola" data-section="Introduction">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>CSC301 / Deliverable 04</span></header>
+        <div class="cover-content">
+          <div><p class="eyebrow">Team 9 · AMD</p><h1 id="title-heading">Advanced NPCs<br>for Schola<span class="accent">.</span></h1><p class="lead">Four kinds of NPC that Schola could not express,<br>built as reusable plugin modules.</p></div>
+          <div class="cover-mark" aria-hidden="true"><span>DELIVERABLE</span><strong>04</strong><span>FINAL MVP</span></div>
+        </div>
+        <div class="cover-meta"><span>Adaptive · Background · Shared Policy · Event</span><span>November 2026</span></div>
+        <aside class="speaker-notes" data-time="0:15">Introduce the team and the four NPC types in one sentence. Hand straight to the context slide.</aside>
+      </section>
+
+      <section class="slide" id="problem" aria-labelledby="problem-heading" data-title="The problem" data-section="Introduction">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Introduction / Deliverable 4</span></header>
+        <p class="eyebrow">Context</p>
+        <h2 id="problem-heading">Schola runs one trained policy,<br>one agent at a time.</h2>
+        <p class="intro">AMD Schola connects Unreal Engine games to reinforcement learning: train in Python, then run the model in the game. Four kinds of NPC that game developers asked for don't fit that model.</p>
+        <div class="card-grid" style="grid-template-columns: repeat(4, 1fr)">
+          <div><h3>Adaptive</h3><p>Keeps learning from the player after the game ships.</p></div>
+          <div><h3>Background</h3><p>Thousands of agents deciding within one frame budget.</p></div>
+          <div><h3>Shared Policy</h3><p>One network serving NPCs in different roles.</p></div>
+          <div><h3>Event</h3><p>Decides only when something happens in the game.</p></div>
+        </div>
+        <div class="takeaway"><span>Who it is for</span><p>Unreal developers and ML engineers who build NPCs with Schola.</p></div>
+        <aside class="speaker-notes" data-time="0:45">Schola is AMD's open-source Unreal plugin. Its existing loop trains a policy in Python over gRPC, exports ONNX, and runs one synchronous decision per agent per tick on the game thread. Each card is a need that loop can't serve: learning after training ends, scale within a frame budget, sharing one network across roles, and deciding only on events. These are the D1 user stories, unchanged.</aside>
+      </section>
+
+      <section class="slide" id="scope" aria-labelledby="scope-heading" data-title="What existed and what we built" data-section="Introduction">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Introduction / Deliverable 4</span></header>
+        <p class="eyebrow">Scope</p>
+        <h2 id="scope-heading">What Schola had, and what we added</h2>
+        <table class="comparison-table compact-table"><caption class="sr-only">Existing Schola capabilities and what this project added</caption>
+          <thead><tr><th scope="col" style="width:20%">Area</th><th scope="col">Already in Schola</th><th scope="col">Built by this project</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Learning</th><td>Python training over gRPC (SB3, RLlib), then a frozen ONNX model</td><td>SAC, TD3 and PPO learning inside the running game, in C++, with no Python process</td></tr>
+            <tr><th scope="row">Scheduling</th><td>Synchronous <i>Think</i> per agent on the game thread</td><td>Batched inference on worker threads for Actors and Mass entities; event-triggered decisions</td></tr>
+            <tr><th scope="row">Model structure</th><td>One ONNX policy per agent type</td><td>One shared network with role-specific heads; five designs benchmarked for latency and correctness</td></tr>
+            <tr><th scope="row">Proof</th><td>Unreal automation tests</td><td>Example games, benchmarks, adaptation experiments, and learner tests that run in CI without Unreal</td></tr>
+          </tbody>
+        </table>
+        <aside class="speaker-notes" data-time="0:45">The rubric checks that we separate our work from the partner's product. Left column is Schola as AMD shipped it; right column is ours. Agents, policies, steppers, spaces and the NNE runtime are Schola's. Every NPC type we built plugs into those existing interfaces rather than replacing them.</aside>
+      </section>
+
+      <!-- ============ 2. DEMO (4:45) ============ -->
+      <section class="slide dark divider" id="demo" aria-labelledby="demo-heading" data-title="Demo" data-section="Demo">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Demo / Deliverable 4</span></header>
+        <h2 id="demo-heading">Demo<span class="accent">.</span></h2>
+        <p class="intro">Four user flows, from the developer's side, live.</p>
+        <p class="divider-time">Adaptive · Background · Shared Policy · Event</p>
+        <aside class="speaker-notes" data-time="0:15">Say what the audience will see: one flow per NPC type, each from the developer's perspective. Keep each to its budget.</aside>
+      </section>
+
+      <section class="slide" id="demo-adaptive-change" aria-labelledby="demo-adaptive-change-heading" data-title="Adaptive: before and after" data-section="Demo">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Demo 1 / Adaptive NPCs</span></header>
+        <p class="eyebrow">Adaptive NPCs · what changed for developers</p>
+        <h2 id="demo-adaptive-change-heading">From a frozen model to an NPC that keeps learning</h2>
+        <div class="before-after">
+          <div class="before">
+            <span class="ba-label">Before · Schola as AMD shipped it</span>
+            <ol>
+              <li>Train the NPC in a separate Python program connected to the game.</li>
+              <li>Export what it learned as a fixed model file.</li>
+              <li>Ship that file. The NPC plays the same way forever; changing it means retraining and patching.</li>
+            </ol>
+          </div>
+          <div class="after">
+            <span class="ba-label">Now · with our adaptive NPCs</span>
+            <ol>
+              <li>The learner is built into the plugin. No Python, no second process.</li>
+              <li>Each NPC acts, gets a reward for how it went, and improves while the game runs.</li>
+              <li>Learning happens on background threads, so it never holds up a frame.</li>
+            </ol>
+          </div>
+        </div>
+        <div class="card-grid capability-grid">
+          <div><h3>Adapt to each player</h3><p>NPCs change strategy when the player changes theirs.</p></div>
+          <div><h3>Learn as a group</h3><p>A squad can pool its experience into one learner.</p></div>
+          <div><h3>Choose the algorithm</h3><p>SAC, TD3 or PPO, at any input and output size.</p></div>
+          <div><h3>Save, freeze, compare</h3><p>Checkpoint what an NPC learned, stop learning, or keep a frozen copy.</p></div>
+        </div>
+        <aside class="speaker-notes" data-time="0:30">Set up the demo in plain terms. Left: today a Schola NPC is trained offline in Python, exported to an ONNX file and shipped, so its behaviour is fixed. If players find a pattern it can't handle, it keeps failing until the developers retrain and patch. Right: we put a reinforcement-learning library, RLtools, inside the plugin in C++, so the NPC learns from its own outcomes while the game runs. The bottom row is what a developer can now do that they couldn't before. Then: "Here is what that looks like."</aside>
+      </section>
+
+      <section class="slide dark an-demo" id="demo-adaptive" aria-labelledby="demo-adaptive-heading" data-title="Demo: adaptive NPC" data-section="Demo">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Demo 1 / Adaptive NPCs</span></header>
+        <p class="eyebrow">User flow 1 · learning during gameplay</p>
+        <h2 id="demo-adaptive-heading">A chaser that adapts to a new runner</h2>
+        <div class="split demo-split">
+          <div>
+            <h3>The developer writes four things</h3>
+            <ol class="dev-steps">
+              <li><span>01</span><p>What the NPC sees: where it and the runner are, and how fast each moves</p></li>
+              <li><span>02</span><p>What it can do: which way and how fast to move</p></li>
+              <li><span>03</span><p>Its reward: closing in, and catching the runner</p></li>
+              <li><span>04</span><p>When a round ends: a catch or a time limit</p></li>
+            </ol>
+          </div>
+          <div>
+            <h3>What we run live</h3>
+            <ol class="dev-steps">
+              <li><span>A</span><p>The chaser learns to catch a runner that always turns right.</p></li>
+              <li><span>B</span><p>We freeze a copy, like a shipped model, and swap in a runner that flees to the corners.</p></li>
+              <li><span>C</span><p>Both struggle at first. Only the learner works out the new runner.</p></li>
+            </ol>
+          </div>
+        </div>
+        <div class="takeaway"><span>Watch for</span><p>Catch rate on the new runner: the learner climbs back above 0.80; the frozen copy stays near 0.20.</p></div>
+        <aside class="speaker-notes" data-time="1:00">Left column is the whole developer workload: in Unreal these are the IAgent and IAdaptiveAgent functions, all Blueprint-implementable, and one stepper call per tick runs the loop. Don't show code. Live: two minutes before the talk, start the plugin learner's chase run in a terminal so it reaches the switch around now. Point at the switch line (corner catch about 0.18), then the recovery lines above 0.80, then the PASS criterion lines. If the Unreal stepper test has passed on Windows by then, show it in the NativeLearning editor instead. Fallback if the laptop fails: walk through the committed log and the chart two slides on. Never play a recording without narrating it.</aside>
+      </section>
+
+      <section class="slide" id="demo-background" aria-labelledby="demo-background-heading" data-title="Demo: background NPCs" data-section="Demo">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Demo 2 / Background NPCs</span></header>
+        <div class="slot">
+          <span class="slot-owner">Background NPCs subteam · 1:00</span>
+          <h3 id="demo-background-heading">User flow 2: batch inference for a large crowd</h3>
+          <ul>
+            <li>What the developer sets up (policy paradigm, stepper or Mass processors), in one sentence</li>
+            <li>Live: CampusCrowd or BackgroundNPCs, toggling the API off and on</li>
+            <li>What to watch: frame rate and game-thread time with and without the API</li>
+            <li>The fallback if the live run fails, with a reason</li>
+          </ul>
+          <p class="slot-known">On record: 20,000 agents, 200,000 decisions/s, 60 FPS with the API versus 10.4 FPS without.</p>
+        </div>
+        <aside class="speaker-notes" data-time="1:00">Background subteam: replace this slot. Keep the demo from the user's perspective and within one minute.</aside>
+      </section>
+
+      <section class="slide" id="demo-shared" aria-labelledby="demo-shared-heading" data-title="Demo: shared policy NPCs" data-section="Demo">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Demo 3 / Shared Policy NPCs</span></header>
+        <div class="slot">
+          <span class="slot-owner">Shared Policy subteam · 1:00</span>
+          <h3 id="demo-shared-heading">User flow 3: one network, role-specific actions</h3>
+          <ul>
+            <li>What the developer configures: role heads and NPC-to-head bindings</li>
+            <li>Live: NPCs in different roles receiving their own actions from one batched call (Lyra integration if it is ready)</li>
+            <li>What to watch: one model call, correct routing per NPC</li>
+            <li>The fallback if the live run fails, with a reason</li>
+          </ul>
+          <p class="slot-known">On record: 48/48 Unreal NNE reports pass correctness; architecture C had lower request latency in 45/48 trials.</p>
+        </div>
+        <aside class="speaker-notes" data-time="1:00">Shared Policy subteam: replace this slot.</aside>
+      </section>
+
+      <section class="slide" id="demo-event" aria-labelledby="demo-event-heading" data-title="Demo: event NPCs" data-section="Demo">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Demo 4 / Event NPCs</span></header>
+        <div class="slot">
+          <span class="slot-owner">Event NPCs subteam · 1:00</span>
+          <h3 id="demo-event-heading">User flow 4: deciding only on a game event</h3>
+          <ul>
+            <li>What the developer connects: which event triggers inference</li>
+            <li>Live: an NPC idle until the event fires, then acting on the model's decision</li>
+            <li>What to watch: no inference between events</li>
+            <li>State whether the stepper is merged into main</li>
+          </ul>
+          <p class="slot-known">On record: UEventStepper prototype on branch feature/event, with a Blueprint demonstration.</p>
+        </div>
+        <aside class="speaker-notes" data-time="1:00">Event subteam: replace this slot.</aside>
+      </section>
+
+      <!-- ============ 3. TECHNICAL DISCUSSION (5:05) ============ -->
+      <section class="slide dark divider" id="technical" aria-labelledby="technical-heading" data-title="Technical discussion" data-section="Technical">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Technical discussion / Deliverable 4</span></header>
+        <h2 id="technical-heading">How it works<span class="accent">.</span></h2>
+        <p class="intro">One shared architecture, then the key design decision behind each NPC type.</p>
+        <p class="divider-time">Architecture · evidence · quality</p>
+        <aside class="speaker-notes" data-time="0:05">Transition only.</aside>
+      </section>
+
+      <section class="slide" id="architecture" aria-labelledby="architecture-heading" data-title="Shared architecture" data-section="Technical">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Architecture / Deliverable 4</span></header>
+        <p class="eyebrow">Architecture</p>
+        <h2 id="architecture-heading">Every NPC type is a new stepper or policy</h2>
+        <svg class="diagram" viewBox="0 0 1420 470" role="img" aria-labelledby="arch-title arch-desc">
+          <title id="arch-title">Shared architecture of the four NPC types</title>
+          <desc id="arch-desc">Game code sits on top. Below it, three Schola layers: the stepper decides when, the policy decides how, and the execution layer decides where. Each NPC type adds a box in one or more layers.</desc>
+          <rect x="0" y="0" width="1420" height="64" fill="#173d38"/>
+          <text x="710" y="40" text-anchor="middle" font-size="24" fill="#f5f3ec" font-weight="600">Game code: agents observe and act (IAgent; IAdaptiveAgent adds reward and episode end)</text>
+          <g font-size="19" fill="#50645c" font-weight="600" letter-spacing="1.5">
+            <text x="0" y="137">WHEN · stepper</text><text x="0" y="267">HOW · policy</text><text x="0" y="397">WHERE · execution</text>
+          </g>
+          <g font-size="20" fill="#50645c" font-weight="600" text-anchor="middle">
+            <text x="400" y="96">Adaptive</text><text x="660" y="96">Background</text><text x="920" y="96">Shared Policy</text><text x="1180" y="96">Event</text>
+          </g>
+          <g stroke="#173d38" stroke-width="2">
+            <rect x="285" y="108" width="230" height="64" fill="#e9b65c"/><rect x="545" y="108" width="230" height="64" fill="#e9b65c"/><rect x="805" y="108" width="230" height="64" fill="#e9b65c"/><rect x="1065" y="108" width="230" height="64" fill="#e9b65c"/>
+            <rect x="285" y="238" width="230" height="64" fill="#e9b65c"/><rect x="545" y="238" width="230" height="64" fill="#e9b65c"/><rect x="805" y="238" width="230" height="64" fill="#e9b65c"/><rect x="1065" y="238" width="230" height="64" fill="#f5f3ec"/>
+            <rect x="285" y="368" width="230" height="64" fill="#e9b65c"/><rect x="545" y="368" width="230" height="64" fill="#e9b65c"/><rect x="805" y="368" width="230" height="64" fill="#f5f3ec"/><rect x="1065" y="368" width="230" height="64" fill="#f5f3ec"/>
+          </g>
+          <g font-size="18" fill="#173d38" text-anchor="middle">
+            <text x="400" y="146">UAdaptiveStepper</text><text x="660" y="137">UBackgroundStepper</text><text x="660" y="159">Mass processors</text><text x="920" y="146">USharedPolicyStepper</text><text x="1180" y="146">UEventStepper</text>
+            <text x="400" y="276">URLToolsNPCPolicy</text><text x="660" y="267">UNPCInferencePolicy</text><text x="660" y="289">(Background)</text><text x="920" y="267">UNNESharedPolicy</text><text x="920" y="289">role heads</text><text x="1180" y="276">any Schola policy</text>
+            <text x="400" y="397">RLtools learner</text><text x="400" y="419">on a worker pool</text><text x="660" y="397">batch scheduler +</text><text x="660" y="419">NNE worker contexts</text><text x="920" y="406">Unreal NNE</text><text x="1180" y="406">caller's thread</text>
+          </g>
+          <g stroke="#50645c" stroke-width="2" marker-end="url(#arrow)">
+            <line x1="400" y1="172" x2="400" y2="234"/><line x1="660" y1="172" x2="660" y2="234"/><line x1="920" y1="172" x2="920" y2="234"/><line x1="1180" y1="172" x2="1180" y2="234"/>
+            <line x1="400" y1="302" x2="400" y2="364"/><line x1="660" y1="302" x2="660" y2="364"/><line x1="920" y1="302" x2="920" y2="364"/><line x1="1180" y1="302" x2="1180" y2="364"/>
+          </g>
+          <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#50645c"/></marker></defs>
+          <g font-size="17" fill="#50645c"><text x="0" y="160">Schola IStepper</text><text x="0" y="290">Schola IPolicy</text><text x="0" y="420">Unreal / NNE</text></g>
+        </svg>
+        <div class="legend-row"><span class="is-new">Built by this project</span><span class="is-existing">Existing Schola or Unreal</span></div>
+        <aside class="speaker-notes" data-time="0:40">Walk the diagram top to bottom once. Game code only implements agents. A stepper decides when NPCs decide, a policy decides how, and the bottom row is where the work runs. The key design choice: every NPC type is a new implementation of an existing Schola interface, so game code never touches RLtools, ONNX Runtime or worker threads, and the types compose. For example, the event stepper works with any policy. Each subteam's next slide zooms into its own column.</aside>
+      </section>
+
+      <section class="slide" id="tech-adaptive" aria-labelledby="tech-adaptive-heading" data-title="Adaptive: learning inside the game" data-section="Technical">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
+        <p class="eyebrow">Adaptive NPCs · design</p>
+        <h2 id="tech-adaptive-heading">The game never waits for the learner</h2>
+        <svg class="diagram" viewBox="0 0 1420 400" role="img" aria-labelledby="ad-title ad-desc">
+          <title id="ad-title">Adaptive NPC data flow</title>
+          <desc id="ad-desc">On the game thread, the stepper gets an action from the latest published policy and later submits the outcome. Outcomes go through a bounded queue to a worker, where RLtools trains and publishes a new immutable policy version that the next decision uses.</desc>
+          <rect x="0" y="0" width="1420" height="170" fill="#e7efe6"/><rect x="0" y="230" width="1420" height="170" fill="#efe9da"/>
+          <g font-size="18" font-weight="600" letter-spacing="1.5" fill="#50645c"><text x="20" y="32">GAME THREAD · every decision tick</text><text x="20" y="262">WORKER THREADS · never block a frame</text></g>
+          <g stroke="#173d38" stroke-width="2">
+            <rect x="40" y="62" width="250" height="84" fill="#f5f3ec"/><rect x="400" y="62" width="260" height="84" fill="#e9b65c"/><rect x="770" y="62" width="300" height="84" fill="#e9b65c"/>
+            <rect x="770" y="292" width="300" height="84" fill="#e9b65c"/><rect x="1150" y="292" width="240" height="84" fill="#e9b65c"/><rect x="1150" y="62" width="240" height="84" fill="#e9b65c"/>
+          </g>
+          <g font-size="20" fill="#173d38" text-anchor="middle">
+            <text x="165" y="98">NPC (agent)</text><text x="165" y="124" font-size="16" fill="#50645c">sees · acts · earns reward</text>
+            <text x="530" y="98">Adaptive stepper</text><text x="530" y="124" font-size="16" fill="#50645c">runs the loop each tick</text>
+            <text x="920" y="98">NPC policy</text><text x="920" y="124" font-size="16" fill="#50645c">answers at once · checks outcomes</text>
+            <text x="920" y="328">Learner (RLtools, C++)</text><text x="920" y="354" font-size="16" fill="#50645c">improves from recent outcomes</text>
+            <text x="1270" y="328">New version</text><text x="1270" y="354" font-size="16" fill="#50645c">published when ready</text>
+            <text x="1270" y="98">Latest version</text><text x="1270" y="124" font-size="16" fill="#50645c">used by the next decision</text>
+          </g>
+          <g stroke="#50645c" stroke-width="2.5" fill="none" marker-end="url(#arrow2)">
+            <line x1="290" y1="104" x2="396" y2="104"/><line x1="660" y1="104" x2="766" y2="104"/>
+            <line x1="920" y1="146" x2="920" y2="288"/><line x1="1070" y1="334" x2="1146" y2="334"/><line x1="1270" y1="292" x2="1270" y2="150"/><line x1="1150" y1="104" x2="1074" y2="104"/>
+          </g>
+          <defs><marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#50645c"/></marker></defs>
+          <g font-size="16" fill="#50645c"><text x="934" y="205">what happened → queue</text><text x="1284" y="205">swap in</text><text x="1078" y="92" text-anchor="start">action</text></g>
+        </svg>
+        <div class="takeaway"><span>Key decision</span><p>We first planned to reuse Schola's Python trainer, but a shipped game can't run one. Learning in C++ adds nothing to ship and no network delay, and it tests without Unreal. Cost: a new input or output size needs a rebuild.</p></div>
+        <aside class="speaker-notes" data-time="0:40">Follow the arrows once. The stepper asks the policy for an action, and the policy answers immediately from the latest published snapshot, so a decision never waits for training. The outcome goes through a bounded queue to a worker, where RLtools trains and publishes a new immutable version. Trade-offs: (1) native execution means a new observation or action size needs a C++ rebuild, which configuration assets automate; (2) a decision may use a policy a few versions old, and every outcome carries its version so attribution stays correct. Learners are independent by default; NPCs can opt into one shared learner per group.</aside>
+      </section>
+
+      <section class="slide" id="evidence-adaptive" aria-labelledby="evidence-adaptive-heading" data-title="Adaptive: proof that it adapts" data-section="Technical">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
+        <p class="eyebrow">Adaptive NPCs · evidence</p>
+        <h2 id="evidence-adaptive-heading">The learner recovers. A frozen model does not.</h2>
+        <div class="chart-layout">
+          <figure><svg class="chart" viewBox="0 0 900 430" role="img" aria-labelledby="chart-adapt-title chart-adapt-desc"><title id="chart-adapt-title">Catch rate on the new runner after the switch, replay 10k, seed 2</title><desc id="chart-adapt-desc">The learner rises from 0.18 to above 0.80 by about 11,000 moves and stays mostly between 0.8 and 1.0. The frozen snapshot stays at 0.18.</desc>
+<line x1="70" x2="750" y1="372.0" y2="372.0" stroke="#d6dccf" stroke-width="1"/><text x="58" y="378.0" text-anchor="end" class="tick">0.0</text>
+<line x1="70" x2="750" y1="302.4" y2="302.4" stroke="#d6dccf" stroke-width="1"/><text x="58" y="308.4" text-anchor="end" class="tick">0.2</text>
+<line x1="70" x2="750" y1="232.8" y2="232.8" stroke="#d6dccf" stroke-width="1"/><text x="58" y="238.8" text-anchor="end" class="tick">0.4</text>
+<line x1="70" x2="750" y1="163.2" y2="163.2" stroke="#d6dccf" stroke-width="1"/><text x="58" y="169.2" text-anchor="end" class="tick">0.6</text>
+<line x1="70" x2="750" y1="93.6" y2="93.6" stroke="#d6dccf" stroke-width="1"/><text x="58" y="99.6" text-anchor="end" class="tick">0.8</text>
+<line x1="70" x2="750" y1="24.0" y2="24.0" stroke="#d6dccf" stroke-width="1"/><text x="58" y="30.0" text-anchor="end" class="tick">1.0</text>
+<text x="70.0" y="402" text-anchor="middle" class="tick">0k</text>
+<text x="240.0" y="402" text-anchor="middle" class="tick">10k</text>
+<text x="410.0" y="402" text-anchor="middle" class="tick">20k</text>
+<text x="580.0" y="402" text-anchor="middle" class="tick">30k</text>
+<text x="750.0" y="402" text-anchor="middle" class="tick">40k</text>
+<text x="410.0" y="426" text-anchor="middle" class="axis-label">Moves after the switch to the corner runner</text>
+<text transform="rotate(-90)" x="-198" y="16" text-anchor="middle" class="axis-label">Catch rate</text>
+<line x1="410.0" x2="410.0" y1="24" y2="372" stroke="#50645c" stroke-width="2" stroke-dasharray="6 6"/><text x="418.0" y="358.1" class="note">20k-move window</text>
+<line x1="70" x2="750" y1="93.6" y2="93.6" stroke="#50645c" stroke-width="2" stroke-dasharray="2 6"/><text x="78" y="83.6" class="note">0.80 recovery threshold</text>
+<line x1="70" x2="753.0" y1="309.4" y2="309.4" stroke="#b86a1f" stroke-width="3"/>
+<polyline points="70.0,309.4 87.0,351.1 103.4,295.4 120.4,302.4 137.4,368.5 152.5,292.0 169.3,365.0 186.3,264.1 201.1,166.7 215.7,295.4 230.8,180.6 244.4,100.6 255.6,79.7 268.1,267.6 281.7,72.7 293.0,72.7 305.0,86.6 317.5,97.1 331.4,76.2 341.8,76.2 353.6,100.6 361.4,83.2 372.7,79.7 383.2,27.5 392.6,44.9 403.1,55.3 413.9,69.2 426.4,41.4 437.1,41.4 448.3,31.0 458.0,48.4 467.1,34.4 477.9,90.1 489.5,27.5 498.1,27.5 508.1,27.5 516.5,48.4 525.4,44.9 537.5,69.2 546.9,34.4 560.8,27.5 570.6,41.4 580.3,31.0 589.7,41.4 600.3,62.3 611.3,58.8 622.9,41.4 632.9,65.8 643.9,65.8 652.1,34.4 662.3,37.9 670.5,55.3 679.6,34.4 689.1,90.1 698.3,79.7 709.3,65.8 717.4,114.5 727.1,27.5 735.0,24.0 745.3,27.5 753.0,27.5" fill="none" stroke="#00806b" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="70.0" cy="309.4" r="9" fill="transparent"><title>0 moves: learner 0.18</title></circle>
+<circle cx="87.0" cy="351.1" r="9" fill="transparent"><title>1,000 moves: learner 0.06</title></circle>
+<circle cx="103.4" cy="295.4" r="9" fill="transparent"><title>1,965 moves: learner 0.22</title></circle>
+<circle cx="120.4" cy="302.4" r="9" fill="transparent"><title>2,965 moves: learner 0.20</title></circle>
+<circle cx="137.4" cy="368.5" r="9" fill="transparent"><title>3,965 moves: learner 0.01</title></circle>
+<circle cx="152.5" cy="292.0" r="9" fill="transparent"><title>4,853 moves: learner 0.23</title></circle>
+<circle cx="169.3" cy="365.0" r="9" fill="transparent"><title>5,844 moves: learner 0.02</title></circle>
+<circle cx="186.3" cy="264.1" r="9" fill="transparent"><title>6,844 moves: learner 0.31</title></circle>
+<circle cx="201.1" cy="166.7" r="9" fill="transparent"><title>7,710 moves: learner 0.59</title></circle>
+<circle cx="215.7" cy="295.4" r="9" fill="transparent"><title>8,570 moves: learner 0.22</title></circle>
+<circle cx="230.8" cy="180.6" r="9" fill="transparent"><title>9,458 moves: learner 0.55</title></circle>
+<circle cx="244.4" cy="100.6" r="9" fill="transparent"><title>10,258 moves: learner 0.78</title></circle>
+<circle cx="255.6" cy="79.7" r="9" fill="transparent"><title>10,916 moves: learner 0.84</title></circle>
+<circle cx="268.1" cy="267.6" r="9" fill="transparent"><title>11,652 moves: learner 0.30</title></circle>
+<circle cx="281.7" cy="72.7" r="9" fill="transparent"><title>12,452 moves: learner 0.86</title></circle>
+<circle cx="293.0" cy="72.7" r="9" fill="transparent"><title>13,117 moves: learner 0.86</title></circle>
+<circle cx="305.0" cy="86.6" r="9" fill="transparent"><title>13,822 moves: learner 0.82</title></circle>
+<circle cx="317.5" cy="97.1" r="9" fill="transparent"><title>14,556 moves: learner 0.79</title></circle>
+<circle cx="331.4" cy="76.2" r="9" fill="transparent"><title>15,375 moves: learner 0.85</title></circle>
+<circle cx="341.8" cy="76.2" r="9" fill="transparent"><title>15,987 moves: learner 0.85</title></circle>
+<circle cx="353.6" cy="100.6" r="9" fill="transparent"><title>16,685 moves: learner 0.78</title></circle>
+<circle cx="361.4" cy="83.2" r="9" fill="transparent"><title>17,142 moves: learner 0.83</title></circle>
+<circle cx="372.7" cy="79.7" r="9" fill="transparent"><title>17,804 moves: learner 0.84</title></circle>
+<circle cx="383.2" cy="27.5" r="9" fill="transparent"><title>18,424 moves: learner 0.99</title></circle>
+<circle cx="392.6" cy="44.9" r="9" fill="transparent"><title>18,979 moves: learner 0.94</title></circle>
+<circle cx="403.1" cy="55.3" r="9" fill="transparent"><title>19,595 moves: learner 0.91</title></circle>
+<circle cx="413.9" cy="69.2" r="9" fill="transparent"><title>20,232 moves: learner 0.87</title></circle>
+<circle cx="426.4" cy="41.4" r="9" fill="transparent"><title>20,964 moves: learner 0.95</title></circle>
+<circle cx="437.1" cy="41.4" r="9" fill="transparent"><title>21,595 moves: learner 0.95</title></circle>
+<circle cx="448.3" cy="31.0" r="9" fill="transparent"><title>22,252 moves: learner 0.98</title></circle>
+<circle cx="458.0" cy="48.4" r="9" fill="transparent"><title>22,825 moves: learner 0.93</title></circle>
+<circle cx="467.1" cy="34.4" r="9" fill="transparent"><title>23,361 moves: learner 0.97</title></circle>
+<circle cx="477.9" cy="90.1" r="9" fill="transparent"><title>23,996 moves: learner 0.81</title></circle>
+<circle cx="489.5" cy="27.5" r="9" fill="transparent"><title>24,676 moves: learner 0.99</title></circle>
+<circle cx="498.1" cy="27.5" r="9" fill="transparent"><title>25,182 moves: learner 0.99</title></circle>
+<circle cx="508.1" cy="27.5" r="9" fill="transparent"><title>25,770 moves: learner 0.99</title></circle>
+<circle cx="516.5" cy="48.4" r="9" fill="transparent"><title>26,264 moves: learner 0.93</title></circle>
+<circle cx="525.4" cy="44.9" r="9" fill="transparent"><title>26,786 moves: learner 0.94</title></circle>
+<circle cx="537.5" cy="69.2" r="9" fill="transparent"><title>27,500 moves: learner 0.87</title></circle>
+<circle cx="546.9" cy="34.4" r="9" fill="transparent"><title>28,051 moves: learner 0.97</title></circle>
+<circle cx="560.8" cy="27.5" r="9" fill="transparent"><title>28,870 moves: learner 0.99</title></circle>
+<circle cx="570.6" cy="41.4" r="9" fill="transparent"><title>29,447 moves: learner 0.95</title></circle>
+<circle cx="580.3" cy="31.0" r="9" fill="transparent"><title>30,015 moves: learner 0.98</title></circle>
+<circle cx="589.7" cy="41.4" r="9" fill="transparent"><title>30,569 moves: learner 0.95</title></circle>
+<circle cx="600.3" cy="62.3" r="9" fill="transparent"><title>31,197 moves: learner 0.89</title></circle>
+<circle cx="611.3" cy="58.8" r="9" fill="transparent"><title>31,841 moves: learner 0.90</title></circle>
+<circle cx="622.9" cy="41.4" r="9" fill="transparent"><title>32,522 moves: learner 0.95</title></circle>
+<circle cx="632.9" cy="65.8" r="9" fill="transparent"><title>33,110 moves: learner 0.88</title></circle>
+<circle cx="643.9" cy="65.8" r="9" fill="transparent"><title>33,756 moves: learner 0.88</title></circle>
+<circle cx="652.1" cy="34.4" r="9" fill="transparent"><title>34,243 moves: learner 0.97</title></circle>
+<circle cx="662.3" cy="37.9" r="9" fill="transparent"><title>34,839 moves: learner 0.96</title></circle>
+<circle cx="670.5" cy="55.3" r="9" fill="transparent"><title>35,322 moves: learner 0.91</title></circle>
+<circle cx="679.6" cy="34.4" r="9" fill="transparent"><title>35,861 moves: learner 0.97</title></circle>
+<circle cx="689.1" cy="90.1" r="9" fill="transparent"><title>36,418 moves: learner 0.81</title></circle>
+<circle cx="698.3" cy="79.7" r="9" fill="transparent"><title>36,957 moves: learner 0.84</title></circle>
+<circle cx="709.3" cy="65.8" r="9" fill="transparent"><title>37,606 moves: learner 0.88</title></circle>
+<circle cx="717.4" cy="114.5" r="9" fill="transparent"><title>38,081 moves: learner 0.74</title></circle>
+<circle cx="727.1" cy="27.5" r="9" fill="transparent"><title>38,650 moves: learner 0.99</title></circle>
+<circle cx="735.0" cy="24.0" r="9" fill="transparent"><title>39,120 moves: learner 1.00</title></circle>
+<circle cx="745.3" cy="27.5" r="9" fill="transparent"><title>39,721 moves: learner 0.99</title></circle>
+<circle cx="753.0" cy="27.5" r="9" fill="transparent"><title>40,179 moves: learner 0.99</title></circle>
+<text x="765.0" y="33.5" class="series" fill="#173d38"><tspan fill="#00806b">■</tspan> Learner</text>
+<text x="765.0" y="315.4" class="series" fill="#173d38"><tspan fill="#b86a1f">■</tspan> Frozen copy</text><text x="765.0" y="339.4" class="tick">(no learning)</text>
+</svg><figcaption>Share of 100 fixed starting positions where the chaser catches the new runner. One run, seed 2.</figcaption></figure>
+          <div class="side-facts">
+            <div><strong>6 / 6</strong><span>runs, each with its own random seed, pass all five pass/fail criteria we fixed in D3</span></div>
+            <div><strong>4–14k</strong><span>moves to win back a 0.80 catch rate; the target was under 20k</span></div>
+            <div><strong>2 / 3</strong><span>pass when it remembers 60k past moves instead of 10k: old habits slow it down, so 10k is the default</span></div>
+          </div>
+        </div>
+        <aside class="speaker-notes" data-time="0:40">Point at the switch on the left, where the learner starts at 0.18 like its frozen copy, then at the recovery above the 0.80 line well before the 20,000-move window. The frozen copy is the control; a rising curve alone doesn't prove adaptation. Criteria were fixed in D3 and never loosened, and the comparison is in whole percentage points, so a gap of exactly 0.20 fails. Honest limits: after recovery the curve still dips (one seed down to 0.54), and we don't have a stability criterion yet. The Unreal version of this test is written but not yet run on Windows. Source: Tools/ScholaRLToolsNative/CHASE-ADAPTATION.md.</aside>
+      </section>
+
+      <section class="slide" id="scaling-adaptive" aria-labelledby="scaling-adaptive-heading" data-title="Adaptive: what limits scale" data-section="Technical">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
+        <p class="eyebrow">Adaptive NPCs · scaling</p>
+        <h2 id="scaling-adaptive-heading">Decisions stay cheap; learning speed sets the limit</h2>
+        <div class="chart-layout">
+          <figure><svg class="chart" viewBox="0 0 900 430" role="img" aria-labelledby="chart-scale-title chart-scale-desc"><title id="chart-scale-title">One shared learner: updates per second needed versus achieved</title><desc id="chart-scale-desc">Needed grows linearly with NPCs at 10 decisions per second. Achieved matches it up to 50 NPCs, then flattens near 910 updates per second.</desc>
+<line x1="90" x2="730" y1="372.0" y2="372.0" stroke="#d6dccf"/><text x="78" y="378.0" text-anchor="end" class="tick">0</text>
+<line x1="90" x2="730" y1="285.0" y2="285.0" stroke="#d6dccf"/><text x="78" y="291.0" text-anchor="end" class="tick">500</text>
+<line x1="90" x2="730" y1="198.0" y2="198.0" stroke="#d6dccf"/><text x="78" y="204.0" text-anchor="end" class="tick">1,000</text>
+<line x1="90" x2="730" y1="111.0" y2="111.0" stroke="#d6dccf"/><text x="78" y="117.0" text-anchor="end" class="tick">1,500</text>
+<line x1="90" x2="730" y1="24.0" y2="24.0" stroke="#d6dccf"/><text x="78" y="30.0" text-anchor="end" class="tick">2,000</text>
+<text x="90.0" y="402" text-anchor="middle" class="tick">0</text>
+<text x="250.0" y="402" text-anchor="middle" class="tick">50</text>
+<text x="410.0" y="402" text-anchor="middle" class="tick">100</text>
+<text x="570.0" y="402" text-anchor="middle" class="tick">150</text>
+<text x="730.0" y="402" text-anchor="middle" class="tick">200</text>
+<text x="410.0" y="426" text-anchor="middle" class="axis-label">NPCs sharing one learner (10 decisions/s each)</text>
+<text transform="rotate(-90)" x="-198" y="16" text-anchor="middle" class="axis-label">Learning steps per second</text>
+<polyline points="93.2,370.3 122.0,354.6 170.0,328.5 250.0,285.0 410.0,198.0 730.0,24.0" fill="none" stroke="#b86a1f" stroke-width="3" stroke-dasharray="10 8"/>
+<polyline points="93.2,370.3 122.0,354.6 170.0,328.5 250.0,285.0 410.0,214.0 730.0,212.8" fill="none" stroke="#00806b" stroke-width="3" stroke-linejoin="round"/>
+<circle cx="93.2" cy="370.3" r="5" fill="#00806b" stroke="#f5f3ec" stroke-width="2"><title>1 NPCs: 10 updates/s achieved, 10 needed</title></circle>
+<circle cx="122.0" cy="354.6" r="5" fill="#00806b" stroke="#f5f3ec" stroke-width="2"><title>10 NPCs: 100 updates/s achieved, 100 needed</title></circle>
+<circle cx="170.0" cy="328.5" r="5" fill="#00806b" stroke="#f5f3ec" stroke-width="2"><title>25 NPCs: 250 updates/s achieved, 250 needed</title></circle>
+<circle cx="250.0" cy="285.0" r="5" fill="#00806b" stroke="#f5f3ec" stroke-width="2"><title>50 NPCs: 500 updates/s achieved, 500 needed</title></circle>
+<circle cx="410.0" cy="214.0" r="5" fill="#00806b" stroke="#f5f3ec" stroke-width="2"><title>100 NPCs: 908 updates/s achieved, 1,000 needed</title></circle>
+<circle cx="730.0" cy="212.8" r="5" fill="#00806b" stroke="#f5f3ec" stroke-width="2"><title>200 NPCs: 915 updates/s achieved, 2,000 needed</title></circle>
+<text x="742.0" y="30.0" class="series" fill="#173d38"><tspan fill="#b86a1f">■</tspan> Needed</text>
+<text x="742.0" y="218.8" class="series" fill="#173d38"><tspan fill="#00806b">■</tspan> Achieved</text>
+</svg><figcaption>Learning steps per second for one shared learner on one background thread. Each decision needs one step.</figcaption></figure>
+          <div class="side-facts">
+            <div><strong>5–11 µs</strong><span>per NPC decision on the game thread, out of a 16,700 µs frame at 60 FPS</span></div>
+            <div><strong>60–90</strong><span>NPCs one shared learner keeps up with. Past that they still act, but adapt more slowly; split them into more groups</span></div>
+            <div><strong>8.6 MB</strong><span>of memory per independent learner, mostly its stored experience</span></div>
+          </div>
+        </div>
+        <aside class="speaker-notes" data-time="0:25">The game thread is cheap at every size. The limit is training: one learner trains serially at about 650 to 900 updates per second, so past roughly 60 to 90 NPCs the backlog grows. NPCs keep acting; they just adapt more slowly. Independent learners scale with worker threads at about 750 updates per second each, at 8.6 MB per learner. Measured on one Apple M5 Pro without Unreal; in-engine, the world service also caps concurrent workers. Source: SCALING.md.</aside>
+      </section>
+
+      <section class="slide" id="tech-background" aria-labelledby="tech-background-heading" data-title="Background: design" data-section="Technical">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Background NPCs / Deliverable 4</span></header>
+        <div class="slot">
+          <span class="slot-owner">Background NPCs subteam · 0:35</span>
+          <h3 id="tech-background-heading">Design: batching on workers without blocking the frame</h3>
+          <ul>
+            <li>A diagram of the scheduler path: gather rows, batch, run on workers, apply on a later frame (Docs/Diagrams/background-npc-architecture.svg)</li>
+            <li>The key decision and its trade-off: one frame of action latency for a 60 FPS frame budget</li>
+            <li>One measured result with its environment</li>
+          </ul>
+          <p class="slot-known">No code screenshots. Walk the diagram; don't just show it.</p>
+        </div>
+        <aside class="speaker-notes" data-time="0:35">Background subteam: replace this slot.</aside>
+      </section>
+
+      <section class="slide" id="tech-shared" aria-labelledby="tech-shared-heading" data-title="Shared Policy: design" data-section="Technical">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Shared Policy NPCs / Deliverable 4</span></header>
+        <div class="slot">
+          <span class="slot-owner">Shared Policy subteam · 0:35</span>
+          <h3 id="tech-shared-heading">Design: choosing a shared-network architecture</h3>
+          <ul>
+            <li>A diagram of the chosen architecture and how actions route to roles (deliverables/D3/assets/shared-policy-architectures.svg)</li>
+            <li>Why C or D, the correctness gate, and the measured latency difference</li>
+            <li>What changed for D4 (memory comparison, Lyra integration)</li>
+          </ul>
+          <p class="slot-known">No code screenshots. Walk the diagram; don't just show it.</p>
+        </div>
+        <aside class="speaker-notes" data-time="0:35">Shared Policy subteam: replace this slot.</aside>
+      </section>
+
+      <section class="slide" id="tech-event" aria-labelledby="tech-event-heading" data-title="Event: design" data-section="Technical">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Event NPCs / Deliverable 4</span></header>
+        <div class="slot">
+          <span class="slot-owner">Event NPCs subteam · 0:35</span>
+          <h3 id="tech-event-heading">Design: inference on demand</h3>
+          <ul>
+            <li>A diagram from a gameplay event to Observe, BatchedThink and Act</li>
+            <li>The key decision: how events subscribe and unsubscribe, and why</li>
+            <li>What is tested and what is not</li>
+          </ul>
+          <p class="slot-known">No code screenshots. Walk the diagram; don't just show it.</p>
+        </div>
+        <aside class="speaker-notes" data-time="0:35">Event subteam: replace this slot.</aside>
+      </section>
+
+      <section class="slide" id="quality" aria-labelledby="quality-heading" data-title="Testing, CI and deployment" data-section="Technical">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Engineering quality / Deliverable 4</span></header>
+        <p class="eyebrow">DevOps and automated testing</p>
+        <h2 id="quality-heading">Tested where it can run</h2>
+        <div class="split" style="grid-template-columns: 1.6fr 1fr; gap: 48px">
+          <table class="comparison-table compact-table"><caption class="sr-only">Automated tests by component and where they run</caption>
+            <thead><tr><th scope="col" style="width:38%">Component</th><th scope="col">Automated tests</th><th scope="col" style="width:26%">Runs</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">Adaptive learner</th><td>460 learner and checkpoint checks</td><td><span class="status-pill status-ok">CI</span> every PR</td></tr>
+              <tr><th scope="row">Chase simulator</th><td>7 smoke checks</td><td><span class="status-pill status-ok">CI</span> every PR</td></tr>
+              <tr><th scope="row">Adaptive in Unreal</th><td>Policy, stepper, world service; script fails on a missing test</td><td>Local script</td></tr>
+              <tr><th scope="row">Background and Mass</th><td>43 automation tests</td><td>Local script</td></tr>
+              <tr><th scope="row">Shared Policy</th><td>pytest; 48 NNE reports gated on correctness</td><td>Local script</td></tr>
+            </tbody>
+          </table>
+          <div class="slot" style="padding: 24px 32px">
+            <span class="slot-owner">Team · deployment</span>
+            <h3 style="font-size:27px">Dev and release environments</h3>
+            <ul><li>What deploys automatically to dev, and when</li><li>What deploys to release, and when</li><li>Where the partner downloads each</li></ul>
+          </div>
+        </div>
+        <div class="takeaway"><span>Constraint</span><p>Hosted runners have no Unreal, so everything that builds without the engine runs in CI.</p></div>
+        <aside class="speaker-notes" data-time="0:25">Every job has a 5-minute timeout and narrow path triggers to stay inside the Actions budget. Unreal automation runs through local scripts that check every registered test reported a result. PRs need a teammate's review before merge. Fill the deployment box once the dev and release workflow is merged; don't claim it before then.</aside>
+      </section>
+
+      <section class="slide" id="nfr" aria-labelledby="nfr-heading" data-title="Non-functional requirements" data-section="Technical">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Engineering quality / Deliverable 4</span></header>
+        <p class="eyebrow">Non-functional requirements</p>
+        <h2 id="nfr-heading">Fast, bounded and checked</h2>
+        <table class="comparison-table compact-table"><caption class="sr-only">Non-functional requirements, responses and evidence</caption>
+          <thead><tr><th scope="col" style="width:22%">Concern</th><th scope="col">Response</th><th scope="col" style="width:30%">Measured</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Frame budget</th><td>Model calls and training run on workers; the game thread only gathers and applies</td><td>1.6 ms/frame for 20,000 agents; 5–11 µs per adaptive decision</td></tr>
+            <tr><th scope="row">Bounded resources</th><td>Fixed queue, row, byte and replay limits; overload is rejected and counted</td><td>8.6 MB per adaptive learner; zero dropped requests at 200k decisions/s</td></tr>
+            <tr><th scope="row">Correctness</th><td>Outcomes must match their decision; shared-policy results gated on an oracle</td><td>Attribution tests; 48/48 NNE reports correct</td></tr>
+            <tr><th scope="row">Reliability</th><td>Atomic, validated checkpoints; teardown with work in flight is tested</td><td>A failed load leaves the learner unchanged</td></tr>
+          </tbody>
+        </table>
+        <aside class="speaker-notes" data-time="0:20">These are the concerns that matter for a game runtime library: frame time, memory, correct results and safe failure. Scheduling is cooperative, so we make no hard real-time guarantee. Full evidence links are in the README's Non-functional requirements section. Subteams: correct any number here that changed for D4.</aside>
+      </section>
+
+      <!-- ============ 4. ACCESS (2:00) ============ -->
+      <section class="slide" id="access" aria-labelledby="access-heading" data-title="Accessing and maintaining it" data-section="Access">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Access and handoff / Deliverable 4</span></header>
+        <p class="eyebrow">Accessing the product</p>
+        <h2 id="access-heading">How AMD gets, runs and maintains it</h2>
+        <div class="three-columns workflow">
+          <div><span class="step-number">01</span><h3 style="color:var(--ink)">Get it</h3><p>The D4 GitHub release of the plugin source. Add it to a project as Plugins/Schola and build with Unreal Engine 5.8.</p></div>
+          <div><span class="step-number">02</span><h3 style="color:var(--ink)">Run it</h3><p>The README's core workflows: one per NPC type, each with commands and an example project.</p></div>
+          <div><span class="step-number">03</span><h3 style="color:var(--ink)">Maintain it</h3><p>DEVELOPMENT.md: layout, every test command with its expected result, extension points and ranked open work.</p></div>
+        </div>
+        <div class="takeaway"><span>Handoff</span><p>Merged main and the D4 release, plus a walkthrough of the maintainer guide with AMD.</p></div>
+        <aside class="speaker-notes" data-time="2:00">Keep this short and point to the documents rather than reading them. Schola is a source-distributed plugin, so there is no hosted URL; the release is the product. Adaptive learning needs no Python service or downloaded model. At the end of term we hand over the merged repository, the tagged release and the maintainer guide, and walk AMD's team through it. Then say how the partner reaches each environment: the dev pre-release for the latest main, the D4 release for the submitted version. Mention those only once the deployment workflow is live. Close with who to contact for questions after the term and where open work is ranked (DEVELOPMENT.md, Open work).</aside>
+      </section>
+
+      <!-- ============ 5. KEY LEARNINGS (1:30) ============ -->
+      <section class="slide" id="learnings" aria-labelledby="learnings-heading" data-title="Key learnings" data-section="Learnings">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Key learnings / Deliverable 4</span></header>
+        <p class="eyebrow">If we did it again</p>
+        <h2 id="learnings-heading">What we would change, and why</h2>
+        <div class="card-grid">
+          <div><h3>Pick the stack from the shipping constraint</h3><p>We planned gRPC to a Python trainer. A shipped game can't carry one, so we moved to native C++ and rewrote the integration.</p><p class="because">Partner need → tech stack → what we could test.</p></div>
+          <div><h3>Fix the experiment before tuning</h3><p>A frozen-copy control and criteria fixed in advance exposed what learning curves hid: the inherited 60k replay buffer adapted too slowly.</p><p class="because">Evaluation design → product default.</p></div>
+          <div><h3>Make the core testable off-engine</h3><p>Course CI can't run Unreal, and several of us develop on macOS. An engine-free learner build put it in CI. We'd do it in week 1.</p><p class="because">Platform → process → quality.</p></div>
+        </div>
+        <div class="slot" style="flex:0 0 auto; padding: 16px 32px; margin-top: 24px">
+          <span class="slot-owner">Other subteams · one technical learning each, with its cause and effect</span>
+        </div>
+        <aside class="speaker-notes" data-time="1:30">Technical learnings score above process ones, and multi-dimensional thinking is what earns full marks, so name the chain on each card. 1: D1 planned gRPC to Python; the partner's need for learning in a shipped game made a separate Python process unacceptable, which drove the move to RLtools in C++. That change is also what made the learner testable without Unreal. 2: Without a frozen-copy control and fixed criteria we would have shipped chase_sim's 60k replay buffer; the controlled runs showed 2 of 3 seeds passing versus 6 of 6 at 10k. 3: Our Unreal C++ can only be verified on Windows, which slowed review. An engine-free build from the start would have put the numerics under CI from day one.</aside>
+      </section>
+
+      <!-- ============ 6. QUESTIONS ============ -->
+      <section class="slide dark an-questions" id="questions" aria-labelledby="questions-heading" data-title="Questions" data-section="Questions">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Questions / Deliverable 4</span></header>
+        <h2 id="questions-heading">Questions<span class="accent">.</span></h2>
+        <p class="an-statement">Four NPC types, one Schola architecture.</p>
+        <div class="closing-links"><p><a href="../../README.md">README</a></p><p><a href="../../DEVELOPMENT.md">Maintainer guide</a></p><p>Team 9 · AMD Schola</p></div>
+        <aside class="speaker-notes" data-time="About 5:00">Answer directly and say "we didn't measure that" when it's true. Backup slides follow: adaptive per-seed results and references. Adaptive questions to expect: why SAC by default (continuous actions, replay makes it sample-efficient); why not keep Python (shipping and per-decision latency); what happens when training falls behind (NPCs keep acting on the latest policy; adaptation slows); how attribution works (each outcome carries session, agent, episode, decision and policy version).</aside>
+      </section>
+
+      <!-- ============ BACKUP ============ -->
+      <section class="slide" id="backup-adaptive" aria-labelledby="backup-adaptive-heading" data-title="Backup: adaptive per-seed results" data-section="Backup">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Backup / Adaptive NPCs</span></header>
+        <p class="eyebrow">Backup · chase adaptation on the plugin learner</p>
+        <h2 id="backup-adaptive-heading">Per-seed results by replay size</h2>
+        <table class="comparison-table compact-table"><caption class="sr-only">Chase adaptation results for each replay size</caption>
+          <thead><tr><th scope="col">Replay</th><th scope="col">Seeds passing 1–4</th><th scope="col">Recovery to 0.80 (moves)</th><th scope="col">Failing seed</th><th scope="col">After window: min · final</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">10k (shipped)</th><td>6 / 6</td><td>4,396 – 13,999</td><td>none</td><td>0.54–0.81 · 0.88–1.00</td></tr>
+            <tr><th scope="row">20k</th><td>5 / 6</td><td>7,668 – 17,473</td><td>seed 3: gap exactly 0.20</td><td>0.59–0.82 · 0.78–1.00</td></tr>
+            <tr><th scope="row">60k (chase_sim)</th><td>2 / 3</td><td>12,469 – 19,602</td><td>seed 3: gap 0.05</td><td>0.36–0.77 · 0.69–0.99</td></tr>
+          </tbody>
+        </table>
+        <p class="source-line">Criteria: ≥0.50 before the switch, ≤0.80 right after, ≥0.80 within 20,000 moves, frozen copy more than 0.20 below at 20,000 moves, on every seed. Source: Tools/ScholaRLToolsNative/CHASE-ADAPTATION.md.</p>
+        <aside class="speaker-notes" data-time="Backup">Runs are deterministic; a second full run reproduced every CSV row. Seed 3 shares pre-switch training at 20k and 60k because the buffer never filled before the switch, and that snapshot already catches 0.72 on the new runner, which leaves little room for criterion 4.</aside>
+      </section>
+
+      <section class="slide references" id="references" aria-labelledby="references-heading" data-title="References" data-section="Backup">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Backup / References</span></header>
+        <h2 id="references-heading">References</h2>
+        <div class="split">
+          <ol class="reference-list">
+            <li><a href="../../README.md">README: core workflows, NFRs, limitations</a></li>
+            <li><a href="../../DEVELOPMENT.md">Maintainer guide</a></li>
+            <li><a href="../../Tools/ScholaRLToolsNative/CHASE-ADAPTATION.md">Chase adaptation on the plugin learner</a></li>
+            <li><a href="../../Tools/ScholaRLToolsNative/SCALING.md">Adaptive scaling benchmark</a></li>
+            <li><a href="../../Docs/Sphinx/guides/adaptive_stepper.rst">Adaptive stepper guide</a></li>
+          </ol>
+          <ol class="reference-list" start="6">
+            <li><a href="../D3/README.md">Deliverable 3</a></li>
+            <li><a href="../D1/planning.md">D1 user stories</a></li>
+            <li class="placeholder">Background, Shared Policy and Event references: add here</li>
+          </ol>
+        </div>
+        <aside class="speaker-notes" data-time="Backup">Links are relative to the repository.</aside>
+      </section>
+
+    </div>
+  </main>
+
+  <footer class="controls" aria-label="Presentation controls">
+    <div class="controls-left"><span class="deck-name">SCHOLA / D4</span><span id="section-name"></span></div>
+    <div class="slide-navigation"><button id="previous" type="button" aria-label="Previous slide" title="Previous slide (Left arrow)">&#8592;</button><output id="slide-count" aria-live="polite" aria-atomic="true"></output><button id="next" type="button" aria-label="Next slide" title="Next slide (Right arrow)">&#8594;</button></div>
+    <div class="controls-right"><button id="overview-button" type="button" title="Slide overview (O)">Overview</button><button id="notes-button" type="button" title="Speaker notes (N)" aria-pressed="false" aria-controls="notes-panel">Notes</button><button id="fullscreen" type="button" title="Fullscreen (F)">Fullscreen</button><button id="help-button" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">?</button></div>
+    <div class="progress-track" aria-hidden="true"><div id="progress"></div></div>
+  </footer>
+
+  <aside id="notes-panel" class="notes-panel" aria-labelledby="notes-heading" hidden><div class="panel-header"><h2 id="notes-heading">Speaker notes</h2><button id="close-notes" type="button" aria-label="Close speaker notes">Close</button></div><p id="notes-time"></p><p id="notes-text"></p><p class="notes-warning">Notes appear in this browser window and are visible if you share it.</p></aside>
+  <dialog id="overview-dialog" aria-labelledby="overview-heading"><div class="panel-header"><div><p class="dialog-kicker">SCHOLA / D4</p><h2 id="overview-heading">Slide overview</h2></div><button type="button" data-close-dialog>Close</button></div><nav id="slide-list" aria-label="Jump to slide"></nav></dialog>
+  <dialog id="help-dialog" aria-labelledby="help-heading"><div class="panel-header"><h2 id="help-heading">Keyboard shortcuts</h2><button type="button" data-close-dialog>Close</button></div><dl class="shortcuts"><dt>Right / Down / Space / Page Down</dt><dd>Next slide</dd><dt>Left / Up / Shift + Space / Page Up</dt><dd>Previous slide</dd><dt>Home / End</dt><dd>First / last slide</dd><dt>O</dt><dd>Slide overview</dd><dt>N</dt><dd>Toggle speaker notes</dd><dt>F</dt><dd>Toggle fullscreen</dd><dt>?</dt><dd>Show shortcuts</dd><dt>Escape</dt><dd>Close notes or dialog</dd></dl><p>Print from your browser to export all slides as a PDF.</p></dialog>
+  <p id="status" class="sr-only" role="status"></p>
+  <noscript><p class="no-script">JavaScript is off. All slides are shown below in order. Enable it for slideshow controls.</p></noscript>
+</body>
+</html>

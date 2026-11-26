@@ -9,6 +9,7 @@
 #include "MassEntityTypes.h"
 #include "Inference/BackgroundInferenceTypes.h"
 #include "CrowdTypes.h"
+#include "CampusMigrationDay.h"
 #include "CrowdComparisonHost.generated.h"
 
 class ACampusScene;
@@ -86,8 +87,15 @@ public:
 
     void SetMode(ECrowdInferenceMode NewMode);
     ECrowdInferenceMode GetMode() const { return Mode; }
+    bool IsNavigationMapView() const { return bNavigationMapView; }
+    bool ShowsRoutes() const { return bShowRoutes; }
+    bool IsSplitDemo() const { return bSplitDemo && Error.IsEmpty(); }
+    bool IsFourDemo() const { return bFourDemo; }
+    const ACampusScene* GetCampus() const { return Campus; }
+    const TBitArray<>& GetActiveDestinations() const { return ActiveDestinations; }
     int32 GetAgentCount() const { return Entities.Num(); }
     double GetTargetDecisionsPerSecond() const { return Entities.Num() / PeriodSeconds; }
+    const FCampusMigrationDay* GetMigrationDay() const { return MigrationDay.Get(); }
     const FCrowdDisplayStats& GetDisplayStats() const { return Display; }
     const FString& GetError() const { return Error; }
     double GetCaptureProgress(FString& OutPhase) const;
@@ -100,18 +108,26 @@ private:
     UPROPERTY() TObjectPtr<ACampusScene> Campus;
     UPROPERTY() TObjectPtr<ACameraActor> CampusCamera;
     int32 CameraPreset = 0;
+    int32 NavigationGateView = INDEX_NONE;
     int32 PreviousCameraPreset = -1;
     double CameraPanStarted = 0;
     /** Length of the preset-4 camera flight; -FlightSeconds=S. */
     double FlightSeconds = 10;
+    bool bNavigationMapView = false;
     bool bShowRoutes = false;
     bool bScreenshotTaken = false;
     bool bPaused = false;
+    bool bSplitDemo = false, bFourDemo = false, bSwitchingDemo = false;
+    TBitArray<> ActiveDestinations;
+    TArray<int32> StudentColorKeys;
+    void UpdateDestinationColors();
     void UpdateCamera(float DeltaSeconds);
     void KeepCrowdVisible();
     bool LoadPolicy();
     void BuildScene();
-    bool SpawnCrowd();
+    void UpdateMigrationSchedules(bool bScheduleWalking);
+    void TickMigration(float DeltaSeconds, double Now, double FrameMs);
+    void CaptureMigrationPerformance(double Now, double FrameMs, double InferenceMs, double MovementMs);
     void RunInference(float DeltaSeconds);
     void UpdateDisplay(double Now, double FrameMs, double InferenceMs, double MoveMs);
     void WriteReport();
@@ -135,6 +151,10 @@ private:
     TSharedPtr<FNPCBackgroundScheduler, ESPMode::ThreadSafe> Scheduler;
     TArray<FMassEntityHandle> Entities;
     TArray<FTransform> Transforms;
+    TUniquePtr<FCampusMigrationDay> MigrationDay;
+    float MigrationTimeScale = 1, MigrationFixedStep = 0;
+    TArray<int32> ScheduledMigrationGenerations, ScheduledTurnStudents;
+    bool bExitAfterMigration = false;
     ECrowdInferenceMode Mode = ECrowdInferenceMode::Background;
     FCrowdFrameCounters Counters;
     FCrowdDisplayStats Display;
@@ -145,6 +165,7 @@ private:
     // Rolling one-second display window.
     double WindowStart = 0, PreviousTick = 0;
     int32 WindowFrames = 0;
+    double WindowMigrationDemand = 0;
     double WindowFrameMs = 0, WindowInferenceMs = 0, WindowMoveMs = 0;
     FCrowdLosses WindowLossStart, ModeLossStart;
     FCrowdFrameCounters WindowCounters;
@@ -158,5 +179,9 @@ private:
     TArray<double> CaptureFrameMs, CaptureInferenceMs, CaptureMoveMs;
     FCrowdLosses CaptureLossStart;
     FCrowdFrameCounters CaptureCounters;
+    FCampusPlanningStats CapturePlanningStart;
+    int64 MigrationDecisionStart = 0, CaptureSyncCallsStart = 0, WindowTurnRequests = 0;
+    FCampusTurnStats CaptureTurnStart;
+    double MigrationWalkingSeconds = 0, MigrationExpectedDecisions = 0;
     FNPCBackgroundStats CaptureSchedulerStart;
 };

@@ -21,10 +21,18 @@ public:
     virtual void OnConstruction(const FTransform& Transform) override;
     virtual void BeginPlay() override;
     bool LoadCampus();
+    bool LoadDestinationHighlights(const TMap<FString, int32>& BuildingKeys, FString& Error);
+    void SetActiveDestinations(const TBitArray<>& Active);
+    TConstArrayView<FVector2f> GetDestinationFootprint(int32 Building) const { return DestinationFootprints[Building]; }
+    FVector2f MapOrigin = FVector2f::ZeroVector;
+    FVector2f MapSize = FVector2f::ZeroVector;
     TArray<FCampusNode> Nodes;
     float Extent = 80000;
     int32 BuildingCount = 0;
     FString LoadError;
 private:
     UPROPERTY(VisibleAnywhere, Transient) TObjectPtr<UProceduralMeshComponent> Mesh;
+    UPROPERTY(Transient) TObjectPtr<UProceduralMeshComponent> DestinationMesh;
+    TArray<TArray<FVector2f>> DestinationFootprints;
+    TBitArray<> VisibleDestinations;
 };

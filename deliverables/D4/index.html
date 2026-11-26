@@ -988,11 +988,11 @@ if (MigrationDay)
           <table class="comparison-table compact-table"><caption class="sr-only">Automated tests by component and where they run</caption>
             <thead><tr><th scope="col" style="width:38%">Component</th><th scope="col">Automated tests</th><th scope="col" style="width:26%">Runs</th></tr></thead>
             <tbody>
-              <tr><th scope="row">Adaptive learner</th><td>460 learner and checkpoint checks</td><td><span class="status-pill status-ok">CI</span> every PR</td></tr>
-              <tr><th scope="row">Chase simulator</th><td>7 smoke checks</td><td><span class="status-pill status-ok">CI</span> every PR</td></tr>
-              <tr><th scope="row">Adaptive in Unreal</th><td>Policy, stepper, world service; script fails on a missing test</td><td>Local script</td></tr>
+              <tr><th scope="row">Adaptive learner</th><td>460 learner and checkpoint checks</td><td><span class="status-pill status-ok">CI</span> path-filtered</td></tr>
+              <tr><th scope="row">Chase simulator</th><td>7 smoke checks</td><td><span class="status-pill status-ok">CI</span> path-filtered</td></tr>
+              <tr><th scope="row">Adaptive in Unreal</th><td>Policy, stepper, world service</td><td>Local script</td></tr>
               <tr><th scope="row">Chase demo</th><td>Played on Windows</td><td>Manual</td></tr>
-              <tr><th scope="row">Background and Mass</th><td>43 automation tests</td><td>Local script</td></tr>
+              <tr><th scope="row">Background and Mass</th><td>43 Unreal tests plus Python navigation tests</td><td>Devcontainer</td></tr>
               <tr><th scope="row">Shared Policy</th><td>pytest; 48 NNE reports gated on correctness</td><td>Local script</td></tr>
             </tbody>
           </table>
@@ -1001,8 +1001,8 @@ if (MigrationDay)
             <div><h3>Standalone Linux release</h3><p>Package and smoke-test a selected commit in Docker. Maintainers publish artifacts with the release tag.</p></div>
           </div>
         </div>
-        <div class="takeaway"><span>Constraint</span><p>Hosted runners have no Unreal, so everything that builds without the engine runs in CI.</p></div>
-        <aside class="speaker-notes" data-time="0:25">Every job has a 5-minute timeout and narrow path triggers to stay inside the Actions budget. Unreal automation runs through local scripts that check every registered test reported a result. The chase demo is the only part checked by playing it, so it is listed as manual. PRs need a teammate's review before merge. Fill the deployment box once the dev and release workflow is merged; don't claim it before then.</aside>
+        <div class="takeaway"><span>Constraint</span><p>GitHub Actions runs native checks. Docker provides the Unreal toolchain.</p></div>
+        <aside class="speaker-notes" data-time="0:25">Distinguish the hosted native PR checks from the Unreal suites in Docker. The devcontainer pins the engine version for both development and release packaging. A maintainer selects the commit, runs the package smoke test, and uploads the Linux artifact.</aside>
       </section>
 
       <section class="slide" id="nfr" aria-labelledby="nfr-heading" data-title="Non-functional requirements" data-section="Technical">

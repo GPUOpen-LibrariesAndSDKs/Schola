@@ -65,7 +65,7 @@ Scripts find the engine through the Epic launcher registry, `-EnginePath`, or `U
 ```sh
 git clone https://github.com/csc301-2026-f/9-AMD-Advanced-NPCs.git
 cd 9-AMD-Advanced-NPCs
-git lfs pull          # only needed for Examples/CampusCrowd
+git lfs pull          # gRPC build libraries and CampusCrowd geometry
 ```
 
 Then pick the part you are working on. Every example host links the plugin itself, so no copy step is
@@ -76,14 +76,40 @@ needed:
   `NativeLearningEditor`, and runs the tests. Open `NativeLearning.uproject` in the editor afterwards to
   work interactively.
 - **Adaptive, no Unreal:** `Tools/ScholaRLToolsNative/build.sh`.
-- **Background:** `cd Examples/BackgroundNPCs && export UE_ENGINE_ROOT=<UE_5.8> && Scripts/build.sh`
-  (it links `Plugins/Schola`). On Windows, create the junction once:
-  `New-Item -ItemType Junction -Path Plugins/Schola -Target ../../..`.
+- **Background and CampusCrowd:** open the repository in the [Docker devcontainer](README.md#docker-devcontainer).
+  `Examples/CampusCrowd/Scripts/build.sh` and `Scripts/package.sh` in the example use
+  `UE_ENGINE_ROOT` from the image and create the project’s Schola links. Run **Dev Containers: Rebuild
+  Container** after changing the Dockerfile or container configuration. If dependency setup needs
+  to be rerun, run `bash .devcontainer/post-create.sh` from the repository root inside the container.
+  For the older host comparison example, run `Examples/BackgroundNPCs/Scripts/build.sh`.
 - **Shared Policy:** `cd Prototypes/SharedPolicy && uv sync --python 3.12`.
 - **Tag arena:** `cd Examples/AdaptiveTag && ./Prepare-LearningDemo.ps1 && ./Build.ps1`.
 
 The first Unreal C++ build takes several minutes. Generated `Binaries/`, `Intermediate/`, `Saved/` and
 `Plugins/` links are git-ignored. Never commit them.
+
+### Rendering CampusCrowd in Docker
+
+The default devcontainer supports headless validation. For a rendered smoke test, first create the
+Linux package using the [README](README.md#docker-devcontainer). On a Linux host with NVIDIA Container
+Toolkit, run from the repository root:
+
+```bash
+docker build -t schola-dev .devcontainer
+docker run --rm --gpus all -e NVIDIA_DRIVER_CAPABILITIES=all --shm-size=8g \
+  --mount "type=bind,src=$PWD,dst=/repo" -w /repo/Examples/CampusCrowd \
+  --entrypoint bash schola-dev -lc '
+    export XDG_RUNTIME_DIR="$(mktemp -d)"
+    xvfb-run -a -s "-screen 0 1600x900x24" Saved/Package/Linux/CampusCrowd.sh \
+      -UseGlobalVulkanLoader -Demo=Scale -Students=32 -MigrationTimeScale=16 \
+      -windowed -unattended -nosound -WarmupSeconds=2 -CaptureSeconds=3 \
+      -Report="$PWD/Saved/package-vulkan.json"
+  '
+```
+
+For live interaction, pass an authorized X11 display into the GPU-enabled container and launch the
+game on that display with `-Demo=Four`. The virtual display above is suitable for automated rendering
+or recording. The headless smoke test uses `-nullrhi` and works without either a GPU or a display.
 
 ## Testing
 
@@ -101,7 +127,7 @@ a lower number means a test went missing.
 | Chase simulator | `cd Examples/AdaptiveTag && sh Tools/ChaseSim/Build-ChaseSim.sh && sh Tools/ChaseSim/ci-smoke.sh Saved/ChaseSim/chase_sim` | 7 checks pass |
 | Tag arena | `cd Examples/AdaptiveTag && ./Test-Learning.ps1 -Mode Native && ./Test-TagArena.ps1` | All checks pass |
 | Background + Mass | From `Examples/BackgroundNPCs`: `"$UE_ENGINE_ROOT/Engine/Binaries/Linux/UnrealEditor-Cmd" "$PWD/BackgroundNPCs.uproject" -nullrhi -unattended -nosound "-ExecCmds=Automation RunTests Schola.Inference.Background+Schola.Mass;Quit"` | 43 tests pass |
-| CampusCrowd | `cd Examples/CampusCrowd`, then the commands in its [README](Examples/CampusCrowd/README.md#local-validation-and-deployment-d3) | As documented there |
+| CampusCrowd | `cd Examples/CampusCrowd`, then the commands in its [README](Examples/CampusCrowd/README.md#validation-and-packaging) | As documented there |
 | Shared Policy (Python) | `cd Prototypes/SharedPolicy && uv run pytest -q` | All pass |
 | Shared Policy (NNE matrix) | `Examples/BackgroundNPCs/Scripts/run_cd_isolated_matrix.sh` | 48/48 reports pass correctness |
 | Upstream Schola | `pytest` (see `pytest.ini`; it builds Unreal, so set `engine_path`) | Upstream baseline |
@@ -183,8 +209,10 @@ one:
 3. `git tag D4 <commit> && git push origin D4`, then create the GitHub release from the tag with a short
    summary and links to `deliverables/D4`.
 
-Packaged games, where they exist, are built with each example's `Package-*.ps1` or `Scripts/package.sh`
-and attached to the release instead of being committed.
+Build CampusCrowd from the tagged checkout inside the [devcontainer](README.md#docker-devcontainer).
+Run the [package smoke test](Examples/CampusCrowd/README.md#validation-and-packaging) and attach an
+archive of the entire `Saved/Package/Linux/` directory to the GitHub release. For the other examples,
+follow their packaging scripts. Generated packages go on the release rather than in the repository.
 
 ## Open work
 

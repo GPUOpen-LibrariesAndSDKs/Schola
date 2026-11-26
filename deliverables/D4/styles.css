@@ -471,3 +471,69 @@ dialog::backdrop { background: rgb(10 30 25 / 65%); }
 .sp-rm-eval .sp-column-label { margin-bottom: 14px; padding-bottom: 0; border-bottom: 0; }
 .sp-rm-eval ul { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; list-style: none; margin: 0; padding: 0; }
 .sp-rm-eval li { padding: 14px 0; text-align: center; font-size: 24px; font-weight: 600; border: 2px dashed #7d907f; }
+
+.team-learnings { grid-template-columns: repeat(4, 1fr); }
+
+/* Background NPC section */
+.background-slide::after { content: none; }
+.background-slide h2 { margin-bottom: 34px; }
+.background-flow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 42px;
+  margin: 150px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.background-flow li {
+  position: relative;
+  padding: 28px 24px;
+  background: var(--new);
+  border: 1px solid var(--line);
+}
+.background-flow li + li::before {
+  content: "→";
+  position: absolute;
+  top: 50%;
+  left: -35px;
+  transform: translateY(-50%);
+  color: var(--teal);
+  font-size: 28px;
+}
+.background-flow strong, .background-flow span { display: block; }
+.background-flow strong { font-size: 35px; margin-bottom: 10px; }
+.background-flow span { font-size: 24px; color: var(--muted); }
+.background-code-grid, .background-videos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px;
+}
+.background-code-grid { margin-top: 98px; }
+.background-code-grid pre {
+  margin: 0;
+  padding: 28px 22px;
+  background: var(--ink);
+  color: var(--paper);
+  font: 20px/1.6 "Cascadia Code", Consolas, monospace;
+  overflow-x: auto;
+}
+.background-code-grid code { font-family: inherit; }
+.background-code-grid mark { background: var(--accent); color: #12322d; }
+.background-comment { color: #b9cfbd; }
+.background-videos figure { margin: 0; min-width: 0; }
+.background-videos video { display: block; width: 100%; height: 350px; background: #15262d; }
+.background-videos figcaption { margin-top: 8px; font-size: 22px; font-weight: 600; }
+.background-benchmarks {
+  width: 100%;
+  margin: 25px 0 0;
+  border-collapse: collapse;
+  font-size: 21px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.background-benchmarks th, .background-benchmarks td { padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.background-benchmarks thead th { background: var(--new); }
+.background-benchmarks :is(th, td):nth-child(-n+2) { text-align: left; }
+.background-steps { margin: 85px 0 0; padding-left: 40px; font-size: 33px; line-height: 1.5; }
+.background-steps li + li { margin-top: 27px; }
+.background-steps code { font-size: .88em; }

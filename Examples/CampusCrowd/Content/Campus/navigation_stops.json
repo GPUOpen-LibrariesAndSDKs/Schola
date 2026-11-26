@@ -1,0 +1,2928 @@
+{
+  "gate_count": 4,
+  "stops": [
+    {
+      "name": "Spadina & Bloor",
+      "position": [
+        -652.25,
+        -184.75
+      ]
+    },
+    {
+      "name": "Avenue & Bloor",
+      "position": [
+        99.75,
+        -408.75
+      ]
+    },
+    {
+      "name": "Queen’s Park Station",
+      "position": [
+        381.25,
+        537.25
+      ]
+    },
+    {
+      "name": "Spadina & College",
+      "position": [
+        -348.25,
+        764.75
+      ]
+    },
+    {
+      "name": "Wilson Hall",
+      "id": "osm:node:55808839",
+      "building_id": "osm:way:10336058",
+      "building_name": "Wilson Hall",
+      "position": [
+        -438.75,
+        352.75
+      ],
+      "door_position": [
+        -439.49,
+        353.55
+      ],
+      "approach_offset_m": 1.09
+    },
+    {
+      "name": "University College",
+      "id": "osm:node:60033232",
+      "building_id": "osm:way:8032167",
+      "building_name": "University College",
+      "position": [
+        -49.25,
+        287.75
+      ],
+      "door_position": [
+        -50.86,
+        286.85
+      ],
+      "approach_offset_m": 1.84
+    },
+    {
+      "name": "Emmanuel College",
+      "id": "osm:node:304888566",
+      "building_id": "osm:way:204323317",
+      "building_name": "Emmanuel College",
+      "position": [
+        211.25,
+        -199.25
+      ],
+      "door_position": [
+        211.46,
+        -199.27
+      ],
+      "approach_offset_m": 0.21
+    },
+    {
+      "name": "Sir Daniel Wilson Residence",
+      "id": "osm:node:307371519",
+      "building_id": "osm:way:8027962",
+      "building_name": "Sir Daniel Wilson Residence",
+      "position": [
+        -166.75,
+        266.75
+      ],
+      "door_position": [
+        -164.81,
+        266.92
+      ],
+      "approach_offset_m": 1.95
+    },
+    {
+      "name": "E. J. Pratt Library",
+      "id": "osm:node:332338401",
+      "building_id": "osm:way:8111900",
+      "building_name": "E. J. Pratt Library",
+      "position": [
+        338.75,
+        -176.25
+      ],
+      "door_position": [
+        338.64,
+        -175.55
+      ],
+      "approach_offset_m": 0.71
+    },
+    {
+      "name": "Trinity College",
+      "id": "osm:node:333554744",
+      "building_id": "osm:relation:2687",
+      "building_name": "Trinity College",
+      "position": [
+        -1.75,
+        -16.75
+      ],
+      "door_position": [
+        -1.78,
+        -18.26
+      ],
+      "approach_offset_m": 1.51
+    },
+    {
+      "name": "Edward Johnson Building",
+      "id": "osm:node:333554746",
+      "building_id": "osm:way:12000624",
+      "building_name": "Edward Johnson Building",
+      "position": [
+        58.75,
+        -169.25
+      ],
+      "door_position": [
+        58.85,
+        -169.33
+      ],
+      "approach_offset_m": 0.13
+    },
+    {
+      "name": "Birge Carnegie",
+      "id": "osm:node:339275045",
+      "building_id": "osm:way:12874002",
+      "building_name": "Birge Carnegie",
+      "position": [
+        223.75,
+        -237.25
+      ],
+      "door_position": [
+        223.82,
+        -237.12
+      ],
+      "approach_offset_m": 0.15
+    },
+    {
+      "name": "Wetmore Hall",
+      "id": "osm:node:340165033",
+      "building_id": "osm:way:7685383",
+      "building_name": "Wetmore Hall",
+      "position": [
+        -367.75,
+        291.75
+      ],
+      "door_position": [
+        -367.78,
+        291.64
+      ],
+      "approach_offset_m": 0.11
+    },
+    {
+      "name": "Wetmore Hall",
+      "id": "osm:node:344196076",
+      "building_id": "osm:way:7685383",
+      "building_name": "Wetmore Hall",
+      "position": [
+        -330.75,
+        323.25
+      ],
+      "door_position": [
+        -330.94,
+        323.31
+      ],
+      "approach_offset_m": 0.2
+    },
+    {
+      "name": "Wetmore Hall",
+      "id": "osm:node:344196088",
+      "building_id": "osm:way:7685383",
+      "building_name": "Wetmore Hall",
+      "position": [
+        -391.75,
+        279.75
+      ],
+      "door_position": [
+        -393.64,
+        279.67
+      ],
+      "approach_offset_m": 1.89
+    },
+    {
+      "name": "Wilson Hall",
+      "id": "osm:node:344196093",
+      "building_id": "osm:way:10336058",
+      "building_name": "Wilson Hall",
+      "position": [
+        -436.25,
+        381.25
+      ],
+      "door_position": [
+        -436.46,
+        381.47
+      ],
+      "approach_offset_m": 0.3
+    },
+    {
+      "name": "Wilson Hall",
+      "id": "osm:node:344196105",
+      "building_id": "osm:way:10336058",
+      "building_name": "Wilson Hall",
+      "position": [
+        -395.75,
+        364.75
+      ],
+      "door_position": [
+        -395.93,
+        364.51
+      ],
+      "approach_offset_m": 0.3
+    },
+    {
+      "name": "Wilson Hall",
+      "id": "osm:node:344196111",
+      "building_id": "osm:way:10336058",
+      "building_name": "Wilson Hall",
+      "position": [
+        -365.75,
+        351.25
+      ],
+      "door_position": [
+        -365.51,
+        351.3
+      ],
+      "approach_offset_m": 0.25
+    },
+    {
+      "name": "Gerstein Science Information Centre",
+      "id": "osm:node:344202170",
+      "building_id": "osm:relation:14756874",
+      "building_name": "Gerstein Science Information Centre",
+      "position": [
+        114.25,
+        306.75
+      ],
+      "door_position": [
+        116.93,
+        306.28
+      ],
+      "approach_offset_m": 2.72
+    },
+    {
+      "name": "University College",
+      "id": "osm:node:703096130",
+      "building_id": "osm:way:8032167",
+      "building_name": "University College",
+      "position": [
+        6.25,
+        174.75
+      ],
+      "door_position": [
+        5.31,
+        174.58
+      ],
+      "approach_offset_m": 0.96
+    },
+    {
+      "name": "University College",
+      "id": "osm:node:703096142",
+      "building_id": "osm:way:8032167",
+      "building_name": "University College",
+      "position": [
+        2.75,
+        263.75
+      ],
+      "door_position": [
+        2.45,
+        262.75
+      ],
+      "approach_offset_m": 1.04
+    },
+    {
+      "name": "University College",
+      "id": "osm:node:703096144",
+      "building_id": "osm:way:8032167",
+      "building_name": "University College",
+      "position": [
+        40.25,
+        231.75
+      ],
+      "door_position": [
+        40.29,
+        232.38
+      ],
+      "approach_offset_m": 0.63
+    },
+    {
+      "name": "Louis B. Stewart Observatory",
+      "id": "osm:node:703096400",
+      "building_id": "osm:way:8033844",
+      "building_name": "Louis B. Stewart Observatory",
+      "position": [
+        62.75,
+        191.75
+      ],
+      "door_position": [
+        63.65,
+        191.63
+      ],
+      "approach_offset_m": 0.91
+    },
+    {
+      "name": "Sidney Smith Hall",
+      "id": "osm:node:703098879",
+      "building_id": "osm:way:7948423",
+      "building_name": "Sidney Smith Hall",
+      "position": [
+        -285.75,
+        263.25
+      ],
+      "door_position": [
+        -279.78,
+        261.48
+      ],
+      "approach_offset_m": 6.23
+    },
+    {
+      "name": "Sidney Smith Hall",
+      "id": "osm:node:703098884",
+      "building_id": "osm:way:7948423",
+      "building_name": "Sidney Smith Hall",
+      "position": [
+        -234.75,
+        248.75
+      ],
+      "door_position": [
+        -234.75,
+        248.78
+      ],
+      "approach_offset_m": 0.03
+    },
+    {
+      "name": "Hart House",
+      "id": "osm:node:703098885",
+      "building_id": "osm:relation:1989",
+      "building_name": "Hart House",
+      "position": [
+        61.75,
+        151.75
+      ],
+      "door_position": [
+        61.52,
+        151.06
+      ],
+      "approach_offset_m": 0.73
+    },
+    {
+      "name": "Sidney Smith Hall",
+      "id": "osm:node:703098887",
+      "building_id": "osm:way:7948423",
+      "building_name": "Sidney Smith Hall",
+      "position": [
+        -213.75,
+        295.25
+      ],
+      "door_position": [
+        -213.51,
+        295.11
+      ],
+      "approach_offset_m": 0.28
+    },
+    {
+      "name": "McLennan Physical Laboratories",
+      "id": "osm:node:703098888",
+      "building_id": "osm:way:1428103037",
+      "building_name": "McLennan Physical Laboratories",
+      "position": [
+        -216.25,
+        464.25
+      ],
+      "door_position": [
+        -216.74,
+        464.37
+      ],
+      "approach_offset_m": 0.5
+    },
+    {
+      "name": "Clara Benson Building",
+      "id": "osm:node:703099081",
+      "building_id": "osm:way:9916087",
+      "building_name": "Clara Benson Building",
+      "position": [
+        -360.25,
+        208.25
+      ],
+      "door_position": [
+        -362.11,
+        208.79
+      ],
+      "approach_offset_m": 1.94
+    },
+    {
+      "name": "Robarts Library",
+      "id": "osm:node:703099084",
+      "building_id": "osm:way:7991747",
+      "building_name": "Robarts Library",
+      "position": [
+        -271.75,
+        42.25
+      ],
+      "door_position": [
+        -272.04,
+        42.03
+      ],
+      "approach_offset_m": 0.36
+    },
+    {
+      "name": "Isabel Bader Theatre",
+      "id": "osm:node:703099520",
+      "building_id": "osm:way:12873892",
+      "building_name": "Isabel Bader Theatre",
+      "position": [
+        235.75,
+        -270.75
+      ],
+      "door_position": [
+        235.92,
+        -270.55
+      ],
+      "approach_offset_m": 0.26
+    },
+    {
+      "name": "Sanford Fleming Building",
+      "id": "osm:node:733203396",
+      "building_id": "osm:way:13403180",
+      "building_name": "Sanford Fleming Building",
+      "position": [
+        44.75,
+        504.75
+      ],
+      "door_position": [
+        42.19,
+        506.09
+      ],
+      "approach_offset_m": 2.89
+    },
+    {
+      "name": "Engineering Annex",
+      "id": "osm:node:733203398",
+      "building_id": "osm:way:23433288",
+      "building_name": "Engineering Annex",
+      "position": [
+        7.75,
+        578.75
+      ],
+      "door_position": [
+        7.92,
+        578.73
+      ],
+      "approach_offset_m": 0.17
+    },
+    {
+      "name": "Engineering Annex",
+      "id": "osm:node:733203400",
+      "building_id": "osm:way:23433288",
+      "building_name": "Engineering Annex",
+      "position": [
+        24.75,
+        581.75
+      ],
+      "door_position": [
+        22.7,
+        580.31
+      ],
+      "approach_offset_m": 2.51
+    },
+    {
+      "name": "Galbraith Building",
+      "id": "osm:node:733203401",
+      "building_id": "osm:relation:76177",
+      "building_name": "Galbraith Building",
+      "position": [
+        -66.75,
+        530.75
+      ],
+      "door_position": [
+        -66.33,
+        531.04
+      ],
+      "approach_offset_m": 0.51
+    },
+    {
+      "name": "Galbraith Building",
+      "id": "osm:node:733203403",
+      "building_id": "osm:relation:76177",
+      "building_name": "Galbraith Building",
+      "position": [
+        -70.75,
+        561.25
+      ],
+      "door_position": [
+        -70.27,
+        561.11
+      ],
+      "approach_offset_m": 0.5
+    },
+    {
+      "name": "Hart House",
+      "id": "osm:node:733206244",
+      "building_id": "osm:relation:1989",
+      "building_name": "Hart House",
+      "position": [
+        113.75,
+        128.25
+      ],
+      "door_position": [
+        113.52,
+        127.93
+      ],
+      "approach_offset_m": 0.39
+    },
+    {
+      "name": "Bahen Centre",
+      "id": "osm:node:733206245",
+      "building_id": "osm:way:141691917",
+      "building_name": "Bahen Centre",
+      "position": [
+        -105.75,
+        577.75
+      ],
+      "door_position": [
+        -110.78,
+        583.02
+      ],
+      "approach_offset_m": 7.29
+    },
+    {
+      "name": "Lash Miller",
+      "id": "osm:node:733206246",
+      "building_id": "osm:way:1466900017",
+      "building_name": "Lash Miller",
+      "position": [
+        -180.75,
+        330.75
+      ],
+      "door_position": [
+        -180.69,
+        330.62
+      ],
+      "approach_offset_m": 0.14
+    },
+    {
+      "name": "Hart House",
+      "id": "osm:node:733206247",
+      "building_id": "osm:relation:1989",
+      "building_name": "Hart House",
+      "position": [
+        29.75,
+        126.25
+      ],
+      "door_position": [
+        32.2,
+        126.16
+      ],
+      "approach_offset_m": 2.45
+    },
+    {
+      "name": "Mechanical Engineering Building",
+      "id": "osm:node:748721416",
+      "building_id": "osm:way:354180331",
+      "building_name": "Mechanical Engineering Building",
+      "position": [
+        110.75,
+        554.25
+      ],
+      "door_position": [
+        111.91,
+        554.37
+      ],
+      "approach_offset_m": 1.17
+    },
+    {
+      "name": "Innis Residence",
+      "id": "osm:node:773000493",
+      "building_id": "osm:way:20898043",
+      "building_name": "Innis Residence",
+      "position": [
+        -277.25,
+        -113.75
+      ],
+      "door_position": [
+        -277.35,
+        -113.53
+      ],
+      "approach_offset_m": 0.24
+    },
+    {
+      "name": "The Wolland Centre for Jewish Campus Life (Hillel)",
+      "id": "osm:node:773005422",
+      "building_id": "osm:way:22199517",
+      "building_name": "The Wolland Centre for Jewish Campus Life (Hillel)",
+      "position": [
+        -394.75,
+        154.75
+      ],
+      "door_position": [
+        -395.39,
+        148.42
+      ],
+      "approach_offset_m": 6.36
+    },
+    {
+      "name": "Ramsay Wright Building",
+      "id": "osm:node:773005423",
+      "building_id": "osm:way:9303310",
+      "building_name": "Ramsay Wright Building",
+      "position": [
+        -311.75,
+        192.75
+      ],
+      "door_position": [
+        -311.64,
+        192.62
+      ],
+      "approach_offset_m": 0.17
+    },
+    {
+      "name": "Student Commons",
+      "id": "osm:node:774094111",
+      "building_id": "osm:way:12872719",
+      "building_name": "Student Commons",
+      "position": [
+        -216.25,
+        692.25
+      ],
+      "door_position": [
+        -216.3,
+        692.35
+      ],
+      "approach_offset_m": 0.11
+    },
+    {
+      "name": "215",
+      "id": "osm:node:774094112",
+      "building_id": "osm:way:12872635",
+      "building_name": "215",
+      "position": [
+        -230.25,
+        643.25
+      ],
+      "door_position": [
+        -229.43,
+        642.3
+      ],
+      "approach_offset_m": 1.25
+    },
+    {
+      "name": "Sidney Smith Hall",
+      "id": "osm:node:779168881",
+      "building_id": "osm:way:7948423",
+      "building_name": "Sidney Smith Hall",
+      "position": [
+        -242.25,
+        316.25
+      ],
+      "door_position": [
+        -242.42,
+        316.18
+      ],
+      "approach_offset_m": 0.18
+    },
+    {
+      "name": "Central Exams Facility",
+      "id": "osm:node:783499439",
+      "building_id": "osm:way:23436928",
+      "building_name": "Central Exams Facility",
+      "position": [
+        195.75,
+        702.25
+      ],
+      "door_position": [
+        195.8,
+        702.13
+      ],
+      "approach_offset_m": 0.13
+    },
+    {
+      "name": "Ramsay Wright Building",
+      "id": "osm:node:807336387",
+      "building_id": "osm:way:9303310",
+      "building_name": "Ramsay Wright Building",
+      "position": [
+        -270.75,
+        172.75
+      ],
+      "door_position": [
+        -270.25,
+        171.81
+      ],
+      "approach_offset_m": 1.06
+    },
+    {
+      "name": "Building 58741954",
+      "id": "osm:node:828418148",
+      "building_id": "osm:way:58741954",
+      "building_name": "Building 58741954",
+      "position": [
+        -107.75,
+        -331.75
+      ],
+      "door_position": [
+        -107.76,
+        -330.83
+      ],
+      "approach_offset_m": 0.92
+    },
+    {
+      "name": "Muzzo Family Alumni Hall",
+      "id": "osm:node:847509172",
+      "building_id": "osm:way:8932810",
+      "building_name": "Muzzo Family Alumni Hall",
+      "position": [
+        426.25,
+        20.25
+      ],
+      "door_position": [
+        426.05,
+        20.37
+      ],
+      "approach_offset_m": 0.23
+    },
+    {
+      "name": "Muzzo Family Alumni Hall",
+      "id": "osm:node:847509173",
+      "building_id": "osm:way:8932810",
+      "building_name": "Muzzo Family Alumni Hall",
+      "position": [
+        422.25,
+        8.25
+      ],
+      "door_position": [
+        422.5,
+        9.39
+      ],
+      "approach_offset_m": 1.17
+    },
+    {
+      "name": "John M. Kelly Library - St. Michael’s College",
+      "id": "osm:node:847509174",
+      "building_id": "osm:way:8027952",
+      "building_name": "John M. Kelly Library - St. Michael’s College",
+      "position": [
+        472.75,
+        -16.25
+      ],
+      "door_position": [
+        472.65,
+        -16.08
+      ],
+      "approach_offset_m": 0.2
+    },
+    {
+      "name": "Sanford Fleming Building",
+      "id": "osm:node:854322016",
+      "building_id": "osm:way:13403180",
+      "building_name": "Sanford Fleming Building",
+      "position": [
+        -10.25,
+        507.75
+      ],
+      "door_position": [
+        -7.42,
+        509.22
+      ],
+      "approach_offset_m": 3.19
+    },
+    {
+      "name": "Physical Geography Building",
+      "id": "osm:node:854322045",
+      "building_id": "osm:way:15401957",
+      "building_name": "Physical Geography Building",
+      "position": [
+        -69.75,
+        513.25
+      ],
+      "door_position": [
+        -69.69,
+        513.18
+      ],
+      "approach_offset_m": 0.09
+    },
+    {
+      "name": "Sidney Smith Hall",
+      "id": "osm:node:928546802",
+      "building_id": "osm:way:7948423",
+      "building_name": "Sidney Smith Hall",
+      "position": [
+        -261.25,
+        231.25
+      ],
+      "door_position": [
+        -261.2,
+        232.32
+      ],
+      "approach_offset_m": 1.07
+    },
+    {
+      "name": "George Ignatieff Theatre",
+      "id": "osm:node:929627699",
+      "building_id": "osm:way:27291427",
+      "building_name": "George Ignatieff Theatre",
+      "position": [
+        -137.75,
+        -96.25
+      ],
+      "door_position": [
+        -137.24,
+        -96.41
+      ],
+      "approach_offset_m": 0.53
+    },
+    {
+      "name": "Victoria College",
+      "id": "osm:node:949014800",
+      "building_id": "osm:way:204323029",
+      "building_name": "Victoria College",
+      "position": [
+        292.25,
+        -207.75
+      ],
+      "door_position": [
+        291.71,
+        -207.99
+      ],
+      "approach_offset_m": 0.59
+    },
+    {
+      "name": "Emmanuel College",
+      "id": "osm:node:949014803",
+      "building_id": "osm:way:204323317",
+      "building_name": "Emmanuel College",
+      "position": [
+        233.25,
+        -173.75
+      ],
+      "door_position": [
+        233.36,
+        -173.6
+      ],
+      "approach_offset_m": 0.19
+    },
+    {
+      "name": "Northrop Frye Hall",
+      "id": "osm:node:949014805",
+      "building_id": "osm:way:8117208",
+      "building_name": "Northrop Frye Hall",
+      "position": [
+        273.75,
+        -182.75
+      ],
+      "door_position": [
+        273.92,
+        -182.64
+      ],
+      "approach_offset_m": 0.2
+    },
+    {
+      "name": "Wetmore Hall",
+      "id": "osm:node:1403960963",
+      "building_id": "osm:way:7685383",
+      "building_name": "Wetmore Hall",
+      "position": [
+        -394.75,
+        300.25
+      ],
+      "door_position": [
+        -394.65,
+        300.06
+      ],
+      "approach_offset_m": 0.21
+    },
+    {
+      "name": "Koffler House",
+      "id": "osm:node:1432347929",
+      "building_id": "osm:way:20319814",
+      "building_name": "Koffler House",
+      "position": [
+        -400.25,
+        484.25
+      ],
+      "door_position": [
+        -400.71,
+        484.44
+      ],
+      "approach_offset_m": 0.5
+    },
+    {
+      "name": "McLennan Physical Laboratories",
+      "id": "osm:node:1432352439",
+      "building_id": "osm:way:1428103037",
+      "building_name": "McLennan Physical Laboratories",
+      "position": [
+        -226.25,
+        466.75
+      ],
+      "door_position": [
+        -225.79,
+        466.96
+      ],
+      "approach_offset_m": 0.51
+    },
+    {
+      "name": "Ontario Institute for Studies in Education (University of Toronto)",
+      "id": "osm:node:1707778363",
+      "building_id": "osm:way:10725629",
+      "building_name": "Ontario Institute for Studies in Education (University of Toronto)",
+      "position": [
+        -231.75,
+        -337.25
+      ],
+      "door_position": [
+        -231.62,
+        -337.2
+      ],
+      "approach_offset_m": 0.14
+    },
+    {
+      "name": "Building 30265307",
+      "id": "osm:node:2129327665",
+      "building_id": "osm:way:30265307",
+      "building_name": "Building 30265307",
+      "position": [
+        222.75,
+        496.25
+      ],
+      "door_position": [
+        222.84,
+        496.3
+      ],
+      "approach_offset_m": 0.1
+    },
+    {
+      "name": "Gardiner Museum",
+      "id": "osm:node:2142265847",
+      "building_id": "osm:way:20252183",
+      "building_name": "Gardiner Museum",
+      "position": [
+        170.75,
+        -339.25
+      ],
+      "door_position": [
+        172.25,
+        -339.32
+      ],
+      "approach_offset_m": 1.5
+    },
+    {
+      "name": "Brennan Hall",
+      "id": "osm:node:2143017770",
+      "building_id": "osm:way:15401954",
+      "building_name": "Brennan Hall",
+      "position": [
+        457.75,
+        -136.75
+      ],
+      "door_position": [
+        457.74,
+        -136.52
+      ],
+      "approach_offset_m": 0.23
+    },
+    {
+      "name": "Carr Hall",
+      "id": "osm:node:2143239271",
+      "building_id": "osm:way:8810864",
+      "building_name": "Carr Hall",
+      "position": [
+        409.75,
+        -27.75
+      ],
+      "door_position": [
+        408.51,
+        -27.02
+      ],
+      "approach_offset_m": 1.44
+    },
+    {
+      "name": "Odette Hall",
+      "id": "osm:node:2143257505",
+      "building_id": "osm:way:15401927",
+      "building_name": "Odette Hall",
+      "position": [
+        541.25,
+        -152.25
+      ],
+      "door_position": [
+        541.2,
+        -152.3
+      ],
+      "approach_offset_m": 0.07
+    },
+    {
+      "name": "Victoria College",
+      "id": "osm:node:2143274337",
+      "building_id": "osm:way:204323029",
+      "building_name": "Victoria College",
+      "position": [
+        265.75,
+        -223.25
+      ],
+      "door_position": [
+        266.33,
+        -223.32
+      ],
+      "approach_offset_m": 0.58
+    },
+    {
+      "name": "Birge Carnegie",
+      "id": "osm:node:2143277602",
+      "building_id": "osm:way:12874002",
+      "building_name": "Birge Carnegie",
+      "position": [
+        205.75,
+        -227.25
+      ],
+      "door_position": [
+        207.7,
+        -227.15
+      ],
+      "approach_offset_m": 1.95
+    },
+    {
+      "name": "Birge Carnegie",
+      "id": "osm:node:2143277607",
+      "building_id": "osm:way:12874002",
+      "building_name": "Birge Carnegie",
+      "position": [
+        207.75,
+        -261.75
+      ],
+      "door_position": [
+        207.93,
+        -259.98
+      ],
+      "approach_offset_m": 1.78
+    },
+    {
+      "name": "Burwash Dining Hall",
+      "id": "osm:node:2143284310",
+      "building_id": "osm:way:15401956",
+      "building_name": "Burwash Dining Hall",
+      "position": [
+        281.25,
+        -282.25
+      ],
+      "door_position": [
+        281.34,
+        -282.39
+      ],
+      "approach_offset_m": 0.17
+    },
+    {
+      "name": "Rowell Jackman Hall",
+      "id": "osm:node:2143393366",
+      "building_id": "osm:way:23436633",
+      "building_name": "Rowell Jackman Hall",
+      "position": [
+        392.75,
+        -248.75
+      ],
+      "door_position": [
+        392.53,
+        -249.63
+      ],
+      "approach_offset_m": 0.91
+    },
+    {
+      "name": "University College",
+      "id": "osm:node:2143434863",
+      "building_id": "osm:way:8032167",
+      "building_name": "University College",
+      "position": [
+        30.75,
+        252.25
+      ],
+      "door_position": [
+        29.9,
+        249.74
+      ],
+      "approach_offset_m": 2.65
+    },
+    {
+      "name": "Wycliffe College",
+      "id": "osm:node:2143435225",
+      "building_id": "osm:relation:47346",
+      "building_name": "Wycliffe College",
+      "position": [
+        25.75,
+        38.75
+      ],
+      "door_position": [
+        25.75,
+        39.05
+      ],
+      "approach_offset_m": 0.3
+    },
+    {
+      "name": "Sidney Smith Hall",
+      "id": "osm:node:2143460109",
+      "building_id": "osm:way:7948423",
+      "building_name": "Sidney Smith Hall",
+      "position": [
+        -271.25,
+        319.75
+      ],
+      "door_position": [
+        -269.78,
+        318.87
+      ],
+      "approach_offset_m": 1.71
+    },
+    {
+      "name": "Canadiana Gallery",
+      "id": "osm:node:2143488334",
+      "building_id": "osm:way:23433971",
+      "building_name": "Canadiana Gallery",
+      "position": [
+        219.75,
+        331.25
+      ],
+      "door_position": [
+        219.81,
+        331.13
+      ],
+      "approach_offset_m": 0.13
+    },
+    {
+      "name": "Faculty of Music (South)",
+      "id": "osm:node:2143490768",
+      "building_id": "osm:relation:2582658",
+      "building_name": "Faculty of Music (South)",
+      "position": [
+        489.25,
+        99.75
+      ],
+      "door_position": [
+        488.56,
+        99.07
+      ],
+      "approach_offset_m": 0.97
+    },
+    {
+      "name": "Regis College",
+      "id": "osm:node:2143491097",
+      "building_id": "osm:way:60303738",
+      "building_name": "Regis College",
+      "position": [
+        405.25,
+        100.25
+      ],
+      "door_position": [
+        406.23,
+        100.99
+      ],
+      "approach_offset_m": 1.23
+    },
+    {
+      "name": "Knox College",
+      "id": "osm:node:2143493381",
+      "building_id": "osm:relation:2032",
+      "building_name": "Knox College",
+      "position": [
+        -124.25,
+        396.25
+      ],
+      "door_position": [
+        -124.25,
+        396.34
+      ],
+      "approach_offset_m": 0.09
+    },
+    {
+      "name": "Burwash Hall",
+      "id": "osm:node:2143494816",
+      "building_id": "osm:way:12873850",
+      "building_name": "Burwash Hall",
+      "position": [
+        381.25,
+        -144.25
+      ],
+      "door_position": [
+        381.75,
+        -142.36
+      ],
+      "approach_offset_m": 1.96
+    },
+    {
+      "name": "Fitzgerald Building",
+      "id": "osm:node:2143498936",
+      "building_id": "osm:way:240330043",
+      "building_name": "Fitzgerald Building",
+      "position": [
+        257.75,
+        571.25
+      ],
+      "door_position": [
+        257.0,
+        570.99
+      ],
+      "approach_offset_m": 0.79
+    },
+    {
+      "name": "University College",
+      "id": "osm:node:2143501175",
+      "building_id": "osm:way:8032167",
+      "building_name": "University College",
+      "position": [
+        30.75,
+        204.25
+      ],
+      "door_position": [
+        29.99,
+        204.38
+      ],
+      "approach_offset_m": 0.77
+    },
+    {
+      "name": "Daniels Building",
+      "id": "osm:node:2143501656",
+      "building_id": "osm:way:8101762",
+      "building_name": "Daniels Building",
+      "position": [
+        -407.25,
+        615.25
+      ],
+      "door_position": [
+        -409.46,
+        615.27
+      ],
+      "approach_offset_m": 2.21
+    },
+    {
+      "name": "Burwash Hall",
+      "id": "osm:node:2144366452",
+      "building_id": "osm:way:12873850",
+      "building_name": "Burwash Hall",
+      "position": [
+        360.75,
+        -218.75
+      ],
+      "door_position": [
+        363.73,
+        -221.79
+      ],
+      "approach_offset_m": 4.26
+    },
+    {
+      "name": "Loretto College",
+      "id": "osm:node:2144620382",
+      "building_id": "osm:way:23436644",
+      "building_name": "Loretto College",
+      "position": [
+        447.25,
+        -263.75
+      ],
+      "door_position": [
+        447.06,
+        -264.06
+      ],
+      "approach_offset_m": 0.36
+    },
+    {
+      "name": "Burwash Hall",
+      "id": "osm:node:2144638305",
+      "building_id": "osm:way:12873850",
+      "building_name": "Burwash Hall",
+      "position": [
+        363.25,
+        -211.25
+      ],
+      "door_position": [
+        364.43,
+        -211.01
+      ],
+      "approach_offset_m": 1.2
+    },
+    {
+      "name": "Windle House",
+      "id": "osm:node:2144936078",
+      "building_id": "osm:way:15401952",
+      "building_name": "Windle House",
+      "position": [
+        495.75,
+        -121.75
+      ],
+      "door_position": [
+        495.55,
+        -122.37
+      ],
+      "approach_offset_m": 0.65
+    },
+    {
+      "name": "Windle House",
+      "id": "osm:node:2144936279",
+      "building_id": "osm:way:15401952",
+      "building_name": "Windle House",
+      "position": [
+        480.75,
+        -121.75
+      ],
+      "door_position": [
+        480.85,
+        -121.57
+      ],
+      "approach_offset_m": 0.21
+    },
+    {
+      "name": "Jesuits in English Canada",
+      "id": "osm:node:2259572905",
+      "building_id": "osm:way:23436210",
+      "building_name": "Jesuits in English Canada",
+      "position": [
+        403.75,
+        73.25
+      ],
+      "door_position": [
+        404.25,
+        73.1
+      ],
+      "approach_offset_m": 0.52
+    },
+    {
+      "name": "371",
+      "id": "osm:node:2429557034",
+      "building_id": "osm:way:10334996",
+      "building_name": "371",
+      "position": [
+        -549.25,
+        -209.75
+      ],
+      "door_position": [
+        -549.49,
+        -209.9
+      ],
+      "approach_offset_m": 0.28
+    },
+    {
+      "name": "Wallberg Building",
+      "id": "osm:node:2478473426",
+      "building_id": "osm:way:1464898602",
+      "building_name": "Wallberg Building",
+      "position": [
+        -3.25,
+        662.75
+      ],
+      "door_position": [
+        -3.48,
+        662.52
+      ],
+      "approach_offset_m": 0.33
+    },
+    {
+      "name": "162 St. George Street",
+      "id": "osm:node:2480697684",
+      "building_id": "osm:way:22372214",
+      "building_name": "162 St. George Street",
+      "position": [
+        -349.75,
+        -246.25
+      ],
+      "door_position": [
+        -351.23,
+        -245.23
+      ],
+      "approach_offset_m": 1.8
+    },
+    {
+      "name": "Fitzgerald Building",
+      "id": "osm:node:2480713254",
+      "building_id": "osm:way:240330043",
+      "building_name": "Fitzgerald Building",
+      "position": [
+        243.25,
+        500.75
+      ],
+      "door_position": [
+        243.24,
+        500.99
+      ],
+      "approach_offset_m": 0.24
+    },
+    {
+      "name": "C. David Naylor Building",
+      "id": "osm:node:2480713264",
+      "building_id": "osm:way:23433584",
+      "building_name": "C. David Naylor Building",
+      "position": [
+        304.25,
+        489.25
+      ],
+      "door_position": [
+        304.29,
+        489.09
+      ],
+      "approach_offset_m": 0.16
+    },
+    {
+      "name": "Loretto College",
+      "id": "osm:node:2481907818",
+      "building_id": "osm:way:23436644",
+      "building_name": "Loretto College",
+      "position": [
+        477.75,
+        -272.25
+      ],
+      "door_position": [
+        477.79,
+        -273.45
+      ],
+      "approach_offset_m": 1.2
+    },
+    {
+      "name": "Building 240453482",
+      "id": "osm:node:2481908768",
+      "building_id": "osm:way:240453482",
+      "building_name": "Building 240453482",
+      "position": [
+        194.25,
+        -315.75
+      ],
+      "door_position": [
+        194.27,
+        -315.85
+      ],
+      "approach_offset_m": 0.1
+    },
+    {
+      "name": "Isabel Bader Theatre",
+      "id": "osm:node:2481908806",
+      "building_id": "osm:way:12873892",
+      "building_name": "Isabel Bader Theatre",
+      "position": [
+        255.75,
+        -243.25
+      ],
+      "door_position": [
+        255.34,
+        -243.66
+      ],
+      "approach_offset_m": 0.58
+    },
+    {
+      "name": "Rowell Jackman Hall",
+      "id": "osm:node:2495281968",
+      "building_id": "osm:way:23436633",
+      "building_name": "Rowell Jackman Hall",
+      "position": [
+        393.75,
+        -248.25
+      ],
+      "door_position": [
+        393.62,
+        -249.95
+      ],
+      "approach_offset_m": 1.7
+    },
+    {
+      "name": "E. J. Pratt Library",
+      "id": "osm:node:2498967862",
+      "building_id": "osm:way:8111900",
+      "building_name": "E. J. Pratt Library",
+      "position": [
+        362.75,
+        -148.25
+      ],
+      "door_position": [
+        361.32,
+        -147.3
+      ],
+      "approach_offset_m": 1.72
+    },
+    {
+      "name": "Pontifical Institute of Medieval Studies",
+      "id": "osm:node:2498968774",
+      "building_id": "osm:way:23434831",
+      "building_name": "Pontifical Institute of Medieval Studies",
+      "position": [
+        369.75,
+        -95.25
+      ],
+      "door_position": [
+        369.63,
+        -94.7
+      ],
+      "approach_offset_m": 0.56
+    },
+    {
+      "name": "720 Spadina",
+      "id": "osm:node:2521223464",
+      "building_id": "osm:way:32022573",
+      "building_name": "720 Spadina",
+      "position": [
+        -635.25,
+        -62.25
+      ],
+      "door_position": [
+        -636.49,
+        -62.19
+      ],
+      "approach_offset_m": 1.24
+    },
+    {
+      "name": "Innis College",
+      "id": "osm:node:2521567889",
+      "building_id": "osm:way:22372215",
+      "building_name": "Innis College",
+      "position": [
+        -334.75,
+        -56.75
+      ],
+      "door_position": [
+        -335.13,
+        -56.98
+      ],
+      "approach_offset_m": 0.44
+    },
+    {
+      "name": "Innis College",
+      "id": "osm:node:2521567901",
+      "building_id": "osm:way:22372215",
+      "building_name": "Innis College",
+      "position": [
+        -315.25,
+        -62.25
+      ],
+      "door_position": [
+        -315.37,
+        -62.41
+      ],
+      "approach_offset_m": 0.2
+    },
+    {
+      "name": "371",
+      "id": "osm:node:2521567908",
+      "building_id": "osm:way:10334996",
+      "building_name": "371",
+      "position": [
+        -493.75,
+        -212.75
+      ],
+      "door_position": [
+        -494.49,
+        -212.91
+      ],
+      "approach_offset_m": 0.76
+    },
+    {
+      "name": "Senator David A. Croll Apartments",
+      "id": "osm:node:2521567916",
+      "building_id": "osm:way:27765374",
+      "building_name": "Senator David A. Croll Apartments",
+      "position": [
+        -449.25,
+        -228.25
+      ],
+      "door_position": [
+        -448.59,
+        -227.02
+      ],
+      "approach_offset_m": 1.4
+    },
+    {
+      "name": "Building 1034955286",
+      "id": "osm:node:2552749807",
+      "building_id": "osm:way:1034955286",
+      "building_name": "Building 1034955286",
+      "position": [
+        451.25,
+        109.25
+      ],
+      "door_position": [
+        450.96,
+        108.32
+      ],
+      "approach_offset_m": 0.97
+    },
+    {
+      "name": "Building 258167658",
+      "id": "osm:node:2635688703",
+      "building_id": "osm:way:258167658",
+      "building_name": "Building 258167658",
+      "position": [
+        -236.75,
+        -272.25
+      ],
+      "door_position": [
+        -237.26,
+        -271.73
+      ],
+      "approach_offset_m": 0.73
+    },
+    {
+      "name": "Jackman Humanities Building",
+      "id": "osm:node:2783505741",
+      "building_id": "osm:way:23201562",
+      "building_name": "Jackman Humanities Building",
+      "position": [
+        -373.75,
+        -318.25
+      ],
+      "door_position": [
+        -373.66,
+        -318.09
+      ],
+      "approach_offset_m": 0.18
+    },
+    {
+      "name": "Innis College",
+      "id": "osm:node:2785652248",
+      "building_id": "osm:way:22372215",
+      "building_name": "Innis College",
+      "position": [
+        -303.25,
+        -73.75
+      ],
+      "door_position": [
+        -305.42,
+        -73.21
+      ],
+      "approach_offset_m": 2.24
+    },
+    {
+      "name": "256 McCaul St",
+      "id": "osm:node:2797903403",
+      "building_id": "osm:way:23436871",
+      "building_name": "256 McCaul St",
+      "position": [
+        177.75,
+        708.25
+      ],
+      "door_position": [
+        177.54,
+        708.47
+      ],
+      "approach_offset_m": 0.3
+    },
+    {
+      "name": "Health Sciences Building",
+      "id": "osm:node:2807096795",
+      "building_id": "osm:way:23436801",
+      "building_name": "Health Sciences Building",
+      "position": [
+        205.75,
+        638.75
+      ],
+      "door_position": [
+        205.8,
+        638.66
+      ],
+      "approach_offset_m": 0.1
+    },
+    {
+      "name": "Lassonde Mining Building",
+      "id": "osm:node:2809034240",
+      "building_id": "osm:way:12873543",
+      "building_name": "Lassonde Mining Building",
+      "position": [
+        172.25,
+        610.25
+      ],
+      "door_position": [
+        172.25,
+        609.83
+      ],
+      "approach_offset_m": 0.42
+    },
+    {
+      "name": "Building 20253475",
+      "id": "osm:node:3983186028",
+      "building_id": "osm:way:20253475",
+      "building_name": "Building 20253475",
+      "position": [
+        -287.75,
+        73.75
+      ],
+      "door_position": [
+        -287.62,
+        73.85
+      ],
+      "approach_offset_m": 0.16
+    },
+    {
+      "name": "Building 20253475",
+      "id": "osm:node:3983186029",
+      "building_id": "osm:way:20253475",
+      "building_name": "Building 20253475",
+      "position": [
+        -300.25,
+        84.25
+      ],
+      "door_position": [
+        -300.08,
+        84.46
+      ],
+      "approach_offset_m": 0.27
+    },
+    {
+      "name": "Sidney Smith Hall",
+      "id": "osm:node:3996672203",
+      "building_id": "osm:way:7948423",
+      "building_name": "Sidney Smith Hall",
+      "position": [
+        -272.25,
+        316.75
+      ],
+      "door_position": [
+        -270.62,
+        315.96
+      ],
+      "approach_offset_m": 1.81
+    },
+    {
+      "name": "Wallberg Building",
+      "id": "osm:node:4056603055",
+      "building_id": "osm:way:1464898602",
+      "building_name": "Wallberg Building",
+      "position": [
+        58.25,
+        643.75
+      ],
+      "door_position": [
+        58.24,
+        643.75
+      ],
+      "approach_offset_m": 0.01
+    },
+    {
+      "name": "315",
+      "id": "osm:node:4616881039",
+      "building_id": "osm:way:20251671",
+      "building_name": "315",
+      "position": [
+        -248.25,
+        -293.25
+      ],
+      "door_position": [
+        -248.32,
+        -292.35
+      ],
+      "approach_offset_m": 0.9
+    },
+    {
+      "name": "Goldring Student Centre",
+      "id": "osm:node:5301178868",
+      "building_id": "osm:way:23436616",
+      "building_name": "Goldring Student Centre",
+      "position": [
+        270.75,
+        -309.75
+      ],
+      "door_position": [
+        270.71,
+        -309.94
+      ],
+      "approach_offset_m": 0.19
+    },
+    {
+      "name": "Jackman Law Building",
+      "id": "osm:node:6336107775",
+      "building_id": "osm:way:676618964",
+      "building_name": "Jackman Law Building",
+      "position": [
+        150.25,
+        -118.75
+      ],
+      "door_position": [
+        150.39,
+        -118.67
+      ],
+      "approach_offset_m": 0.16
+    },
+    {
+      "name": "Medical Sciences",
+      "id": "osm:node:7578199802",
+      "building_id": "osm:way:23433615",
+      "building_name": "Medical Sciences",
+      "position": [
+        227.25,
+        445.25
+      ],
+      "door_position": [
+        218.3,
+        447.72
+      ],
+      "approach_offset_m": 9.28
+    },
+    {
+      "name": "Donnelly Centre for Cellular and Biomolecular Research",
+      "id": "osm:node:7868892192",
+      "building_id": "osm:way:12873396",
+      "building_name": "Donnelly Centre for Cellular and Biomolecular Research",
+      "position": [
+        216.25,
+        560.75
+      ],
+      "door_position": [
+        216.34,
+        560.76
+      ],
+      "approach_offset_m": 0.09
+    },
+    {
+      "name": "Early Learning Centre (Glen Morris)",
+      "id": "osm:node:8007731900",
+      "building_id": "osm:way:23434161",
+      "building_name": "Early Learning Centre (Glen Morris)",
+      "position": [
+        -460.75,
+        101.75
+      ],
+      "door_position": [
+        -459.78,
+        101.95
+      ],
+      "approach_offset_m": 0.99
+    },
+    {
+      "name": "Sussex Court",
+      "id": "osm:node:8870077123",
+      "building_id": "osm:way:23434099",
+      "building_name": "Sussex Court",
+      "position": [
+        -437.75,
+        -1.75
+      ],
+      "door_position": [
+        -437.86,
+        -0.85
+      ],
+      "approach_offset_m": 0.91
+    },
+    {
+      "name": "Daniels Building",
+      "id": "osm:node:8961469993",
+      "building_id": "osm:way:8101762",
+      "building_name": "Daniels Building",
+      "position": [
+        -451.75,
+        573.75
+      ],
+      "door_position": [
+        -450.5,
+        572.93
+      ],
+      "approach_offset_m": 1.49
+    },
+    {
+      "name": "Daniels Building",
+      "id": "osm:node:8961478118",
+      "building_id": "osm:way:8101762",
+      "building_name": "Daniels Building",
+      "position": [
+        -447.25,
+        585.25
+      ],
+      "door_position": [
+        -446.85,
+        585.14
+      ],
+      "approach_offset_m": 0.41
+    },
+    {
+      "name": "Daniels Building",
+      "id": "osm:node:8961478220",
+      "building_id": "osm:way:8101762",
+      "building_name": "Daniels Building",
+      "position": [
+        -395.25,
+        554.25
+      ],
+      "door_position": [
+        -397.24,
+        554.42
+      ],
+      "approach_offset_m": 2.0
+    },
+    {
+      "name": "Daniels Building",
+      "id": "osm:node:8961478288",
+      "building_id": "osm:way:8101762",
+      "building_name": "Daniels Building",
+      "position": [
+        -422.25,
+        555.75
+      ],
+      "door_position": [
+        -422.37,
+        555.89
+      ],
+      "approach_offset_m": 0.18
+    },
+    {
+      "name": "Daniels Building",
+      "id": "osm:node:8961478291",
+      "building_id": "osm:way:8101762",
+      "building_name": "Daniels Building",
+      "position": [
+        -432.25,
+        558.75
+      ],
+      "door_position": [
+        -432.03,
+        558.76
+      ],
+      "approach_offset_m": 0.22
+    },
+    {
+      "name": "Donnelly Centre for Cellular and Biomolecular Research",
+      "id": "osm:node:9135892703",
+      "building_id": "osm:way:12873396",
+      "building_name": "Donnelly Centre for Cellular and Biomolecular Research",
+      "position": [
+        215.25,
+        561.25
+      ],
+      "door_position": [
+        215.46,
+        561.04
+      ],
+      "approach_offset_m": 0.3
+    },
+    {
+      "name": "Lassonde Mining Building",
+      "id": "osm:node:9216233574",
+      "building_id": "osm:way:12873543",
+      "building_name": "Lassonde Mining Building",
+      "position": [
+        128.25,
+        614.25
+      ],
+      "door_position": [
+        130.33,
+        612.86
+      ],
+      "approach_offset_m": 2.5
+    },
+    {
+      "name": "Sir Daniel Wilson Residence",
+      "id": "osm:node:9495984447",
+      "building_id": "osm:way:8027962",
+      "building_name": "Sir Daniel Wilson Residence",
+      "position": [
+        -153.25,
+        263.25
+      ],
+      "door_position": [
+        -153.03,
+        263.5
+      ],
+      "approach_offset_m": 0.33
+    },
+    {
+      "name": "Cumberland House",
+      "id": "osm:node:9517994071",
+      "building_id": "osm:way:141692092",
+      "building_name": "Cumberland House",
+      "position": [
+        -43.75,
+        611.75
+      ],
+      "door_position": [
+        -43.4,
+        611.56
+      ],
+      "approach_offset_m": 0.4
+    },
+    {
+      "name": "Sidney Smith Hall",
+      "id": "osm:node:9523386298",
+      "building_id": "osm:way:7948423",
+      "building_name": "Sidney Smith Hall",
+      "position": [
+        -314.25,
+        266.75
+      ],
+      "door_position": [
+        -313.76,
+        266.18
+      ],
+      "approach_offset_m": 0.75
+    },
+    {
+      "name": "Building 1034955286",
+      "id": "osm:node:9533672862",
+      "building_id": "osm:way:1034955286",
+      "building_name": "Building 1034955286",
+      "position": [
+        439.25,
+        88.75
+      ],
+      "door_position": [
+        439.42,
+        89.02
+      ],
+      "approach_offset_m": 0.32
+    },
+    {
+      "name": "Lillian Massey Building",
+      "id": "osm:node:9573411071",
+      "building_id": "osm:way:20252184",
+      "building_name": "Lillian Massey Building",
+      "position": [
+        138.25,
+        -380.75
+      ],
+      "door_position": [
+        138.4,
+        -380.54
+      ],
+      "approach_offset_m": 0.26
+    },
+    {
+      "name": "Lillian Massey Building",
+      "id": "osm:node:9573411074",
+      "building_id": "osm:way:20252184",
+      "building_name": "Lillian Massey Building",
+      "position": [
+        139.25,
+        -380.25
+      ],
+      "door_position": [
+        141.18,
+        -381.39
+      ],
+      "approach_offset_m": 2.24
+    },
+    {
+      "name": "Devonshire House",
+      "id": "osm:node:11285182328",
+      "building_id": "osm:way:10334994",
+      "building_name": "Devonshire House",
+      "position": [
+        -63.25,
+        -20.75
+      ],
+      "door_position": [
+        -66.26,
+        -19.78
+      ],
+      "approach_offset_m": 3.16
+    },
+    {
+      "name": "Sanford Fleming Building",
+      "id": "osm:node:11483951865",
+      "building_id": "osm:way:13403180",
+      "building_name": "Sanford Fleming Building",
+      "position": [
+        56.75,
+        545.25
+      ],
+      "door_position": [
+        54.23,
+        545.92
+      ],
+      "approach_offset_m": 2.61
+    },
+    {
+      "name": "McLennan Physical Laboratories",
+      "id": "osm:node:11895607135",
+      "building_id": "osm:way:1428103037",
+      "building_name": "McLennan Physical Laboratories",
+      "position": [
+        -214.25,
+        507.25
+      ],
+      "door_position": [
+        -213.79,
+        507.01
+      ],
+      "approach_offset_m": 0.52
+    },
+    {
+      "name": "371",
+      "id": "osm:node:12805621957",
+      "building_id": "osm:way:10334996",
+      "building_name": "371",
+      "position": [
+        -487.75,
+        -184.75
+      ],
+      "door_position": [
+        -488.24,
+        -184.99
+      ],
+      "approach_offset_m": 0.55
+    },
+    {
+      "name": "Emmanuel College",
+      "id": "osm:node:12926544258",
+      "building_id": "osm:way:204323317",
+      "building_name": "Emmanuel College",
+      "position": [
+        235.75,
+        -192.75
+      ],
+      "door_position": [
+        233.8,
+        -192.58
+      ],
+      "approach_offset_m": 1.96
+    },
+    {
+      "name": "Emmanuel College",
+      "id": "osm:node:12926544265",
+      "building_id": "osm:way:204323317",
+      "building_name": "Emmanuel College",
+      "position": [
+        238.25,
+        -190.75
+      ],
+      "door_position": [
+        238.3,
+        -189.5
+      ],
+      "approach_offset_m": 1.25
+    },
+    {
+      "name": "University College",
+      "id": "osm:node:13076788668",
+      "building_id": "osm:way:8032167",
+      "building_name": "University College",
+      "position": [
+        -54.75,
+        244.75
+      ],
+      "door_position": [
+        -53.98,
+        244.56
+      ],
+      "approach_offset_m": 0.79
+    },
+    {
+      "name": "Myhal Centre",
+      "id": "osm:node:13076878683",
+      "building_id": "osm:way:403302492",
+      "building_name": "Myhal Centre",
+      "position": [
+        -105.75,
+        443.25
+      ],
+      "door_position": [
+        -105.58,
+        445.05
+      ],
+      "approach_offset_m": 1.81
+    },
+    {
+      "name": "Myhal Centre",
+      "id": "osm:node:13076878684",
+      "building_id": "osm:way:403302492",
+      "building_name": "Myhal Centre",
+      "position": [
+        -81.75,
+        486.75
+      ],
+      "door_position": [
+        -83.03,
+        483.42
+      ],
+      "approach_offset_m": 3.57
+    },
+    {
+      "name": "Senator David A. Croll Apartments",
+      "id": "osm:node:13117181660",
+      "building_id": "osm:way:27765374",
+      "building_name": "Senator David A. Croll Apartments",
+      "position": [
+        -429.75,
+        -245.75
+      ],
+      "door_position": [
+        -429.82,
+        -244.79
+      ],
+      "approach_offset_m": 0.96
+    },
+    {
+      "name": "Myhal Centre",
+      "id": "osm:node:13128131474",
+      "building_id": "osm:way:403302492",
+      "building_name": "Myhal Centre",
+      "position": [
+        -66.75,
+        482.25
+      ],
+      "door_position": [
+        -68.42,
+        479.11
+      ],
+      "approach_offset_m": 3.56
+    },
+    {
+      "name": "Myhal Centre",
+      "id": "osm:node:13128131475",
+      "building_id": "osm:way:403302492",
+      "building_name": "Myhal Centre",
+      "position": [
+        -70.25,
+        432.75
+      ],
+      "door_position": [
+        -69.09,
+        434.43
+      ],
+      "approach_offset_m": 2.04
+    },
+    {
+      "name": "Galbraith Building",
+      "id": "osm:node:13128900036",
+      "building_id": "osm:relation:76177",
+      "building_name": "Galbraith Building",
+      "position": [
+        -14.25,
+        509.25
+      ],
+      "door_position": [
+        -14.1,
+        509.94
+      ],
+      "approach_offset_m": 0.71
+    },
+    {
+      "name": "Robarts Library",
+      "id": "osm:node:13233022646",
+      "building_id": "osm:way:7991747",
+      "building_name": "Robarts Library",
+      "position": [
+        -359.75,
+        102.75
+      ],
+      "door_position": [
+        -359.65,
+        101.75
+      ],
+      "approach_offset_m": 1.0
+    },
+    {
+      "name": "Robarts Library",
+      "id": "osm:node:13233022647",
+      "building_id": "osm:way:7991747",
+      "building_name": "Robarts Library",
+      "position": [
+        -357.75,
+        102.25
+      ],
+      "door_position": [
+        -358.02,
+        101.72
+      ],
+      "approach_offset_m": 0.59
+    },
+    {
+      "name": "New Residence (New College)",
+      "id": "osm:node:13233171093",
+      "building_id": "osm:way:8068859",
+      "building_name": "New Residence (New College)",
+      "position": [
+        -446.75,
+        410.25
+      ],
+      "door_position": [
+        -446.8,
+        410.77
+      ],
+      "approach_offset_m": 0.52
+    },
+    {
+      "name": "New Residence (New College)",
+      "id": "osm:node:13233171095",
+      "building_id": "osm:way:8068859",
+      "building_name": "New Residence (New College)",
+      "position": [
+        -436.75,
+        409.75
+      ],
+      "door_position": [
+        -436.78,
+        410.2
+      ],
+      "approach_offset_m": 0.45
+    },
+    {
+      "name": "McLennan Physical Laboratories",
+      "id": "osm:node:13244294214",
+      "building_id": "osm:way:1428103037",
+      "building_name": "McLennan Physical Laboratories",
+      "position": [
+        -221.75,
+        493.25
+      ],
+      "door_position": [
+        -222.33,
+        492.55
+      ],
+      "approach_offset_m": 0.91
+    },
+    {
+      "name": "McLennan Physical Laboratories",
+      "id": "osm:node:13306782516",
+      "building_id": "osm:way:1428103037",
+      "building_name": "McLennan Physical Laboratories",
+      "position": [
+        -259.75,
+        410.75
+      ],
+      "door_position": [
+        -259.78,
+        411.04
+      ],
+      "approach_offset_m": 0.29
+    },
+    {
+      "name": "McLennan Physical Laboratories",
+      "id": "osm:node:13306782517",
+      "building_id": "osm:way:1428103037",
+      "building_name": "McLennan Physical Laboratories",
+      "position": [
+        -234.25,
+        403.25
+      ],
+      "door_position": [
+        -233.99,
+        403.26
+      ],
+      "approach_offset_m": 0.26
+    },
+    {
+      "name": "New Residence (New College)",
+      "id": "osm:node:13403045088",
+      "building_id": "osm:way:8068859",
+      "building_name": "New Residence (New College)",
+      "position": [
+        -434.75,
+        462.75
+      ],
+      "door_position": [
+        -434.29,
+        462.59
+      ],
+      "approach_offset_m": 0.49
+    },
+    {
+      "name": "Bahen Centre",
+      "id": "osm:node:13403166895",
+      "building_id": "osm:way:141691917",
+      "building_name": "Bahen Centre",
+      "position": [
+        -195.75,
+        608.75
+      ],
+      "door_position": [
+        -195.57,
+        608.75
+      ],
+      "approach_offset_m": 0.18
+    },
+    {
+      "name": "Schwartz Reisman Innovation Campus",
+      "id": "osm:node:13403216311",
+      "building_id": "osm:way:1461363247",
+      "building_name": "Schwartz Reisman Innovation Campus",
+      "position": [
+        506.25,
+        514.25
+      ],
+      "door_position": [
+        506.39,
+        512.82
+      ],
+      "approach_offset_m": 1.44
+    },
+    {
+      "name": "Mechanical Engineering Building",
+      "id": "osm:node:13436099437",
+      "building_id": "osm:way:354180331",
+      "building_name": "Mechanical Engineering Building",
+      "position": [
+        106.75,
+        518.75
+      ],
+      "door_position": [
+        106.95,
+        518.71
+      ],
+      "approach_offset_m": 0.2
+    },
+    {
+      "name": "Wallberg Building",
+      "id": "osm:node:13436117658",
+      "building_id": "osm:way:1464898602",
+      "building_name": "Wallberg Building",
+      "position": [
+        92.75,
+        609.75
+      ],
+      "door_position": [
+        92.3,
+        610.13
+      ],
+      "approach_offset_m": 0.59
+    },
+    {
+      "name": "D. L. Pratt Building",
+      "id": "osm:node:13436117672",
+      "building_id": "osm:way:15401964",
+      "building_name": "D. L. Pratt Building",
+      "position": [
+        81.75,
+        595.25
+      ],
+      "door_position": [
+        80.68,
+        595.4
+      ],
+      "approach_offset_m": 1.08
+    },
+    {
+      "name": "Lassonde Mining Building",
+      "id": "osm:node:13444464985",
+      "building_id": "osm:way:12873543",
+      "building_name": "Lassonde Mining Building",
+      "position": [
+        207.75,
+        585.75
+      ],
+      "door_position": [
+        207.7,
+        585.66
+      ],
+      "approach_offset_m": 0.1
+    },
+    {
+      "name": "Lash Miller",
+      "id": "osm:node:13453226980",
+      "building_id": "osm:way:1466900017",
+      "building_name": "Lash Miller",
+      "position": [
+        -164.25,
+        424.75
+      ],
+      "door_position": [
+        -165.29,
+        425.32
+      ],
+      "approach_offset_m": 1.19
+    },
+    {
+      "name": "Bahen Centre",
+      "id": "osm:node:13454420111",
+      "building_id": "osm:way:141691917",
+      "building_name": "Bahen Centre",
+      "position": [
+        -119.25,
+        542.75
+      ],
+      "door_position": [
+        -120.32,
+        543.06
+      ],
+      "approach_offset_m": 1.11
+    },
+    {
+      "name": "Goldring Centre",
+      "id": "osm:node:13457242126",
+      "building_id": "osm:way:258167657",
+      "building_name": "Goldring Centre",
+      "position": [
+        -204.25,
+        -200.75
+      ],
+      "door_position": [
+        -205.42,
+        -199.98
+      ],
+      "approach_offset_m": 1.4
+    },
+    {
+      "name": "Flavelle House",
+      "id": "osm:node:13465075314",
+      "building_id": "osm:way:12000629",
+      "building_name": "Flavelle House",
+      "position": [
+        140.25,
+        -142.25
+      ],
+      "door_position": [
+        140.49,
+        -142.31
+      ],
+      "approach_offset_m": 0.25
+    },
+    {
+      "name": "Edward Johnson Building",
+      "id": "osm:node:13465075320",
+      "building_id": "osm:way:12000624",
+      "building_name": "Edward Johnson Building",
+      "position": [
+        100.75,
+        -184.25
+      ],
+      "door_position": [
+        99.63,
+        -183.75
+      ],
+      "approach_offset_m": 1.23
+    },
+    {
+      "name": "C. David Naylor Building",
+      "id": "osm:node:13482439818",
+      "building_id": "osm:way:23433584",
+      "building_name": "C. David Naylor Building",
+      "position": [
+        314.75,
+        519.75
+      ],
+      "door_position": [
+        315.0,
+        519.89
+      ],
+      "approach_offset_m": 0.29
+    },
+    {
+      "name": "Lash Miller",
+      "id": "osm:node:13513374212",
+      "building_id": "osm:way:1466900017",
+      "building_name": "Lash Miller",
+      "position": [
+        -284.25,
+        379.25
+      ],
+      "door_position": [
+        -283.47,
+        380.03
+      ],
+      "approach_offset_m": 1.1
+    },
+    {
+      "name": "Jackman Law Building",
+      "id": "osm:node:13517050538",
+      "building_id": "osm:way:676618964",
+      "building_name": "Jackman Law Building",
+      "position": [
+        111.75,
+        -90.75
+      ],
+      "door_position": [
+        115.81,
+        -92.56
+      ],
+      "approach_offset_m": 4.45
+    },
+    {
+      "name": "Jackman Law Building",
+      "id": "osm:node:13517050542",
+      "building_id": "osm:way:676618964",
+      "building_name": "Jackman Law Building",
+      "position": [
+        147.25,
+        -101.75
+      ],
+      "door_position": [
+        146.37,
+        -102.23
+      ],
+      "approach_offset_m": 1.0
+    },
+    {
+      "name": "Flavelle House",
+      "id": "osm:node:13517050545",
+      "building_id": "osm:way:12000629",
+      "building_name": "Flavelle House",
+      "position": [
+        104.25,
+        -125.25
+      ],
+      "door_position": [
+        105.67,
+        -126.41
+      ],
+      "approach_offset_m": 1.83
+    },
+    {
+      "name": "Bora Laskin Law Library",
+      "id": "osm:node:13517050546",
+      "building_id": "osm:way:12000627",
+      "building_name": "Bora Laskin Law Library",
+      "position": [
+        91.75,
+        -114.75
+      ],
+      "door_position": [
+        91.8,
+        -112.4
+      ],
+      "approach_offset_m": 2.35
+    },
+    {
+      "name": "Galbraith Building",
+      "id": "osm:node:13522922001",
+      "building_id": "osm:relation:76177",
+      "building_name": "Galbraith Building",
+      "position": [
+        -7.25,
+        574.75
+      ],
+      "door_position": [
+        -7.21,
+        574.94
+      ],
+      "approach_offset_m": 0.19
+    },
+    {
+      "name": "Lash Miller",
+      "id": "osm:node:13647896604",
+      "building_id": "osm:way:1466900017",
+      "building_name": "Lash Miller",
+      "position": [
+        -210.25,
+        382.75
+      ],
+      "door_position": [
+        -209.58,
+        382.54
+      ],
+      "approach_offset_m": 0.7
+    },
+    {
+      "name": "Lash Miller",
+      "id": "osm:node:13647896605",
+      "building_id": "osm:way:1466900017",
+      "building_name": "Lash Miller",
+      "position": [
+        -173.75,
+        363.25
+      ],
+      "door_position": [
+        -185.8,
+        367.47
+      ],
+      "approach_offset_m": 12.77
+    },
+    {
+      "name": "D. L. Pratt Building",
+      "id": "osm:node:13652319143",
+      "building_id": "osm:way:15401964",
+      "building_name": "D. L. Pratt Building",
+      "position": [
+        74.25,
+        574.75
+      ],
+      "door_position": [
+        74.67,
+        575.35
+      ],
+      "approach_offset_m": 0.73
+    },
+    {
+      "name": "Physical Geography Building",
+      "id": "osm:node:13653694739",
+      "building_id": "osm:way:15401957",
+      "building_name": "Physical Geography Building",
+      "position": [
+        -92.25,
+        508.25
+      ],
+      "door_position": [
+        -91.91,
+        508.44
+      ],
+      "approach_offset_m": 0.39
+    },
+    {
+      "name": "Arthur M. Kruger Hall",
+      "id": "osm:node:13759196199",
+      "building_id": "osm:way:27750952",
+      "building_name": "Arthur M. Kruger Hall",
+      "position": [
+        -261.25,
+        -194.75
+      ],
+      "door_position": [
+        -260.29,
+        -194.76
+      ],
+      "approach_offset_m": 0.96
+    },
+    {
+      "name": "Arthur M. Kruger Hall",
+      "id": "osm:node:13759206001",
+      "building_id": "osm:way:27750952",
+      "building_name": "Arthur M. Kruger Hall",
+      "position": [
+        -284.25,
+        -217.75
+      ],
+      "door_position": [
+        -284.48,
+        -220.19
+      ],
+      "approach_offset_m": 2.45
+    },
+    {
+      "name": "Transitional Year Programme",
+      "id": "osm:node:13759206009",
+      "building_id": "osm:way:22236557",
+      "building_name": "Transitional Year Programme",
+      "position": [
+        -288.25,
+        -216.25
+      ],
+      "door_position": [
+        -288.29,
+        -216.33
+      ],
+      "approach_offset_m": 0.09
+    },
+    {
+      "name": "Transitional Year Programme",
+      "id": "osm:node:13759206037",
+      "building_id": "osm:way:22236557",
+      "building_name": "Transitional Year Programme",
+      "position": [
+        -308.75,
+        -222.75
+      ],
+      "door_position": [
+        -308.31,
+        -222.0
+      ],
+      "approach_offset_m": 0.87
+    },
+    {
+      "name": "Louis B. Stewart Observatory",
+      "id": "osm:node:13767367042",
+      "building_id": "osm:way:8033844",
+      "building_name": "Louis B. Stewart Observatory",
+      "position": [
+        68.75,
+        203.75
+      ],
+      "door_position": [
+        68.58,
+        203.89
+      ],
+      "approach_offset_m": 0.22
+    },
+    {
+      "name": "Trinity College",
+      "id": "osm:node:13899880207",
+      "building_id": "osm:relation:2687",
+      "building_name": "Trinity College",
+      "position": [
+        -48.25,
+        -21.75
+      ],
+      "door_position": [
+        -48.1,
+        -21.87
+      ],
+      "approach_offset_m": 0.19
+    },
+    {
+      "name": "Trinity College",
+      "id": "osm:node:13899880211",
+      "building_id": "osm:relation:2687",
+      "building_name": "Trinity College",
+      "position": [
+        -48.25,
+        -17.25
+      ],
+      "door_position": [
+        -47.02,
+        -18.34
+      ],
+      "approach_offset_m": 1.64
+    },
+    {
+      "name": "TELUS Centre for Performance and Learning",
+      "id": "osm:node:14019965016",
+      "building_id": "osm:way:20251223",
+      "building_name": "TELUS Centre for Performance and Learning",
+      "position": [
+        -83.25,
+        -338.25
+      ],
+      "door_position": [
+        -84.64,
+        -338.95
+      ],
+      "approach_offset_m": 1.56
+    },
+    {
+      "name": "Hart House",
+      "id": "osm:node:14024333553",
+      "building_id": "osm:relation:1989",
+      "building_name": "Hart House",
+      "position": [
+        105.25,
+        139.75
+      ],
+      "door_position": [
+        104.58,
+        138.47
+      ],
+      "approach_offset_m": 1.44
+    },
+    {
+      "name": "Old Admin Building",
+      "id": "osm:node:14061538650",
+      "building_id": "osm:way:23436965",
+      "building_name": "Old Admin Building",
+      "position": [
+        231.75,
+        676.25
+      ],
+      "door_position": [
+        231.72,
+        676.39
+      ],
+      "approach_offset_m": 0.14
+    },
+    {
+      "name": "Medical Sciences",
+      "id": "osm:node:14190739474",
+      "building_id": "osm:way:23433615",
+      "building_name": "Medical Sciences",
+      "position": [
+        133.75,
+        417.25
+      ],
+      "door_position": [
+        133.9,
+        419.5
+      ],
+      "approach_offset_m": 2.25
+    },
+    {
+      "name": "Medical Sciences",
+      "id": "osm:node:14190739487",
+      "building_id": "osm:way:23433615",
+      "building_name": "Medical Sciences",
+      "position": [
+        77.25,
+        438.75
+      ],
+      "door_position": [
+        77.4,
+        439.4
+      ],
+      "approach_offset_m": 0.67
+    },
+    {
+      "name": "Rosebrugh Building",
+      "id": "osm:node:14191985801",
+      "building_id": "osm:way:354180330",
+      "building_name": "Rosebrugh Building",
+      "position": [
+        174.75,
+        505.75
+      ],
+      "door_position": [
+        174.87,
+        505.96
+      ],
+      "approach_offset_m": 0.24
+    },
+    {
+      "name": "Medical Sciences",
+      "id": "osm:node:14209599299",
+      "building_id": "osm:way:23433615",
+      "building_name": "Medical Sciences",
+      "position": [
+        92.75,
+        496.75
+      ],
+      "door_position": [
+        93.78,
+        496.29
+      ],
+      "approach_offset_m": 1.13
+    },
+    {
+      "name": "Haultain Building",
+      "id": "osm:node:14209650720",
+      "building_id": "osm:way:23433306",
+      "building_name": "Haultain Building",
+      "position": [
+        163.25,
+        568.75
+      ],
+      "door_position": [
+        163.42,
+        567.36
+      ],
+      "approach_offset_m": 1.4
+    },
+    {
+      "name": "Lawson Centre for Sustainability",
+      "id": "osm:node:14271631542",
+      "building_id": "osm:way:1545519650",
+      "building_name": "Lawson Centre for Sustainability",
+      "position": [
+        -36.75,
+        -136.75
+      ],
+      "door_position": [
+        -36.89,
+        -136.94
+      ],
+      "approach_offset_m": 0.24
+    }
+  ]
+}

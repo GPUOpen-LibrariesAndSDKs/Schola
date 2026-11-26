@@ -1,0 +1,52 @@
+{
+  "name": "AMD Advanced NPCs (Schola + UE 5.8.4)",
+  "build": { "dockerfile": "Dockerfile" },
+  "remoteUser": "ue4",
+  "updateRemoteUserUID": true,
+
+  // Keep container-built venvs/caches out of the host checkout's own .venv dirs.
+  "mounts": [
+    "source=amd-npcs-venv,target=/home/ue4/.venv,type=volume",
+    "source=amd-npcs-sharedpolicy-venv,target=${containerWorkspaceFolder}/Prototypes/SharedPolicy/.venv,type=volume",
+    "source=amd-npcs-uv-cache,target=/home/ue4/.cache/uv,type=volume"
+  ],
+
+  "containerEnv": {
+    "PYTHONPATH": "${containerWorkspaceFolder}/Resources/python",
+    // Point the Unreal test harness (Source/conftest.py) at the in-image engine
+    // without editing the tracked pytest.ini (which targets a Windows install).
+    "PYTEST_ADDOPTS": "-o engine_path=/home/ue4/UnrealEngine"
+  },
+
+  // UE builds are memory/shm hungry; the editor also needs a larger /dev/shm.
+  "runArgs": ["--shm-size=8g", "--ulimit", "nofile=65536:65536"],
+
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "charliermarsh.ruff",
+        "llvm-vs-code-extensions.vscode-clangd",
+        "xaver.clang-format",
+        "zxh404.vscode-proto3",
+        "ms-azuretools.vscode-docker"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/home/ue4/.venv/bin/python",
+        "python.testing.pytestEnabled": true,
+        "python.testing.pytestArgs": ["Test"],
+        "C_Cpp.intelliSenseEngine": "disabled",
+        "files.watcherExclude": {
+          "**/Binaries/**": true,
+          "**/Intermediate/**": true,
+          "**/Saved/**": true,
+          "**/DerivedDataCache/**": true,
+          "**/Source/ThirdParty/**": true
+        }
+      }
+    }
+  }
+}

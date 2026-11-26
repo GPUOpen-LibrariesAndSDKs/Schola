@@ -344,3 +344,20 @@ dialog::backdrop { background: rgb(10 30 25 / 65%); }
 @media print {
   .slot { background: #fff; }
 }
+
+/* Adaptive before/after */
+.before-after { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; margin-bottom: 32px; }
+.before-after > div { padding: 24px 32px; border-top: 4px solid var(--line); background: #ebe8dc; }
+.before-after .after { border-top-color: #936025; background: #f6e7c8; }
+.ba-label { display: block; margin-bottom: 12px; font-size: 18px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.after .ba-label { color: #7a4f1c; }
+.before-after ol { margin: 0; padding-left: 28px; }
+.before-after li { font-size: 23px; line-height: 1.4; margin-bottom: 8px; }
+.before li { color: var(--muted); }
+.capability-grid { grid-template-columns: repeat(4, 1fr); gap: 32px; }
+.capability-grid h3 { font-size: 24px; margin-bottom: 8px; }
+.capability-grid p { font-size: 20px; margin-bottom: 0; }
+.demo-split { gap: 48px; }
+.demo-split h3 { color: var(--muted); font-size: 24px; margin-bottom: 8px; }
+.demo-split .dev-steps p { margin: 0; font-size: 23px; }
+.demo-split .dev-steps li { padding: 12px 0; }

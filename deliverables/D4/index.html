@@ -138,33 +138,91 @@
         <aside class="speaker-notes" data-time="1:00">Left column is the whole developer workload: in Unreal these are the IAgent and IAdaptiveAgent functions, all Blueprint-implementable, and one stepper call per tick runs the loop. Don't show code. Live: two minutes before the talk, start the plugin learner's chase run in a terminal so it reaches the switch around now. Point at the switch line (corner catch about 0.18), then the recovery lines above 0.80, then the PASS criterion lines. If the Unreal stepper test has passed on Windows by then, show it in the NativeLearning editor instead. Fallback if the laptop fails: walk through the committed log and the chart two slides on. Never play a recording without narrating it.</aside>
       </section>
 
-      <section class="slide cover dark sp-slide sp-team-cover" id="background-team" aria-labelledby="background-team-heading" data-title="Background NPCs: team" data-section="Demo">
-        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>CSC301 / Deliverable 04</span></header>
-        <div class="cover-content">
-          <div class="sp-reveal">
-            <p class="eyebrow">Advanced NPCs for AMD Schola</p>
-            <h1 id="background-team-heading">Background<br>team<span class="accent">.</span></h1>
-            <p class="lead">Background NPCs &middot; Deliverable 4</p>
-          </div>
-          <div class="cover-mark sp-team sp-reveal"><span>TEAM MEMBERS</span><ul><li>Max Xu</li></ul></div>
-        </div>
-        <aside class="speaker-notes" data-time="0:05">Introduce the Background team, Max Xu, in one sentence, then go straight into the demo.</aside>
+      <!-- Background NPC / Max Xu -->
+      <section class="slide background-slide" id="background-team" aria-labelledby="background-team-heading" data-title="Background NPC · Team" data-section="Background NPC">
+        <h2 id="background-team-heading">Background NPC Team</h2>
+        <p class="lead">Max Xu</p>
+        <aside class="speaker-notes" data-time="0:05">I’m Max Xu. I worked on ScholaMass and CampusCrowd.</aside>
       </section>
 
-      <section class="slide" id="demo-background" aria-labelledby="demo-background-heading" data-title="Demo: background NPCs" data-section="Demo">
-        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Demo 2 / Background NPCs</span></header>
-        <div class="slot">
-          <span class="slot-owner">Background NPCs subteam · 1:00</span>
-          <h3 id="demo-background-heading">User flow 2: batch inference for a large crowd</h3>
-          <ul>
-            <li>What the developer sets up (policy paradigm, stepper or Mass processors), in one sentence</li>
-            <li>Live: CampusCrowd or BackgroundNPCs, toggling the API off and on</li>
-            <li>What to watch: frame rate and game-thread time with and without the API</li>
-            <li>The fallback if the live run fails, with a reason</li>
-          </ul>
-          <p class="slot-known">On record: 20,000 agents, 200,000 decisions/s, 60 FPS with the API versus 10.4 FPS without.</p>
+      <section class="slide background-slide" id="background-motivation" aria-labelledby="background-motivation-heading" data-title="Background NPC · Motivation" data-section="Background NPC">
+        <h2 id="background-motivation-heading">Why ScholaMass?</h2>
+        <ul class="background-steps">
+          <li>Schola ran ONNX inference one agent at a time on the game thread.</li>
+          <li>Unreal Mass stores crowd state in entity fragments. Model calls for thousands of NPCs compete for the frame budget.</li>
+          <li>ScholaMass connects Mass (from unreal) processors to batched inference and routes each result back to its entity.</li>
+        </ul>
+        <aside class="speaker-notes" data-time="0:15">Max Xu. Schola already supplied ONNX inference. Our background scheduler moves model calls to workers. ScholaMass is the adapter that gathers rows from Mass fragments, submits them to that scheduler, and applies results to the right entities on a later frame.</aside>
+      </section>
+
+      <section class="slide background-slide" id="demo-background" aria-labelledby="demo-background-heading" data-title="Background NPC · CampusCrowd recordings and performance" data-section="Background NPC">
+        <h2 id="demo-background-heading">CampusCrowd</h2>
+        <div class="background-videos">
+          <figure>
+            <video controls playsinline preload="metadata" poster="assets/campus-crowd-four-student-split-view.jpg"
+                   src="assets/campus-crowd-four-student-split-view.mp4" aria-label="Four-student CampusCrowd recording"></video>
+            <figcaption>Four students · Full day</figcaption>
+          </figure>
+          <figure>
+            <video controls playsinline preload="metadata" poster="assets/campus-crowd-100000-students-first-class.jpg"
+                   src="assets/campus-crowd-100000-students-first-class.mp4" aria-label="100,000-student CampusCrowd recording"></video>
+            <figcaption>100,000 students · First class</figcaption>
+          </figure>
         </div>
-        <aside class="speaker-notes" data-time="1:00">Background subteam: replace this slot. Keep the demo from the user's perspective and within one minute.</aside>
+        <table class="background-benchmarks">
+          <caption class="sr-only">CampusCrowd benchmarks measured separately from the videos</caption>
+          <thead><tr><th scope="col">Students</th><th scope="col">Mode</th><th scope="col">Rows/call</th><th scope="col">Turns/s</th><th scope="col">Game-thread inference p99<br>(ms/frame)</th><th scope="col">Turn latency p99<br>(ms)</th><th scope="col">FPS</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">100,000</th><td>ScholaMass</td><td>45.9</td><td>3,310</td><td>1.729</td><td>25</td><td>59.49</td></tr>
+            <tr><th scope="row">100,000</th><td>Synchronous</td><td>1.0</td><td>3,276</td><td>4.741</td><td>10</td><td>55.06</td></tr>
+            <tr><th scope="row">300,000</th><td>ScholaMass</td><td>54.5</td><td>9,665</td><td>4.440</td><td>35</td><td>54.09</td></tr>
+            <tr><th scope="row">300,000</th><td>Synchronous</td><td>1.0</td><td>9,646</td><td>13.226</td><td>27</td><td>38.30</td></tr>
+          </tbody>
+        </table>
+        <aside class="speaker-notes" data-time="0:55">Both videos last 30 seconds. They can play side by side while you narrate. The left shows a full class day sped up and the right shows the first class for the large cohort. The table compares ScholaMass and synchronous inference at each crowd size. The 100,000-student pair was rendered; the 300,000-student pair ran headless. Compare modes within each crowd size. At 300,000, both modes applied about 9,650 turns per second with no dropped rows.</aside>
+      </section>
+
+      <section class="slide background-slide" id="tech-background" aria-labelledby="tech-background-heading" data-title="Background NPC · ScholaMass architecture" data-section="Background NPC">
+        <h2 id="tech-background-heading">ScholaMass architecture</h2>
+        <ol class="background-flow" aria-label="ScholaMass observation and action flow">
+          <li><strong>Gather</strong><span>Mass entities due to decide</span></li>
+          <li><strong>Queue</strong><span>One bucket per shared policy</span></li>
+          <li><strong>Infer</strong><span>Batched ONNX on workers</span></li>
+          <li><strong>Apply</strong><span>Return results on a later frame</span></li>
+        </ol>
+        <aside class="speaker-notes" data-time="0:30">Max Xu. Trace one student’s junction decision. Mass schedules tell the gather processor what is due. One world subsystem keeps a bounded queue for each policy bucket. Workers batch ONNX requests by policy. The bridge checks entity identity and request serial before it applies a completed action.</aside>
+      </section>
+
+      <section class="slide background-slide" id="background-api" aria-labelledby="background-api-heading" data-title="Background NPC · CampusCrowd API calls" data-section="Background NPC">
+        <h2 id="background-api-heading">ScholaMass in CampusCrowd</h2>
+        <div class="background-code-grid">
+          <pre><code>const int32 Bucket = Service
+    ? Service-&gt;<mark>AcquireBucket</mark>(*Provider, Definition,
+                             Settings, BucketError)
+    : INDEX_NONE;
+
+FScholaInferenceBucketFragment BucketFragment;
+<mark>BucketFragment.BucketId = Bucket;</mark></code></pre>
+          <pre><code><span class="background-comment">// WriteObservations</span>
+if (MigrationDay)
+    MigrationDay-&gt;<mark>WriteObservation</mark>(Agent.Instance, Row);
+
+<span class="background-comment">// ApplyActions</span>
+if (MigrationDay)
+    MigrationDay-&gt;<mark>ApplyAction</mark>(Agent.Instance, Row);</code></pre>
+        </div>
+        <aside class="speaker-notes" data-time="0:25">The highlighted calls are the API integration points. AcquireBucket binds the ONNX provider, input and output shapes, and scheduler settings. The crowd shares the bucket. The gather callback writes one row for each student due to decide. The apply callback passes the returned scores to CampusCrowd. The excerpts come from CrowdComparisonHost.cpp and CrowdProcessors.cpp.</aside>
+      </section>
+
+      <section class="slide background-slide" id="background-development" aria-labelledby="background-development-heading" data-title="Background NPC · Use and development" data-section="Background NPC">
+        <h2 id="background-development-heading">Develop and deploy in Docker</h2>
+        <ul class="background-steps">
+          <li>Sign in to <code>ghcr.io</code> for the Unreal Engine image.</li>
+          <li>Reopen in Dev Container and run <code>git lfs pull</code>.</li>
+          <li>Run <code>Scripts/build.sh</code> and <code>CAMPUS_EDITOR=1 Scripts/run.sh -Demo=Four</code>.</li>
+          <li>Run <code>Scripts/package.sh</code> for a standalone Linux build.</li>
+        </ul>
+        <aside class="speaker-notes" data-time="0:20">The devcontainer uses Unreal Engine 5.8.4. Run the scripts from Examples/CampusCrowd. Use F1 for the four-student day, F2 for scaling, and Tab to compare inference modes. Headless tests run with -nullrhi. Package output is in Saved/Package/Linux.</aside>
       </section>
 
       <section class="slide cover dark sp-slide sp-team-cover" id="shared-policy-team" aria-labelledby="shared-policy-team-heading" data-title="Shared Policy NPCs: team" data-section="Demo">
@@ -293,7 +351,7 @@
           <article class="sp-card"><h3>Architecture C · Integration target</h3><p>One model per active role. C matched A’s actions and reduced median request latency across all 64 tested configurations, with larger model files.</p></article>
         </div>
         <div class="takeaway"><span>16 active heads · batch of 16</span><p>375 µs for A, 242 µs for C, measured end to end in Python ONNX Runtime on one Mac CPU.</p></div>
-        <aside class="speaker-notes" data-time="0:08">Say: “In D3, I used A’s outputs to verify C and timed C against D in Unreal. For D4, I timed A against C directly as the number of roles grew.” Point to the 16-head example. For questions: I built the scaling runner in PR #55 and measured warmed, complete-request latency at 2, 4, 8, and 16 heads. C matched A’s actions and had lower median latency in all 64 synthetic configurations. C stores a separate model per role, which increased total ONNX file size. A versus C performance in Unreal is still to be measured.</aside>
+        <aside class="speaker-notes" data-time="0:22">In Demo 3, I benchmarked C and D, the two designs Alex from AMD asked us to focus on. This time, I compared C with our baseline, Architecture A. On a Mac CPU, C made the same decisions and was faster in every setup we tried. That’s why we’re moving forward with C.</aside>
       </section>
 
       <section class="slide sp-slide" id="shared-policy-per-role" aria-labelledby="shared-policy-per-role-heading" data-title="Shared Policy NPCs: Architecture C implementation" data-section="Technical">
@@ -345,7 +403,7 @@
           </div>
         </div>
         <div class="takeaway"><span>Same stepper API</span><p>Developers configure a role-to-model mapping. The existing Shared Policy Stepper works with either architecture.</p></div>
-        <aside class="speaker-notes" data-time="0:08">Say: “My merged implementation adds Architecture C to our Schola extension through the existing policy interface.” Trace NPCs 1 and 3 into the Toward batch and NPC 2 into the Away batch, then point to the restored order.</aside>
+        <aside class="speaker-notes" data-time="0:23">My merged implementation adds Architecture C to our Schola extension through the existing policy interface. Clementine integrated Architecture A first, and C is the version we plan to use going forward. At a high level, C takes a batch of observations from NPCs in different roles, runs one model per group, and sends each NPC its action.</aside>
       </section>
 
       <section class="slide sp-slide" id="shared-policy-beacon-walkthrough" aria-labelledby="shared-policy-beacon-walkthrough-heading" data-title="Shared Policy NPCs: what the beacon demo verifies" data-section="Demo">
@@ -359,7 +417,7 @@
           <article class="sp-card"><h3>In the Output Log</h3><p><code>LogSharedPolicyD4</code> reports six applied actions and two model calls per decision step. One call serves the Toward batch and the other serves the Away batch.</p></article>
         </div>
         <div class="takeaway"><span>What ties them together</span><p>The Shared Policy Stepper collects observations, submits them to Architecture C, and applies the returned action to each NPC.</p></div>
-        <aside class="speaker-notes" data-time="0:07">Say: “Watch both groups react to the beacon. Then look at the log: six steering actions, with one model call for each role.” The scene shows the observation-to-action loop. The log verifies the number of model calls.</aside>
+        <aside class="speaker-notes" data-time="0:21">Clementine and I put together two demos. First, I’ll show you the beacon scene I built and configured in Unreal. It shows Architecture C batching NPCs by role. All six NPCs make decisions in the same step, and Architecture C runs the model once for each group, so two model calls give us six steering actions.</aside>
       </section>
 
       <section class="slide sp-slide sp-video-slide" id="demo-shared" aria-labelledby="demo-shared-heading" data-title="Shared Policy NPCs: beacon runtime demo" data-section="Demo">
@@ -375,7 +433,7 @@
           </video>
           <figcaption>The stepper applies six steering actions from two model calls per decision step. <a href="https://github.com/csc301-2026-f/9-AMD-Advanced-NPCs/pull/66">PR #66</a></figcaption>
         </figure>
-        <aside class="speaker-notes" data-time="0:13">For the timed walkthrough, cue the recording around 0:15 and pause on the Output Log around 0:28. Narrate the shift in the beacon’s direction, the three Toward agents and the three Away agents. Explain that the stepper gathers observations, Architecture C runs one batch per role, and the stepper applies each returned action. Point out six actions and two model calls in LogSharedPolicyD4. The demo measures calls by reading Schola’s cumulative counter before and after the step. If time allows, show the full recording. Hand off: “We’ve shown the inference loop in a controlled Unreal scene. Clementine brought Schola into Lyra, Epic’s Unreal sample game, and will show bots switching between Patrol and Chase. Our next step is to use those states to select the models you just saw running.”</aside>
+        <aside class="speaker-notes" data-time="0:24">[Play the clip from around 0:15.] As I move the beacon, these three NPCs follow it, and the other three steer away. [Point to the log around 0:28.] You can see six steering actions from just two model calls, one for each group. [After the clip.] Next, Clementine will show NPCs switching between Patrol and Chase in Lyra, Epic’s sample game for Unreal Engine. That’s the piece we’ll connect to our shared policy next.</aside>
       </section>
 
       <section class="slide sp-slide sp-video-slide" id="shared-policy-statetree-demo" aria-labelledby="shared-policy-statetree-demo-heading" data-title="Shared Policy NPCs: Lyra runtime demo" data-section="Demo">
@@ -748,21 +806,6 @@
         <aside class="speaker-notes" data-time="0:15">For testing, there are 460 checks that run in CI on every PR, on Linux and Mac. That includes a bunch of broken and mismatched files, and all of them get rejected. I also reran the chase test starting from a saved checkpoint. It still adapts on all six seeds, and the frozen copy loaded from the same file doesn't change at all.</aside>
       </section>
 
-      <section class="slide" id="tech-background" aria-labelledby="tech-background-heading" data-title="Background: design" data-section="Technical">
-        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Background NPCs / Deliverable 4</span></header>
-        <div class="slot">
-          <span class="slot-owner">Background NPCs subteam · 0:35</span>
-          <h3 id="tech-background-heading">Design: batching on workers without blocking the frame</h3>
-          <ul>
-            <li>A diagram of the scheduler path: gather rows, batch, run on workers, apply on a later frame (Docs/Diagrams/background-npc-architecture.svg)</li>
-            <li>The key decision and its trade-off: one frame of action latency for a 60 FPS frame budget</li>
-            <li>One measured result with its environment</li>
-          </ul>
-          <p class="slot-known">No code screenshots. Walk the diagram; don't just show it.</p>
-        </div>
-        <aside class="speaker-notes" data-time="0:35">Background subteam: replace this slot.</aside>
-      </section>
-
       <section class="slide" id="tech-shared" aria-labelledby="tech-shared-heading" data-title="Shared Policy: design" data-section="Technical">
         <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Shared Policy NPCs / Deliverable 4</span></header>
         <p class="eyebrow">Architecture C &middot; one model per role</p>
@@ -923,27 +966,25 @@
 
       <section class="slide" id="quality" aria-labelledby="quality-heading" data-title="Testing, CI and deployment" data-section="Technical">
         <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Engineering quality / Deliverable 4</span></header>
-        <p class="eyebrow">DevOps and automated testing</p>
-        <h2 id="quality-heading">Tested where it can run</h2>
+        <h2 id="quality-heading">Testing and packaging</h2>
         <div class="split" style="grid-template-columns: 1.6fr 1fr; gap: 48px">
           <table class="comparison-table compact-table"><caption class="sr-only">Automated tests by component and where they run</caption>
             <thead><tr><th scope="col" style="width:38%">Component</th><th scope="col">Automated tests</th><th scope="col" style="width:26%">Runs</th></tr></thead>
             <tbody>
-              <tr><th scope="row">Adaptive learner</th><td>460 learner and checkpoint checks</td><td><span class="status-pill status-ok">CI</span> every PR</td></tr>
-              <tr><th scope="row">Chase simulator</th><td>7 smoke checks</td><td><span class="status-pill status-ok">CI</span> every PR</td></tr>
-              <tr><th scope="row">Adaptive in Unreal</th><td>Policy, stepper, world service; script fails on a missing test</td><td>Local script</td></tr>
-              <tr><th scope="row">Background and Mass</th><td>43 automation tests</td><td>Local script</td></tr>
+              <tr><th scope="row">Adaptive learner</th><td>460 learner and checkpoint checks</td><td><span class="status-pill status-ok">CI</span> path-filtered</td></tr>
+              <tr><th scope="row">Chase simulator</th><td>7 smoke checks</td><td><span class="status-pill status-ok">CI</span> path-filtered</td></tr>
+              <tr><th scope="row">Adaptive in Unreal</th><td>Policy, stepper, world service</td><td>Local script</td></tr>
+              <tr><th scope="row">Background and Mass</th><td>43 Unreal tests plus Python navigation tests</td><td>Devcontainer</td></tr>
               <tr><th scope="row">Shared Policy</th><td>pytest; 48 NNE reports gated on correctness</td><td>Local script</td></tr>
             </tbody>
           </table>
-          <div class="slot" style="padding: 24px 32px">
-            <span class="slot-owner">Team · deployment</span>
-            <h3 style="font-size:27px">Dev and release environments</h3>
-            <ul><li>What deploys automatically to dev, and when</li><li>What deploys to release, and when</li><li>Where the partner downloads each</li></ul>
+          <div class="decision-list">
+            <div><h3>Docker development</h3><p>Unreal 5.8.4 devcontainer for editor builds, automation, and headless smoke tests.</p></div>
+            <div><h3>Standalone Linux release</h3><p>Package and smoke-test a selected commit in Docker. Maintainers publish artifacts with the release tag.</p></div>
           </div>
         </div>
-        <div class="takeaway"><span>Constraint</span><p>Hosted runners have no Unreal, so everything that builds without the engine runs in CI.</p></div>
-        <aside class="speaker-notes" data-time="0:25">Every job has a 5-minute timeout and narrow path triggers to stay inside the Actions budget. Unreal automation runs through local scripts that check every registered test reported a result. PRs need a teammate's review before merge. Fill the deployment box once the dev and release workflow is merged; don't claim it before then.</aside>
+        <div class="takeaway"><span>Constraint</span><p>GitHub Actions runs native checks. Docker provides the Unreal toolchain.</p></div>
+        <aside class="speaker-notes" data-time="0:25">Distinguish the hosted native PR checks from the Unreal suites in Docker. The devcontainer pins the engine version for both development and release packaging. A maintainer selects the commit, runs the package smoke test, and uploads the Linux artifact.</aside>
       </section>
 
       <section class="slide" id="nfr" aria-labelledby="nfr-heading" data-title="Non-functional requirements" data-section="Technical">
@@ -953,13 +994,13 @@
         <table class="comparison-table compact-table"><caption class="sr-only">Non-functional requirements, responses and evidence</caption>
           <thead><tr><th scope="col" style="width:22%">Concern</th><th scope="col">Response</th><th scope="col" style="width:30%">Measured</th></tr></thead>
           <tbody>
-            <tr><th scope="row">Frame budget</th><td>Model calls and training run on workers; the game thread only gathers and applies</td><td>1.6 ms/frame for 20,000 agents; 5–11 µs per adaptive decision</td></tr>
-            <tr><th scope="row">Bounded resources</th><td>Fixed queue, row, byte and replay limits; overload is rejected and counted</td><td>8.6 MB per adaptive learner; zero dropped requests at 200k decisions/s</td></tr>
+            <tr><th scope="row">Frame budget</th><td>Model calls and training run on workers; the game thread only gathers and applies</td><td>CampusCrowd inference p99: 0.141 ms/frame for 1,600 students; adaptive decisions: 5–11 µs</td></tr>
+            <tr><th scope="row">Bounded resources</th><td>Fixed queue, row, byte and replay limits; overload is rejected and counted</td><td>8.6 MB per adaptive learner; zero dropped rows in both CampusCrowd captures</td></tr>
             <tr><th scope="row">Correctness</th><td>Outcomes must match their decision; shared-policy results gated on an oracle</td><td>Attribution tests; 48/48 NNE reports correct</td></tr>
             <tr><th scope="row">Reliability</th><td>Atomic, validated checkpoints; teardown with work in flight is tested</td><td>A failed load leaves the learner unchanged</td></tr>
           </tbody>
         </table>
-        <aside class="speaker-notes" data-time="0:20">These are the concerns that matter for a game runtime library: frame time, memory, correct results and safe failure. Scheduling is cooperative, so we make no hard real-time guarantee. Full evidence links are in the README's Non-functional requirements section. Subteams: correct any number here that changed for D4.</aside>
+        <aside class="speaker-notes" data-time="0:20">These are the concerns that matter for a game runtime library: frame time, memory, correct results and safe failure. Scheduling is cooperative, so we make no hard real-time guarantee. The README’s Non-functional requirements section links the reports.</aside>
       </section>
 
       <!-- ============ 4. ACCESS (2:00) ============ -->
@@ -968,12 +1009,12 @@
         <p class="eyebrow">Accessing the product</p>
         <h2 id="access-heading">How AMD gets, runs and maintains it</h2>
         <div class="three-columns workflow">
-          <div><span class="step-number">01</span><h3 style="color:var(--ink)">Get it</h3><p>The D4 GitHub release of the plugin source. Add it to a project as Plugins/Schola and build with Unreal Engine 5.8.</p></div>
-          <div><span class="step-number">02</span><h3 style="color:var(--ink)">Run it</h3><p>The README's core workflows: one per NPC type, each with commands and an example project.</p></div>
-          <div><span class="step-number">03</span><h3 style="color:var(--ink)">Maintain it</h3><p>DEVELOPMENT.md: layout, every test command with its expected result, extension points and ranked open work.</p></div>
+          <div><span class="step-number">01</span><h3 style="color:var(--ink)">Get it</h3><p>Use the tagged plugin source or add Schola to an Unreal 5.8 project as Plugins/Schola.</p></div>
+          <div><span class="step-number">02</span><h3 style="color:var(--ink)">Run it</h3><p>The <a href="../../README.md#docker-devcontainer">Docker quick start</a> covers the engine image, CampusCrowd build, and standalone Linux package.</p></div>
+          <div><span class="step-number">03</span><h3 style="color:var(--ink)">Maintain it</h3><p>The <a href="../../DEVELOPMENT.md">maintainer guide</a> covers repository layout, test commands, and extension points.</p></div>
         </div>
         <div class="takeaway"><span>Handoff</span><p>Merged main and the D4 release, plus a walkthrough of the maintainer guide with AMD.</p></div>
-        <aside class="speaker-notes" data-time="2:00">Keep this short and point to the documents rather than reading them. Schola is a source-distributed plugin, so there is no hosted URL; the release is the product. Adaptive learning needs no Python service or downloaded model. At the end of term we hand over the merged repository, the tagged release and the maintainer guide, and walk AMD's team through it. Then say how the partner reaches each environment: the dev pre-release for the latest main, the D4 release for the submitted version. Mention those only once the deployment workflow is live. Close with who to contact for questions after the term and where open work is ranked (DEVELOPMENT.md, Open work).</aside>
+        <aside class="speaker-notes" data-time="2:00">Keep this short and point to the documents rather than reading them. Schola is a source-distributed plugin, so there is no hosted URL; the release is the product. Adaptive learning needs no Python service or downloaded model. At the end of term we hand over the merged repository, the tagged release and the maintainer guide, and walk AMD's team through it. Show how AMD can build from a checkout in the devcontainer and package the tagged version with the same engine. Close with who to contact for questions after the term and where open work is ranked (DEVELOPMENT.md, Open work).</aside>
       </section>
 
       <!-- ============ 5. KEY LEARNINGS (1:30) ============ -->
@@ -981,15 +1022,13 @@
         <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Key learnings / Deliverable 4</span></header>
         <p class="eyebrow">If we did it again</p>
         <h2 id="learnings-heading">What we would change, and why</h2>
-        <div class="card-grid">
+        <div class="card-grid team-learnings">
           <div><h3>Pick the stack from the shipping constraint</h3><p>We planned gRPC to a Python trainer. A shipped game can't carry one, so we moved to native C++ and rewrote the integration.</p><p class="because">Partner need → tech stack → what we could test.</p></div>
           <div><h3>Fix the experiment before tuning</h3><p>A frozen-copy control and criteria fixed in advance exposed what learning curves hid: the inherited 60k replay buffer adapted too slowly.</p><p class="because">Evaluation design → product default.</p></div>
           <div><h3>Make the core testable off-engine</h3><p>Course CI can't run Unreal, and several of us develop on macOS. An engine-free learner build put it in CI. We'd do it in week 1.</p><p class="because">Platform → process → quality.</p></div>
+          <div><h3>Measure latency and frame cost together</h3><p>Batching saved game-thread time, but students waited longer for turns. We would track the two metrics from the first playable build.</p><p class="because">Runtime scheduling → player-visible behavior → benchmark.</p></div>
         </div>
-        <div class="slot" style="flex:0 0 auto; padding: 16px 32px; margin-top: 24px">
-          <span class="slot-owner">Other subteams · one technical learning each, with its cause and effect</span>
-        </div>
-        <aside class="speaker-notes" data-time="1:30">Technical learnings score above process ones, and multi-dimensional thinking is what earns full marks, so name the chain on each card. 1: D1 planned gRPC to Python; the partner's need for learning in a shipped game made a separate Python process unacceptable, which drove the move to RLtools in C++. That change is also what made the learner testable without Unreal. 2: Without a frozen-copy control and fixed criteria we would have shipped chase_sim's 60k replay buffer; the controlled runs showed 2 of 3 seeds passing versus 6 of 6 at 10k. 3: Our Unreal C++ can only be verified on Windows, which slowed review. An engine-free build from the start would have put the numerics under CI from day one.</aside>
+        <aside class="speaker-notes" data-time="1:30">Technical learnings score above process ones, and multi-dimensional thinking is what earns full marks, so name the chain on each card. 1: D1 planned gRPC to Python; the partner's need for learning in a shipped game made a separate Python process unacceptable, which drove the move to RLtools in C++. That change is also what made the learner testable without Unreal. 2: Without a frozen-copy control and fixed criteria we would have shipped chase_sim's 60k replay buffer; the controlled runs showed 2 of 3 seeds passing versus 6 of 6 at 10k. 3: Our Unreal C++ can only be verified on Windows, which slowed review. An engine-free build from the start would have put the numerics under CI from day one. Max: add request-to-action latency to the performance budget from the beginning. The higher p99 affects how long a student waits at a junction even when the frame rate is stable.</aside>
       </section>
 
       <!-- ============ 6. QUESTIONS ============ -->
@@ -1033,7 +1072,8 @@
           <ol class="reference-list" start="6">
             <li><a href="../D3/README.md">Deliverable 3</a></li>
             <li><a href="../D1/planning.md">D1 user stories</a></li>
-            <li class="placeholder">Background, Shared Policy and Event references: add here</li>
+            <li><a href="../../Examples/CampusCrowd/README.md">CampusCrowd workflows, model, and benchmarks</a></li>
+            <li><a href="../../Docs/Sphinx/guides/mock_inference_paradigms.rst">Schola background inference guide</a></li>
           </ol>
         </div>
         <aside class="speaker-notes" data-time="Backup">Links are relative to the repository.</aside>

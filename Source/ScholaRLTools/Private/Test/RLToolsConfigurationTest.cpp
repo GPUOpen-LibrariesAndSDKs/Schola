@@ -2,6 +2,7 @@
 #include "RLToolsPolicyTestHelpers.h"
 #include "RLToolsConfigurationAsset.h"
 #include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "Misc/ScopeExit.h"
 #include "HAL/FileManager.h"
 #include "Dom/JsonObject.h"

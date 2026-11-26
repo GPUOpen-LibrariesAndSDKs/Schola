@@ -1,5 +1,6 @@
 // Copyright (c) 2026 Advanced Micro Devices, Inc. All Rights Reserved.
 #include "CrowdProcessors.h"
+#include "CampusMigrationDay.h"
 #include "CampusScene.h"
 #include "MassExecutionContext.h"
 #include "NNERuntimeCPU.h"
@@ -60,7 +61,10 @@ void UCrowdGatherProcessor::WriteObservations(FMassExecutionContext& Context, TC
     {
         auto& Agent = Agents[DueIndices[R]];
         Agent.ObservationTime = Now;
-        CrowdSim::WriteObservation(Agent, HalfSize, Rows.Slice(R * CrowdSim::ObservationSize, CrowdSim::ObservationSize));
+        const int32 Size = MigrationDay ? MigrationDay->GetObservationSize() : CrowdSim::ObservationSize;
+        auto Row = Rows.Slice(R * Size, Size);
+        if (MigrationDay) MigrationDay->WriteObservation(Agent.Instance, Row);
+        else CrowdSim::WriteObservation(Agent, HalfSize, Row);
     }
 }
 
@@ -75,7 +79,13 @@ void UCrowdApplyProcessor::ApplyActions(FMassExecutionContext& Context, TConstAr
 {
     auto Agents = Context.GetMutableFragmentView<FCrowdAgentFragment>();
     for (int32 R = 0; R < EntityIndices.Num(); ++R)
-        CrowdSim::ApplyAction(Agents[EntityIndices[R]], Rows.Slice(R * CrowdSim::ActionSize, CrowdSim::ActionSize), *Counters);
+    {
+        auto& Agent = Agents[EntityIndices[R]];
+        const int32 Size = MigrationDay ? MigrationDay->GetActionSize() : CrowdSim::ActionSize;
+        const auto Row = Rows.Slice(R * Size, Size);
+        if (MigrationDay) MigrationDay->ApplyAction(Agent.Instance, Row);
+        else CrowdSim::ApplyAction(Agent, Row, *Counters);
+    }
 }
 
 UCrowdSyncInferenceProcessor::UCrowdSyncInferenceProcessor() : Query(*this)
@@ -93,27 +103,37 @@ void UCrowdSyncInferenceProcessor::Execute(FMassEntityManager&, FMassExecutionCo
 {
     if (!Instance || bFailed) return;
     TRACE_CPUPROFILER_EVENT_SCOPE_STR("Crowd.SyncInference");
-    float Observation[CrowdSim::ObservationSize];
-    float Action[CrowdSim::ActionSize];
-    const UE::NNE::FTensorBindingCPU Input{Observation, sizeof(Observation)};
-    const UE::NNE::FTensorBindingCPU Output{Action, sizeof(Action)};
+    float Observation[FMath::Max(CrowdSim::ObservationSize, CampusTurn::ObservationSize)];
+    float Action[FMath::Max(CrowdSim::ActionSize, CampusTurn::ExitCount)];
+    const int32 Size = MigrationDay ? MigrationDay->GetObservationSize() : CrowdSim::ObservationSize;
+    auto ObservationRow = MakeArrayView(Observation, Size);
+    const UE::NNE::FTensorBindingCPU Input{Observation, sizeof(float) * Size};
+    const int32 ActionSize = MigrationDay ? MigrationDay->GetActionSize() : CrowdSim::ActionSize;
+    const auto ActionRow = MakeArrayView(Action, ActionSize);
+    const UE::NNE::FTensorBindingCPU Output{Action, sizeof(float) * ActionSize};
+    const bool bTurns = MigrationDay && MigrationDay->GetTurns();
     Query.ForEachEntityChunk(Context, [&](FMassExecutionContext& Chunk)
     {
         auto Agents = Chunk.GetMutableFragmentView<FCrowdAgentFragment>();
         for (auto& Agent : Agents)
         {
             const double Now = FPlatformTime::Seconds();
-            if (bFailed || Now < Agent.SyncNextDue) continue;
+            const double ScheduleTime = bUseSimulationClock ? MigrationDay->GetTime() : Now;
+            if (bFailed || (!bTurns && ScheduleTime + 1e-6 < Agent.SyncNextDue)) continue;
+            if (MigrationDay && !MigrationDay->WantsDecision(Agent.Instance)) continue;
             Agent.ObservationTime = Now;
-            CrowdSim::WriteObservation(Agent, HalfSize, Observation);
+            if (MigrationDay) MigrationDay->WriteObservation(Agent.Instance, ObservationRow);
+            else CrowdSim::WriteObservation(Agent, HalfSize, Observation);
             if (Instance->RunSync(MakeArrayView(&Input, 1), MakeArrayView(&Output, 1)) != UE::NNE::EResultStatus::Ok)
             {
                 bFailed = true;
                 return;
             }
-            CrowdSim::ApplyAction(Agent, Action, *Counters);
+            ++ModelCalls;
+            if (MigrationDay) MigrationDay->ApplyAction(Agent.Instance, ActionRow);
+            else CrowdSim::ApplyAction(Agent, ActionRow, *Counters);
             // Skip missed periods rather than queueing a backlog of stale decisions.
-            Agent.SyncNextDue += (FMath::FloorToDouble((Now - Agent.SyncNextDue) / PeriodSeconds) + 1) * PeriodSeconds;
+            if (!bTurns) Agent.SyncNextDue += (FMath::FloorToDouble((ScheduleTime + 1e-6 - Agent.SyncNextDue) / PeriodSeconds) + 1) * PeriodSeconds;
         }
     });
 }

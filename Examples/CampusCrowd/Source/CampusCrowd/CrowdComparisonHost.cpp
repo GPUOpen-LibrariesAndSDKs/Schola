@@ -19,6 +19,7 @@
 #include "Components/SkyAtmosphereComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
+#include "GameFramework/GameModeBase.h"
 #include "HAL/FileManager.h"
 #include "HAL/IConsoleManager.h"
 #include "Inference/BackgroundInferenceScheduler.h"
@@ -28,6 +29,7 @@
 #include "MassExecutor.h"
 #include "MassProcessingContext.h"
 #include "Misc/CommandLine.h"
+#include "Kismet/GameplayStatics.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
@@ -141,14 +143,41 @@ void ACrowdComparisonHost::BeginPlay()
 {
     Super::BeginPlay();
     const TCHAR* Command = FCommandLine::Get();
-    int32 AgentCount = 2000, Workers = 2, MaxBatch = 64;
+    const bool bMigrations = FParse::Param(Command, TEXT("Migrations"));
+    const bool bInferenceBenchmark = FParse::Param(Command, TEXT("InferenceBenchmark"));
+    FString Preset;
+    const bool bExplicitDemo = FParse::Value(Command, TEXT("Demo="), Preset);
+    const auto* GameMode = GetWorld()->GetAuthGameMode();
+    const FString Selected = GameMode ? UGameplayStatics::ParseOption(GameMode->OptionsString, TEXT("CampusDemo")) : FString();
+    if (!Selected.IsEmpty()) Preset = Selected;
+    int32 StudentFlag = 0;
+    const bool bStudentFlag = FParse::Value(Command, TEXT("Students="), StudentFlag);
+    const bool bLegacyNavigation = FParse::Param(Command, TEXT("NavigationRL")) ||
+        FCString::Stristr(Command, TEXT("-NavigationRoutes=")) != nullptr;
+    const bool bTurnFlag = FParse::Param(Command, TEXT("Turns"));
+    const bool bDemoRequested = bExplicitDemo || !Selected.IsEmpty();
+    if (bDemoRequested && !Preset.Equals(TEXT("Four"), ESearchCase::IgnoreCase) &&
+        !Preset.Equals(TEXT("Scale"), ESearchCase::IgnoreCase))
+    {
+        Fail(TEXT("Use -Demo=Four or -Demo=Scale."));
+        return;
+    }
+    bSplitDemo = bDemoRequested || bTurnFlag || (!bMigrations && !bInferenceBenchmark && !bLegacyNavigation);
+    bFourDemo = bSplitDemo && (bDemoRequested ? Preset.Equals(TEXT("Four"), ESearchCase::IgnoreCase) :
+        !bTurnFlag && !bStudentFlag);
+    const bool bTurns = bSplitDemo;
+    const bool bNavigation = !bTurns && bLegacyNavigation;
+    int32 AgentCount = bTurns ? 650 : bNavigation ? 24 : 2000, Workers = 2, MaxBatch = 64;
     float DecisionHz = 10, MaxFPS = 60;
     FString ModeName = TEXT("Background");
     FParse::Value(Command, TEXT("View="), CameraPreset);
+    FParse::Value(Command, TEXT("NavigationGateView="), NavigationGateView);
     FParse::Value(Command, TEXT("FlightSeconds="), FlightSeconds);
     FlightSeconds = FMath::Max(FlightSeconds, 1.0);
     CameraPreset = FMath::Clamp(CameraPreset, 0, 3);
     FParse::Value(Command, TEXT("Agents="), AgentCount);
+    if (bSplitDemo && bStudentFlag) AgentCount = StudentFlag;
+    if (bFourDemo) AgentCount = 4;
     FParse::Value(Command, TEXT("DecisionHz="), DecisionHz);
     FParse::Value(Command, TEXT("MaxFPS="), MaxFPS);
     FParse::Value(Command, TEXT("Workers="), Workers);
@@ -157,7 +186,10 @@ void ACrowdComparisonHost::BeginPlay()
     FParse::Value(Command, TEXT("CaptureSeconds="), CaptureSeconds);
     FParse::Value(Command, TEXT("WarmupSeconds="), WarmupSeconds);
     FParse::Value(Command, TEXT("Report="), ReportPath);
-    AgentCount = FMath::Clamp(AgentCount, 1, 100000);
+    constexpr int32 MaxCrowdAgents = 100000;
+    constexpr int32 MaxScalingStudents = 500000;
+    AgentCount = FMath::Clamp(AgentCount, 1, bTurns && !bFourDemo ? MaxScalingStudents : MaxCrowdAgents);
+    bShowRoutes = bNavigation && AgentCount <= 32 && CameraPreset == 0 && NavigationGateView < 0;
     PeriodSeconds = 1.0 / FMath::Clamp(DecisionHz, .1f, 60.f);
     // Bound the scheduler queue to about 50 ms of target work: a longer queue makes
     // results older than the action age limit, so they would all be discarded.
@@ -182,42 +214,69 @@ void ACrowdComparisonHost::BeginPlay()
     BuildScene();
     if (!Campus || Campus->Nodes.Num() < 2) { Fail(TEXT("Campus route data could not be loaded")); return; }
     HalfSize = Campus->Extent;
-    if (!LoadPolicy()) return;
-
-    // One policy and one batching bucket shared by the whole crowd.
-    FBoxSpace Observations, Actions;
-    for (int32 I = 0; I < CrowdSim::ObservationSize; ++I) Observations.Add(-1e6f, 1e6f);
-    for (int32 I = 0; I < CrowdSim::ActionSize; ++I) Actions.Add(-1e6f, 1e6f);
-    const FInteractionDefinition Definition(TInstancedStruct<FSpace>::Make<FBoxSpace>(Observations),
-        TInstancedStruct<FSpace>::Make<FBoxSpace>(Actions));
-    auto* Provider = NewObject<UNNEBatchBackendProvider>(this);
-    Provider->ModelData = ModelData;
-    FNPCBackgroundSchedulerSettings Settings;
-    Settings.WorkerCount = FMath::Clamp(Workers, 1, 64);
-    Settings.MaxBatchSize = FMath::Max(1, MaxBatch);
-    Settings.MaxPendingRows = MaxPendingRows;
-    Settings.MaxPendingBytes = FMath::Max(Settings.MaxPendingBytes,
-        int64(MaxPendingRows) * (CrowdSim::ObservationSize + CrowdSim::ActionSize) * int64(sizeof(float)) * 2);
-    WorkerCount = Settings.WorkerCount;
-    MaxBatchSize = Settings.MaxBatchSize;
-    FString BucketError;
-    Service = GetWorld()->GetSubsystem<UScholaMassInferenceSubsystem>();
-    const int32 Bucket = Service ? Service->AcquireBucket(*Provider, Definition, Settings, BucketError) : INDEX_NONE;
-    if (Bucket == INDEX_NONE) { Fail(TEXT("Background bucket: ") + BucketError); return; }
+    const bool bSyncNavigation = ModeName.Equals(TEXT("Sync"), ESearchCase::IgnoreCase) ||
+        ModeName.Equals(TEXT("Synchronous"), ESearchCase::IgnoreCase);
+    if (bNavigation || bMigrations || bTurns)
     {
-        FScopeLock Lock(&Service->Mutex);
-        Scheduler = Service->Bridge.GetScheduler(Bucket);
+        MigrationDay = MakeUnique<FCampusMigrationDay>();
+        FString MigrationError;
+        if (!MigrationDay->Initialize(AgentCount, bNavigation, bTurns, Command, MigrationError, !bSyncNavigation, bFourDemo)) { Fail(MigrationError); return; }
+        if (bFourDemo) MigrationTimeScale = 12.f;
+        FParse::Value(Command, TEXT("MigrationTimeScale="), MigrationTimeScale);
+        FParse::Value(Command, TEXT("MigrationFixedStep="), MigrationFixedStep);
+        MigrationTimeScale = FMath::Clamp(MigrationTimeScale, .1f, 16.f);
+        MigrationFixedStep = FMath::Clamp(MigrationFixedStep, 0.f, .1f);
+        bExitAfterMigration = FParse::Param(Command, TEXT("ExitAfterMigrations"));
+        if (MigrationFixedStep > 0 && !bNavigation && !bTurns)
+        {
+            // Replay every decision on the simulation clock, independent of machine speed.
+            ModeName = TEXT("Sync");
+        }
     }
+    if (MigrationDay) ScheduledMigrationGenerations.Init(INDEX_NONE, AgentCount);
+    const bool bUseModel = !MigrationDay || MigrationDay->UsesModel();
+    const int32 ObservationSize = MigrationDay ? MigrationDay->GetObservationSize() : CrowdSim::ObservationSize;
+    const int32 ActionSize = MigrationDay ? MigrationDay->GetActionSize() : CrowdSim::ActionSize;
+    if (bUseModel && !LoadPolicy()) return;
 
     auto& Manager = EntityManager(GetWorld());
-    const UScriptStruct* Types[] = {FCrowdAgentFragment::StaticStruct(),
-        FScholaInferenceStateFragment::StaticStruct(), FScholaInferenceScheduleFragment::StaticStruct()};
-    const FMassArchetypeHandle Archetype = Manager.CreateArchetype(MakeArrayView(Types));
     FMassArchetypeSharedFragmentValues Shared;
-    FScholaInferenceBucketFragment BucketFragment;
-    BucketFragment.BucketId = Bucket;
-    Shared.Add(Manager.GetOrCreateConstSharedFragment(BucketFragment));
-    Shared.Sort();
+    TArray<const UScriptStruct*> Types{FCrowdAgentFragment::StaticStruct()};
+    if (bUseModel)
+    {
+        // One policy and one batching bucket shared by the whole crowd.
+        FBoxSpace Observations, Actions;
+        for (int32 I = 0; I < ObservationSize; ++I) Observations.Add(-1e6f, 1e6f);
+        for (int32 I = 0; I < ActionSize; ++I) Actions.Add(-1e6f, 1e6f);
+        const FInteractionDefinition Definition(TInstancedStruct<FSpace>::Make<FBoxSpace>(Observations),
+            TInstancedStruct<FSpace>::Make<FBoxSpace>(Actions));
+        auto* Provider = NewObject<UNNEBatchBackendProvider>(this);
+        Provider->ModelData = ModelData;
+        FNPCBackgroundSchedulerSettings Settings;
+        Settings.WorkerCount = FMath::Clamp(Workers, 1, 64);
+        Settings.MaxBatchSize = FMath::Max(1, MaxBatch);
+        Settings.MaxPendingRows = MaxPendingRows;
+        Settings.MaxPendingBytes = FMath::Max(Settings.MaxPendingBytes,
+            int64(MaxPendingRows) * (ObservationSize + ActionSize) * int64(sizeof(float)) * 2);
+        WorkerCount = Settings.WorkerCount;
+        MaxBatchSize = Settings.MaxBatchSize;
+        FString BucketError;
+        Service = GetWorld()->GetSubsystem<UScholaMassInferenceSubsystem>();
+        const int32 Bucket = Service ? Service->AcquireBucket(*Provider, Definition, Settings, BucketError) : INDEX_NONE;
+        if (Bucket == INDEX_NONE) { Fail(TEXT("Background bucket: ") + BucketError); return; }
+        {
+            FScopeLock Lock(&Service->Mutex);
+            Scheduler = Service->Bridge.GetScheduler(Bucket);
+        }
+
+        FScholaInferenceBucketFragment BucketFragment;
+        BucketFragment.BucketId = Bucket;
+        Shared.Add(Manager.GetOrCreateConstSharedFragment(BucketFragment));
+        Shared.Sort();
+        Types.Add(FScholaInferenceStateFragment::StaticStruct());
+        Types.Add(FScholaInferenceScheduleFragment::StaticStruct());
+    }
+    const FMassArchetypeHandle Archetype = Manager.CreateArchetype(MakeArrayView(Types));
     Started = FPlatformTime::Seconds();
     {
         // Fill fragments before the creation context fires ScholaMass's schedule observer.
@@ -227,6 +286,13 @@ void ACrowdComparisonHost::BeginPlay()
         {
             auto& Agent = Manager.GetFragmentDataChecked<FCrowdAgentFragment>(Entities[I]);
             Agent.Instance = I;
+            if (MigrationDay)
+            {
+                if (bUseModel)
+                    Manager.GetFragmentDataChecked<FScholaInferenceScheduleFragment>(Entities[I]).PeriodSeconds = 0;
+                Transforms[I] = FTransform(FRotator::ZeroRotator, FVector(0, 0, -1000), FVector::ZeroVector);
+                continue;
+            }
             Agent.Random = 0x9E3779B9u ^ uint32(I * 7919 + 1);
             Agent.CurrentNode = CrowdSim::NextRandom(Agent.Random) % Campus->Nodes.Num();
             const auto& Node = Campus->Nodes[Agent.CurrentNode];
@@ -243,35 +309,79 @@ void ACrowdComparisonHost::BeginPlay()
             Transforms[I] = FTransform(FRotator::ZeroRotator, FVector(Agent.Position.X, Agent.Position.Y, 94), FVector(.6f, .6f, 1.8f));
         }
     }
-    Crowd->SetMaterial(0, LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Campus/M_Students.M_Students")));
+    const bool bColorDestinations = bSplitDemo && FApp::CanEverRender() && !GUsingNullRHI;
+    if (bColorDestinations)
+    {
+        FString HighlightError;
+        const auto& Keys = MigrationDay->GetTurns()->GetBuildingKeys();
+        if (!Campus->LoadDestinationHighlights(Keys, HighlightError)) { Fail(HighlightError); return; }
+        auto* Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Campus/M_DestinationStudents.M_DestinationStudents"));
+        if (!Material) { Fail(TEXT("Missing M_DestinationStudents. Run Tools/create_destination_material.py in Unreal.")); return; }
+        Crowd->NumCustomDataFloats = 3;
+        Crowd->SetMaterial(0, Material);
+        Crowd->SetCastShadow(false);
+        ActiveDestinations.Init(false, Keys.Num());
+        StudentColorKeys.Init(MAX_int32, AgentCount);
+    }
+    else Crowd->SetMaterial(0, LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Campus/M_Students.M_Students")));
     Crowd->AddInstances(Transforms, false, true, false);
 
-    Gather = NewObject<UCrowdGatherProcessor>(this);
-    Apply = NewObject<UCrowdApplyProcessor>(this);
-    Sync = NewObject<UCrowdSyncInferenceProcessor>(this);
-    Move = NewObject<UCrowdMoveProcessor>(this);
-    Gather->HalfSize = Sync->HalfSize = Move->HalfSize = HalfSize;
-    Gather->MaxRowsPerFrame = MaxRowsPerFrame;
-    Apply->Counters = Sync->Counters = &Counters;
-    Sync->PeriodSeconds = PeriodSeconds;
-    Move->Transforms = &Transforms;
-    Move->Campus = Campus;
-    for (UMassProcessor* Processor : TArray<UMassProcessor*>{Gather, Apply, Sync, Move})
-        Processor->CallInitialize(this, Manager.AsShared());
+    if (bUseModel)
+    {
+        Gather = NewObject<UCrowdGatherProcessor>(this);
+        Apply = NewObject<UCrowdApplyProcessor>(this);
+        Sync = NewObject<UCrowdSyncInferenceProcessor>(this);
+        Move = NewObject<UCrowdMoveProcessor>(this);
+        Gather->HalfSize = Sync->HalfSize = Move->HalfSize = HalfSize;
+        Gather->MigrationDay = MigrationDay.Get();
+        Apply->MigrationDay = Sync->MigrationDay = MigrationDay.Get();
+        Gather->MaxRowsPerFrame = MaxRowsPerFrame;
+        if (bTurns)
+        {
+            // Keep a completed decision usable until the next retry supersedes
+            // its slot. The turn is still pending at the original junction.
+            Gather->MaxActionAgeMs = Apply->MaxActionAgeMs = 0.f;
+            Gather->PhaseLayout = ENPCPhaseLayout::PerEntityUniform;
+        }
+        Apply->Counters = Sync->Counters = &Counters;
+        Sync->PeriodSeconds = PeriodSeconds;
+        Sync->bUseSimulationClock = MigrationFixedStep > 0;
+        Move->Transforms = &Transforms;
+        Move->Campus = Campus;
+        for (UMassProcessor* Processor : TArray<UMassProcessor*>{Gather, Apply, Sync, Move})
+            Processor->CallInitialize(this, Manager.AsShared());
 
-    // Without the API: one model instance, reshaped once to batch 1, called per agent.
-    auto Runtime = UE::NNE::GetRuntime<INNERuntimeCPU>(TEXT("NNERuntimeORTCpu"));
-    Sync->Model = Runtime.IsValid() ? Runtime->CreateModelCPU(ModelData) : nullptr;
-    Sync->Instance = Sync->Model ? Sync->Model->CreateModelInstanceCPU() : nullptr;
-    const UE::NNE::FTensorShape Shape = UE::NNE::FTensorShape::Make({1u, uint32(CrowdSim::ObservationSize)});
-    if (!Sync->Instance || Sync->Instance->SetInputTensorShapes(MakeArrayView(&Shape, 1)) != UE::NNE::EResultStatus::Ok)
-    { Fail(TEXT("Could not create the synchronous ORT model instance")); return; }
+        // Without the API: one model instance, reshaped once to batch 1, called per agent.
+        auto Runtime = UE::NNE::GetRuntime<INNERuntimeCPU>(TEXT("NNERuntimeORTCpu"));
+        Sync->Model = Runtime.IsValid() ? Runtime->CreateModelCPU(ModelData) : nullptr;
+        Sync->Instance = Sync->Model ? Sync->Model->CreateModelInstanceCPU() : nullptr;
+        const UE::NNE::FTensorShape Shape = UE::NNE::FTensorShape::Make({1u, uint32(ObservationSize)});
+        if (!Sync->Instance || Sync->Instance->SetInputTensorShapes(MakeArrayView(&Shape, 1)) != UE::NNE::EResultStatus::Ok)
+        { Fail(TEXT("Could not create the synchronous ORT model instance")); return; }
+    }
 
     SetMode(ModeName.Equals(TEXT("Sync"), ESearchCase::IgnoreCase) || ModeName.Equals(TEXT("Synchronous"), ESearchCase::IgnoreCase)
         ? ECrowdInferenceMode::Synchronous : ECrowdInferenceMode::Background);
     PreviousTick = WindowStart = FPlatformTime::Seconds();
-    UE_LOG(LogTemp, Display, TEXT("Crowd: %d agents at %.1f Hz (target %.0f decisions/s); %d workers, batch %d, %d rows/frame, %d pending rows"),
-        AgentCount, 1.0 / PeriodSeconds, GetTargetDecisionsPerSecond(), WorkerCount, MaxBatchSize, MaxRowsPerFrame, MaxPendingRows);
+    if (bTurns)
+    {
+        UE_LOG(LogTemp, Display, TEXT("Campus turn policy: %d students, %d workers, max batch %d"),
+            AgentCount, WorkerCount, MaxBatchSize);
+    }
+    else if (bNavigation)
+    {
+        UE_LOG(LogTemp, Display, TEXT("Campus navigation: %d students"), AgentCount);
+    }
+    else if (MigrationDay)
+    {
+        UE_LOG(LogTemp, Display, TEXT("Campus day: %d students, %s policy, %.1f decisions/s per walking student"),
+            AgentCount, MigrationDay->UsesModel() ? TEXT("learned") : TEXT("rules"), MigrationDay->UsesModel() ? 1. / PeriodSeconds : 0.);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Display, TEXT("Crowd: %d agents at %.1f Hz (target %.0f decisions/s); %d workers, batch %d, %d rows/frame, %d pending rows"),
+            AgentCount, 1.0 / PeriodSeconds, GetTargetDecisionsPerSecond(), WorkerCount, MaxBatchSize, MaxRowsPerFrame, MaxPendingRows);
+    }
 }
 
 FCrowdLosses ACrowdComparisonHost::ReadLosses() const
@@ -323,7 +433,10 @@ FString ACrowdComparisonHost::DiagnoseShortfall(const FCrowdLosses& Window, doub
 
 bool ACrowdComparisonHost::LoadPolicy()
 {
-    const FString Path = FPaths::ProjectContentDir() / TEXT("Models/crowd_policy.onnx");
+    const bool bLearnedMigration = MigrationDay && MigrationDay->UsesModel();
+    const bool bTurns = MigrationDay && MigrationDay->GetTurns();
+    FString Path = FPaths::ProjectContentDir() / (bTurns ? TEXT("Models/turn_policy.onnx") : bLearnedMigration
+        ? TEXT("Models/migration_policy.onnx") : TEXT("Models/crowd_policy.onnx"));
     TArray<uint8> Bytes;
     if (!FFileHelper::LoadFileToArray(Bytes, *Path)) { Fail(TEXT("Missing policy file ") + Path); return false; }
     ModelData = NewObject<UNNEModelData>(this);
@@ -365,22 +478,28 @@ void ACrowdComparisonHost::BuildScene()
 void ACrowdComparisonHost::SetMode(ECrowdInferenceMode NewMode)
 {
     Mode = NewMode;
+    if (bSplitDemo) UE_LOG(LogTemp, Display, TEXT("Crowd mode: %s"),
+        Mode == ECrowdInferenceMode::Background ? TEXT("ScholaMass background") : TEXT("Synchronous"));
     Counters = WindowCounters = CaptureCounters = {};
     if (Scheduler) WindowSchedulerStart = ModeSchedulerStart = CaptureSchedulerStart = Scheduler->GetStats();
     WindowLossStart = ModeLossStart = CaptureLossStart = ReadLosses();
+    if (MigrationDay && MigrationDay->GetTurns()) WindowTurnRequests = MigrationDay->GetTurns()->Stats.Requested;
     WindowsInMode = 0;
     bShortfallLogged = false;
     Display.Shortfall.Reset();
     Display.TargetFraction = 1;
-    if (Mode == ECrowdInferenceMode::Synchronous && !Entities.IsEmpty())
+    if (Mode == ECrowdInferenceMode::Synchronous && Sync && !Entities.IsEmpty())
     {
+        if (MigrationDay && Service) UpdateMigrationSchedules(false);
         // Agents keep their phase offsets; restart the synchronous schedule from now.
         auto& Manager = EntityManager(GetWorld());
         const double Now = FPlatformTime::Seconds();
         for (const FMassEntityHandle Entity : Entities)
         {
             auto& Agent = Manager.GetFragmentDataChecked<FCrowdAgentFragment>(Entity);
-            Agent.SyncNextDue = Now + FMath::Fmod(Agent.SyncNextDue - Started, PeriodSeconds);
+            if (MigrationDay)
+                Agent.SyncNextDue = MigrationFixedStep > 0 ? MigrationDay->GetTime() : Now + PeriodSeconds * (Agent.Instance % 37) / 37.;
+            else Agent.SyncNextDue = Now + FMath::Fmod(Agent.SyncNextDue - Started, PeriodSeconds);
         }
     }
 }
@@ -398,15 +517,242 @@ void ACrowdComparisonHost::RunInference(float DeltaSeconds)
     {
         // Apply results that finished since last frame, then submit newly due rows.
         UE::Mass::Executor::Run(*Apply, Context);
+        if (MigrationDay && MigrationDay->GetTurns())
+        {
+            // Consume ready results first so a delayed frame does not retry
+            // a decision that completed while the game thread was busy.
+            MigrationDay->RetryOverdueTurns();
+            UpdateMigrationSchedules(true);
+        }
         UE::Mass::Executor::Run(*Gather, Context);
     }
+}
+
+void ACrowdComparisonHost::UpdateMigrationSchedules(bool bScheduleWalking)
+{
+    auto& Manager = EntityManager(GetWorld());
+    FScopeLock Lock(&Service->Mutex);
+    if (const auto* Turns = MigrationDay->GetTurns())
+    {
+        // Keep Mass slots only for students who are waiting for a junction result.
+        for (int32 Index : ScheduledTurnStudents)
+        {
+            if (bScheduleWalking && Turns->WantsDecision(Index)) continue;
+            const auto Entity = Entities[Index];
+            Service->Bridge.ReleaseSlot(Manager.GetFragmentDataChecked<FScholaInferenceStateFragment>(Entity));
+            auto& Schedule = Manager.GetFragmentDataChecked<FScholaInferenceScheduleFragment>(Entity);
+            Schedule.PeriodSeconds = 0;
+            Schedule.bUrgent = false;
+        }
+        ScheduledTurnStudents.Reset();
+        if (!bScheduleWalking) return;
+        for (int32 Index : Turns->GetPendingStudents())
+        {
+            const auto Entity = Entities[Index];
+            auto& Schedule = Manager.GetFragmentDataChecked<FScholaInferenceScheduleFragment>(Entity);
+            auto& State = Manager.GetFragmentDataChecked<FScholaInferenceStateFragment>(Entity);
+            const int32 Generation = Turns->Generation(Index);
+            if (Schedule.PeriodSeconds <= 0 || ScheduledMigrationGenerations[Index] != Generation)
+            {
+                Service->Bridge.ReleaseSlot(State);
+                // On the periodic API, an urgent slot makes this one-shot request due.
+                Schedule.PeriodSeconds = 10.f;
+                Schedule.bUrgent = true;
+                ScheduledMigrationGenerations[Index] = Generation;
+            }
+            else if (State.SubmittedSerial > 0)
+            {
+                // Suppress a second admission while this request is in flight.
+                Schedule.NextDueTime = TNumericLimits<double>::Max();
+            }
+            ScheduledTurnStudents.Add(Index);
+        }
+        return;
+    }
+    for (int32 I = 0; I < Entities.Num(); ++I)
+    {
+        const auto Entity = Entities[I];
+        auto& Schedule = Manager.GetFragmentDataChecked<FScholaInferenceScheduleFragment>(Entity);
+        const bool bWalking = bScheduleWalking && MigrationDay->IsWalking(I);
+        const int32 Generation = MigrationDay->GetGeneration(I);
+        if ((!bWalking || ScheduledMigrationGenerations[I] != Generation) && Schedule.PeriodSeconds > 0)
+        {
+            // Invalidate outstanding rows when leaving the outdoor crowd.
+            Service->Bridge.ReleaseSlot(Manager.GetFragmentDataChecked<FScholaInferenceStateFragment>(Entity));
+        }
+        Schedule.PeriodSeconds = bWalking ? PeriodSeconds : 0;
+        ScheduledMigrationGenerations[I] = Generation;
+    }
+}
+
+void ACrowdComparisonHost::TickMigration(float DeltaSeconds, double Now, double FrameMs)
+{
+    if (bPaused || (MigrationDay->IsFinished() && ReportPath.IsEmpty())) return;
+
+    const float TotalStep = MigrationFixedStep > 0 ? MigrationFixedStep : FMath::Min(.1f, DeltaSeconds) * MigrationTimeScale;
+    const int32 Steps = FMath::Max(1, FMath::CeilToInt32(TotalStep / .1f));
+    const float Step = TotalStep / Steps;
+    const double PlanStart = FPlatformTime::Seconds();
+    if (MigrationDay->UsesRoutePlanner()) MigrationDay->TickPlanner();
+    const double MoveStart = FPlatformTime::Seconds();
+    const int64 DecisionsBefore = MigrationDay->GetModelDecisions();
+    const auto* Turns = MigrationDay->GetTurns();
+    for (int32 I = 0; I < Steps && !MigrationDay->IsFinished(); ++I) MigrationDay->Step(Step, Transforms);
+    const double InferenceStart = FPlatformTime::Seconds();
+
+    if (MigrationDay->UsesModel())
+    {
+        if (Mode == ECrowdInferenceMode::Background && (!Turns || MigrationDay->IsFinished()))
+            UpdateMigrationSchedules(!MigrationDay->IsFinished());
+        if (!MigrationDay->IsFinished()) RunInference(TotalStep);
+    }
+    if (!Error.IsEmpty()) return;
+    const double InferenceMs = ((MoveStart - PlanStart) + (FPlatformTime::Seconds() - InferenceStart)) * 1000;
+    const double MovementMs = (InferenceStart - MoveStart) * 1000;
+    if (MigrationDay->IsNavigation() && FrameMs > 0)
+    {
+        Display.FrameMs = Display.FrameMs > 0 ? FMath::Lerp(Display.FrameMs, FrameMs, .12) : FrameMs;
+        Display.FramesPerSecond = 1000. / Display.FrameMs;
+        if (MigrationDay->UsesLivePlanner()) Display.InferenceMs = FMath::Lerp(Display.InferenceMs, InferenceMs, .12);
+    }
+    CaptureMigrationPerformance(Now, FrameMs, InferenceMs, MovementMs);
+    if (MigrationDay->HasTraceError()) { Fail(TEXT("Failed to write migration trace")); return; }
+
+    if (FApp::CanEverRender() && !GUsingNullRHI)
+    {
+        if (MigrationDay->UsesModel())
+        {
+            Counters.Decisions += MigrationDay->GetModelDecisions() - DecisionsBefore;
+            if (Turns)
+            {
+                WindowMigrationDemand += Turns->Stats.Requested - WindowTurnRequests;
+                WindowTurnRequests = Turns->Stats.Requested;
+            }
+            else WindowMigrationDemand += MigrationDay->GetActive() * (MigrationFixedStep > 0 ? MigrationFixedStep : FrameMs / 1000.) / PeriodSeconds;
+            UpdateDisplay(Now, FrameMs, InferenceMs, MovementMs);
+        }
+        if (!bNavigationMapView)
+        {
+            if (bSplitDemo) UpdateDestinationColors();
+            KeepCrowdVisible();
+            Crowd->BatchUpdateInstancesTransforms(0, Transforms, true, true, true);
+        }
+    }
+    if (MigrationDay->IsFinished() && bExitAfterMigration) FPlatformMisc::RequestExitWithStatus(false, 0);
+}
+
+void ACrowdComparisonHost::CaptureMigrationPerformance(double Now, double FrameMs, double InferenceMs, double MovementMs)
+{
+    if (ReportPath.IsEmpty() || CaptureSeconds <= 0 || bReported) return;
+    const auto* Turns = MigrationDay->GetTurns();
+    if (!bCapturing)
+    {
+        if (Now - Started < WarmupSeconds) return;
+        bCapturing = true;
+        CaptureStart = Now;
+        if (Turns) CaptureTurnStart = Turns->Stats;
+        if (Sync) CaptureSyncCallsStart = Sync->ModelCalls;
+        MigrationDecisionStart = MigrationDay->GetModelDecisions();
+        if (MigrationDay->UsesLivePlanner()) CapturePlanningStart = MigrationDay->GetPlanningStats();
+        if (Scheduler) CaptureSchedulerStart = Scheduler->GetStats();
+        CaptureLossStart = ReadLosses();
+        return;
+    }
+    CaptureFrameMs.Add(FrameMs);
+    CaptureInferenceMs.Add(InferenceMs);
+    CaptureMoveMs.Add(MovementMs);
+    MigrationWalkingSeconds += MigrationDay->GetActive() * FrameMs / 1000.;
+    if (MigrationDay->UsesModel() && !Turns)
+        MigrationExpectedDecisions += MigrationDay->GetActive() * (MigrationFixedStep > 0 ? MigrationFixedStep : FrameMs / 1000.) / PeriodSeconds;
+    const double Elapsed = Now - CaptureStart;
+    if (Elapsed < CaptureSeconds) return;
+
+    bReported = true;
+    const int64 Decisions = MigrationDay->GetModelDecisions() - MigrationDecisionStart;
+    const auto Loss = ReadLosses() - CaptureLossStart;
+    auto Root = MakeShared<FJsonObject>();
+    Root->SetStringField(TEXT("mode"), MigrationDay->IsNavigation() && !MigrationDay->UsesLivePlanner()
+        ? TEXT("Precomputed") : !MigrationDay->UsesModel() && !MigrationDay->UsesLivePlanner() ? TEXT("Rules") :
+        Mode == ECrowdInferenceMode::Background ? TEXT("Background") : TEXT("Sync"));
+    Root->SetNumberField(TEXT("cohort_size"), Entities.Num());
+    if (MigrationDay->IsNavigation() || Turns)
+    {
+        Root->SetNumberField(TEXT("completed_schedules"), MigrationDay->GetArrived());
+        Root->SetNumberField(TEXT("completed_legs"), MigrationDay->GetLegsCompleted());
+        Root->SetNumberField(TEXT("timed_out_students"), MigrationDay->GetTimedOut());
+    }
+    if (MigrationDay->UsesLivePlanner())
+    {
+        const auto End = MigrationDay->GetPlanningStats();
+        const int64 Rows = End.ModelRows - CapturePlanningStart.ModelRows;
+        const int64 Calls = End.ModelCalls - CapturePlanningStart.ModelCalls;
+        const int64 Groups = End.InferenceGroups - CapturePlanningStart.InferenceGroups;
+        Root->SetNumberField(TEXT("mean_game_thread_planning_ms"), Mean(CaptureInferenceMs));
+        Root->SetNumberField(TEXT("p99_game_thread_planning_ms"), Quantile(CaptureInferenceMs, .99));
+        Root->SetNumberField(TEXT("planned_routes"), End.Routes - CapturePlanningStart.Routes);
+        Root->SetNumberField(TEXT("student_legs_planned"), End.StudentLegs - CapturePlanningStart.StudentLegs);
+        Root->SetNumberField(TEXT("expanded_landmarks"), End.ExpandedNodes - CapturePlanningStart.ExpandedNodes);
+        Root->SetNumberField(TEXT("fallback_routes"), End.FallbackRoutes - CapturePlanningStart.FallbackRoutes);
+        Root->SetNumberField(TEXT("model_rows"), Rows);
+        Root->SetNumberField(TEXT("model_calls"), Calls);
+        Root->SetNumberField(TEXT("mean_rows_per_model_call"), Calls > 0 ? double(Rows) / Calls : 0.);
+        Root->SetNumberField(TEXT("mean_inference_group_latency_ms"), Groups > 0
+            ? (End.InferenceLatencyMs - CapturePlanningStart.InferenceLatencyMs) / Groups : 0.);
+    }
+    if (Turns)
+    {
+        const auto& Stats = Turns->Stats;
+        const auto Backend = Scheduler->GetStats();
+        const int64 Calls = Mode == ECrowdInferenceMode::Background
+            ? Backend.BackendCalls - CaptureSchedulerStart.BackendCalls : Sync->ModelCalls - CaptureSyncCallsStart;
+        const int64 Rows = Mode == ECrowdInferenceMode::Background
+            ? Backend.BackendRows - CaptureSchedulerStart.BackendRows : Calls;
+        Root->SetStringField(TEXT("policy"), TEXT("Junction turns"));
+        Root->SetNumberField(TEXT("turn_requests"), Stats.Requested - CaptureTurnStart.Requested);
+        Root->SetNumberField(TEXT("learned_turns_applied"), Stats.Applied - CaptureTurnStart.Applied);
+        Root->SetNumberField(TEXT("resolved_turn_requests"), Stats.Resolved - CaptureTurnStart.Resolved);
+        Root->SetNumberField(TEXT("retraced_edges"), Stats.RetracedEdges - CaptureTurnStart.RetracedEdges);
+        Root->SetNumberField(TEXT("inference_retries"), Stats.Retries - CaptureTurnStart.Retries);
+        Root->SetNumberField(TEXT("p99_turn_latency_ms"), Stats.P99LatencyMsSince(CaptureTurnStart));
+        Root->SetNumberField(TEXT("model_rows"), Rows);
+        Root->SetNumberField(TEXT("model_calls"), Calls);
+        MigrationExpectedDecisions = Stats.Resolved - CaptureTurnStart.Resolved;
+    }
+    Root->SetNumberField(TEXT("mean_walking_students"), MigrationWalkingSeconds / Elapsed);
+    Root->SetNumberField(TEXT("mean_game_thread_inference_ms"), Mean(CaptureInferenceMs));
+    Root->SetNumberField(TEXT("p99_game_thread_inference_ms"), Quantile(CaptureInferenceMs, .99));
+    Root->SetNumberField(TEXT("mean_movement_ms"), Mean(CaptureMoveMs));
+    Root->SetNumberField(TEXT("p99_frame_ms"), Quantile(CaptureFrameMs, .99));
+    Root->SetNumberField(TEXT("fps"), CaptureFrameMs.Num() / Elapsed);
+    if (!MigrationDay->UsesLivePlanner())
+    {
+        Root->SetNumberField(TEXT("decisions_per_second"), Decisions / Elapsed);
+        Root->SetNumberField(TEXT("fraction_of_active_target"), MigrationExpectedDecisions > 0 ? Decisions / MigrationExpectedDecisions : 0);
+        Root->SetNumberField(TEXT("dropped_rows"), Loss.Lost());
+        Root->SetNumberField(TEXT("rejected_requests"), Loss.Rejected);
+    }
+    if (Scheduler && Mode == ECrowdInferenceMode::Background)
+    {
+        const auto End = Scheduler->GetStats();
+        Root->SetNumberField(TEXT("mean_rows_per_model_call"), RowsPerCall(End, CaptureSchedulerStart));
+    }
+    else if (MigrationDay->UsesModel()) Root->SetNumberField(TEXT("mean_rows_per_model_call"), Decisions > 0 ? 1 : 0);
+    FString Json;
+    FJsonSerializer::Serialize(Root, TJsonWriterFactory<>::Create(&Json));
+    if (!FFileHelper::SaveStringToFile(Json, *ReportPath))
+    {
+        Fail(TEXT("Could not write migration performance report ") + ReportPath);
+        return;
+    }
+    FPlatformMisc::RequestExitWithStatus(false, 0);
 }
 
 void ACrowdComparisonHost::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
     if (Entities.IsEmpty() || !Error.IsEmpty()) return;
-    if (auto* Player = GetWorld()->GetFirstPlayerController(); Player && Player->WasInputKeyJustPressed(EKeys::Tab))
+    if (auto* Player = GetWorld()->GetFirstPlayerController(); MigrationFixedStep <= 0 && Player &&
+        (!MigrationDay || MigrationDay->UsesModel()) && Player->WasInputKeyJustPressed(EKeys::Tab))
         SetMode(Mode == ECrowdInferenceMode::Background ? ECrowdInferenceMode::Synchronous : ECrowdInferenceMode::Background);
 
     const double Now = FPlatformTime::Seconds();
@@ -414,6 +760,11 @@ void ACrowdComparisonHost::Tick(float DeltaSeconds)
     PreviousTick = Now;
 
     UpdateCamera(DeltaSeconds);
+    if (MigrationDay)
+    {
+        TickMigration(DeltaSeconds, Now, FrameMs);
+        return;
+    }
     const FCrowdFrameCounters Before = Counters;
     RunInference(DeltaSeconds);
     const double InferenceMs = (FPlatformTime::Seconds() - Now) * 1000;
@@ -489,14 +840,16 @@ void ACrowdComparisonHost::UpdateDisplay(double Now, double FrameMs, double Infe
     Display.DroppedRows = Mode == ECrowdInferenceMode::Background ? SinceMode.Lost() + SinceMode.Rejected + SinceMode.Invalid : 0;
     Display.LossesPerSecond = {int64(Window.Deferred / Elapsed), int64(Window.Rejected / Elapsed), int64(Window.Invalid / Elapsed),
         int64(Window.Expired / Elapsed), int64(Window.Failed / Elapsed), int64(Window.Stale / Elapsed)};
-    Display.TargetFraction = Decisions / (GetTargetDecisionsPerSecond() * Elapsed);
+    const double Expected = MigrationDay ? WindowMigrationDemand : GetTargetDecisionsPerSecond() * Elapsed;
+    Display.TargetFraction = Expected > 0 ? Decisions / Expected : 1;
+    WindowMigrationDemand = 0;
     // The first windows after start or a mode switch include pipeline fill.
-    if (++WindowsInMode > 2 && Display.TargetFraction < TargetTolerance)
+    if (++WindowsInMode > 2 && (!MigrationDay || !MigrationDay->GetTurns()) && Display.TargetFraction < TargetTolerance)
     {
         Display.Shortfall = DiagnoseShortfall(Window, Display.FrameMs);
         if (!bShortfallLogged)
             UE_LOG(LogTemp, Warning, TEXT("Crowd: delivering %.0f%% of the target %.0f decisions/s; limited by %s"),
-                Display.TargetFraction * 100, GetTargetDecisionsPerSecond(), *Display.Shortfall);
+                Display.TargetFraction * 100, Expected / Elapsed, *Display.Shortfall);
         bShortfallLogged = true;
     }
     else if (WindowsInMode > 2)
@@ -604,7 +957,8 @@ void ACrowdComparisonHost::Fail(const FString& Message)
 {
     Error = Message;
     UE_LOG(LogTemp, Error, TEXT("Crowd comparison: %s"), *Message);
-    if (!ReportPath.IsEmpty()) FPlatformMisc::RequestExitWithStatus(false, 1);
+    if (!ReportPath.IsEmpty() || FParse::Param(FCommandLine::Get(), TEXT("ExitAfterMigrations")))
+        FPlatformMisc::RequestExitWithStatus(false, 1);
 }
 
 void ACrowdComparisonHost::EndPlay(EEndPlayReason::Type Reason)
@@ -622,6 +976,25 @@ void ACrowdComparisonHost::EndPlay(EEndPlayReason::Type Reason)
     Super::EndPlay(Reason);
 }
 
+void ACrowdComparisonHost::UpdateDestinationColors()
+{
+    if (StudentColorKeys.IsEmpty()) return;
+    const auto& Day = *MigrationDay->GetTurns();
+    ActiveDestinations.Init(false, ActiveDestinations.Num());
+    for (int32 I = 0; I < StudentColorKeys.Num(); ++I)
+    {
+        if (!Day.IsStudentVisible(I) && !Day.IsFirstClassOnly()) continue;
+        const int32 Key = Day.GetStopColorKey(Day.GetTargetStop(I));
+        if (Key >= 0) ActiveDestinations[Key] = true;
+        if (StudentColorKeys[I] == Key) continue;
+        const auto Color = FCampusTurnDay::DestinationColor(Key);
+        const float RGB[] = {Color.R, Color.G, Color.B};
+        Crowd->SetCustomData(I, MakeArrayView(RGB));
+        StudentColorKeys[I] = Key;
+    }
+    Campus->SetActiveDestinations(ActiveDestinations);
+}
+
 void ACrowdComparisonHost::KeepCrowdVisible()
 {
     // A 60 cm student is under a pixel wide from a few hundred metres and
@@ -633,6 +1006,19 @@ void ACrowdComparisonHost::KeepCrowdVisible()
     int32 ViewWidth = 0, ViewHeight = 0;
     Player->GetViewportSize(ViewWidth, ViewHeight);
     if (ViewWidth <= 0) return;
+    if (bSplitDemo)
+    {
+        const float Size = FMath::Max(1.f, (bFourDemo ? 3.f : 1.5f) * CampusCamera->GetCameraComponent()->OrthoWidth / (ViewWidth * .5f * Width));
+        const auto& Day = *MigrationDay->GetTurns();
+        for (int32 I = 0; I < Transforms.Num(); ++I)
+        {
+            if (!Day.IsStudentVisible(I)) continue;
+            const auto P = Day.GetStudentPosition(I);
+            Transforms[I].SetLocation(FVector(100 * P.X, 100 * P.Y, 4.f + Height * Size / 2.f));
+            Transforms[I].SetScale3D(FVector(Width, Width, Height) * (Size / 100.f));
+        }
+        return;
+    }
     // The campus camera is always the view target; read it after this frame's move.
     const FVector Eye = CampusCamera->GetActorLocation();
     const float HalfFov = FMath::DegreesToRadians(CampusCamera->GetCameraComponent()->FieldOfView) / 2;
@@ -640,6 +1026,7 @@ void ACrowdComparisonHost::KeepCrowdVisible()
     ParallelFor(Transforms.Num(), [&](int32 I)
     {
         FTransform& Transform = Transforms[I];
+        if (MigrationDay && !MigrationDay->IsWalking(I)) return;
         FVector Location = Transform.GetLocation();
         Location.Z = Height / 2;
         const float Scale = FMath::Max(1.f, float(FVector::Dist(Eye, Location)) * ScalePerCm);
@@ -654,7 +1041,47 @@ void ACrowdComparisonHost::UpdateCamera(float DeltaSeconds)
     auto* Player = GetWorld()->GetFirstPlayerController();
     if (!Player || !CampusCamera) return;
     if (Player->WasInputKeyJustPressed(EKeys::SpaceBar)) bPaused = !bPaused;
-    if (Player->WasInputKeyJustPressed(EKeys::One)) CameraPreset = 0;
+    if (bSplitDemo)
+    {
+        const bool bSelectFour = Player->WasInputKeyJustPressed(EKeys::F1);
+        const bool bSelectScale = Player->WasInputKeyJustPressed(EKeys::F2);
+        if (!bSwitchingDemo && ((bSelectFour && !bFourDemo) || (bSelectScale && bFourDemo)))
+        {
+            bSwitchingDemo = true;
+            const auto Map = UGameplayStatics::GetCurrentLevelName(this, true);
+            UGameplayStatics::OpenLevel(this, FName(*Map), true, bSelectFour ? TEXT("CampusDemo=Four") : TEXT("CampusDemo=Scale"));
+            return;
+        }
+        if (Campus->MapSize.IsNearlyZero()) return;
+        const auto Rotation = FCampusTurnDay::OverviewRotation();
+        auto* Camera = CampusCamera->GetCameraComponent();
+        if (PreviousCameraPreset == INDEX_NONE)
+        {
+            const auto Center = Campus->MapOrigin + Campus->MapSize * .5f;
+            const FVector Target(Center.X * 100, Center.Y * 100, 0);
+            CampusCamera->SetActorLocationAndRotation(Target - Rotation.Vector() * 210000.0, Rotation);
+            Camera->SetProjectionMode(ECameraProjectionMode::Orthographic);
+            Camera->bAutoCalculateOrthoPlanes = false;
+            Camera->SetOrthoNearClipPlane(0.f);
+            Camera->SetOrthoFarClipPlane(425000.f);
+            PreviousCameraPreset = 0;
+        }
+        int32 Width = 0, Height = 0;
+        Player->GetViewportSize(Width, Height);
+        if (Height <= 0) return;
+        const float Aspect = .5f * Width / Height;
+        const auto Right = CampusCamera->GetActorRightVector().GetAbs();
+        const auto Up = CampusCamera->GetActorUpVector().GetAbs();
+        const auto Size = Campus->MapSize;
+        const float Horizontal = Right.X * Size.X + Right.Y * Size.Y, Vertical = Up.X * Size.X + Up.Y * Size.Y;
+        Camera->SetOrthoWidth(100.f * FMath::Max(Horizontal / .94f, (Vertical + 95.f) * Aspect / .86f));
+        return;
+    }
+    if (Player->WasInputKeyJustPressed(EKeys::One) || Player->WasInputKeyJustPressed(EKeys::R))
+    {
+        CameraPreset = 0;
+        PreviousCameraPreset = INDEX_NONE;
+    }
     if (Player->WasInputKeyJustPressed(EKeys::Two)) CameraPreset = 1;
     if (Player->WasInputKeyJustPressed(EKeys::Three)) CameraPreset = 2;
     if (Player->WasInputKeyJustPressed(EKeys::Four))
@@ -662,13 +1089,8 @@ void ACrowdComparisonHost::UpdateCamera(float DeltaSeconds)
         CameraPreset = 3;
         PreviousCameraPreset = -1; // Replay the same camera path for either inference mode.
     }
-    if (Player->WasInputKeyJustPressed(EKeys::R))
-    {
-        CampusCamera->SetActorLocation(FVector(0, HalfSize * 1.55, HalfSize * 1.25));
-        CameraPreset = 0;
-    }
     if (Player->WasInputKeyJustPressed(EKeys::N)) bShowRoutes = !bShowRoutes;
-    if (bShowRoutes)
+    if (bShowRoutes && (!MigrationDay || !MigrationDay->IsNavigation()))
     {
         for (int32 I=0; I<Campus->Nodes.Num(); ++I)
         {
@@ -680,6 +1102,8 @@ void ACrowdComparisonHost::UpdateCamera(float DeltaSeconds)
             }
         }
     }
+    auto* Camera = CampusCamera->GetCameraComponent();
+    const bool bMapView = CameraPreset == 0 && NavigationGateView < 0 && MigrationDay && MigrationDay->IsNavigation();
     if (PreviousCameraPreset != CameraPreset)
     {
         FVector Center = FVector::ZeroVector;
@@ -702,9 +1126,60 @@ void ACrowdComparisonHost::UpdateCamera(float DeltaSeconds)
         // Scripts/render-video.sh waits for this line before it starts capturing.
         if (CameraPreset == 3) UE_LOG(LogTemp, Display, TEXT("Camera flight started"));
         const FVector Locations[] = {FVector(0, HalfSize * 1.55, HalfSize * 1.25), Center + FVector(0, 12000, 9000), Center + FVector(0,0,120), Center};
-        CampusCamera->SetActorLocation(Locations[CameraPreset]);
-        CampusCamera->SetActorRotation(((CameraPreset == 0 ? FVector::ZeroVector : CameraPreset == 2 ? StreetLook : Center) - CampusCamera->GetActorLocation()).Rotation());
+        FVector Location = Locations[CameraPreset];
+        FVector Target = CameraPreset == 0 ? FVector::ZeroVector : CameraPreset == 2 ? StreetLook : Center;
+        if (CameraPreset == 0 && NavigationGateView >= 0 && MigrationDay && MigrationDay->IsNavigation())
+        {
+            const auto Stop = MigrationDay->GetNavigationGate(NavigationGateView);
+            const FVector Gate(100 * Stop.X, 100 * Stop.Y, 0);
+            const FVector Inward = (-Gate).GetSafeNormal2D();
+            Location = Gate - Inward * 1800 + FVector(0, 0, 5500);
+            Target = Gate + Inward * 1200;
+        }
+        Camera->SetProjectionMode(bMapView ? ECameraProjectionMode::Orthographic : ECameraProjectionMode::Perspective);
+        Camera->bOverrideAspectRatioAxisConstraint = bMapView;
+        if (bNavigationMapView != bMapView)
+        {
+            bNavigationMapView = bMapView;
+            Campus->SetActorHiddenInGame(bMapView);
+            Crowd->SetVisibility(!bMapView);
+        }
+        if (bMapView)
+        {
+            int32 Width = 0, Height = 0;
+            Player->GetViewportSize(Width, Height);
+            const float Aspect = Width > 0 && Height > 0 ? float(Width) / Height : 16.f / 9.f;
+            Camera->SetAspectRatio(Aspect);
+            Camera->SetAspectRatioAxisConstraint(AspectRatio_MaintainXFOV);
+            const auto& Grid = MigrationDay->GetNavigationGrid();
+            const float MapWidth = Grid.Width * Grid.Cell;
+            const float MapHeight = Grid.Height * Grid.Cell;
+            Camera->SetOrthoWidth(110.f * FMath::Max(MapWidth, MapHeight * Aspect));
+            Camera->bAutoCalculateOrthoPlanes = false;
+            Camera->SetOrthoNearClipPlane(0.f);
+            Camera->SetOrthoFarClipPlane(4 * HalfSize);
+            CampusCamera->SetActorLocation(FVector(100 * (Grid.Origin.X + .5f * MapWidth),
+                100 * (Grid.Origin.Y + .5f * MapHeight), 2 * HalfSize));
+            CampusCamera->SetActorRotation(FRotator(-90, -90, 0));
+        }
+        else
+        {
+            CampusCamera->SetActorLocation(Location);
+            CampusCamera->SetActorRotation((Target - Location).Rotation());
+        }
         PreviousCameraPreset = CameraPreset;
+    }
+    if (bMapView)
+    {
+        const int32 Horizontal = int32(Player->IsInputKeyDown(EKeys::D)) - int32(Player->IsInputKeyDown(EKeys::A));
+        const int32 Vertical = int32(Player->IsInputKeyDown(EKeys::W)) - int32(Player->IsInputKeyDown(EKeys::S));
+        const FVector Pan = CampusCamera->GetActorRightVector() * Horizontal + CampusCamera->GetActorUpVector() * Vertical;
+        CampusCamera->AddActorWorldOffset(Pan.GetClampedToMaxSize(1) * Camera->OrthoWidth * DeltaSeconds * .55f);
+        const int32 Zoom = int32(Player->IsInputKeyDown(EKeys::Q)) - int32(Player->IsInputKeyDown(EKeys::E));
+        if (Zoom)
+            Camera->SetOrthoWidth(FMath::Clamp(Camera->OrthoWidth * FMath::Exp(Zoom * 1.5f * DeltaSeconds),
+                5000.f, 5.f * HalfSize));
+        return;
     }
     if (CameraPreset == 3)
     {

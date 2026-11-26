@@ -7,6 +7,7 @@
 #include "CrowdProcessors.generated.h"
 
 class ACampusScene;
+class FCampusMigrationDay;
 
 namespace UE::NNE { class IModelCPU; class IModelInstanceCPU; }
 
@@ -17,6 +18,7 @@ class UCrowdGatherProcessor : public UScholaMassGatherProcessor
     GENERATED_BODY()
 public:
     UCrowdGatherProcessor();
+    const FCampusMigrationDay* MigrationDay = nullptr;
     float HalfSize = 0;
 protected:
     virtual void ConfigureObservationRequirements(FMassEntityQuery& Query) override;
@@ -30,6 +32,7 @@ class UCrowdApplyProcessor : public UScholaMassApplyProcessor
     GENERATED_BODY()
 public:
     UCrowdApplyProcessor();
+    FCampusMigrationDay* MigrationDay = nullptr;
     FCrowdFrameCounters* Counters = nullptr;
 protected:
     virtual void ConfigureActionRequirements(FMassEntityQuery& Query) override;
@@ -46,11 +49,13 @@ class UCrowdSyncInferenceProcessor : public UMassProcessor
     GENERATED_BODY()
 public:
     UCrowdSyncInferenceProcessor();
+    FCampusMigrationDay* MigrationDay = nullptr;
     TSharedPtr<UE::NNE::IModelCPU> Model;
     TSharedPtr<UE::NNE::IModelInstanceCPU> Instance;
     FCrowdFrameCounters* Counters = nullptr;
     float HalfSize = 0, PeriodSeconds = 0.5f;
-    bool bFailed = false;
+    int64 ModelCalls = 0;
+    bool bFailed = false, bUseSimulationClock = false;
 protected:
     virtual void ConfigureQueries(const TSharedRef<FMassEntityManager>& Manager) override;
     virtual void Execute(FMassEntityManager& Manager, FMassExecutionContext& Context) override;

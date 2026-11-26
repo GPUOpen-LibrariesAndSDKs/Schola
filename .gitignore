@@ -93,6 +93,12 @@ documentation/*.bkp
 !/Source/ThirdParty/**/*.lib
 !/Source/ThirdParty/**/*.a
 
+# IREE runtime: Windows headers and libs are bundled (libs via Git LFS, see .gitattributes).
+# Linux headers are populated locally by Resources/Build/iree/build_iree_linux.sh.
+/Source/ThirdParty/IREE/Linux/include/**
+!/Source/ThirdParty/IREE/*/include/.gitkeep
+!/Source/ThirdParty/IREE/*/lib/.gitkeep
+
 # zipped files
 /Plugins/Schola/Resources/**/*.zip
 /Content/ZippedModels/*.zip

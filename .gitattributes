@@ -1,2 +1,4 @@
 Source/ThirdParty/gRPC/**/*.lib filter=lfs diff=lfs merge=lfs -text
 Source/ThirdParty/gRPC/**/*.a filter=lfs diff=lfs merge=lfs -text
+Source/ThirdParty/IREE/**/*.lib filter=lfs diff=lfs merge=lfs -text
+Source/ThirdParty/IREE/**/*.a filter=lfs diff=lfs merge=lfs -text

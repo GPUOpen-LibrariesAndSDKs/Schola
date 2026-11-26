@@ -133,8 +133,8 @@ if ! grep -q "\"protoc_version\": \"${expected_protobuf_version}\"" "${PROTOBUF_
 fi
 
 
-HEADERS_DIR="${SCRIPT_DIR}/../../Source/ThirdParty/gRPC/Linux/include"
-LIBS_DIR="${SCRIPT_DIR}/../../Source/ThirdParty/gRPC/Linux/lib"
+HEADERS_DIR="${SCRIPT_DIR}/../../../Source/ThirdParty/gRPC/Linux/include"
+LIBS_DIR="${SCRIPT_DIR}/../../../Source/ThirdParty/gRPC/Linux/lib"
 
 # (re)-create headers directory
 if [ -d "$HEADERS_DIR" ]; then

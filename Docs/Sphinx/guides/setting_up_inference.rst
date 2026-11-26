@@ -6,13 +6,24 @@ This guide will explain how to use your trained RL agents in inference mode (i.e
 
 .. note:: 
     
-    This guide assumes you have already done a training run using Schola and have either a saved checkpoint or a model exported to Onnx.
+    This guide assumes you have already done a training run using Schola and have either a saved checkpoint or a model exported to ONNX or IREE.
 
 .. note::
 
-    Text spaces are not yet supported for NNE inference. The supported observation and action
+    Text spaces are not yet supported for NNE or IREE inference. The supported observation and action
     spaces are Box, Discrete, MultiDiscrete, MultiBinary, and Dict (including nested combinations
     of these).
+
+Choosing a Backend
+------------------
+
+Schola supports two selectable inference backends:
+
+- **NNE (default):** export ``.onnx``, run with ``UNNEPolicy`` / ``UNNEModelData``.
+- **IREE (CPU):** export a ``.vmfb``, run with ``UIREEPolicy`` / ``UIREEModelData``.
+
+Both implement ``IPolicy``, so steppers and StateTree inference nodes can use either class.
+Train-time export is controlled with ``--export-format {onnx,iree,both}`` (default remains ONNX via ``--export-onnx``).
 
 
 Convert a Checkpoint to Onnx
@@ -37,6 +48,42 @@ For SB3, ``<ALGORITHM>`` must match how the checkpoint was trained (for example 
 For RLlib, ``<CHECKPOINT_DIR>`` is the algorithm checkpoint **directory** produced by Ray. ``--output-path`` is optional; if omitted, ONNX output is written alongside the checkpoint (see ``schola rllib export --help``).
 
 These commands produce an ONNX model in Schola's export layout for use in the next section.
+
+Convert a Checkpoint to IREE
+----------------------------
+
+IREE export compiles the policy with ``iree-turbine`` to a CPU ``.vmfb`` and writes a
+embeds the model metadata (tensor names, dtypes, shapes, and state metadata) in the
+``.vmfb`` itself, as a ``schola.metadata`` entry in the entry function's ``iree.reflection``
+attribute.
+
+Install the optional extra first::
+
+    pip install "schola[iree]"
+
+Then export:
+
+.. tabs::
+
+    .. group-tab:: Stable Baselines 3
+        .. code-block:: bash
+
+            schola sb3 export-iree --policy-checkpoint-path <CHECKPOINT_PATH> --output-path <VMFB_PATH> --algorithm <ALGORITHM>
+
+    .. group-tab:: Ray RLlib
+        .. code-block:: bash
+
+            schola rllib export-iree --policy-checkpoint-path <CHECKPOINT_DIR> [--output-path <OUTPUT_DIR>]
+
+Load an IREE Model into Unreal Engine
+-------------------------------------
+
+1. Populate the IREE C runtime under ``Plugins/Schola/Source/ThirdParty/IREE`` using
+   ``Resources/Build/iree/build_iree_windows.ps1`` / ``Resources/Build/iree/build_iree_linux.sh`` (see ``Source/ThirdParty/IREE/README.md``), then rebuild.
+2. Import a ``.vmfb`` file in the Content Browser. Schola's editor factory creates a
+   ``UIREEModelData`` asset and reads the metadata embedded in the ``.vmfb``.
+3. Create a ``UIREEPolicy``, set ``Model Data`` to the imported asset, leave ``Device URI``
+   as ``local-sync`` for CPU, and call ``Init()`` the same way as ``UNNEPolicy``.
 
 Load an Onnx Model into Unreal Engine
 -------------------------------------
@@ -76,7 +123,7 @@ Setting up Your Unreal Engine Level
 Schola's inference system consists of three main components:
 
 1. **Agent** - Any object implementing the :cpp:class:`IAgent` interface that defines observation and action spaces
-2. **Policy** - A :cpp:class:`UNNEPolicy` that loads your trained ONNX model, performs inference, and optionally advances recurrent state
+2. **Policy** - A :cpp:class:`UNNEPolicy` (ONNX/NNE) or :cpp:class:`UIREEPolicy` (IREE) that loads your trained model, performs inference, and optionally advances recurrent state
 3. **Stepper** - A :cpp:class:`USimpleStepper` (or :cpp:class:`UPipelinedStepper`) that coordinates the observation-inference-action loop and owns one policy state per agent
 
 Follow these steps to set up inference in your project:
@@ -164,6 +211,11 @@ store the result in a variable that you pass to every ``Think`` call for that ag
 If a state input has a dynamic sequence dimension, ``Max State Sequence Length`` controls the
 allocated history length. On each successful inference Schola drops the oldest entry and appends the
 newest state. The default history length is one.
+
+``UIREEPolicy`` handles recurrent IREE models the same way, but its ``CreateInitialState()`` creates a
+:cpp:class:`UIREEPolicyState`. ``UIREEPolicy`` only accepts states it created, so a
+:cpp:class:`UNNEPolicyState` cannot be passed to a ``UIREEPolicy``, and a
+:cpp:class:`UIREEPolicyState` cannot be passed to a ``UNNEPolicy``.
 
 Step 3: Create and Initialize the Stepper
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

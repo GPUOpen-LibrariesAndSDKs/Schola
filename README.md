@@ -68,7 +68,10 @@ All C++ dependencies for using Schola are bundled with the plugin under `/Source
 
 ### Building Third Party Dependencies
 
-Third party dependencies, specifically gRPC and Protobuf can be built using `Schola\Plugins\Schola\Resources\Build\windows_dependencies.bat` or `Schola\Plugins\Schola\Resources\Build\linux_dependencies.sh` depending on your OS. This will update the plugin ThirdParty folder to include copies of the dependencies including .lib/.a files, and copy protoc, and relevant plugins to the tools directory.
+Third party dependencies can be rebuilt if you encounter issues during setup or need different versions:
+
+- gRPC and Protobuf: `Resources/Build/grpc/build_grpc_windows.bat` or `Resources/Build/grpc/build_grpc_linux.sh`  depending on your OS. This will update the plugin ThirdParty folder to include copies of the dependencies including .lib/.a files, and copy protoc, and relevant plugins to the tools directory.
+- IREE runtime (used by `ScholaIREE`): bundled for Windows. On Linux, build it from a local IREE build and run `Resources/Build/iree/build_iree_linux.sh`. See `Source/ThirdParty/IREE/README.md` for the steps.
 
 ### Generating gRPC/Protobuf Code
 

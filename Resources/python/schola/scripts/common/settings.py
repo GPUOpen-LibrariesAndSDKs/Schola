@@ -502,6 +502,13 @@ class BaseLoggingSettings:
         return self.VERBOSITY_TO_LEVEL.get(self.schola_verbosity, logging.WARNING)
 
 
+class ExportFormat(str, Enum):
+    """Model export format written after training (or by export CLIs)."""
+
+    ONNX = "onnx"  #: Export an ONNX model for NNE inference.
+    IREE = "iree"  #: Export an IREE ``.vmfb`` for ScholaIREE.
+    BOTH = "both"  #: Export both ONNX and IREE artifacts.
+
 @dataclass
 class CheckpointSettings:
     """
@@ -521,15 +528,38 @@ class CheckpointSettings:
     "Override the name prefix for the checkpoint files (e.g. SAC, PPO, etc.)"
 
     export_onnx: bool = False
-    "Whether to export the model to ONNX format instead of just saving a checkpoint."
+    "Whether to export the model to ONNX format instead of just saving a checkpoint. Deprecated in favor of ``export_format``; still enables ONNX when True."
+
+    export_format: ExportFormat | None = None
+    "Export format after training: ``onnx``, ``iree``, or ``both``. When unset, falls back to ``export_onnx`` (ONNX if True, otherwise no export)."
 
     save_final_policy: bool = False
     "Whether to save the final policy after training is complete."
 
     @property
+    def resolved_export_formats(self) -> set[ExportFormat]:
+        """Concrete export formats requested for this run (may be empty)."""
+        if self.export_format is not None:
+            if self.export_format == ExportFormat.BOTH:
+                return {ExportFormat.ONNX, ExportFormat.IREE}
+            return {self.export_format}
+        if self.export_onnx:
+            return {ExportFormat.ONNX}
+        return set()
+
+    @property
+    def should_export(self) -> bool:
+        """True when any model export format was requested."""
+        return bool(self.resolved_export_formats)
+
+    @property
     def should_persist(self) -> bool:
         """True when any option needs artifacts written under checkpoint_dir"""
-        return self.enable_checkpoints or self.save_final_policy or self.export_onnx
+        return (
+            self.enable_checkpoints
+            or self.save_final_policy
+            or self.should_export
+        )
 
     @property
     def storage_path(self) -> str | None:

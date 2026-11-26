@@ -652,7 +652,7 @@ def main(
     python_code_folder = plugin_folder / "Resources" / "python" / "schola" / "generated"
     proto_files = get_proto_files(proto_folder)
 
-    short_dep_path = r"Schola\Resources\Build\windows_dependencies.bat"
+    short_dep_path = r"Schola\Resources\Build\grpc\build_grpc_windows.bat"
 
     api_macro = module_name.upper() + "_API"
 

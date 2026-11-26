@@ -1,0 +1,573 @@
+// Copyright 2020 The IREE Authors
+//
+// Licensed under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+#ifndef IREE_HAL_SEMAPHORE_H_
+#define IREE_HAL_SEMAPHORE_H_
+
+#include <stdbool.h>
+#include <stdint.h>
+
+#include "iree/async/semaphore.h"
+#include "iree/base/api.h"
+#include "iree/hal/queue.h"
+#include "iree/hal/resource.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif  // __cplusplus
+
+typedef struct iree_hal_device_t iree_hal_device_t;
+
+//===----------------------------------------------------------------------===//
+// Types and Enums
+//===----------------------------------------------------------------------===//
+
+// A bitmask of flags controlling the behavior of a semaphore.
+enum iree_hal_semaphore_flag_bits_t {
+  IREE_HAL_SEMAPHORE_FLAG_NONE = 0ull,
+
+  // Semaphore is only ever used on the same HAL device it was created on.
+  // Attempting to use the semaphore on another device even if provided by the
+  // same HAL driver will result in undefined behavior. If a specific queue
+  // affinity was provided during creation the semaphore may only be used on
+  // those queues.
+  IREE_HAL_SEMAPHORE_FLAG_DEVICE_LOCAL = 1ull << 0,
+
+  // Semaphore will be used as part of a blocking host wait operation and should
+  // support interrupts. Without this flag set host waits may spin instead of
+  // using platform waits and interrupts to reduce power consumption and CPU
+  // contention.
+  IREE_HAL_SEMAPHORE_FLAG_HOST_INTERRUPT = 1ull << 1,
+
+  // Semaphore object can be exported using iree_hal_semaphore_export. Only
+  // semaphore implementations that natively support timeline semantics can be
+  // exported like this. This is just a hint that export should be supported:
+  // export may still fail.
+  IREE_HAL_SEMAPHORE_FLAG_EXPORTABLE = 1ull << 2,
+
+  // Timepoints can be exported using iree_hal_semaphore_export_timepoint. This
+  // may require significant internal tracking and should only be used when
+  // interoperating with other APIs that do not natively support timeline
+  // semaphores.
+  IREE_HAL_SEMAPHORE_FLAG_EXPORTABLE_TIMEPOINTS = 1ull << 3,
+
+  // Semaphore payload values are only ever signaled by one logical producer.
+  // Waits may be issued from any compatible queue, but all device-side or
+  // host-side signals must come from the same producer timeline. Violating this
+  // contract is undefined behavior and may allow implementations to omit
+  // multi-producer frontier accumulation on the signal hot path.
+  IREE_HAL_SEMAPHORE_FLAG_SINGLE_PRODUCER = 1ull << 4,
+
+  // Default flags for semaphores.
+  IREE_HAL_SEMAPHORE_FLAG_DEFAULT =
+      IREE_HAL_SEMAPHORE_FLAG_HOST_INTERRUPT |
+      IREE_HAL_SEMAPHORE_FLAG_EXPORTABLE_TIMEPOINTS,
+};
+typedef uint64_t iree_hal_semaphore_flags_t;
+
+// Wait flags are defined by iree_async_wait_flag_bits_e in
+// iree/async/operation.h (included transitively via iree/async/semaphore.h).
+// HAL APIs use iree_async_wait_flags_t directly — no HAL-specific wrapper.
+
+// The maximum valid payload value of an iree_hal_semaphore_t.
+// Payload values larger than this indicate that the semaphore has failed.
+//
+// This originates from Vulkan having a lower-bound of INT_MAX for
+// maxTimelineSemaphoreValueDifference and many Android devices only supporting
+// that lower-bound. At ~100 signals per second it'll take 1.5+ years to
+// saturate. We may increase this value at some point but so long as there are
+// some devices in the wild that may have this limitation we can ensure better
+// consistency across the backends by observing this.
+//
+// The major mitigation here is that in proper usage of IREE there are no
+// semaphores that are implicitly referenced by multiple VMs (each creates their
+// own internally) and in a multitenant system each session should have its own
+// semaphores - so even if the process lives for years it's highly unlikely any
+// particular session does. Whatever, 640K is enough for anyone.
+//
+// In the future we may try to back this out and go back to UINT64_MAX.
+//
+// See:
+//   https://vulkan.gpuinfo.org/displayextensionproperty.php?name=maxTimelineSemaphoreValueDifference
+#define IREE_HAL_SEMAPHORE_MAX_VALUE (2147483647ull - 1)
+
+// The minimum value for a semaphore that indicates failure. Any value
+// greater-than-or-equal-to (>=) this indicates the semaphore has failed.
+//
+// If the upper bit 63 is set then the value represents an iree_status_t.
+// Use iree_hal_semaphore_failure_as_status to convert a payload value to a
+// status. Not all implementations do (or can) support encoding statuses and may
+// only ever be able to set a failing semaphore to this value.
+#define IREE_HAL_SEMAPHORE_FAILURE_VALUE (IREE_HAL_SEMAPHORE_MAX_VALUE + 1)
+
+// Bit indicating that a failing semaphore value can be interpreted as an
+// iree_status_t.
+#define IREE_HAL_SEMAPHORE_FAILURE_VALUE_STATUS_BIT 0x8000000000000000ull
+
+// Returns a semaphore payload value that encodes the given |status|.
+// Ownership of the status is transferred to the semaphore and it must be
+// freed by a consumer. Not all implementations can support failure status
+// payloads and this should only be used by those implementations that can.
+static inline uint64_t iree_hal_status_as_semaphore_failure(
+    iree_status_t status) {
+  return IREE_HAL_SEMAPHORE_FAILURE_VALUE_STATUS_BIT |
+         ((uint64_t)(uintptr_t)status);
+}
+
+// Returns OK if the |value| does not indicate an error.
+// Returns an error status if the semaphore payload value represents a failure.
+// If the payload contains an encoded iree_status_t it will be cloned and the
+// new copy will be returned to the caller.
+static inline iree_status_t iree_hal_semaphore_failure_as_status(
+    uint64_t value) {
+  if (value >= IREE_HAL_SEMAPHORE_FAILURE_VALUE) {
+    if (value & IREE_HAL_SEMAPHORE_FAILURE_VALUE_STATUS_BIT) {
+      // The top bits of a pointer are sign-extended from bit 47 so we can
+      // restore the top bit by left-shifting the upper bits and then
+      // right-shifting with sign extension. We only use a single bit today and
+      // so bit 62 should still be the original value of the pointer.
+      // Note that if the status is just a code (no allocated pointer) this
+      // clone is a no-op and the code will be returned without an allocation.
+      //
+      // See:
+      // https://en.wikipedia.org/wiki/X86-64#Canonical_form_addresses
+      return iree_status_clone(
+          (iree_status_t)(intptr_t)(((int64_t)((uint64_t)value << 1)) >> 1));
+    } else {
+      return iree_status_from_code(IREE_STATUS_INTERNAL);
+    }
+  } else {
+    return iree_ok_status();
+  }
+}
+
+// A bitfield indicating compatible semaphore behavior for a device.
+typedef uint32_t iree_hal_semaphore_compatibility_t;
+enum iree_hal_semaphore_compatibility_bits_t {
+  // Indicates (in the absence of other bits) the semaphore is not compatible
+  // with the device at all. Any attempts to use the semaphore for any usage
+  // will fail.
+  IREE_HAL_SEMAPHORE_COMPATIBILITY_NONE = 0u,
+
+  // Indicates the HAL implementation can perform a host-side wait on the
+  // semaphore. The semaphore can be used as part of a submission at the cost of
+  // additional host-device synchronization.
+  IREE_HAL_SEMAPHORE_COMPATIBILITY_HOST_WAIT = 1u << 0,
+
+  // Indicates the HAL implementation can perform a device-side wait on the
+  // semaphore. The device can efficiently pipeline submissions when waiting
+  // without host (or user-mode) involvement.
+  IREE_HAL_SEMAPHORE_COMPATIBILITY_DEVICE_WAIT = 1u << 1,
+
+  // Indicates the HAL implementation can perform a host-side signal of the
+  // semaphore. The semaphore can be used as part of a submission at the cost of
+  // additional host-device synchronization.
+  IREE_HAL_SEMAPHORE_COMPATIBILITY_HOST_SIGNAL = 1u << 2,
+
+  // Indicates the HAL implementation can perform a device-side signal of the
+  // semaphore. The device can efficiently pipeline submissions when signaling
+  // without host (or user-mode) involvement.
+  IREE_HAL_SEMAPHORE_COMPATIBILITY_DEVICE_SIGNAL = 1u << 3,
+
+  // Semaphore is compatible with host-side emulation. Usage is allowed but will
+  // prevent the pipelining of submissions on the device-side.
+  IREE_HAL_SEMAPHORE_COMPATIBILITY_HOST_ONLY =
+      IREE_HAL_SEMAPHORE_COMPATIBILITY_HOST_WAIT |
+      IREE_HAL_SEMAPHORE_COMPATIBILITY_HOST_SIGNAL,
+
+  // Semaphore is compatible with device-side usage. The host cannot observe or
+  // interact with the semaphore.
+  IREE_HAL_SEMAPHORE_COMPATIBILITY_DEVICE_ONLY =
+      IREE_HAL_SEMAPHORE_COMPATIBILITY_DEVICE_WAIT |
+      IREE_HAL_SEMAPHORE_COMPATIBILITY_DEVICE_SIGNAL,
+
+  // Semaphore is compatible for all usage with the device.
+  IREE_HAL_SEMAPHORE_COMPATIBILITY_ALL =
+      IREE_HAL_SEMAPHORE_COMPATIBILITY_HOST_WAIT |
+      IREE_HAL_SEMAPHORE_COMPATIBILITY_DEVICE_WAIT |
+      IREE_HAL_SEMAPHORE_COMPATIBILITY_HOST_SIGNAL |
+      IREE_HAL_SEMAPHORE_COMPATIBILITY_DEVICE_SIGNAL,
+};
+
+// Parses a semaphore compatibility bitfield from a string.
+// See iree_bitfield_parse for usage.
+IREE_API_EXPORT iree_status_t iree_hal_semaphore_compatibility_parse(
+    iree_string_view_t value, iree_hal_semaphore_compatibility_t* out_value);
+
+// Formats a semaphore compatibility bitfield as a string.
+// See iree_bitfield_format for usage.
+IREE_API_EXPORT iree_string_view_t iree_hal_semaphore_compatibility_format(
+    iree_hal_semaphore_compatibility_t value,
+    iree_bitfield_string_temp_t* out_temp);
+
+//===----------------------------------------------------------------------===//
+// iree_hal_external_timepoint_t
+//===----------------------------------------------------------------------===//
+
+// Defines the type of an external semaphore timepoint.
+// Timepoints represent a single point in time on the timeline of a semaphore as
+// a binary semaphore. An unsignaled timepoint indicates that the timeline has
+// not yet reached the payload value. A signaled timepoint indicates the
+// timeline has reached or exceeded the payload value.
+typedef enum iree_hal_external_timepoint_type_e {
+  IREE_HAL_EXTERNAL_TIMEPOINT_TYPE_NONE = 0,
+
+  // An iree_async_primitive_t referencing a specific timepoint.
+  // The primitive is a platform-native handle (fd, HANDLE, Mach port) that can
+  // be used with proactor-based I/O (io_uring, kqueue, IOCP).
+  //
+  // On import, ownership of the primitive is transferred to the semaphore. The
+  // semaphore's proactor monitors the handle and signals the timeline when the
+  // handle becomes ready. The caller must retain a duplicate handle (via
+  // iree_async_primitive_dup) if it needs to signal after the import operation.
+  //
+  // On export, the semaphore creates a new handle that signals when the
+  // timeline reaches the requested value. The caller owns the returned handle
+  // and must close it with iree_async_primitive_close when no longer needed.
+  // The handle must not be closed before the timepoint has been reached.
+  //
+  // This type is handled in the base HAL layer (hal/semaphore.c) via the
+  // semaphore's proactor and does not dispatch to the driver vtable.
+  IREE_HAL_EXTERNAL_TIMEPOINT_TYPE_ASYNC_PRIMITIVE,
+
+  // A CUDA event (cuEvent) referencing a specific timepoint.
+  // Ownership of the event is transferred upon import or export and any
+  // operations performed on the event after are undefined.
+  //
+  // When imported the caller is allowed to record the event using
+  // `cuEventRecord`. Since ownership is transferred the caller must only record
+  // a single occurrence of the event using the reference to the event it
+  // retains. It is safest to record the event prior to importing.
+  //
+  // When exported the caller is allowed to query the timepoint for completion
+  // using `cuEventQuery` or wait on it using either `cuEventSynchronize` or
+  // `cuStreamWaitEvent`. When no longer required the caller must use
+  // `cuEventDestroy` _only after the timepoint has been reached_. Attempting to
+  // destroy an exported event before it has been reached results in undefined
+  // behavior (but most likely a crash).
+  IREE_HAL_EXTERNAL_TIMEPOINT_TYPE_CUDA_EVENT,
+
+  // A HIP event (hipEvent) referencing a specific timepoint.
+  // See IREE_HAL_EXTERNAL_TIMEPOINT_TYPE_CUDA_EVENT for more
+  // information.
+  IREE_HAL_EXTERNAL_TIMEPOINT_TYPE_HIP_EVENT,
+} iree_hal_external_timepoint_type_t;
+
+// Flags for controlling iree_hal_external_timepoint_t implementation
+// details.
+enum iree_hal_external_timepoint_flag_bits_t {
+  IREE_HAL_EXTERNAL_TIMEPOINT_FLAG_NONE = 0u,
+};
+typedef uint32_t iree_hal_external_timepoint_flags_t;
+
+// Handle to an external semaphore timepoint.
+// Depending on type this may either be an owning reference that the caller must
+// release or a non-owning reference that remains live for as long as the HAL
+// semaphore it was exported from. See the type enum for more information.
+typedef struct iree_hal_external_timepoint_t {
+  // Type of the resource used to interpret the handle.
+  iree_hal_external_timepoint_type_t type;
+  // Flags indicating timepoint behavior.
+  iree_hal_external_timepoint_flags_t flags;
+  // Defines compatible operations that the owner may perform.
+  iree_hal_semaphore_compatibility_t compatibility;
+  union {
+    // IREE_HAL_EXTERNAL_TIMEPOINT_TYPE_ASYNC_PRIMITIVE
+    iree_async_primitive_t async_primitive;
+    // IREE_HAL_EXTERNAL_TIMEPOINT_TYPE_CUDA_EVENT
+    void* cuda_event;  // cuEvent
+    // IREE_HAL_EXTERNAL_TIMEPOINT_TYPE_HIP_EVENT
+    void* hip_event;  // hipEvent
+  } handle;
+} iree_hal_external_timepoint_t;
+
+//===----------------------------------------------------------------------===//
+// iree_hal_semaphore_t
+//===----------------------------------------------------------------------===//
+
+// Synchronization mechanism for host->device, device->host, host->host,
+// and device->device notification. Semaphores behave like Vulkan timeline
+// semaphores (or D3D12 fences) and contain a monotonically increasing
+// uint64_t payload. They may be waited on any number of times even if they
+// have already been signaled for a particular value. They may also be waited
+// on for a particular value prior to the signal for that value.
+//
+// A semaphore is updated to its new value after all prior commands have
+// completed but the delay between completion and the host being woken varies.
+// Some implementations may coalesce semaphores to avoid spurious waking while
+// others will immediately synchronize with the host.
+//
+// One use of semaphores is for resource lifetime management: all resources used
+// by a set of submission batches must be considered live until the semaphore
+// attached to the submission has signaled.
+//
+// Another use of semaphores is device->device synchronization for setting up
+// the DAG of command buffers across queue submissions. This allows devices to
+// perform non-trivial scheduling behavior without the need to wake the host.
+//
+// Semaphores may be set to a permanently failed state by implementations when
+// errors occur during asynchronous execution. Users are expected to propagate
+// the failures and possibly reset the entire device that produced the error.
+//
+// For more information on semaphores see the following docs describing how
+// timelines are generally used (specifically in the device->host case):
+// https://www.youtube.com/watch?v=SpE--Rf516Y
+// https://www.khronos.org/assets/uploads/developers/library/2018-xdc/Vulkan-Timeline-Semaphores-Part-1_Sep18.pdf
+// https://docs.microsoft.com/en-us/windows/win32/direct3d12/user-mode-heap-synchronization
+typedef struct iree_hal_semaphore_t iree_hal_semaphore_t;
+
+// Creates a semaphore that can be used with command queues owned by this
+// device. To use the semaphores with other devices or instances they must
+// first be exported.
+//
+// By default the |queue_affinity| is a hint to the implementation of which
+// queues on the |device| will signal or wait on the semaphore. If
+// IREE_HAL_SEMAPHORE_FLAG_DEVICE_LOCAL is specified the |queue_affinity| will
+// indicate the semaphore is _only_ signaled or waited on those specific queues.
+IREE_API_EXPORT iree_status_t iree_hal_semaphore_create(
+    iree_hal_device_t* device, iree_hal_queue_affinity_t queue_affinity,
+    uint64_t initial_value, iree_hal_semaphore_flags_t flags,
+    iree_hal_semaphore_t** out_semaphore);
+
+// Retains the given |semaphore| for the caller.
+IREE_API_EXPORT void iree_hal_semaphore_retain(iree_hal_semaphore_t* semaphore);
+
+// Releases the given |semaphore| from the caller.
+IREE_API_EXPORT void iree_hal_semaphore_release(
+    iree_hal_semaphore_t* semaphore);
+
+// Queries the current payload of the semaphore and stores the result in
+// |out_value|. As the payload is monotonically increasing it is guaranteed that
+// the value is at least equal to the previous result of a
+// iree_hal_semaphore_query call and coherent with any waits for a
+// specified value via iree_device_wait_all_semaphores.
+//
+// Returns the status at the time the method is called without blocking and as
+// such is only valid after a semaphore has been signaled. The same failure
+// status will be returned regardless of when in the timeline the error
+// occurred.
+IREE_API_EXPORT iree_status_t
+iree_hal_semaphore_query(iree_hal_semaphore_t* semaphore, uint64_t* out_value);
+
+// Signals the |semaphore| to the given payload value.
+// The call is ignored if the current payload value exceeds |new_value|.
+// |frontier| is an optional causal frontier to merge into the semaphore's
+// accumulated frontier. Pass NULL for local-only signals where cross-device
+// causal tracking is not needed.
+IREE_API_EXPORT iree_status_t
+iree_hal_semaphore_signal(iree_hal_semaphore_t* semaphore, uint64_t new_value,
+                          const iree_async_frontier_t* frontier);
+
+// Signals the |semaphore| with a failure. The |status| will be returned from
+// iree_hal_semaphore_query and iree_hal_semaphore_signal for the lifetime
+// of the semaphore. Ownership of the status transfers to the semaphore and
+// callers must clone it if they wish to retain it.
+IREE_API_EXPORT void iree_hal_semaphore_fail(iree_hal_semaphore_t* semaphore,
+                                             iree_status_t status);
+
+// Blocks the caller until the semaphore reaches or exceeds the specified
+// payload |value| or the |timeout| elapses.
+//
+// Returns success if the wait is successful and the semaphore has met or
+// exceeded the required payload value.
+//
+// Returns IREE_STATUS_DEADLINE_EXCEEDED if the |timeout| elapses without the
+// semaphore reaching the required value. If an asynchronous failure occurred
+// this will return the failure status code that was set on the semaphore.
+// Callers can use iree_hal_semaphore_query to get the full status with message.
+IREE_API_EXPORT iree_status_t
+iree_hal_semaphore_wait(iree_hal_semaphore_t* semaphore, uint64_t value,
+                        iree_timeout_t timeout, iree_async_wait_flags_t flags);
+
+// Returns a wait source reference to |semaphore| after it reaches or exceeds
+// the specified payload |value|.
+IREE_API_EXPORT iree_wait_source_t
+iree_hal_semaphore_await(iree_hal_semaphore_t* semaphore, uint64_t value);
+
+// Imports a timepoint at |value| on the |semaphore| timeline from an external
+// handle. ASYNC_PRIMITIVE types are handled in the base layer via the
+// semaphore's proactor (zero-cost, no vtable dispatch). Driver-specific types
+// (CUDA_EVENT, HIP_EVENT) dispatch through the driver vtable.
+// See the iree_hal_external_timepoint_type_t enum for more information.
+IREE_API_EXPORT iree_status_t iree_hal_semaphore_import_timepoint(
+    iree_hal_semaphore_t* semaphore, uint64_t value,
+    iree_hal_queue_affinity_t queue_affinity,
+    iree_hal_external_timepoint_t external_timepoint);
+
+// Exports a timepoint at |value| on the |semaphore| timeline as an external
+// handle. ASYNC_PRIMITIVE types are handled in the base layer via the
+// semaphore's proactor (zero-cost, no vtable dispatch). Driver-specific types
+// (CUDA_EVENT, HIP_EVENT) dispatch through the driver vtable.
+// See the iree_hal_external_timepoint_type_t enum for more information.
+IREE_API_EXPORT iree_status_t iree_hal_semaphore_export_timepoint(
+    iree_hal_semaphore_t* semaphore, uint64_t value,
+    iree_hal_queue_affinity_t queue_affinity,
+    iree_hal_external_timepoint_type_t requested_type,
+    iree_hal_external_timepoint_flags_t requested_flags,
+    iree_hal_external_timepoint_t* IREE_RESTRICT out_external_timepoint);
+
+//===----------------------------------------------------------------------===//
+// iree_hal_semaphore_list_t
+//===----------------------------------------------------------------------===//
+
+// A list of semaphores and their corresponding payloads.
+// When signaling each semaphore will be set to the new payload value provided.
+// When waiting each semaphore must reach or exceed the payload value.
+// This points at external storage and does not retain the semaphores itself.
+typedef struct iree_hal_semaphore_list_t {
+  iree_host_size_t count;
+  iree_hal_semaphore_t** semaphores;
+  uint64_t* payload_values;
+} iree_hal_semaphore_list_t;
+
+// Returns an empty semaphore list.
+static inline iree_hal_semaphore_list_t iree_hal_semaphore_list_empty(void) {
+  iree_hal_semaphore_list_t list = {0};
+  return list;
+}
+
+// Returns true if the |semaphore_list| is empty.
+static inline bool iree_hal_semaphore_list_is_empty(
+    iree_hal_semaphore_list_t semaphore_list) {
+  return semaphore_list.count == 0;
+}
+
+// Retains each semaphore in the semaphore list.
+IREE_API_EXPORT void iree_hal_semaphore_list_retain(
+    iree_hal_semaphore_list_t semaphore_list);
+
+// Releases each semaphore in the semaphore list.
+IREE_API_EXPORT void iree_hal_semaphore_list_release(
+    iree_hal_semaphore_list_t semaphore_list);
+
+// Clones a semaphore list into a single heap allocation containing both the
+// semaphore pointer and payload value arrays. Each semaphore is retained. The
+// cloned list must be freed with iree_hal_semaphore_list_free.
+IREE_API_EXPORT iree_status_t iree_hal_semaphore_list_clone(
+    const iree_hal_semaphore_list_t* source_list,
+    iree_allocator_t host_allocator, iree_hal_semaphore_list_t* out_list);
+
+// Releases all semaphores in a cloned list and frees the backing storage.
+// The list must have been created by iree_hal_semaphore_list_clone.
+IREE_API_EXPORT void iree_hal_semaphore_list_free(
+    iree_hal_semaphore_list_t list, iree_allocator_t host_allocator);
+
+// Returns true if all semaphores in the list have reached the specified payload
+// values and false otherwise (or if any have failed).
+IREE_API_EXPORT bool iree_hal_semaphore_list_poll(
+    iree_hal_semaphore_list_t semaphore_list);
+
+// Signals each semaphore in |semaphore_list| to the defined timepoint.
+// |frontier| is an optional causal frontier merged into each semaphore's
+// accumulated frontier. Pass NULL when causal tracking is not needed.
+IREE_API_EXPORT iree_status_t
+iree_hal_semaphore_list_signal(iree_hal_semaphore_list_t semaphore_list,
+                               const iree_async_frontier_t* frontier);
+
+// Signals each semaphore in |semaphore_list| to indicate failure with
+// |signal_status|.
+// Takes ownership of |signal_status|.
+IREE_API_EXPORT void iree_hal_semaphore_list_fail(
+    iree_hal_semaphore_list_t semaphore_list, iree_status_t signal_status);
+
+// Blocks the caller until all semaphore timepoints are reached or the |timeout|
+// elapses.
+//
+// Returns success if the wait is successful and all semaphores reached their
+// timepoints successfully.
+//
+// Returns IREE_STATUS_DEADLINE_EXCEEDED if the |timeout| elapses without all
+// timepoints being reached. If an asynchronous failure occurred on any timeline
+// this will return the failure status code from the first failed semaphore.
+// Callers can use iree_hal_semaphore_query on individual semaphores to get the
+// full status with message.
+//
+// NOTE: this is not the most optimal way to wait on semaphores; if at all
+// possible use a single wait on a single semaphore to avoid additional
+// overheads in multiplexing fences across device implementations. This list
+// wait should be used to perform a join that will propagate failures from any
+// semaphore used in timepoints.
+IREE_API_EXPORT iree_status_t iree_hal_semaphore_list_wait(
+    iree_hal_semaphore_list_t semaphore_list, iree_timeout_t timeout,
+    iree_async_wait_flags_t flags);
+
+//===----------------------------------------------------------------------===//
+// iree_hal_semaphore_t implementation details
+//===----------------------------------------------------------------------===//
+
+// HAL semaphore vtable. Embeds iree_async_semaphore_vtable_t at offset 0 for
+// toll-free bridging between HAL and async layers. The async layer casts the
+// vtable pointer to iree_async_semaphore_vtable_t* (valid because it is the
+// first member). HAL-specific methods follow after the embedded async vtable.
+//
+// Implementations populate the .async member with core semaphore operations
+// (destroy, query, signal, fail, timepoint management) using the async
+// semaphore signatures. HAL dispatch adapts between the public HAL API
+// signatures and the async vtable signatures (e.g., iree_hal_semaphore_query
+// wraps the uint64_t return from async.query into a status + out_value).
+typedef struct iree_hal_semaphore_vtable_t {
+  // Core semaphore operations. At offset 0 for toll-free casting between
+  // iree_hal_semaphore_vtable_t* and iree_async_semaphore_vtable_t*.
+  // Provides: destroy, query, signal, fail.
+  iree_async_semaphore_vtable_t async;
+
+  // Blocks the caller until the semaphore reaches or exceeds |value| or the
+  // |timeout| elapses. HAL-specific because the async layer uses timepoints
+  // for non-blocking waits rather than blocking calls.
+  iree_status_t(IREE_API_PTR* wait)(iree_hal_semaphore_t* semaphore,
+                                    uint64_t value, iree_timeout_t timeout,
+                                    iree_async_wait_flags_t flags);
+
+  // Imports an external timepoint at |value| on the semaphore timeline.
+  iree_status_t(IREE_API_PTR* import_timepoint)(
+      iree_hal_semaphore_t* semaphore, uint64_t value,
+      iree_hal_queue_affinity_t queue_affinity,
+      iree_hal_external_timepoint_t external_timepoint);
+
+  // Exports a timepoint at |value| on the semaphore timeline.
+  iree_status_t(IREE_API_PTR* export_timepoint)(
+      iree_hal_semaphore_t* semaphore, uint64_t value,
+      iree_hal_queue_affinity_t queue_affinity,
+      iree_hal_external_timepoint_type_t requested_type,
+      iree_hal_external_timepoint_flags_t requested_flags,
+      iree_hal_external_timepoint_t* IREE_RESTRICT out_external_timepoint);
+} iree_hal_semaphore_vtable_t;
+
+// The async vtable must be at offset 0 so that casting an
+// iree_hal_semaphore_vtable_t* to iree_async_semaphore_vtable_t* yields the
+// correct async vtable. The destroy function pointer is at offset 0 within
+// the async vtable (which is at offset 0 within the HAL vtable), satisfying
+// the iree_hal_resource_vtable_t layout requirement.
+static_assert(offsetof(iree_hal_semaphore_vtable_t, async) == 0,
+              "async vtable must be at offset 0 for toll-free bridging");
+static_assert(offsetof(iree_async_semaphore_vtable_t, destroy) == 0,
+              "destroy must be at offset 0 of async vtable");
+
+IREE_API_EXPORT void iree_hal_semaphore_destroy(
+    iree_hal_semaphore_t* semaphore);
+
+// Casts an async semaphore to the containing HAL semaphore.
+// Valid because HAL semaphores embed async-compatible layout at offset 0
+// (toll-free bridge: iree_hal_resource_t and iree_async_semaphore_t have
+// identical {ref_count, vtable} layout at offsets 0 and 8).
+// Driver vtable methods receive iree_async_semaphore_t* and use this to
+// recover the iree_hal_semaphore_t* before narrowing to the driver type:
+//   iree_hal_foo_semaphore_cast(iree_hal_semaphore_cast(base_semaphore))
+static inline iree_hal_semaphore_t* iree_hal_semaphore_cast(
+    iree_async_semaphore_t* async_semaphore) {
+  return (iree_hal_semaphore_t*)async_semaphore;
+}
+
+// Erases the i-th semaphore from the list in-place with O(1).
+// Expects that the index |i| is in bounds.
+IREE_API_EXPORT void iree_hal_semaphore_list_erase(
+    iree_hal_semaphore_list_t* semaphore_list, iree_host_size_t i);
+
+#ifdef __cplusplus
+}  // extern "C"
+#endif  // __cplusplus
+
+#endif  // IREE_HAL_SEMAPHORE_H_

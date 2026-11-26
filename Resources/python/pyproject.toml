@@ -90,9 +90,18 @@ minari = [
     "pillow",
 ]
 
-# All dependencies (sb3, rllib, minari). 
+# Dependencies for exporting and running models with IREE (iree-turbine AOT).
+# * iree-turbine pulls in the IREE compiler/runtime used to produce .vmfb artifacts.
+# * Kept optional so ONNX-only users do not need the IREE toolchain.
+iree = [
+    "iree-turbine>=3.6.0",
+    "iree-base-compiler>=3.6.0",
+    "iree-base-runtime>=3.6.0",
+]
+
+# All dependencies (sb3, rllib, minari, iree). 
 all = [
-    "schola[sb3,rllib,minari]",
+    "schola[sb3,rllib,minari,iree]",
 ]
 
 [project.scripts]
@@ -110,6 +119,9 @@ test= [
     "pymunk",
     "pytest-xdist",
     "onnxruntime",
+    "iree-turbine>=3.6.0",
+    "iree-base-compiler>=3.6.0",
+    "iree-base-runtime>=3.6.0",
 ]
 
 test-metrics = [

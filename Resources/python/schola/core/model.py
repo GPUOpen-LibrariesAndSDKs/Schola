@@ -2,32 +2,27 @@
 # pyright: reportExplicitAny=false, reportUnknownMemberType=false, reportUnknownArgumentType=false, reportUnknownVariableType=false, reportUnknownLambdaType=false, reportAny=false
 
 """
-ONNX export metadata, ``ScholaModel``, and related helpers for policies trained with Schola.
+``ScholaModel``, state metadata, and related helpers for policies trained with Schola.
 """
 
 from dataclasses import dataclass
-import logging
 import pathlib
+import warnings
 from typing import Any
 
 import torch as th
 import gymnasium as gym
 from gymnasium.spaces import Box, MultiDiscrete, flatdim
-import numpy as np
-from torch.export import Dim
 from functools import cached_property
 from schola.core.utils.dict_helpers import *
 from itertools import accumulate
-import onnx_ir as ir
-
-logger = logging.getLogger(__name__)
 
 
 # bit overkill for now but we can extend later if we need more metadata
 @dataclass
 class StateMetadata:
     """
-    Metadata for recurrent or sequential state tensors in ONNX export.
+    Metadata for recurrent or sequential state tensors in export.
     """
 
     has_seq_dim: bool = False  # whether the state input has a sequence dimension
@@ -36,14 +31,14 @@ class StateMetadata:
 
     def to_dict(self) -> dict[str, str]:
         """
-        Serialize state metadata to string values for ONNX ``metadata_props``.
+        Serialize state metadata to a dictionary of string values.
 
         Returns
         -------
         dict[str, str]
             Keys ``has_seq_dim`` and, when sequential, ``max_seq_len`` and ``seq_dim``.
         """
-        output_dict = {"has_seq_dim": str(self.has_seq_dim)}
+        output_dict: dict[str, str] = {"has_seq_dim": str(self.has_seq_dim)}
         if self.has_seq_dim:
             output_dict["max_seq_len"] = str(self.max_seq_len)
             output_dict["seq_dim"] = str(self.seq_dim)
@@ -410,93 +405,20 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
         -------
         th.onnx.ONNXProgram
             The ONNX program generated with torch dynamo export.
+
+        .. deprecated::
+            Use :func:`schola.core.export.onnx_export.export_onnx_program` instead.
         """
-        _ = self.eval()
-        # make directories if they don't exist
-        obs_inputs = []
-        export_batch_size = 2
-        batch_dim = Dim("batch_size")
-        seq_dim = Dim("seq_len")
+        warnings.warn(
+            "ScholaModel.export_onnx_program is deprecated; use "
+            "schola.core.export.onnx_export.export_onnx_program instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        # Imported lazily to avoid a circular import with the export package.
+        from schola.core.export.onnx_export import export_onnx_program
 
-        for obs_space in self.observation_space.spaces.values():
-            # Just flatten discrete and boolean spaces
-            # export with a non-singleton example batch so PyTorch does not
-            # specialize the batch dimension to 1 before applying dynamic shapes.
-            obs_inputs.append(
-                th.as_tensor(
-                    np.stack([obs_space.sample() for _ in range(export_batch_size)])
-                )
-            )
-
-        obs_input_shapes = ({0: batch_dim} for _ in obs_inputs)
-
-        # default to empty iterators
-        state_input_shapes_generator = ()
-        state_input_generator = ()
-
-        # add the state input, we could just plug the values directly but this is more flexible in the case someone does something weird
-        # setting is_stateful to False and adding a state_input_dict
-        if self.is_stateful:
-            # add batch and sequence dimensions to the state inputs
-            state_input_generator = (
-                v.reshape(1, *v.shape).repeat(export_batch_size, *[1 for _ in v.shape])
-                for v in self.input_state_dict.values()
-            )
-            state_dynamic_shapes_fn = lambda k, v: (
-                {0: batch_dim, v.seq_dim: seq_dim} if v.has_seq_dim else {0: batch_dim}
-            )
-            state_input_shapes_generator = (
-                state_dynamic_shapes_fn(k, metadata)
-                for k, metadata in self.input_state_metadata.items()
-            )
-
-        input_args = (*obs_inputs, *state_input_generator)
-        input_names = (*self.input_obs_keys, *self.input_state_keys)
-        input_shapes = (*obs_input_shapes, *state_input_shapes_generator)
-
-        output_names = (*self.output_action_keys, *self.output_state_keys)
-
-        if set(input_names).intersection(set(output_names)):
-            raise ValueError(
-                f"Input and output names must be unique. Reused Names: {set(input_names).intersection(set(output_names))}"
-            )
-
-        # State inputs have shape: [batch_size, *state_dim] (state_dim may include a sequence dimension)
-        # Observation inputs have shape: [batch_size, *obs_dim]
-        with th.no_grad():
-            handles = patch_lstm_layers_for_onnx_export(self)
-            onnx_program = th.onnx.export(
-                self,
-                args=input_args,
-                input_names=input_names,
-                opset_version=onnx_opset,
-                output_names=output_names,
-                dynamic_shapes=(input_shapes,),
-                dynamo=True,
-                report=False,
-                optimize=True,
-                verbose=False,
-            )
-
-            for handle in handles:
-                handle.remove()
-
-            assert (
-                onnx_program is not None
-            ), "Expected ONNX program to be generated after calling th.onnx.export"
-            fix_slice_nodes_for_onnx(onnx_program.model)
-
-            ir_passes: Any = ir.passes
-            ir_passes.common.shape_inference.infer_shapes(onnx_program.model)
-            # Embed state metadata on each state input, and copy those fields
-            # onto the model metadata as "{input_name}.{field}".
-            for inp in onnx_program.model.graph.inputs:
-                if inp.name in self.input_state_metadata:
-                    props = self.input_state_metadata[inp.name].to_dict()
-                    inp.metadata_props.update(props)
-                    for key, value in props.items():
-                        onnx_program.model.metadata_props[f"{inp.name}.{key}"] = value
-            return onnx_program
+        return export_onnx_program(self, onnx_opset)
 
     def save_as_onnx(
         self, export_path: str | pathlib.Path, onnx_opset: int = 21
@@ -509,117 +431,22 @@ class ScholaModel(th.nn.Module, StatefulModelMixin):
         export_path : str or pathlib.Path
             Output file path; parent directories are created if missing.
         onnx_opset : int, optional
-            ONNX opset passed to :meth:`export_onnx_program`.
+            ONNX opset used for the export.
 
         Returns
         -------
         None
+
+        .. deprecated::
+            Use :func:`schola.core.export.onnx_export.save_as_onnx` instead.
         """
-        dir_path = pathlib.Path(export_path).parent
-        dir_path.mkdir(parents=True, exist_ok=True)
-        onnx_program = self.export_onnx_program(onnx_opset)
-        onnx_program.save(export_path)
+        warnings.warn(
+            "ScholaModel.save_as_onnx is deprecated; use "
+            "schola.core.export.onnx_export.save_as_onnx instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        # Imported lazily to avoid a circular import with the export package.
+        from schola.core.export.onnx_export import save_as_onnx
 
-
-def patch_lstm_layers_for_onnx_export(
-    module: th.nn.Module,
-) -> list[th.utils.hooks.RemovableHandle]:
-    """
-    Attach forward hooks so ONNX-exported LSTM hidden states match PyTorch.
-
-    Parameters
-    ----------
-    module : torch.nn.Module
-        Root module; every nested ``torch.nn.LSTM`` receives
-        ``reshape_lstm_output_hook``.
-
-    Returns
-    -------
-    list of torch.utils.hooks.RemovableHandle
-        Forward-hook handles registered on each nested LSTM (pass to
-        ``RemovableHandle.remove()`` after export).
-
-    Notes
-    -----
-    Intended for use only around ``torch.onnx.export``; hooks reshape ``hn``/``cn``.
-    """
-    handles = []
-    for sub_module in module.modules():
-        if isinstance(sub_module, th.nn.LSTM):
-            handles.append(sub_module.register_forward_hook(reshape_lstm_output_hook))
-    return handles
-
-
-def reshape_lstm_output_hook(
-    lstm: th.nn.LSTM,
-    args: tuple[th.Tensor, tuple[th.Tensor, th.Tensor]],
-    output: tuple[th.Tensor, tuple[th.Tensor, th.Tensor]],
-) -> tuple[th.Tensor, tuple[th.Tensor, th.Tensor]]:
-    """
-    Reshape LSTM hidden states during ONNX export so ``hn`` / ``cn`` match PyTorch layouts.
-
-    Only for use with :func:`patch_lstm_layers_for_onnx_export`; requires batched LSTM inputs.
-
-    Parameters
-    ----------
-    lstm : torch.nn.LSTM
-        Layer instance receiving the hook.
-    args : tuple
-        Forward inputs ``(input, (h_0, c_0))`` as passed to ``LSTM.forward``.
-    output : tuple
-        Forward outputs ``(output, (h_n, c_n))``.
-
-    Returns
-    -------
-    tuple
-        ``(output, (h_n, c_n))`` with ``h_n`` and ``c_n`` reshaped for ONNX compatibility.
-
-    Notes
-    -----
-    This hook is only used for ONNX export, and is not used for normal forward passes.
-    """
-    _x_in, _ = args
-    x_out, (hn, cn) = output
-
-    bidirectional_modifier = 2 if lstm.bidirectional else 1
-    layer_dim = bidirectional_modifier * lstm.num_layers
-
-    # This is a no-op on pytorch, but on ONNX the output has an extra dimension that we need to squeeze to match the pytorch output
-    hn = hn.reshape(layer_dim, -1, lstm.hidden_size)
-    cn = cn.reshape(layer_dim, -1, lstm.hidden_size)
-
-    return x_out, (hn, cn)
-
-
-def fix_slice_nodes_for_onnx(model: ir.Model) -> None:
-    """
-    Fix Slice nodes produced by ``torch.onnx.export`` that use invalid 0-D tensor inputs.
-
-    Parameters
-    ----------
-    model : onnx_ir.ir.Model
-        ONNX IR model to mutate in place.
-
-    """
-    # Create a mapping of initializer names to their values
-    fixed_values: set[str] = set()
-    # Find all Slice nodes
-    for node in model.graph.all_nodes():
-        if node.op_type == "Slice":
-            for _i, node_input in enumerate(node.inputs):
-                if node_input is None:
-                    continue
-
-                if node_input.is_initializer() and (
-                    node_input.shape is None or node_input.shape.rank() == 0
-                ):
-                    node_input.shape = ir.Shape((1,))
-                    if node_input.const_value is not None:
-                        node_input.const_value = ir.tensor(
-                            node_input.const_value.numpy().reshape((1,)),
-                            name=node_input.const_value.name,
-                        )
-                    if node_input.name is not None:
-                        fixed_values.add(node_input.name)
-
-    logger.warning("Fixed %s slice nodes: %s", len(fixed_values), fixed_values)
+        save_as_onnx(self, export_path, onnx_opset)

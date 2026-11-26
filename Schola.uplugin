@@ -36,6 +36,11 @@
 			"LoadingPhase": "Default"
 		},
 		{
+			"Name": "ScholaIREE",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
 			"Name": "ScholaInteractors",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"

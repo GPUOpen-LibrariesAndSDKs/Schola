@@ -40,8 +40,9 @@ Install Schola
 Building 3rd-Party Dependencies for Schola (Optional)
 -----------------------------------------------------
 
-Schola comes bundled with all of its c++ dependencies already. However, if you want to use a different version of a
-dependency, or unreal engine you may build them from source.
+Schola bundles its gRPC and Protobuf dependencies, and the IREE runtime used by ``ScholaIREE`` on Windows, so Windows users
+don't need to build anything. Linux users must build the IREE runtime from a local IREE build (see below). You may also build
+any of these dependencies from source if you want a different version of a dependency or Unreal Engine.
 
 
 Building gRPC from source for Schola
@@ -72,7 +73,7 @@ Building gRPC from source for Schola
          .. note::
             Some install steps may require adding the above prerequisites to your PATH.
 
-2. Build gRPC using the scripts in `/Resources/Build`, by running the following from the Plugin Root Dir
+2. Build gRPC using the scripts in `/Resources/Build/grpc`, by running the following from the Plugin Root Dir
 
    .. tabs::
 
@@ -85,7 +86,7 @@ Building gRPC from source for Schola
          # Change this to your Unreal Engine path
          UE_ROOT="~/UnrealEngine/UE_5.5"
          export UE_ROOT
-         bash ./Resources/Build/linux_dependencies.sh
+         bash ./Resources/Build/grpc/build_grpc_linux.sh
       
       .. note::
          You may need to manually update ``libtool-bin`` as old versions of ``libtool-bin`` may cause errors during install.
@@ -94,7 +95,30 @@ Building gRPC from source for Schola
 
          # Change this to your Unreal Engine path if it is different than the default.
          set UE_ROOT="C:\Program Files\Epic Games\UE_5.5"
-         ./Resources/Build/windows_dependencies.bat
+         ./Resources/Build/grpc/build_grpc_windows.bat
+
+Building the IREE runtime from source for ScholaIREE
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Required on Linux. On Windows, the bundled runtime is used unless you want a different IREE version.
+
+1. Build the IREE runtime (v3.14.0, to match the ``iree-base-compiler`` used for model export) by following the steps in
+   ``Source/ThirdParty/IREE/README.md``.
+
+2. Copy the built runtime into Schola by running the script for your platform from the plugin root. The paths are your
+   IREE install, source, and build directories.
+
+   .. tabs::
+
+      .. code-tab:: powershell Windows
+
+         .\Resources\Build\iree\build_iree_windows.ps1 -IreeInstallRoot C:\iree\iree-install -IreeSourceRoot C:\iree\iree-src -IreeBuildRoot C:\iree\iree-build
+
+      .. code-tab:: bash Linux
+
+         bash ./Resources/Build/iree/build_iree_linux.sh ~/iree/iree-install ~/iree/iree-src ~/iree/iree-build
+
+3. Rebuild Schola. The Unreal Build Tool output should report that the IREE runtime was found.
 
 Regenerated Protobuf and gRPC Code
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

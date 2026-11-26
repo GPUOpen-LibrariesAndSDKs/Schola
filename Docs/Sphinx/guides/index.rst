@@ -12,6 +12,7 @@ Guides
    adaptive_online_learning_contract
    adaptive_policy_setup
    adaptive_decision_lifecycle
+   adaptive_stepper
    native_online_learning_foundation
    native_rltools_learning
    native_adaptive_policy

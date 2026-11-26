@@ -6,7 +6,7 @@ Common utility functions and classes for use in Schola scripts.
 
 import logging
 from collections.abc import Sequence
-from enum import Enum
+from enum import StrEnum
 from typing import (
     Annotated,
     ClassVar,
@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     import torch
 
 
-class ActivationFunctionEnum(str, Enum):
+class ActivationFunctionEnum(StrEnum):
     """
     Activation functions for neural networks.
     """
@@ -381,7 +381,7 @@ def protocol_port_for_index(base_port: int | None, index: int) -> int | None:
     return base_port + index
 
 
-class PortOffsetMode(str, Enum):
+class PortOffsetMode(StrEnum):
     """
     How gRPC ports are assigned to parallel simulator instances.
     """
@@ -390,7 +390,7 @@ class PortOffsetMode(str, Enum):
     FIXED = "fixed"  #: Every worker uses the same port (for K8s pods with isolated networks).
 
 
-class CredentialMode(str, Enum):
+class CredentialMode(StrEnum):
     """
     gRPC channel credential strategy.
     """

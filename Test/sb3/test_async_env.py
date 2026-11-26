@@ -3,7 +3,8 @@
 
 import functools
 import sys
-from typing import Optional
+from collections.abc import Mapping
+from typing import Any, Optional
 
 import gymnasium as gym
 import numpy as np
@@ -11,9 +12,14 @@ import pytest
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import VecFrameStack, VecNormalize
 
+from schola.core.protocols.async_base_protocol import AsyncBaseRLProtocol
+from schola.core.protocols.base_protocol import AutoResetType
 from schola.core.protocols.protobuf.async_grpc_protocol import AsyncGrpcProtocol
 from schola.core.protocols.protobuf.grpc_protocol import GrpcProtocol
-from schola.core.simulators.base_simulator import UnsupportedProtocolException
+from schola.core.simulators.base_simulator import (
+    BaseSimulator,
+    UnsupportedProtocolException,
+)
 from schola.core.simulators.unreal.editor_simulator import UnrealEditor
 from schola.sb3.async_env import AsyncVecEnv
 
@@ -216,3 +222,138 @@ def test_async_vecenv_terminal_obs(make_vec_env_server, vec_env_wrapper):
         prev_obs_b = obs_b
 
     schola_env.close()
+
+
+# --- AsyncVecEnv cleanup tests (fake protocols/simulators) ---
+
+
+class FakeAsyncProtocol(AsyncBaseRLProtocol):
+    """Fake AsyncBaseRLProtocol that implements only what the tests exercise."""
+
+    def __init__(self, close_error: Exception | None = None):
+        self.close_error = close_error
+        self.close_calls = 0
+        self.closed = False
+
+    async def start(self) -> None:
+        pass
+
+    async def send_startup_msg(
+        self,
+        auto_reset_type: AutoResetType = AutoResetType.SAME_STEP,
+        /,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        pass
+
+    async def get_definition(
+        self,
+        *args: Any,
+        **kwargs: Any,
+    ) -> tuple[
+        list[list[str]],
+        list[dict[str, str]],
+        dict[int, dict[str, gym.Space[Any]]],
+        dict[int, dict[str, gym.Space[Any]]],
+    ]:
+        obs_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32)
+        act_space = gym.spaces.Discrete(2)
+        return (
+            [["agent0"]],
+            [{"agent0": "default"}],
+            {0: {"agent0": obs_space}},
+            {0: {"agent0": act_space}},
+        )
+
+    async def send_reset_msg(
+        self,
+        seeds: list[Any] | None = None,
+        options: list[Any] | None = None,
+    ) -> tuple[list[dict[str, dict[str, Any]]], list[dict[str, dict[str, str]]]]:
+        raise NotImplementedError
+
+    async def send_action_msg(
+        self,
+        actions: Mapping[int, Mapping[str, Any]],
+        action_space: Mapping[str, gym.Space[Any]],
+    ) -> tuple[
+        list[dict[str, Any]],
+        list[dict[str, float]],
+        list[dict[str, bool]],
+        list[dict[str, bool]],
+        list[dict[str, dict[str, str]]],
+        dict[int, dict[str, dict[str, Any]]],
+        dict[int, dict[str, dict[str, str]]],
+    ]:
+        raise NotImplementedError
+
+    def __bool__(self) -> bool:
+        return True
+
+    async def close(self) -> None:
+        self.close_calls += 1
+        if self.close_error is not None:
+            raise self.close_error
+        self.closed = True
+
+
+class FakeSimulator(BaseSimulator):
+    """Fake BaseSimulator that counts start/stop calls."""
+
+    @property
+    def supported_async_protocols(self) -> tuple[type[AsyncBaseRLProtocol], ...]:
+        return (FakeAsyncProtocol,)
+
+    def __init__(self) -> None:
+        self.start_calls = 0
+        self.stop_calls = 0
+
+    def start(self, _protocol_properties: dict[str, object]) -> None:
+        self.start_calls += 1
+
+    def stop(self) -> None:
+        self.stop_calls += 1
+
+
+def _make_env(num_pairs: int = 2, failing: tuple[int, ...] = ()):
+    sims = [FakeSimulator() for _ in range(num_pairs)]
+    protos = [
+        FakeAsyncProtocol(
+            close_error=RuntimeError(f"close failed {i}") if i in failing else None
+        )
+        for i in range(num_pairs)
+    ]
+    env = AsyncVecEnv(sims, protos)
+    return env, sims, protos
+
+
+def test_close_closes_all_protocols_and_stops_loop_thread():
+    env, sims, protos = _make_env(num_pairs=3)
+    thread, loop = env._thread, env._loop
+    assert thread is not None and thread.is_alive()
+    assert loop is not None
+    env.close()
+
+    assert all(p.close_calls == 1 and p.closed for p in protos)
+    assert not thread.is_alive()
+    assert not loop.is_running()
+
+
+def test_close_continues_when_one_protocol_close_fails():
+    env, sims, protos = _make_env(num_pairs=3, failing=(1,))
+
+    env.close()  # must not raise
+
+    assert [p.close_calls for p in protos] == [1, 1, 1]
+    assert protos[0].closed and protos[2].closed
+    assert not protos[1].closed
+
+
+def test_close_stops_all_simulators_after_protocol_failure():
+    env, sims, protos = _make_env(num_pairs=3, failing=(0, 2))
+
+    env.close()
+
+    assert [s.stop_calls for s in sims] == [1, 1, 1]
+    assert env._thread is not None and not env._thread.is_alive()

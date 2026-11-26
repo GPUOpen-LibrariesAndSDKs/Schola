@@ -5,8 +5,7 @@ Script to collect imitation learning datasets using Minari and Schola.
 """
 
 import logging
-from typing import Any, Callable, Literal
-from typing_extensions import Annotated
+from typing import Annotated, Any, Callable, Literal
 
 from schola.scripts.common.command_template import ScholaCommandTemplate
 from schola.scripts.common.console import configure_logging

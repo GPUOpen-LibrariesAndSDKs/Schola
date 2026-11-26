@@ -56,7 +56,7 @@ Prerequisites
 * `KubeRay operator <https://docs.ray.io/en/latest/cluster/kubernetes/index.html>`_ installed on the cluster
 * A packaged Unreal Engine executable with Schola enabled
 * Docker images for Ray workers and UE instances
-* Python 3.10+ with ``schola[rllib]`` installed in the worker image
+* Python 3.11+ with ``schola[rllib]`` installed in the worker image
 
 
 Deployment Topologies

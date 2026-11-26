@@ -67,7 +67,7 @@ html_theme_options = {
     'home_page_in_toc': True,
 }
 
-PYTHON_VERSION = "Python 3.10 to 3.12 "
+PYTHON_VERSION = "Python 3.11 to 3.12 "
 UNREAL_VERSION = "Unreal Engine 5.7"
 UNREAL_VERSION_EXACT = "5.7.3"
 

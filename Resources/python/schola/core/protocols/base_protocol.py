@@ -6,18 +6,13 @@ Base Class for Unreal Connections
 from __future__ import annotations
 
 from collections.abc import Mapping
-import sys
 from abc import ABC, abstractmethod
+from enum import StrEnum
 from typing import Any
 
 import gymnasium as gym
 
 from schola.core.utils.dict_helpers import NestedDict
-
-if sys.version_info >= (3, 11):
-    from enum import StrEnum
-else:
-    from backports.strenum import StrEnum  # pyright: ignore[reportMissingImports]
 
 
 class AutoResetType(StrEnum):

@@ -293,9 +293,16 @@ class AsyncVecEnv(BaseVecEnv):
         logger.info("... closing environment")
 
         async def _close_all() -> None:
-            await asyncio.gather(
-                *(p.close() for p in self.protocols), return_exceptions=True
-            )
+            async def _close_one(p: AsyncBaseRLProtocol) -> None:
+                # Swallow errors so one failing close doesn't cancel the others.
+                try:
+                    await p.close()
+                except Exception:
+                    logger.exception("Error closing protocol")
+
+            async with asyncio.TaskGroup() as tg:
+                for p in self.protocols:
+                    tg.create_task(_close_one(p))
 
         self._run(_close_all())
         if self._loop is not None:
@@ -363,7 +370,9 @@ class AsyncVecEnv(BaseVecEnv):
             off += n
 
         async def _all_steps():
-            return await asyncio.gather(*coros)
+            async with asyncio.TaskGroup() as tg:
+                tasks = [tg.create_task(coro) for coro in coros]
+            return [task.result() for task in tasks]
 
         self._step_future = asyncio.run_coroutine_threadsafe(_all_steps(), self.loop)
 

@@ -9,7 +9,7 @@ name = "schola"
 version = "2.1.0"
 description = "Schola is a toolkit/plugin for Unreal Engine that facilitates training agents using reinforcement learning frameworks."
 readme = {file = "README.md", content-type = "text/markdown"}
-requires-python = ">=3.10, <3.13"
+requires-python = ">=3.11, <3.13"
 
 authors = [
     {name = "Alexander Cann", email = "alexcann@amd.com"},
@@ -41,7 +41,6 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
@@ -56,7 +55,6 @@ dependencies = [
     "onnx>=1.18",
     "onnxscript>=0.6.2", # 0.6.2 is the earliest version of onnxscript that works with LSTMs
     "gymnasium>=1.1.0",
-    "backports.strenum; python_version<'3.11'",
     "cyclopts>=4.0,<5", # 5.x changes meta-app parsing and rejects existing CLI flags
     "rich",
     "torch>=2.10", # 2.10 is the earliest version for which exporting models to ONNX with Dynamo works well

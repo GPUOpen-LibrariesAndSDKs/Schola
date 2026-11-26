@@ -18,7 +18,7 @@
         {
             "root": "Resources/python/schola/core/protocols",
             "extraPaths": ["Resources/python"],
-            "pythonVersion": "3.10",
+            "pythonVersion": "3.11",
             "reportAny": "none",
             "reportExplicitAny": "none",
             "reportUnusedParameter": "none",
@@ -28,7 +28,7 @@
         {
             "root": "Resources/python/schola/core/simulators/unreal",
             "extraPaths": ["Resources/python"],
-            "pythonVersion": "3.10",
+            "pythonVersion": "3.11",
             "reportAny": "none",
             "reportExplicitAny": "none",
             "reportUnusedCallResult": "none"
@@ -36,7 +36,7 @@
         {
             "root": "Resources/python/schola/core/utils",
             "extraPaths": ["Resources/python"],
-            "pythonVersion": "3.10",
+            "pythonVersion": "3.11",
             "reportUnknownMemberType": "none",
             "reportUnknownVariableType": "none",
             "reportUnknownParameterType": "none",

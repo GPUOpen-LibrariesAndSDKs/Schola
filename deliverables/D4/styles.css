@@ -562,3 +562,5 @@ dialog::backdrop { background: rgb(10 30 25 / 65%); }
 .ck-stats > div { border-top: 3px solid #173d38; padding-top: 22px; }
 .ck-stats strong { display: block; font-size: 96px; font-weight: 400; letter-spacing: -.05em; line-height: 1; color: #936025; margin-bottom: 14px; }
 .ck-stats span { display: block; font-size: 25px; line-height: 1.3; color: #50645c; }
+#testing-adaptive .ck-num { font-size: 52px; }
+#testing-adaptive .ck-cards p { font-size: 22px; }

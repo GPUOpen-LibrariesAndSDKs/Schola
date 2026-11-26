@@ -806,6 +806,20 @@ if (MigrationDay)
         <aside class="speaker-notes" data-time="0:15">For testing, there are 460 checks that run in CI on every PR, on Linux and Mac. That includes a bunch of broken and mismatched files, and all of them get rejected. I also reran the chase test starting from a saved checkpoint. It still adapts on all six seeds, and the frozen copy loaded from the same file doesn't change at all.</aside>
       </section>
 
+      <section class="slide" id="testing-adaptive" aria-labelledby="testing-adaptive-heading" data-title="Adaptive: testing and evaluation" data-section="Technical">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
+        <p class="eyebrow">Adaptive NPCs · testing and evaluation · Chloe Lee</p>
+        <h2 id="testing-adaptive-heading">Testing and evaluation</h2>
+        <p class="ck-lead">Besides checkpoints, I worked on how we test the learner and how we prove it adapts:</p>
+        <div class="ck-cards">
+          <div><span class="ck-num">4.7 µs</span><h3>Decision time</h3><p>per NPC decision on the game thread, over 40,376 moves. 0 rejected inputs, 0 fallbacks.</p></div>
+          <div><span class="ck-num">Frozen copy</span><h3>Evaluation plan</h3><p>compare the learner against a frozen copy, with pass criteria fixed before running. It showed our first test couldn't prove adaptation.</p></div>
+          <div><span class="ck-num">63×</span><h3>Timing test</h3><p>training headroom on the first learner. A decision took 0.006 ms against a 0.1 ms target.</p></div>
+        </div>
+        <p class="ck-foot">The chase test in our evidence slides uses this frozen-copy comparison.</p>
+        <aside class="speaker-notes" data-time="0:15">The other half of my work was testing. First, timing: a decision takes about 4.7 microseconds on the game thread, and nothing got rejected or fell back. Second, I wrote the evaluation plan: we compare the learner against a frozen copy, and we fix the pass criteria before running. That plan is what showed our first test was too easy to prove anything, and it's the comparison the chase test uses now. And on the first learner, my timing test showed training had about 63 times the time it needed.</aside>
+      </section>
+
 
 
       <section class="slide" id="tech-event" aria-labelledby="tech-event-heading" data-title="Event: design" data-section="Technical">

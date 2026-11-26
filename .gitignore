@@ -88,6 +88,10 @@ documentation/*.bkp
 #ONNX files
 *.onnx
 !/basic_test_model.onnx
+!/Examples/CampusCrowd/Content/Models/migration_policy.onnx
+!/Examples/CampusCrowd/Content/Models/landmark_eta.onnx
+!/Examples/CampusCrowd/Content/Models/navigation_policy.onnx
+!/Examples/CampusCrowd/Content/Models/turn_policy.onnx
 
 # Don't ignore Bundled third party dependencies
 !/Source/ThirdParty/**/*.lib

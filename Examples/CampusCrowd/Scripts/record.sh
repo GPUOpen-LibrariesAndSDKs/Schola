@@ -10,7 +10,7 @@ done
 mkdir -p "$OUT"
 LOG="$OUT/demo.log"
 : > "$LOG"
-"$PROJECT_DIR/Scripts/run.sh" -Mode=Background -View=2 -Agents=2000 \
+"$PROJECT_DIR/Scripts/run.sh" -InferenceBenchmark -Mode=Background -View=2 -Agents=2000 \
     -WarmupSeconds=12 -CaptureSeconds=12 -Report="$OUT/run.json" \
     -Screenshot="$OUT/pedestrians.png" -abslog="$LOG" -unattended "$@" > "$OUT/launcher.log" 2>&1 &
 CAMPUS_DEMO_PID=$!

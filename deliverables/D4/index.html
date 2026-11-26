@@ -143,20 +143,91 @@ Left column, one sentence: "Those four things are all a developer writes: what i
 If it hasn't recovered by the end of the minute: say it usually takes 4,000 to 14,000 moves, and that the full controlled run is coming up in the technical section. Don't wait on it. If the editor fails, go straight to that evidence chart.</aside>
       </section>
 
-      <section class="slide" id="demo-background" aria-labelledby="demo-background-heading" data-title="Demo: background NPCs" data-section="Demo">
-        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Demo 2 / Background NPCs</span></header>
-        <div class="slot">
-          <span class="slot-owner">Background NPCs subteam · 1:00</span>
-          <h3 id="demo-background-heading">User flow 2: batch inference for a large crowd</h3>
-          <ul>
-            <li>What the developer sets up (policy paradigm, stepper or Mass processors), in one sentence</li>
-            <li>Live: CampusCrowd or BackgroundNPCs, toggling the API off and on</li>
-            <li>What to watch: frame rate and game-thread time with and without the API</li>
-            <li>The fallback if the live run fails, with a reason</li>
-          </ul>
-          <p class="slot-known">On record: 20,000 agents, 200,000 decisions/s, 60 FPS with the API versus 10.4 FPS without.</p>
+      <!-- Background NPC / Max Xu -->
+      <section class="slide background-slide" id="background-team" aria-labelledby="background-team-heading" data-title="Background NPC · Team" data-section="Background NPC">
+        <h2 id="background-team-heading">Background NPC Team</h2>
+        <p class="lead">Max Xu</p>
+        <aside class="speaker-notes" data-time="0:05">I’m Max Xu. I worked on ScholaMass and CampusCrowd.</aside>
+      </section>
+
+      <section class="slide background-slide" id="background-motivation" aria-labelledby="background-motivation-heading" data-title="Background NPC · Motivation" data-section="Background NPC">
+        <h2 id="background-motivation-heading">Why ScholaMass?</h2>
+        <ul class="background-steps">
+          <li>Schola ran ONNX inference one agent at a time on the game thread.</li>
+          <li>Unreal Mass stores crowd state in entity fragments. Model calls for thousands of NPCs compete for the frame budget.</li>
+          <li>ScholaMass connects Mass (from unreal) processors to batched inference and routes each result back to its entity.</li>
+        </ul>
+        <aside class="speaker-notes" data-time="0:15">Max Xu. Schola already supplied ONNX inference. Our background scheduler moves model calls to workers. ScholaMass is the adapter that gathers rows from Mass fragments, submits them to that scheduler, and applies results to the right entities on a later frame.</aside>
+      </section>
+
+      <section class="slide background-slide" id="demo-background" aria-labelledby="demo-background-heading" data-title="Background NPC · CampusCrowd recordings and performance" data-section="Background NPC">
+        <h2 id="demo-background-heading">CampusCrowd</h2>
+        <div class="background-videos">
+          <figure>
+            <video controls playsinline preload="metadata" poster="assets/campus-crowd-four-student-split-view.jpg"
+                   src="assets/campus-crowd-four-student-split-view.mp4" aria-label="Four-student CampusCrowd recording"></video>
+            <figcaption>Four students · Full day</figcaption>
+          </figure>
+          <figure>
+            <video controls playsinline preload="metadata" poster="assets/campus-crowd-100000-students-first-class.jpg"
+                   src="assets/campus-crowd-100000-students-first-class.mp4" aria-label="100,000-student CampusCrowd recording"></video>
+            <figcaption>100,000 students · First class</figcaption>
+          </figure>
         </div>
-        <aside class="speaker-notes" data-time="1:00">Background subteam: replace this slot. Keep the demo from the user's perspective and within one minute.</aside>
+        <table class="background-benchmarks">
+          <caption class="sr-only">CampusCrowd benchmarks measured separately from the videos</caption>
+          <thead><tr><th scope="col">Students</th><th scope="col">Mode</th><th scope="col">Rows/call</th><th scope="col">Turns/s</th><th scope="col">Game-thread inference p99<br>(ms/frame)</th><th scope="col">Turn latency p99<br>(ms)</th><th scope="col">FPS</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">100,000</th><td>ScholaMass</td><td>45.9</td><td>3,310</td><td>1.729</td><td>25</td><td>59.49</td></tr>
+            <tr><th scope="row">100,000</th><td>Synchronous</td><td>1.0</td><td>3,276</td><td>4.741</td><td>10</td><td>55.06</td></tr>
+            <tr><th scope="row">300,000</th><td>ScholaMass</td><td>54.5</td><td>9,665</td><td>4.440</td><td>35</td><td>54.09</td></tr>
+            <tr><th scope="row">300,000</th><td>Synchronous</td><td>1.0</td><td>9,646</td><td>13.226</td><td>27</td><td>38.30</td></tr>
+          </tbody>
+        </table>
+        <aside class="speaker-notes" data-time="0:55">Both videos last 30 seconds. They can play side by side while you narrate. The left shows a full class day sped up and the right shows the first class for the large cohort. The table compares ScholaMass and synchronous inference at each crowd size. The 100,000-student pair was rendered; the 300,000-student pair ran headless. Compare modes within each crowd size. At 300,000, both modes applied about 9,650 turns per second with no dropped rows.</aside>
+      </section>
+
+      <section class="slide background-slide" id="tech-background" aria-labelledby="tech-background-heading" data-title="Background NPC · ScholaMass architecture" data-section="Background NPC">
+        <h2 id="tech-background-heading">ScholaMass architecture</h2>
+        <ol class="background-flow" aria-label="ScholaMass observation and action flow">
+          <li><strong>Gather</strong><span>Mass entities due to decide</span></li>
+          <li><strong>Queue</strong><span>One bucket per shared policy</span></li>
+          <li><strong>Infer</strong><span>Batched ONNX on workers</span></li>
+          <li><strong>Apply</strong><span>Return results on a later frame</span></li>
+        </ol>
+        <aside class="speaker-notes" data-time="0:30">Max Xu. Trace one student’s junction decision. Mass schedules tell the gather processor what is due. One world subsystem keeps a bounded queue for each policy bucket. Workers batch ONNX requests by policy. The bridge checks entity identity and request serial before it applies a completed action.</aside>
+      </section>
+
+      <section class="slide background-slide" id="background-api" aria-labelledby="background-api-heading" data-title="Background NPC · CampusCrowd API calls" data-section="Background NPC">
+        <h2 id="background-api-heading">ScholaMass in CampusCrowd</h2>
+        <div class="background-code-grid">
+          <pre><code>const int32 Bucket = Service
+    ? Service-&gt;<mark>AcquireBucket</mark>(*Provider, Definition,
+                             Settings, BucketError)
+    : INDEX_NONE;
+
+FScholaInferenceBucketFragment BucketFragment;
+<mark>BucketFragment.BucketId = Bucket;</mark></code></pre>
+          <pre><code><span class="background-comment">// WriteObservations</span>
+if (MigrationDay)
+    MigrationDay-&gt;<mark>WriteObservation</mark>(Agent.Instance, Row);
+
+<span class="background-comment">// ApplyActions</span>
+if (MigrationDay)
+    MigrationDay-&gt;<mark>ApplyAction</mark>(Agent.Instance, Row);</code></pre>
+        </div>
+        <aside class="speaker-notes" data-time="0:25">The highlighted calls are the API integration points. AcquireBucket binds the ONNX provider, input and output shapes, and scheduler settings. The crowd shares the bucket. The gather callback writes one row for each student due to decide. The apply callback passes the returned scores to CampusCrowd. The excerpts come from CrowdComparisonHost.cpp and CrowdProcessors.cpp.</aside>
+      </section>
+
+      <section class="slide background-slide" id="background-development" aria-labelledby="background-development-heading" data-title="Background NPC · Use and development" data-section="Background NPC">
+        <h2 id="background-development-heading">Develop and deploy in Docker</h2>
+        <ul class="background-steps">
+          <li>Sign in to <code>ghcr.io</code> for the Unreal Engine image.</li>
+          <li>Reopen in Dev Container and run <code>git lfs pull</code>.</li>
+          <li>Run <code>Scripts/build.sh</code> and <code>CAMPUS_EDITOR=1 Scripts/run.sh -Demo=Four</code>.</li>
+          <li>Run <code>Scripts/package.sh</code> for a standalone Linux build.</li>
+        </ul>
+        <aside class="speaker-notes" data-time="0:20">The devcontainer uses Unreal Engine 5.8.4. Run the scripts from Examples/CampusCrowd. Use F1 for the four-student day, F2 for scaling, and Tab to compare inference modes. Headless tests run with -nullrhi. Package output is in Saved/Package/Linux.</aside>
       </section>
 
       <section class="slide cover dark sp-slide sp-team-cover" id="shared-policy-team" aria-labelledby="shared-policy-team-heading" data-title="Shared Policy NPCs: team" data-section="Demo">
@@ -248,7 +319,7 @@ If it hasn't recovered by the end of the minute: say it usually takes 4,000 to 1
         <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Shared Policy / Deliverable 04</span></header>
         <div class="sp-title-row">
           <div><p class="eyebrow">Clementine Yang &middot; StateTree integration</p><h2 id="shared-policy-statetree-heading">One StateTree, multiple NPCs<span class="accent">.</span></h2></div>
-          <a class="sp-pr" href="https://github.com/csc301-2026-f/9-AMD-Advanced-NPCs/pull/67" target="_blank" rel="noopener noreferrer"><span class="sp-pr-number">PR #67</span><span class="sp-status">Open</span></a>
+          <a class="sp-pr" href="https://github.com/csc301-2026-f/9-AMD-Advanced-NPCs/pull/67" target="_blank" rel="noopener noreferrer"><span class="sp-pr-number">PR #67</span><span class="sp-status">Merged</span></a>
         </div>
         <div class="sp-st-layout">
           <div class="sp-st-col sp-reveal">
@@ -271,7 +342,103 @@ If it hasn't recovered by the end of the minute: say it usually takes 4,000 to 1
         <div class="sp-st-notes sp-reveal">
           <p><strong>Verified:</strong> Multiple StateTree instances and runtime Patrol &harr; Chase transitions.</p>
         </div>
-        <aside class="speaker-notes" data-time="0:25">PR #67 adds a StateTree-driven NPC demo in Lyra. The screenshot on the left is the shared StateTree asset in the Unreal Editor. It defines two states, Patrol and Chase, selected by the Actor's Should Chase value: Patrol while it is false, Chase while it is true. Each NPC runs its own instance of the asset, so one NPC can patrol while another chases. What is verified is that several StateTree instances run at once and switch between Patrol and Chase at runtime. The dashed part is planned, not built: map each active state to its own specialized policy, Patrol Policy or Chase Policy, served through Architecture C with NNE inference. The pull request is still open.</aside>
+        <aside class="speaker-notes" data-time="0:25">PR #67 adds a StateTree-driven NPC demo in Lyra. The screenshot on the left is the shared StateTree asset in the Unreal Editor. It defines two states, Patrol and Chase, selected by the Actor's Should Chase value: Patrol while it is false, Chase while it is true. Each NPC runs its own instance of the asset. Several instances ran at once and switched between Patrol and Chase. Actor-specific logs are still needed to verify independent state selection. The dashed part is planned, not built: map each active state to its own specialized policy, Patrol Policy or Chase Policy, served through Architecture C with NNE inference.</aside>
+      </section>
+
+      <section class="slide sp-slide" id="shared-policy-scaling" aria-labelledby="shared-policy-scaling-heading" data-title="Shared Policy NPCs: A versus C scaling benchmark" data-section="Technical">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Shared Policy / Deliverable 04</span></header>
+        <div class="sp-title-row">
+          <div><p class="eyebrow">Hiu Yan (Jaela) Kwok &middot; Benchmarking</p><h2 id="shared-policy-scaling-heading">Per-role models reduced request latency<span class="accent">.</span></h2></div>
+          <a class="sp-pr" href="https://github.com/csc301-2026-f/9-AMD-Advanced-NPCs/pull/55" target="_blank" rel="noopener noreferrer"><span class="sp-pr-number">PR #55</span><span class="sp-status">Merged</span></a>
+        </div>
+        <div class="split sp-lyra-cards">
+          <article class="sp-card"><h3>Architecture A · Baseline</h3><p>One ONNX model evaluates every head in a single call. Its selected actions serve as the reference.</p></article>
+          <article class="sp-card"><h3>Architecture C · Integration target</h3><p>One model per active role. C matched A’s actions and reduced median request latency across all 64 tested configurations, with larger model files.</p></article>
+        </div>
+        <div class="takeaway"><span>16 active heads · batch of 16</span><p>375 µs for A, 242 µs for C, measured end to end in Python ONNX Runtime on one Mac CPU.</p></div>
+        <aside class="speaker-notes" data-time="0:22">In Demo 3, I benchmarked C and D, the two designs Alex from AMD asked us to focus on. This time, I compared C with our baseline, Architecture A. On a Mac CPU, C made the same decisions and was faster in every setup we tried. That’s why we’re moving forward with C.</aside>
+      </section>
+
+      <section class="slide sp-slide" id="shared-policy-per-role" aria-labelledby="shared-policy-per-role-heading" data-title="Shared Policy NPCs: Architecture C implementation" data-section="Technical">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Shared Policy / Deliverable 04</span></header>
+        <div class="sp-title-row">
+          <div><p class="eyebrow">Hiu Yan (Jaela) Kwok &middot; Runtime implementation</p><h2 id="shared-policy-per-role-heading">Architecture C extends Schola’s inference runtime<span class="accent">.</span></h2></div>
+          <a class="sp-pr" href="https://github.com/csc301-2026-f/9-AMD-Advanced-NPCs/pull/52" target="_blank" rel="noopener noreferrer"><span class="sp-pr-number">PR #52</span><span class="sp-status">Merged</span></a>
+        </div>
+        <div class="chart-layout sp-nne-layout">
+          <figure>
+            <svg class="diagram" viewBox="0 0 840 360" role="img" aria-labelledby="sp-c-title sp-c-desc">
+              <title id="sp-c-title">Architecture C routes mixed-role observations through separate ONNX models</title>
+              <desc id="sp-c-desc">The input order is NPC 1 Toward, NPC 2 Away, NPC 3 Toward. C groups NPCs 1 and 3 into the Toward batch and NPC 2 into the Away batch. Each batch runs one model call. C restores the action order to NPC 1, NPC 2, NPC 3.</desc>
+              <defs>
+                <marker id="sp-c-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#50645c"/></marker>
+              </defs>
+              <g stroke="#173d38" stroke-width="2">
+                <rect x="80" y="2" width="680" height="66" fill="#f5f3ec"/>
+                <rect x="80" y="99" width="680" height="52" fill="#e7efe6"/>
+                <rect x="20" y="195" width="370" height="70" fill="#f5f3ec"/>
+                <rect x="450" y="195" width="370" height="70" fill="#f5f3ec"/>
+                <rect x="80" y="297" width="680" height="60" fill="#173d38"/>
+              </g>
+              <g fill="none" stroke="#50645c" stroke-width="2.5" marker-end="url(#sp-c-arrow)">
+                <path d="M420 68 V96"/>
+                <path d="M420 151 V173 H205 V192"/>
+                <path d="M420 151 V173 H635 V192"/>
+                <path d="M205 265 V281 H350 V294"/>
+                <path d="M635 265 V281 H490 V294"/>
+              </g>
+              <g fill="#173d38" text-anchor="middle">
+                <text x="420" y="29" font-size="24" font-weight="600">Mixed-role observations</text>
+                <text x="420" y="54" font-size="20">NPC 1 Toward · NPC 2 Away · NPC 3 Toward</text>
+                <text x="420" y="132" font-size="24" font-weight="600">Group by role</text>
+                <text x="205" y="223" font-size="23" font-weight="600">Toward model · 1 call</text>
+                <text x="205" y="251" font-size="20">Batch: NPCs 1 and 3</text>
+                <text x="635" y="223" font-size="23" font-weight="600">Away model · 1 call</text>
+                <text x="635" y="251" font-size="20">Batch: NPC 2</text>
+                <text x="420" y="334" font-size="23" font-weight="600" fill="#f5f3ec">Restore action order: NPC 1 · NPC 2 · NPC 3</text>
+              </g>
+            </svg>
+            <figcaption>Architecture C · one ONNX model call per active role</figcaption>
+          </figure>
+          <div>
+            <h3>One call per active role</h3>
+            <p>Unreal NNE runs the matching ONNX model on each role batch.</p>
+            <h3>One action per NPC</h3>
+            <p>Architecture C restores the input order so the stepper can deliver each action to its NPC.</p>
+          </div>
+        </div>
+        <div class="takeaway"><span>Same stepper API</span><p>Developers configure a role-to-model mapping. The existing Shared Policy Stepper works with either architecture.</p></div>
+        <aside class="speaker-notes" data-time="0:23">My merged implementation adds Architecture C to our Schola extension through the existing policy interface. Clementine integrated Architecture A first, and C is the version we plan to use going forward. At a high level, C takes a batch of observations from NPCs in different roles, runs one model per group, and sends each NPC its action.</aside>
+      </section>
+
+      <section class="slide sp-slide" id="shared-policy-beacon-walkthrough" aria-labelledby="shared-policy-beacon-walkthrough-heading" data-title="Shared Policy NPCs: what the beacon demo verifies" data-section="Demo">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Shared Policy / Deliverable 04</span></header>
+        <div class="sp-title-row">
+          <div><p class="eyebrow">Hiu Yan (Jaela) Kwok &middot; Unreal gameplay verification</p><h2 id="shared-policy-beacon-walkthrough-heading">What the beacon demo verifies<span class="accent">.</span></h2></div>
+          <a class="sp-pr" href="https://github.com/csc301-2026-f/9-AMD-Advanced-NPCs/pull/66" target="_blank" rel="noopener noreferrer"><span class="sp-pr-number">PR #66</span><span class="sp-status">Unreal example</span></a>
+        </div>
+        <div class="split sp-lyra-cards">
+          <article class="sp-card"><h3>In the viewport</h3><p>Move the beacon with WASD. Three NPCs steer toward it and three steer away. Changing direction gives all six NPCs new observations.</p></article>
+          <article class="sp-card"><h3>In the Output Log</h3><p><code>LogSharedPolicyD4</code> reports six applied actions and two model calls per decision step. One call serves the Toward batch and the other serves the Away batch.</p></article>
+        </div>
+        <div class="takeaway"><span>What ties them together</span><p>The Shared Policy Stepper collects observations, submits them to Architecture C, and applies the returned action to each NPC.</p></div>
+        <aside class="speaker-notes" data-time="0:21">Clementine and I put together two demos. First, I’ll show you the beacon scene I built and configured in Unreal. It shows Architecture C batching NPCs by role. All six NPCs make decisions in the same step, and Architecture C runs the model once for each group, so two model calls give us six steering actions.</aside>
+      </section>
+
+      <section class="slide sp-slide sp-video-slide" id="demo-shared" aria-labelledby="demo-shared-heading" data-title="Shared Policy NPCs: beacon runtime demo" data-section="Demo">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Runtime demonstration</span></header>
+        <div class="sp-title-row">
+          <div><h2 id="demo-shared-heading">From observations to steering in one step<span class="accent">.</span></h2></div>
+          <p class="sp-video-credit">Hiu Yan (Jaela) Kwok &middot; Unreal Runtime Demo &middot; 00:47</p>
+        </div>
+        <figure class="sp-video">
+          <video controls muted playsinline preload="metadata" style="aspect-ratio:1600 / 1132" aria-label="Unreal beacon demo showing the Toward and Away NPC groups and the Shared Policy decision log">
+            <source src="assets/beacon-demo.mp4" type="video/mp4">
+            <a href="assets/beacon-demo.mp4">Open the beacon demo recording</a>
+          </video>
+          <figcaption>The stepper applies six steering actions from two model calls per decision step. <a href="https://github.com/csc301-2026-f/9-AMD-Advanced-NPCs/pull/66">PR #66</a></figcaption>
+        </figure>
+        <aside class="speaker-notes" data-time="0:24">[Play the clip from around 0:15.] As I move the beacon, these three NPCs follow it, and the other three steer away. [Point to the log around 0:28.] You can see six steering actions from just two model calls, one for each group. [After the clip.] Next, Clementine will show NPCs switching between Patrol and Chase in Lyra, Epic’s sample game for Unreal Engine. That’s the piece we’ll connect to our shared policy next.</aside>
       </section>
 
       <section class="slide sp-slide sp-video-slide" id="shared-policy-statetree-demo" aria-labelledby="shared-policy-statetree-demo-heading" data-title="Shared Policy NPCs: Lyra runtime demo" data-section="Demo">
@@ -316,23 +483,6 @@ If it hasn't recovered by the end of the minute: say it usually takes 4,000 to 1
         <aside class="speaker-notes" data-time="0:20">So far we have two working pieces. The Cube demo runs Architecture C with real NNE inference, and the Lyra demo runs StateTrees with runtime Patrol and Chase transitions. For D5 we connect them in three steps: first, dynamic policy selection, which maps each NPC's active state to a specialized policy; second, runtime batch regrouping, which groups NPCs by their current policy so each group still goes through one batched call; and third, end-to-end gameplay, applying the inference outputs to NPC behavior. The goal is an integrated gameplay demo in D5. We will also keep evaluating latency, memory and storage, and scalability. Solid boxes are done; dashed boxes are planned.</aside>
       </section>
 
-      <section class="slide" id="demo-shared" aria-labelledby="demo-shared-heading" data-title="Demo: shared policy NPCs" data-section="Demo">
-        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Demo 3 / Shared Policy NPCs</span></header>
-        <div class="slot">
-          <span class="slot-owner">Shared Policy subteam · 1:00</span>
-          <h3 id="demo-shared-heading">User flow 3: one network, role-specific actions</h3>
-          <ul>
-            <li>What the developer configures: role heads and NPC-to-head bindings</li>
-            <li>Live: NPCs in different roles receiving their own actions from one batched call (Lyra integration if it is ready)</li>
-            <li>What to watch: one model call, correct routing per NPC</li>
-            <li>The fallback if the live run fails, with a reason</li>
-          </ul>
-          <p class="slot-known">On record: 48/48 Unreal NNE reports pass correctness; architecture C had lower request latency in 45/48 trials.</p>
-        </div>
-        <aside class="speaker-notes" data-time="1:00">Shared Policy subteam: replace this slot.</aside>
-      </section>
-
-      
       <section class="slide" id="demo-event" aria-labelledby="demo-event-heading" data-title="Demo: event NPCs" data-section="Demo">
         <header class="slide-header">
           <span class="wordmark">schola<span class="brand-dot">.</span></span>
@@ -604,34 +754,18 @@ If it hasn't recovered by the end of the minute: say it usually takes 4,000 to 1
         <aside class="speaker-notes" data-time="0:25">The game thread is cheap at every size. The limit is training: one learner trains serially at about 650 to 900 updates per second, so past roughly 60 to 90 NPCs the backlog grows. NPCs keep acting; they just adapt more slowly. Independent learners scale with worker threads at about 750 updates per second each, at 8.6 MB per learner. Measured on one Apple M5 Pro without Unreal; in-engine, the world service also caps concurrent workers. Source: SCALING.md.</aside>
       </section>
 
-      <section class="slide" id="tech-background" aria-labelledby="tech-background-heading" data-title="Background: design" data-section="Technical">
-        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Background NPCs / Deliverable 4</span></header>
-        <div class="slot">
-          <span class="slot-owner">Background NPCs subteam · 0:35</span>
-          <h3 id="tech-background-heading">Design: batching on workers without blocking the frame</h3>
-          <ul>
-            <li>A diagram of the scheduler path: gather rows, batch, run on workers, apply on a later frame (Docs/Diagrams/background-npc-architecture.svg)</li>
-            <li>The key decision and its trade-off: one frame of action latency for a 60 FPS frame budget</li>
-            <li>One measured result with its environment</li>
-          </ul>
-          <p class="slot-known">No code screenshots. Walk the diagram; don't just show it.</p>
-        </div>
-        <aside class="speaker-notes" data-time="0:35">Background subteam: replace this slot.</aside>
-      </section>
-
       <section class="slide" id="tech-shared" aria-labelledby="tech-shared-heading" data-title="Shared Policy: design" data-section="Technical">
         <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Shared Policy NPCs / Deliverable 4</span></header>
-        <div class="slot">
-          <span class="slot-owner">Shared Policy subteam · 0:35</span>
-          <h3 id="tech-shared-heading">Design: choosing a shared-network architecture</h3>
-          <ul>
-            <li>A diagram of the chosen architecture and how actions route to roles (deliverables/D3/assets/shared-policy-architectures.svg)</li>
-            <li>Why C or D, the correctness gate, and the measured latency difference</li>
-            <li>What changed for D4 (memory comparison, Lyra integration)</li>
-          </ul>
-          <p class="slot-known">No code screenshots. Walk the diagram; don't just show it.</p>
+        <p class="eyebrow">Architecture C &middot; one model per role</p>
+        <h2 id="tech-shared-heading">Batch by role and return each action</h2>
+        <div class="three-columns workflow" aria-label="Collect observations, infer in role batches, and return individual actions">
+          <div><h3>Collect</h3><p>Read the observation and role for each NPC.</p></div>
+          <div><h3>Batch</h3><p>Group by role. Unreal NNE runs the Toward batch and the Away batch.</p></div>
+          <div><h3>Apply</h3><p>Return each action to its NPC. Each actor applies its own steering output.</p></div>
         </div>
-        <aside class="speaker-notes" data-time="0:35">Shared Policy subteam: replace this slot.</aside>
+        <div class="takeaway"><span>Why C</span><p>Correct in all 48 Unreal reports. Lower median request latency than D in 45 of 48 paired Apple Silicon CPU trials. C uses a separate model for each role.</p></div>
+        <p class="source-line"><a href="../../Prototypes/SharedPolicy/benchmarks/README.md">Shared Policy benchmark method and results</a></p>
+        <aside class="speaker-notes" data-time="0:35">Walk the flow once. Architecture A evaluates every output head in one model call. C groups the observations and calls only the model for each active role. We chose C for this example. All 48 correctness reports passed, and C had lower p50 than D in 45 paired Unreal NNE CPU trials on Apple Silicon. The benchmark times the routed request and uses synthetic observations. The separate models are a storage tradeoff. Lyra state-to-policy wiring is the next step.</aside>
       </section>
 
 
@@ -780,8 +914,7 @@ If it hasn't recovered by the end of the minute: say it usually takes 4,000 to 1
 
       <section class="slide" id="quality" aria-labelledby="quality-heading" data-title="Testing, CI and deployment" data-section="Technical">
         <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Engineering quality / Deliverable 4</span></header>
-        <p class="eyebrow">DevOps and automated testing</p>
-        <h2 id="quality-heading">Tested where it can run</h2>
+        <h2 id="quality-heading">Testing and packaging</h2>
         <div class="split" style="grid-template-columns: 1.6fr 1fr; gap: 48px">
           <table class="comparison-table compact-table"><caption class="sr-only">Automated tests by component and where they run</caption>
             <thead><tr><th scope="col" style="width:38%">Component</th><th scope="col">Automated tests</th><th scope="col" style="width:26%">Runs</th></tr></thead>
@@ -794,10 +927,9 @@ If it hasn't recovered by the end of the minute: say it usually takes 4,000 to 1
               <tr><th scope="row">Shared Policy</th><td>pytest; 48 NNE reports gated on correctness</td><td>Local script</td></tr>
             </tbody>
           </table>
-          <div class="slot" style="padding: 24px 32px">
-            <span class="slot-owner">Team · deployment</span>
-            <h3 style="font-size:27px">Dev and release environments</h3>
-            <ul><li>What deploys automatically to dev, and when</li><li>What deploys to release, and when</li><li>Where the partner downloads each</li></ul>
+          <div class="decision-list">
+            <div><h3>Docker development</h3><p>Unreal 5.8.4 devcontainer for editor builds, automation, and headless smoke tests.</p></div>
+            <div><h3>Standalone Linux release</h3><p>Package and smoke-test a selected commit in Docker. Maintainers publish artifacts with the release tag.</p></div>
           </div>
         </div>
         <div class="takeaway"><span>Constraint</span><p>Hosted runners have no Unreal, so everything that builds without the engine runs in CI.</p></div>
@@ -811,13 +943,13 @@ If it hasn't recovered by the end of the minute: say it usually takes 4,000 to 1
         <table class="comparison-table compact-table"><caption class="sr-only">Non-functional requirements, responses and evidence</caption>
           <thead><tr><th scope="col" style="width:22%">Concern</th><th scope="col">Response</th><th scope="col" style="width:30%">Measured</th></tr></thead>
           <tbody>
-            <tr><th scope="row">Frame budget</th><td>Model calls and training run on workers; the game thread only gathers and applies</td><td>1.6 ms/frame for 20,000 agents; 5–11 µs per adaptive decision</td></tr>
-            <tr><th scope="row">Bounded resources</th><td>Fixed queue, row, byte and replay limits; overload is rejected and counted</td><td>8.6 MB per adaptive learner; zero dropped requests at 200k decisions/s</td></tr>
+            <tr><th scope="row">Frame budget</th><td>Model calls and training run on workers; the game thread only gathers and applies</td><td>CampusCrowd inference p99: 0.141 ms/frame for 1,600 students; adaptive decisions: 5–11 µs</td></tr>
+            <tr><th scope="row">Bounded resources</th><td>Fixed queue, row, byte and replay limits; overload is rejected and counted</td><td>8.6 MB per adaptive learner; zero dropped rows in both CampusCrowd captures</td></tr>
             <tr><th scope="row">Correctness</th><td>Outcomes must match their decision; shared-policy results gated on an oracle</td><td>Attribution tests; 48/48 NNE reports correct</td></tr>
             <tr><th scope="row">Reliability</th><td>Atomic, validated checkpoints; teardown with work in flight is tested</td><td>A failed load leaves the learner unchanged</td></tr>
           </tbody>
         </table>
-        <aside class="speaker-notes" data-time="0:20">These are the concerns that matter for a game runtime library: frame time, memory, correct results and safe failure. Scheduling is cooperative, so we make no hard real-time guarantee. Full evidence links are in the README's Non-functional requirements section. Subteams: correct any number here that changed for D4.</aside>
+        <aside class="speaker-notes" data-time="0:20">These are the concerns that matter for a game runtime library: frame time, memory, correct results and safe failure. Scheduling is cooperative, so we make no hard real-time guarantee. The README’s Non-functional requirements section links the reports.</aside>
       </section>
 
       <!-- ============ 4. ACCESS (2:00) ============ -->
@@ -831,7 +963,7 @@ If it hasn't recovered by the end of the minute: say it usually takes 4,000 to 1
           <div><span class="step-number">03</span><h3 style="color:var(--ink)">Maintain it</h3><p>DEVELOPMENT.md: layout, every test command with its expected result, extension points and ranked open work.</p></div>
         </div>
         <div class="takeaway"><span>Handoff</span><p>Merged main and the D4 release, plus a walkthrough of the maintainer guide with AMD.</p></div>
-        <aside class="speaker-notes" data-time="2:00">Keep this short and point to the documents rather than reading them. Schola is a source-distributed plugin, so there is no hosted URL; the release is the product. Adaptive learning needs no Python service or downloaded model. At the end of term we hand over the merged repository, the tagged release and the maintainer guide, and walk AMD's team through it. Then say how the partner reaches each environment: the dev pre-release for the latest main, the D4 release for the submitted version. Mention those only once the deployment workflow is live. Close with who to contact for questions after the term and where open work is ranked (DEVELOPMENT.md, Open work).</aside>
+        <aside class="speaker-notes" data-time="2:00">Keep this short and point to the documents rather than reading them. Schola is a source-distributed plugin, so there is no hosted URL; the release is the product. Adaptive learning needs no Python service or downloaded model. At the end of term we hand over the merged repository, the tagged release and the maintainer guide, and walk AMD's team through it. Show how AMD can build from a checkout in the devcontainer and package the tagged version with the same engine. Close with who to contact for questions after the term and where open work is ranked (DEVELOPMENT.md, Open work).</aside>
       </section>
 
       <!-- ============ 5. KEY LEARNINGS (1:30) ============ -->
@@ -891,7 +1023,8 @@ If it hasn't recovered by the end of the minute: say it usually takes 4,000 to 1
           <ol class="reference-list" start="6">
             <li><a href="../D3/README.md">Deliverable 3</a></li>
             <li><a href="../D1/planning.md">D1 user stories</a></li>
-            <li class="placeholder">Background, Shared Policy and Event references: add here</li>
+            <li><a href="../../Examples/CampusCrowd/README.md">CampusCrowd workflows, model, and benchmarks</a></li>
+            <li><a href="../../Docs/Sphinx/guides/mock_inference_paradigms.rst">Schola background inference guide</a></li>
           </ol>
         </div>
         <aside class="speaker-notes" data-time="Backup">Links are relative to the repository.</aside>

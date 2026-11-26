@@ -24,6 +24,7 @@ modules, with examples, tests and measurements.
 - [Core workflows](#core-workflows)
 - [Architecture](#architecture)
 - [Install and access](#install-and-access)
+  - [Docker devcontainer](#docker-devcontainer)
 - [Testing and CI](#testing-and-ci)
 - [Non-functional requirements](#non-functional-requirements)
 - [Known limitations](#known-limitations)
@@ -139,22 +140,30 @@ performance budget.
    Results older than `MaxActionAgeMs` are discarded. Over capacity, requests are rejected as Busy rather
    than queued without limit.
 
-Guide: [NPC inference paradigms](Docs/Sphinx/guides/mock_inference_paradigms.rst). Complete Mass example:
-[`CrowdProcessors.cpp`](Examples/BackgroundNPCs/Source/BackgroundNPCs/CrowdProcessors.cpp).
+See the [background inference guide](Docs/Sphinx/guides/mock_inference_paradigms.rst) and the
+[ScholaMass processors](Source/ScholaMass).
 
-**Try it** (Linux, UE 5.8 with NNERuntimeORT; Windows steps are in each example's README):
+#### CampusCrowd
+
+CampusCrowd follows four students through a class day. The pedestrian map and 3D campus overview
+share the same live simulation, with matching colors for students and their current destinations.
+Use **F1** for the four-student day, **F2** for the scaling preset, **Tab** to switch between
+background batches and synchronous inference, and **Space** to pause. The scaling preset reports
+turns per second, rows per model call, and game-thread inference time.
+
+From the [Docker devcontainer](#docker-devcontainer), build the example and run either preset.
+The visual commands need a graphics-capable container with a display.
 
 ```bash
-export UE_ENGINE_ROOT=/path/to/UnrealEngine-5.8
-cd Examples/BackgroundNPCs && Scripts/build.sh && Scripts/run.sh     # Tab: API on/off
-cd ../CampusCrowd && git lfs pull && Scripts/build.sh && Scripts/run.sh
+cd Examples/CampusCrowd
+Scripts/build.sh
+CAMPUS_EDITOR=1 Scripts/run.sh -Demo=Four
+# Run separately to start with a larger cohort.
+CAMPUS_EDITOR=1 Scripts/run.sh -Demo=Scale -Students=1600
 ```
 
-[BackgroundNPCs](Examples/BackgroundNPCs/README.md) runs the same 20,000-agent crowd with and without the
-API: 10.4 FPS without it, 60 FPS (capped) with it, at 200,000 decisions/s
-([recording](deliverables/D2/evidence/background-npc-side-by-side.mp4)).
-[CampusCrowd](Examples/CampusCrowd/README.md) places up to 100,000 students on a North Campus model built
-from City of Toronto massing data ([demo video](https://utoronto-my.sharepoint.com/:v:/g/personal/maxh_xu_mail_utoronto_ca/IQDEpcI8CITpT6vs0vv20yCwAU4lH9gFIKJzbEZhq47R4p8?nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJPbmVEcml2ZUZvckJ1c2luZXNzIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXciLCJyZWZlcnJhbFZpZXciOiJNeUZpbGVzTGlua0NvcHkifX0&e=R3tV6g)).
+See the [CampusCrowd guide](Examples/CampusCrowd/README.md) for the turn model, headless benchmarks,
+and controls, or watch the [D4 CampusCrowd recordings](deliverables/D4/index.html#demo-background).
 
 ### Shared Policy NPCs: one network, role-specific heads
 
@@ -225,6 +234,52 @@ inference need an ONNX model, and the examples include theirs.
 The example projects under `Examples/` are ready-made hosts. Each README has its build, run, test and
 packaging commands. Tagged releases (`D2`, `D3`, `D4`) mark each submitted snapshot.
 
+### Docker devcontainer
+
+The [devcontainer](.devcontainer/devcontainer.json) builds and packages CampusCrowd on Linux with
+Unreal Engine 5.8.4, clang, Git LFS, and Python 3.12. The checkout is mounted into the container, and
+Docker volumes retain the Python environments and package cache between rebuilds.
+
+1. Install Docker and VS Code with the Dev Containers extension. Use a Linux x86-64 Docker host with
+   enough disk for the Unreal image and build outputs. The local development image is about 83 GB.
+   [VS Code Dev Containers](https://code.visualstudio.com/docs/devcontainers/tutorial)
+2. Link your Epic Games and GitHub accounts and complete the EpicGames organization invitation.
+   Use a GitHub personal access token (classic) with `read:packages` as the password when Docker prompts.
+   [Epic container setup](https://dev.epicgames.com/documentation/unreal-engine/quick-start-guide-for-using-container-images-in-unreal-engine)
+
+   ```bash
+   docker login ghcr.io -u YOUR_GITHUB_USERNAME
+   git clone https://github.com/csc301-2026-f/9-AMD-Advanced-NPCs.git
+   cd 9-AMD-Advanced-NPCs
+   ```
+3. Open the checkout in VS Code and choose **Dev Containers: Reopen in Container**. Setup installs
+   Schola and the CampusCrowd Python dependencies and attempts to fetch Git LFS objects.
+   In the container terminal, run `git lfs pull` before building. If it fails, configure access
+   to the Git remote and retry. LFS supplies the native gRPC libraries and campus geometry.
+4. Follow the [CampusCrowd workflow](#campuscrowd) for the interactive demo. For a terminal-only
+   development check and to deploy a standalone Linux build, run the following from the repository
+   root inside the devcontainer:
+
+   ```bash
+   cd Examples/CampusCrowd
+   python -m pytest Tools/tests -q
+   Scripts/build.sh
+   CAMPUS_EDITOR=1 Scripts/run.sh -Demo=Scale -Students=32 -MigrationTimeScale=16 -nullrhi -unattended -nosound \
+     -WarmupSeconds=1 -CaptureSeconds=3 -Report="$PWD/Saved/dev-smoke.json"
+   Scripts/package.sh
+   Saved/Package/Linux/CampusCrowd.sh -Demo=Scale -Students=32 -MigrationTimeScale=16 -nullrhi -unattended -nosound \
+     -WarmupSeconds=1 -CaptureSeconds=3 -Report="$PWD/Saved/package-smoke.json"
+   ```
+
+The release artifact is the full `Examples/CampusCrowd/Saved/Package/Linux/` directory. Publish it
+with the selected Git tag after validating the package. GitHub Actions runs portable checks.
+Packaging and publishing the Unreal release are maintainer-triggered.
+
+For graphics, give the Docker container access to a Vulkan-capable GPU and a display. For an
+NVIDIA Linux Docker host, use the NVIDIA Container Toolkit. The development image’s packaged game
+rendered on NVIDIA with `-UseGlobalVulkanLoader`. See the [Vulkan smoke test](DEVELOPMENT.md#rendering-campuscrowd-in-docker)
+for Docker GPU flags and a virtual display, or use an authorized host X11 display for live interaction.
+
 ## Testing and CI
 
 | Component | Tests | Where they run |
@@ -233,20 +288,20 @@ packaging commands. Tagged releases (`D2`, `D3`, `D4`) mark each submitted snaps
 | Chase simulator | `Examples/AdaptiveTag/Tools/ChaseSim/ci-smoke.sh` (7 checks) | GitHub Actions (`chase-sim-ci.yml`) and locally |
 | Adaptive policy, stepper, RLtools world service | `Schola.Inference.Adaptive.*`, `Schola.RLTools.*` | Locally: `Examples/NativeLearning/Test-NativeLearning.ps1` |
 | Configuration generator | `Test/rltools_generation` (43 checks) | Locally: `Test/rltools_generation/Run.ps1` |
-| Background scheduler, NNE backend, Mass bridge | `Schola.Inference.Background.*`, `Schola.Mass.*` | Locally from `Examples/BackgroundNPCs` |
+| Background scheduler, NNE backend, Mass bridge | `Schola.Inference.Background.*`, `Schola.Mass.*` | Devcontainer via [CampusCrowd automation](Examples/CampusCrowd/README.md#validation-and-packaging) |
+| CampusCrowd tools | CAD parsing, navigation, migration routes and turn-policy tests | Devcontainer via `python -m pytest Examples/CampusCrowd/Tools/tests -q` |
 | Shared Policy | `Schola.Inference.SharedPolicy.*`, `Prototypes/SharedPolicy` pytest | Locally |
 | Upstream Schola | `Schola.*` automation tests, `Test/` pytest | Locally |
 
 Unreal automation tests do not run in GitHub Actions. Hosted runners have no Unreal installation, and
-provisioning one does not fit the course's job time limits and minute budget. Everything that builds
-without Unreal runs in CI. The [maintainer guide](DEVELOPMENT.md#testing) lists every command and its
-expected result.
+provisioning one exceeds the course's job time limits. Hosted CI runs the native learner and chase
+simulator checks. The [maintainer guide](DEVELOPMENT.md#testing) lists the test commands and expected results.
 
 ## Non-functional requirements
 
 | Concern | How it is addressed | Evidence |
 | --- | --- | --- |
-| Frame-time budget | Model calls and training run on worker threads. The game thread only gathers and applies rows, about 1.6 ms per frame for 20,000 agents. An adaptive decision costs 5–11 µs. | [Background comparison](deliverables/D2/evidence/background-npc-comparison.md), [SCALING.md](Tools/ScholaRLToolsNative/SCALING.md) |
+| Frame-time budget | Model calls and training run on workers. At 1,600 CampusCrowd students, p99 game-thread inference took 0.141 ms/frame with ScholaMass and 0.212 ms synchronously. An adaptive decision costs 5–11 µs. | [CampusCrowd headless comparison](Examples/CampusCrowd/README.md#unreal-performance-and-traces), [SCALING.md](Tools/ScholaRLToolsNative/SCALING.md) |
 | Bounded resources | Fixed pending-row, byte, queue and replay limits. Over capacity, requests are rejected or dropped and counted, never queued without limit. An independent adaptive learner costs about 8.6 MB. | [SCALING.md](Tools/ScholaRLToolsNative/SCALING.md), [CampusCrowd NFRs](Examples/CampusCrowd/README.md#non-functional-requirements) |
 | Correct attribution | Every adaptive outcome must match its decision's session, agent, episode and policy version, or it is rejected. Stale actions expire. | [Adaptive NFR evidence](deliverables/D3/adaptive-npc-evidence.md#non-functional-requirements), `Schola.Inference.Adaptive.*` |
 | Reliability | Checkpoints are written atomically and validated (checksum, profile, algorithm) before replacing a learner; a failed load changes nothing. Teardown, cancellation and shutdown races are tested. | [Checkpoint guide](Docs/Sphinx/guides/native_rltools_checkpoints.rst), `CheckpointTests.cpp` |
@@ -262,9 +317,9 @@ Scheduling is cooperative: no hard real-time guarantee is claimed.
   learner trains on one worker, about 650–900 updates/s, so it keeps up with roughly 60–90 NPCs at 10 Hz.
   After adapting, the chase learner's catch rate still dips at times. The stepper and the Unreal chase test
   have not yet been run on Windows. The tag arena uses UE 5.7 and its own learner.
-- **Background:** CPU execution only; measured on one Linux machine with a synthetic policy; actions arrive
-  at least one frame after their observation. The Mass gather processor's `MaxRowsPerFrame` must not exceed
-  the scheduler's `MaxPendingRows`.
+- **Background:** ONNX inference runs on CPU. Background actions arrive at least one frame after their
+  observation. The CampusCrowd measurements used one Linux machine. Set the Mass gather processor's
+  `MaxRowsPerFrame` at or below the scheduler's `MaxPendingRows`.
 - **Shared Policy:** synthetic models; memory, AMD hardware and gameplay integration are not yet evaluated.
 - **Event:** not merged; events are connected manually, and the demo uses a test policy.
 - **Engine versions:** examples target UE 5.8 except `Examples/AdaptiveTag` (UE 5.7). UE 5.7 support for the
@@ -284,6 +339,7 @@ releases, and open work in priority order. Upstream Schola's contribution rules 
 | [D1](deliverables/D1/planning.md) | Planning, user stories, roles |
 | [D2](deliverables/D2/README.md) | First prototypes, [iteration review](deliverables/D2/iteration-02-review.md), [contributions](deliverables/D2/Individual_Contributions_Deliverable2.md) |
 | [D3](deliverables/D3/README.md) | Plugin integration, benchmarks, [slides](deliverables/D3/index.html), [product evolution](deliverables/D3/product-evolution.md), [contributions](deliverables/D3/Individual_Contributions_Deliverable3.md) |
+| [D4](deliverables/D4/README.md) | [Presentation](deliverables/D4/index.html), including [Max Xu’s CampusCrowd demo](deliverables/D4/index.html#demo-background) and [ScholaMass design](deliverables/D4/index.html#tech-background) |
 
 Team records (stakeholders, meeting minutes) are in [deliverables/team](deliverables/team).
 

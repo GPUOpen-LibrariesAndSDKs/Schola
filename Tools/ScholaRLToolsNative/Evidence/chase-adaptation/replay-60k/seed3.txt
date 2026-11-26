@@ -1,0 +1,68 @@
+profile=sac/chase-r60k seed=3 lr=0.001 updates/move=8 pretrain=150 episodes, window=20000 moves, post=20000 moves
+pretrain rightturn ep=0     moves=0       since=0      learner=0.07 (110.6 steps) snapshot=- v=0 replay=0 0s
+pretrain rightturn ep=30    moves=5408    since=0      learner=0.63 (97.0 steps) snapshot=- v=4409 replay=5408 105s
+pretrain rightturn ep=60    moves=8780    since=0      learner=0.99 (105.3 steps) snapshot=- v=7781 replay=8780 187s
+pretrain rightturn ep=90    moves=12077   since=0      learner=0.92 (106.0 steps) snapshot=- v=11078 replay=12077 266s
+pretrain rightturn ep=120   moves=14860   since=0      learner=0.98 (93.1 steps) snapshot=- v=13861 replay=14860 331s
+pretrain rightturn ep=150   moves=17644   since=0      learner=0.98 (88.0 steps) snapshot=- v=16645 replay=17644 386s
+switch   corner    ep=150   moves=17644   since=0      learner=0.72 (119.3 steps) snapshot=0.72 v=16645 replay=17644 386s
+adapt    corner    ep=155   moves=18622   since=978    learner=0.25 (120.0 steps) snapshot=0.72 v=17623 replay=18622 412s
+adapt    corner    ep=160   moves=19622   since=1978   learner=0.14 (102.2 steps) snapshot=0.72 v=18623 replay=19622 436s
+adapt    corner    ep=165   moves=20462   since=2818   learner=0.19 (169.5 steps) snapshot=0.72 v=19463 replay=20462 453s
+adapt    corner    ep=170   moves=21349   since=3705   learner=0.47 (121.7 steps) snapshot=0.72 v=20350 replay=21349 480s
+adapt    corner    ep=175   moves=22271   since=4627   learner=0.50 (141.9 steps) snapshot=0.72 v=21272 replay=22271 499s
+adapt    corner    ep=180   moves=23271   since=5627   learner=0.35 (130.5 steps) snapshot=0.72 v=22272 replay=23271 524s
+adapt    corner    ep=185   moves=24050   since=6406   learner=0.35 (120.6 steps) snapshot=0.72 v=23051 replay=24050 546s
+adapt    corner    ep=190   moves=25050   since=7406   learner=0.61 (141.7 steps) snapshot=0.72 v=24051 replay=25050 3457s
+adapt    corner    ep=195   moves=25753   since=8109   learner=0.28 (115.4 steps) snapshot=0.72 v=24754 replay=25753 3472s
+adapt    corner    ep=200   moves=26581   since=8937   learner=0.34 (115.6 steps) snapshot=0.72 v=25582 replay=26581 3492s
+adapt    corner    ep=205   moves=27452   since=9808   learner=0.34 (109.8 steps) snapshot=0.72 v=26453 replay=27452 3510s
+adapt    corner    ep=210   moves=28385   since=10741  learner=0.64 (131.8 steps) snapshot=0.72 v=27386 replay=28385 3530s
+adapt    corner    ep=215   moves=29172   since=11528  learner=0.59 (141.7 steps) snapshot=0.72 v=28173 replay=29172 3545s
+adapt    corner    ep=220   moves=30172   since=12528  learner=0.68 (126.2 steps) snapshot=0.72 v=29173 replay=30172 3565s
+adapt    corner    ep=225   moves=30878   since=13234  learner=0.79 (113.2 steps) snapshot=0.72 v=29879 replay=30878 3578s
+adapt    corner    ep=230   moves=31830   since=14186  learner=0.74 (124.1 steps) snapshot=0.72 v=30831 replay=31830 3597s
+adapt    corner    ep=235   moves=32724   since=15080  learner=0.44 (108.6 steps) snapshot=0.72 v=31725 replay=32724 3616s
+adapt    corner    ep=240   moves=33411   since=15767  learner=0.79 (118.0 steps) snapshot=0.72 v=32412 replay=33411 3626s
+adapt    corner    ep=245   moves=34123   since=16479  learner=0.71 (109.8 steps) snapshot=0.72 v=33124 replay=34123 3632s
+adapt    corner    ep=250   moves=34884   since=17240  learner=0.58 (121.4 steps) snapshot=0.72 v=33885 replay=34884 3637s
+adapt    corner    ep=255   moves=35638   since=17994  learner=0.83 (116.8 steps) snapshot=0.72 v=34639 replay=35638 3643s
+adapt    corner    ep=260   moves=36509   since=18865  learner=0.79 (120.3 steps) snapshot=0.72 v=35510 replay=36509 3650s
+adapt    corner    ep=265   moves=37406   since=19762  learner=0.57 (127.1 steps) snapshot=0.72 v=36407 replay=37406 3658s
+adapt    corner    ep=270   moves=38164   since=20520  learner=0.77 (113.5 steps) snapshot=0.72 v=37165 replay=38164 3664s
+post     corner    ep=275   moves=39004   since=21360  learner=0.86 (115.9 steps) snapshot=0.72 v=38005 replay=39004 3671s
+post     corner    ep=280   moves=39652   since=22008  learner=0.89 (120.2 steps) snapshot=0.72 v=38653 replay=39652 3676s
+post     corner    ep=285   moves=40557   since=22913  learner=0.76 (107.9 steps) snapshot=0.72 v=39558 replay=40557 3683s
+post     corner    ep=290   moves=41286   since=23642  learner=0.94 (117.1 steps) snapshot=0.72 v=40287 replay=41286 3689s
+post     corner    ep=295   moves=42037   since=24393  learner=0.91 (120.0 steps) snapshot=0.72 v=41038 replay=42037 3695s
+post     corner    ep=300   moves=42629   since=24985  learner=0.81 (122.2 steps) snapshot=0.72 v=41630 replay=42629 3700s
+post     corner    ep=305   moves=43112   since=25468  learner=0.85 (111.8 steps) snapshot=0.72 v=42113 replay=43112 3703s
+post     corner    ep=310   moves=43830   since=26186  learner=0.82 (111.3 steps) snapshot=0.72 v=42831 replay=43830 3709s
+post     corner    ep=315   moves=44598   since=26954  learner=0.85 (111.0 steps) snapshot=0.72 v=43599 replay=44598 3715s
+post     corner    ep=320   moves=45422   since=27778  learner=0.82 (112.0 steps) snapshot=0.72 v=44423 replay=45422 3722s
+post     corner    ep=325   moves=46047   since=28403  learner=0.85 (106.9 steps) snapshot=0.72 v=45048 replay=46047 3727s
+post     corner    ep=330   moves=46667   since=29023  learner=0.85 (110.4 steps) snapshot=0.72 v=45668 replay=46667 3733s
+post     corner    ep=335   moves=47323   since=29679  learner=0.85 (108.6 steps) snapshot=0.72 v=46324 replay=47323 3739s
+post     corner    ep=340   moves=47997   since=30353  learner=0.91 (112.0 steps) snapshot=0.72 v=46998 replay=47997 3745s
+post     corner    ep=345   moves=48626   since=30982  learner=0.87 (107.0 steps) snapshot=0.72 v=47627 replay=48626 3751s
+post     corner    ep=350   moves=49505   since=31861  learner=0.90 (110.3 steps) snapshot=0.72 v=48506 replay=49505 3759s
+post     corner    ep=355   moves=50237   since=32593  learner=0.84 (105.5 steps) snapshot=0.72 v=49238 replay=50237 3765s
+post     corner    ep=360   moves=50862   since=33218  learner=0.83 (103.0 steps) snapshot=0.72 v=49863 replay=50862 3771s
+post     corner    ep=365   moves=51579   since=33935  learner=0.87 (104.1 steps) snapshot=0.72 v=50580 replay=51579 3777s
+post     corner    ep=370   moves=52239   since=34595  learner=0.85 (105.7 steps) snapshot=0.72 v=51240 replay=52239 3782s
+post     corner    ep=375   moves=53080   since=35436  learner=0.86 (104.6 steps) snapshot=0.72 v=52081 replay=53080 3790s
+post     corner    ep=380   moves=53595   since=35951  learner=0.86 (105.8 steps) snapshot=0.72 v=52596 replay=53595 3794s
+post     corner    ep=385   moves=54216   since=36572  learner=0.91 (114.5 steps) snapshot=0.72 v=53217 replay=54216 3799s
+post     corner    ep=390   moves=54902   since=37258  learner=0.84 (105.5 steps) snapshot=0.72 v=53903 replay=54902 3805s
+post     corner    ep=395   moves=55459   since=37815  learner=0.85 (107.9 steps) snapshot=0.72 v=54460 replay=55459 3810s
+post     corner    ep=400   moves=56116   since=38472  learner=0.85 (104.8 steps) snapshot=0.72 v=55117 replay=56116 3816s
+post     corner    ep=405   moves=56851   since=39207  learner=0.89 (108.6 steps) snapshot=0.72 v=55852 replay=56851 3822s
+post     corner    ep=410   moves=57786   since=40142  learner=0.69 (103.9 steps) snapshot=0.72 v=56787 replay=57786 3830s
+
+RESULT seed=3 profile=sac/chase-r60k lr=0.001
+PASS criterion1 rightturn-before-switch: 0.98 (>= 0.50)
+PASS criterion2 corner-after-switch: 0.72 (<= 0.80)
+PASS criterion3 recovered: >= 0.80 at 17994 moves (<= 20000)
+FAIL criterion4 snapshot-gap at 20520 moves: learner 0.77, snapshot 0.72, gap 0.05 (> 0.20)
+INFO post-window stability (28 evals over 20000 moves): min 0.69, max 0.94, final 0.69
+INFO wall time 3830 s, 57786 moves

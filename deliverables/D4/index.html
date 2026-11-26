@@ -707,40 +707,41 @@
 
       <section class="slide" id="checkpoints-adaptive" aria-labelledby="checkpoints-adaptive-heading" data-title="Adaptive: saving what an NPC learned" data-section="Technical">
         <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
-        <p class="eyebrow">Adaptive NPCs · checkpoints</p>
-        <h2 id="checkpoints-adaptive-heading">Save what an NPC learned, safely</h2>
-        <svg class="diagram" viewBox="0 0 1420 330" role="img" aria-labelledby="ck-title ck-desc">
-          <title id="ck-title">Checkpoint save and load</title>
-          <desc id="ck-desc">Save writes a temporary file and renames it. Load checks the header, the size, the checksum, the profile and the structure in order. If all pass, the restored learner is swapped in. If any fails, the file is refused and the running learner is unchanged.</desc>
-          <rect x="0" y="0" width="1420" height="120" fill="#e7efe6"/><rect x="0" y="160" width="1420" height="170" fill="#efe9da"/>
-          <g font-size="18" font-weight="600" letter-spacing="1.5" fill="#50645c"><text x="20" y="32">SAVE · on the learner's worker, never the game thread</text><text x="20" y="192">LOAD · every check passes before anything changes</text></g>
-          <g stroke="#173d38" stroke-width="2">
-            <rect x="40" y="50" width="300" height="56" fill="#f5f3ec"/><rect x="440" y="50" width="300" height="56" fill="#e9b65c"/><rect x="840" y="50" width="300" height="56" fill="#e9b65c"/>
-            <rect x="40" y="220" width="180" height="56" fill="#f5f3ec"/>
-            <rect x="260" y="220" width="130" height="56" fill="#e9b65c"/><rect x="410" y="220" width="130" height="56" fill="#e9b65c"/><rect x="560" y="220" width="130" height="56" fill="#e9b65c"/><rect x="710" y="220" width="130" height="56" fill="#e9b65c"/><rect x="860" y="220" width="130" height="56" fill="#e9b65c"/>
-            <rect x="1060" y="200" width="320" height="44" fill="#cfe3d6"/><rect x="1060" y="260" width="320" height="44" fill="#f2d3c4"/>
-          </g>
-          <g font-size="20" fill="#173d38" text-anchor="middle">
-            <text x="190" y="85">Learner</text><text x="590" y="85">write file.tmp</text><text x="990" y="85">rename to file</text>
-            <text x="130" y="255">Checkpoint file</text>
-            <g font-size="18"><text x="325" y="255">header</text><text x="475" y="255">size</text><text x="625" y="255">checksum</text><text x="775" y="255">profile</text><text x="925" y="255">structure</text></g>
-            <text x="1220" y="229" font-size="18">all pass → swap in restored learner</text><text x="1220" y="289" font-size="18">any fails → refuse, NPC unchanged</text>
-          </g>
-          <g stroke="#50645c" stroke-width="2.5" fill="none" marker-end="url(#arrow-ck)">
-            <line x1="340" y1="78" x2="436" y2="78"/><line x1="740" y1="78" x2="836" y2="78"/>
-            <line x1="220" y1="248" x2="256" y2="248"/><line x1="390" y1="248" x2="406" y2="248"/><line x1="540" y1="248" x2="556" y2="248"/><line x1="690" y1="248" x2="706" y2="248"/><line x1="840" y1="248" x2="856" y2="248"/>
-            <line x1="990" y1="240" x2="1056" y2="222"/><line x1="990" y1="256" x2="1056" y2="282"/>
-          </g>
-          <defs><marker id="arrow-ck" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#50645c"/></marker></defs>
-          <g font-size="16" fill="#50645c"><text x="1160" y="85" text-anchor="start">a crash never leaves half a file</text></g>
-        </svg>
-        <div class="side-facts">
-          <div><strong>3 modes</strong><span>just the actor (pretrained weights), the full learner, or the full learner plus its stored experience</span></div>
-          <div><strong>460 checks</strong><span>SAC, TD3 and PPO on Linux and macOS, every PR: round trips, bad files, saving while training</span></div>
-          <div><strong>6 / 6 seeds</strong><span>still adapt when the chase test restarts from a saved file, against a frozen copy of the same file</span></div>
-        </div>
-        <div class="takeaway"><span>Key decision</span><p>RLtools' own loader aborts the program on a mismatched file, which would crash the game. So every load checks the file against what this build would write before RLtools touches it. Cost: a checkpoint only loads into the exact profile that saved it.</p></div>
-        <aside class="speaker-notes" data-time="0:30">Developers can save what an NPC has learned and load it later, for example to ship pretrained weights or to resume after a session. Two rules make it safe. Saving writes a temporary file and renames it, so a crash mid-save never leaves a broken checkpoint. Loading runs five checks in order, and only if all pass is the restored learner swapped in; otherwise the NPC keeps running unchanged. That matters because RLtools itself calls abort on a bad file. Evidence: 460 automated checks on Linux and macOS, and the chase adaptation test still passes on all six seeds when it restarts from a saved file. Limit: a file only loads into the same profile, so changing network sizes means retraining. Sources: native_rltools_checkpoints.rst, CHASE-ADAPTATION.md.</aside>
+        <p class="eyebrow">Adaptive NPCs · checkpoints 1 of 3</p>
+        <h2 id="checkpoints-adaptive-heading">Save what an NPC learned, load it later</h2>
+        <ul class="ck-points">
+            <li><strong>Ship pretrained NPCs:</strong> save just the trained actor</li>
+            <li><strong>Pause and resume:</strong> save the whole learner, or the learner plus its stored experience</li>
+            <li><strong>From Blueprint or C++:</strong> one call to save, one to load</li>
+            <li><strong>Never stalls the game:</strong> saving and loading run off the game thread</li>
+        </ul>
+        <aside class="speaker-notes" data-time="0:15">A developer can save what an NPC has learned and load it later: ship pretrained weights, or pause and resume learning exactly where it stopped. It's one Blueprint or C++ call each way, and the file work happens on the learner's thread, so the game never waits.</aside>
+      </section>
+
+      <section class="slide" id="checkpoints-safe" aria-labelledby="checkpoints-safe-heading" data-title="Adaptive: a bad file never crashes the game" data-section="Technical">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
+        <p class="eyebrow">Adaptive NPCs · checkpoints 2 of 3</p>
+        <h2 id="checkpoints-safe-heading">A bad file never crashes the game</h2>
+        <ul class="ck-points">
+            <li><strong>The problem:</strong> RLtools crashes the whole program if a file doesn't match</li>
+            <li><strong>So we check first:</strong> header, size, checksum, profile, structure</li>
+            <li><strong>Any check fails:</strong> the file is refused and the NPC keeps running unchanged</li>
+            <li><strong>Safe saves:</strong> write a temp file, then rename, so a crash never leaves half a file</li>
+        </ul>
+        <aside class="speaker-notes" data-time="0:15">The library we use, RLtools, calls abort on a mismatched file, which would take the game down. So before RLtools sees a file, we run five checks in order. If any fails, the load is refused and the NPC carries on with what it had. Saves are atomic for the same reason. Trade-off: a file only loads into the same NPC setup that saved it.</aside>
+      </section>
+
+      <section class="slide" id="checkpoints-evidence" aria-labelledby="checkpoints-evidence-heading" data-title="Adaptive: checkpoints are tested" data-section="Technical">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
+        <p class="eyebrow">Adaptive NPCs · checkpoints 3 of 3</p>
+        <h2 id="checkpoints-evidence-heading">How we know it works</h2>
+        <ul class="ck-points">
+            <li><strong>460 automated checks</strong> on SAC, TD3 and PPO, run on Linux and macOS for every PR</li>
+            <li><strong>Corrupt and wrong files</strong> are all refused without changing the NPC</li>
+            <li><strong>Restart from a saved file:</strong> the NPC still adapts on 6 of 6 seeds</li>
+            <li><strong>Frozen copy from the same file</strong> stays frozen: it refused every one of 40,376 moves</li>
+        </ul>
+        <aside class="speaker-notes" data-time="0:15">Evidence in one breath: 460 checks in CI on two platforms, including every kind of bad file. And in the chase test, an NPC restarted from a saved file still learns the new runner on all six seeds, while a frozen copy loaded from the same file never changes. Per-seed numbers are on the backup slide.</aside>
       </section>
 
       <section class="slide" id="tech-background" aria-labelledby="tech-background-heading" data-title="Background: design" data-section="Technical">

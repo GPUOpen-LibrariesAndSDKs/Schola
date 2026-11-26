@@ -126,6 +126,12 @@
       </section>
 
       <!-- Background NPC / Max Xu -->
+      <section class="slide background-slide" id="background-team" aria-labelledby="background-team-heading" data-title="Background NPC · Team" data-section="Background NPC">
+        <h2 id="background-team-heading">Background NPC Team</h2>
+        <p class="lead">Max Xu</p>
+        <aside class="speaker-notes" data-time="0:05">I’m Max Xu. I worked on ScholaMass and CampusCrowd.</aside>
+      </section>
+
       <section class="slide background-slide" id="background-motivation" aria-labelledby="background-motivation-heading" data-title="Background NPC · Motivation" data-section="Background NPC">
         <h2 id="background-motivation-heading">Why ScholaMass?</h2>
         <ul class="background-steps">
@@ -133,7 +139,7 @@
           <li>Unreal Mass stores crowd state in entity fragments. Model calls for thousands of NPCs compete for the frame budget.</li>
           <li>ScholaMass connects Mass (from unreal) processors to batched inference and routes each result back to its entity.</li>
         </ul>
-        <aside class="speaker-notes" data-time="0:20">Max Xu. Schola already supplied ONNX inference. Our background scheduler moves model calls to workers. ScholaMass is the adapter that gathers rows from Mass fragments, submits them to that scheduler, and applies results to the right entities on a later frame.</aside>
+        <aside class="speaker-notes" data-time="0:15">Max Xu. Schola already supplied ONNX inference. Our background scheduler moves model calls to workers. ScholaMass is the adapter that gathers rows from Mass fragments, submits them to that scheduler, and applies results to the right entities on a later frame.</aside>
       </section>
 
       <section class="slide background-slide" id="demo-background" aria-labelledby="demo-background-heading" data-title="Background NPC · CampusCrowd recordings and performance" data-section="Background NPC">

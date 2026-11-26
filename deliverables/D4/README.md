@@ -22,7 +22,7 @@ about five minutes for questions. The Background NPC walkthrough combines design
 | --- | --- | ---: | --- |
 | Introduction (1–2 min) | [title](index.html#title), [problem](index.html#problem), [scope](index.html#scope) | 1:45 | Team |
 | Demo · Adaptive NPC | [divider](index.html#demo), [before/after](index.html#demo-adaptive-change), [adaptive demo](index.html#demo-adaptive) | 1:45 | Adaptive |
-| Background NPC | [motivation](index.html#background-motivation), [recordings and benchmarks](index.html#demo-background), [ScholaMass architecture](index.html#tech-background), [CampusCrowd API calls](index.html#background-api), [Docker and development](index.html#background-development) | 2:30 | Max Xu |
+| Background NPC | [team](index.html#background-team), [motivation](index.html#background-motivation), [recordings and benchmarks](index.html#demo-background), [ScholaMass architecture](index.html#tech-background), [CampusCrowd API calls](index.html#background-api), [Docker and development](index.html#background-development) | 2:30 | Max Xu |
 | Demo · Shared Policy and Event | [shared policy](index.html#shared-policy-team), [event](index.html#demo-event) | 2:00 | Shared Policy + Event |
 | Technical discussion (4–5 min) | [architecture](index.html#architecture), [adaptive design](index.html#tech-adaptive), [adaptive evidence](index.html#evidence-adaptive), [adaptive scaling](index.html#scaling-adaptive), [shared policy](index.html#tech-shared), [event](index.html#tech-event), [testing and CI](index.html#quality), [NFRs](index.html#nfr) | 4:00 | Team + subteams |
 | Accessing the application (2–3 min, keep short) | [access and handoff](index.html#access) | 2:00 | Team |

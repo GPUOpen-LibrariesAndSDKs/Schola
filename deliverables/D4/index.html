@@ -709,12 +709,12 @@
         <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
         <p class="eyebrow">Adaptive NPCs · checkpoints 1 of 3 · Chloe Lee</p>
         <h2 id="checkpoints-adaptive-heading">Saving and loading NPCs</h2>
-        <ul class="ck-points">
-            <li>Save a trained NPC and load it later</li>
-            <li>3 options: just the model, the whole learner, or the learner plus its past experience</li>
-            <li>Works from Blueprint or C++</li>
-            <li>Runs in the background, so the game doesn't freeze</li>
-        </ul>
+        <div class="ck-cards">
+          <div><span class="ck-num">1</span><h3>Just the model</h3><p>Ship an NPC that already knows how to play</p></div>
+          <div><span class="ck-num">2</span><h3>The whole learner</h3><p>Pause learning and pick it up later</p></div>
+          <div><span class="ck-num">3</span><h3>Learner + past experience</h3><p>Resume exactly where it stopped</p></div>
+        </div>
+        <p class="ck-foot">One call to save, one to load, from Blueprint or C++. It runs in the background, so the game doesn't freeze.</p>
         <aside class="speaker-notes" data-time="0:15">You can save what an NPC has learned and load it later, for example to ship a pretrained NPC or to pick up learning where you left off. It works from Blueprint or C++, and it runs in the background so the game doesn't freeze.</aside>
       </section>
 
@@ -722,12 +722,13 @@
         <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
         <p class="eyebrow">Adaptive NPCs · checkpoints 2 of 3 · Chloe Lee</p>
         <h2 id="checkpoints-safe-heading">Loading a bad file is safe</h2>
-        <ul class="ck-points">
-            <li>RLtools crashes the program if you load a file that doesn't match</li>
-            <li>So we check the file first: header, size, checksum, profile, structure</li>
-            <li>If a check fails, we skip the load and the NPC keeps its current model</li>
-            <li>We save to a temp file and rename it, so a crash mid-save doesn't break anything</li>
-        </ul>
+        <p class="ck-lead">RLtools crashes the whole program if a file doesn't match, so we check the file first.</p>
+        <div class="ck-flow">
+          <div class="ck-file">Saved file</div>
+          <div class="ck-checks"><span>header</span><span>size</span><span>checksum</span><span>profile</span><span>structure</span></div>
+          <div class="ck-results"><div class="ck-ok">✓ All pass: load it</div><div class="ck-no">✗ Any fail: skip it, NPC keeps its model</div></div>
+        </div>
+        <p class="ck-foot">Saves go to a temp file first, then get renamed, so a crash mid-save never breaks anything.</p>
         <aside class="speaker-notes" data-time="0:15">RLtools, the library we use, crashes the whole program if the file doesn't match. So we check the file ourselves before RLtools sees it, and if anything is off we just skip the load. Saves go to a temp file first, so a crash halfway through never leaves a broken save.</aside>
       </section>
 
@@ -735,12 +736,13 @@
         <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
         <p class="eyebrow">Adaptive NPCs · checkpoints 3 of 3 · Chloe Lee</p>
         <h2 id="checkpoints-evidence-heading">Testing</h2>
-        <ul class="ck-points">
-            <li>460 tests, run on every PR on Linux and Mac</li>
-            <li>Broken or wrong files get rejected</li>
-            <li>An NPC loaded from a save still learns the new runner (6/6 seeds)</li>
-            <li>A frozen copy loaded from the same save stays the same</li>
-        </ul>
+        <div class="ck-stats">
+          <div><strong>460</strong><span>tests on every PR</span></div>
+          <div><strong>2</strong><span>platforms: Linux and Mac</span></div>
+          <div><strong>6 / 6</strong><span>seeds still learn after loading a save</span></div>
+          <div><strong>0</strong><span>changes to a frozen copy loaded from the same save</span></div>
+        </div>
+        <p class="ck-foot">Broken and wrong files are all rejected without touching the NPC.</p>
         <aside class="speaker-notes" data-time="0:15">There are 460 tests that run on every PR on Linux and Mac, including lots of broken files. We also reran the chase test starting from a saved file: the NPC still learned the new runner on all 6 seeds, and a frozen copy from the same file didn't change.</aside>
       </section>
 

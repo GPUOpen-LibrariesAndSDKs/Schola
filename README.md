@@ -92,7 +92,7 @@ To use another shape, create an RLtools Configuration Asset, set its Schola defi
 
 **Delivery and CI/CD:** Schola is a source-distributed Unreal plugin, so the local build/test host is the repeatable evaluation path rather than a hosted URL. AMD has its own CI/CD checks; those checks are not integrated into this codebase yet, and we are working with the partner to set that up. The Unreal results ran locally, not in CI. The standalone chase simulator is the exception: a GitHub Actions workflow builds it and runs smoke tests on every PR to `main`.
 
-**Supported scope:** CPU feedforward SAC/TD3/PPO, Box observations and bounded continuous Box actions. The headless checks establish learning operations and integration, not rendering or useful gameplay adaptation. Automatic task collection, resumable checkpoints, performance evaluation at realistic NPC counts and separate-project packaging remain follow-up work. In-memory inference snapshots are implemented.
+**Supported scope:** CPU feedforward SAC/TD3/PPO, Box observations and bounded continuous Box actions. The headless checks establish learning operations and integration, not rendering or useful gameplay adaptation. Automatic task collection, performance evaluation at realistic NPC counts and separate-project packaging remain follow-up work. In-memory inference snapshots and opt-in file checkpoints (policy export, training state, full resume) are implemented; see the [checkpoint guide](Docs/Sphinx/guides/native_rltools_checkpoints.rst).
 
 ## Access the D2 product
 

@@ -108,6 +108,16 @@ public:
                 World.Observe(Next.data());
                 const ESubmitResult Result = Learner->Submit(Decision, Action, Outcome.reward, Next, Outcome.terminated, Outcome.truncated);
                 if (Result != ESubmitResult::Accepted) return Fail("Submit was not accepted");
+                // Start mode: the frozen control sees the same move and must refuse it without changing.
+                if (Frozen)
+                {
+                    FDecision FrozenDecision;
+                    if (!Frozen->Decide(Observation, 0, Episode, true, FrozenDecision)) return Fail("Frozen Decide failed");
+                    if (Frozen->Submit(FrozenDecision, FrozenDecision.GetAction(), Outcome.reward, Next, Outcome.terminated,
+                            Outcome.truncated) != ESubmitResult::Frozen) return Fail("Frozen control accepted an experience");
+                    ++FrozenSubmits;
+                    if (Frozen->Train()) return Fail("Frozen control trained");
+                }
                 while (Learner->Train()) {}
                 ++Moves;
                 if (Outcome.terminated || Outcome.truncated) break;
@@ -118,6 +128,8 @@ public:
 
     const FOptions& Options;
     std::unique_ptr<FLearner> Learner;
+    FLearner* Frozen = nullptr; // start mode only
+    uint64_t FrozenSubmits = 0;
     ChaseConfig Config;
     ChaseRng Rng;
     uint64_t Episode = 0, Moves = 0;
@@ -214,6 +226,7 @@ int main(int Argc, char** Argv)
     if (Csv) std::fprintf(Csv, "phase,pattern,episodes,total_moves,moves_since_switch,learner_catch,learner_steps,snapshot_catch,version,replay_size,seconds\n");
 
     FRun Run(Options, std::move(Learner));
+    Run.Frozen = Frozen.get();
     const auto Start = std::chrono::steady_clock::now();
     std::shared_ptr<const FPolicy> Snapshot;
     uint64_t SwitchMoves = 0;
@@ -318,12 +331,15 @@ int main(int Argc, char** Argv)
     if (Frozen)
     {
         const FStats End = Frozen->ReadStats();
-        ControlFrozen = End.Version == FrozenAtLoad.Version && End.Updates == FrozenAtLoad.Updates && !End.LearningEnabled;
+        ControlFrozen = End.Version == FrozenAtLoad.Version && End.Updates == FrozenAtLoad.Updates && !End.LearningEnabled
+            && Run.FrozenSubmits > 0 && End.Frozen - FrozenAtLoad.Frozen == Run.FrozenSubmits
+            && End.Accepted == FrozenAtLoad.Accepted;
     }
     std::printf("\nRESULT seed=%u profile=%s lr=%g%s\n", Options.Seed, Profile.c_str(), Options.LearningRate,
         Frozen ? " start=checkpoint" : "");
     if (Frozen)
-        std::printf("%s control-frozen: version %llu, updates %llu unchanged since load\n", ControlFrozen ? "PASS" : "FAIL",
+        std::printf("%s control-frozen: refused all %llu moves it was given; version %llu, updates %llu unchanged since load\n",
+            ControlFrozen ? "PASS" : "FAIL", (unsigned long long)Run.FrozenSubmits,
             (unsigned long long)FrozenAtLoad.Version, (unsigned long long)FrozenAtLoad.Updates);
     std::printf("%s criterion1 rightturn-before-switch: %.2f (>= 0.50)\n", C1 ? "PASS" : "FAIL", PreSwitch);
     std::printf("%s criterion2 corner-after-switch: %.2f (<= 0.80)\n", C2 ? "PASS" : "FAIL", AfterSwitch);

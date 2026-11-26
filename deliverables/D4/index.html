@@ -67,6 +67,19 @@
         <aside class="speaker-notes" data-time="0:15">Say what the audience will see: one flow per NPC type, each from the developer's perspective. Keep each to its budget.</aside>
       </section>
 
+      <section class="slide cover dark sp-slide sp-team-cover" id="adaptive-team" aria-labelledby="adaptive-team-heading" data-title="Adaptive NPCs: team" data-section="Demo">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>CSC301 / Deliverable 04</span></header>
+        <div class="cover-content">
+          <div class="sp-reveal">
+            <p class="eyebrow">Advanced NPCs for AMD Schola</p>
+            <h1 id="adaptive-team-heading">Adaptive<br>team<span class="accent">.</span></h1>
+            <p class="lead">Adaptive NPCs &middot; Deliverable 4</p>
+          </div>
+          <div class="cover-mark sp-team sp-reveal"><span>TEAM MEMBERS</span><ul><li>Jace Mu</li><li>Jason Panusopone</li><li>Chloe Lee</li><li>Olivia Markow</li></ul></div>
+        </div>
+        <aside class="speaker-notes" data-time="0:05">Introduce the Adaptive team, Jace Mu, Jason Panusopone, Chloe Lee and Olivia Markow, in one sentence, then go straight into what changed for developers.</aside>
+      </section>
+
       <section class="slide" id="demo-adaptive-change" aria-labelledby="demo-adaptive-change-heading" data-title="Adaptive: before and after" data-section="Demo">
         <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Demo 1 / Adaptive NPCs</span></header>
         <p class="eyebrow">Adaptive NPCs · what changed for developers</p>
@@ -972,6 +985,25 @@
         </table>
         <p class="source-line">Criteria: ≥0.50 before the switch, ≤0.80 right after, ≥0.80 within 20,000 moves, frozen copy more than 0.20 below at 20,000 moves, on every seed. Source: Tools/ScholaRLToolsNative/CHASE-ADAPTATION.md.</p>
         <aside class="speaker-notes" data-time="Backup">Runs are deterministic; a second full run reproduced every CSV row. Seed 3 shares pre-switch training at 20k and 60k because the buffer never filled before the switch, and that snapshot already catches 0.72 on the new runner, which leaves little room for criterion 4.</aside>
+      </section>
+
+      <section class="slide" id="backup-checkpoints" aria-labelledby="backup-checkpoints-heading" data-title="Backup: restarting from a checkpoint" data-section="Backup">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Backup / Adaptive NPCs</span></header>
+        <p class="eyebrow">Backup · chase adaptation restarted from a saved file</p>
+        <h2 id="backup-checkpoints-heading">Restarting from a checkpoint still adapts, on every seed</h2>
+        <table class="comparison-table compact-table"><caption class="sr-only">Chase adaptation per seed, in one process and restarted from a checkpoint</caption>
+          <thead><tr><th scope="col">Seed</th><th scope="col">One process: back to 0.80 at move</th><th scope="col">learner · frozen</th><th scope="col">From the file: back to 0.80 at move</th><th scope="col">learner · frozen</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">1</th><td>12,039</td><td>0.75 · 0.37</td><td>9,863</td><td>0.95 · 0.37</td></tr>
+            <tr><th scope="row">2</th><td>10,916</td><td>0.87 · 0.18</td><td>12,763</td><td>0.98 · 0.18</td></tr>
+            <tr><th scope="row">3</th><td>4,396</td><td>1.00 · 0.38</td><td>13,994</td><td>1.00 · 0.38</td></tr>
+            <tr><th scope="row">4</th><td>11,367</td><td>0.98 · 0.10</td><td>11,824</td><td>0.74 · 0.10</td></tr>
+            <tr><th scope="row">5</th><td>10,162</td><td>0.94 · 0.27</td><td>2,774</td><td>0.77 · 0.27</td></tr>
+            <tr><th scope="row">6</th><td>13,999</td><td>1.00 · 0.21</td><td>8,470</td><td>0.96 · 0.21</td></tr>
+          </tbody>
+        </table>
+        <p class="source-line">Game-thread cost per decision over 40,376 moves (seed 2, from the file): median 4.7 µs, p99 6.8 µs, 0 rejected, 0 fallbacks. Learner · frozen: catch rate on the new runner at 20,000 moves. Source: Tools/ScholaRLToolsNative/CHASE-ADAPTATION.md, "Starting from a checkpoint".</p>
+        <aside class="speaker-notes" data-time="Backup">Use if asked whether save and load work in a real run. Each seed trains on the first runner and saves a checkpoint. A new process loads that file twice: one copy keeps learning, the other is frozen. All six seeds pass the same criteria as the main result, and the frozen copy never moves. Saving doesn't change a run: the one-process numbers match the main results exactly. Recovery times differ after a restart because the game's random start positions aren't stored in the checkpoint.</aside>
       </section>
 
       <section class="slide references" id="references" aria-labelledby="references-heading" data-title="References" data-section="Backup">

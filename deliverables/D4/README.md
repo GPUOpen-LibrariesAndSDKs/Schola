@@ -21,7 +21,7 @@ questions. Each section follows the D4 presentation format.
 | Section (required length) | Slides | Budget | Owner |
 | --- | --- | ---: | --- |
 | Introduction (1–2 min) | [title](index.html#title), [problem](index.html#problem), [scope](index.html#scope) | 1:45 | Team |
-| Demo (4–5 min) | [divider](index.html#demo), [adaptive before/after](index.html#demo-adaptive-change), [adaptive demo](index.html#demo-adaptive), [background](index.html#demo-background), [shared policy](index.html#demo-shared), [event](index.html#demo-event) | 4:45 | Each subteam |
+| Demo (4–5 min) | [divider](index.html#demo), [adaptive team](index.html#adaptive-team), [adaptive before/after](index.html#demo-adaptive-change), [adaptive demo](index.html#demo-adaptive), [background](index.html#demo-background), [shared policy](index.html#demo-shared), [event](index.html#demo-event) | 4:45 | Each subteam |
 | Technical discussion (4–5 min) | [architecture](index.html#architecture), [adaptive design](index.html#tech-adaptive), [adaptive evidence](index.html#evidence-adaptive), [adaptive scaling](index.html#scaling-adaptive), [adaptive checkpoints](index.html#checkpoints-adaptive), [background](index.html#tech-background), [shared policy](index.html#tech-shared), [event](index.html#tech-event), [testing and CI](index.html#quality), [NFRs](index.html#nfr) | 5:30 (0:30 over; trim to fit) | Team + subteams |
 | Accessing the application (2–3 min, keep short) | [access and handoff](index.html#access) | 2:00 | Team |
 | Key learnings (1–2 min) | [learnings](index.html#learnings) | 1:30 | Team |

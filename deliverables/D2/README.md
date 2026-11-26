@@ -1,7 +1,7 @@
 # Deliverable 2
 
 The project description, adaptive tag and background NPC instructions, use
-cases, developer setup, and team sections are in the [repository README](../../README.md).
+cases, developer setup, and team sections are in the [repository README at the D2 release](https://github.com/csc301-2026-f/9-AMD-Advanced-NPCs/blob/D2/README.md).
 
 Recorded adaptive NPC validation:
 

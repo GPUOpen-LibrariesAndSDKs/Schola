@@ -7,6 +7,11 @@ The test lives here instead of under `Source/`. UnrealBuildTool compiles every `
 so a `main()` there would break the Unreal build. The Unreal automation counterpart is
 `Source/ScholaRLTools/Private/Test/RLToolsCheckpointTest.cpp` (`Schola.RLTools.Checkpoint.*`).
 
+## Scaling benchmark
+
+`run-scaling.sh` builds `ScalingBenchmark.cpp` and measures game-thread cost, shared-learner throughput and
+per-learner memory at 1–200 NPCs. Results and guidance: [SCALING.md](SCALING.md).
+
 ## Run
 
 ```sh

@@ -1,0 +1,15 @@
+profile=sac/scale-16x4 rate=10 Hz seconds=10 gradient-steps=1 hardware-threads=18
+
+memory: 8.6 MB resident per independent learner (20 learners after warm-up)
+
+mode          npcs  wrk    p50 us    p99 us  records/s  updates/s   needed/s    backlog
+shared           1    1      27.5      45.3         10         10         10          0
+independent      1    1      26.9      39.8         10         10         10          0
+shared          50    1       6.3      10.8        499        499        500          0
+independent     50    3       7.2      13.1        500        500        500          0
+shared         100    1       7.3       8.9        999        763       1000       2367
+independent    100    3       9.5      17.6        999        999       1000          0
+shared         200    1       8.4      10.0       1998        633       2000      13663
+independent    200    3      11.1      18.2       1998       1966       2000        317
+shared         400    1       8.2       9.8       3996        678       4000      33215
+independent    400    3      10.8      17.9       3996       2251       4000      17464

@@ -646,138 +646,28 @@ if (MigrationDay)
         <aside class="speaker-notes" data-time="0:40">Follow the arrows once. The stepper asks the policy for an action, and the policy answers immediately from the latest published snapshot, so a decision never waits for training. The outcome goes through a bounded queue to a worker, where RLtools trains and publishes a new immutable version. Trade-offs: (1) native execution means a new observation or action size needs a C++ rebuild, which configuration assets automate; (2) a decision may use a policy a few versions old, and every outcome carries its version so attribution stays correct. Learners are independent by default; NPCs can opt into one shared learner per group.</aside>
       </section>
 
-      <section class="slide" id="evidence-adaptive" aria-labelledby="evidence-adaptive-heading" data-title="Adaptive: proof that it adapts" data-section="Technical">
+      <section class="slide" id="evidence-adaptive" aria-labelledby="evidence-adaptive-heading" data-title="Adaptive: evidence and scale" data-section="Technical">
         <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
-        <p class="eyebrow">Adaptive NPCs · evidence</p>
-        <h2 id="evidence-adaptive-heading">The learner recovers. A frozen model does not.</h2>
+        <p class="eyebrow">Adaptive NPCs</p>
+        <h2 id="evidence-adaptive-heading">It adapts. Training is the only limit.</h2>
         <div class="chart-layout">
-          <figure><svg class="chart" viewBox="0 0 900 430" role="img" aria-labelledby="chart-adapt-title chart-adapt-desc"><title id="chart-adapt-title">Catch rate on the new runner after the switch, replay 10k, seed 2</title><desc id="chart-adapt-desc">The learner rises from 0.18 to above 0.80 by about 11,000 moves and stays mostly between 0.8 and 1.0. The frozen snapshot stays at 0.18.</desc>
-<line x1="70" x2="750" y1="372.0" y2="372.0" stroke="#d6dccf" stroke-width="1"/><text x="58" y="378.0" text-anchor="end" class="tick">0.0</text>
-<line x1="70" x2="750" y1="302.4" y2="302.4" stroke="#d6dccf" stroke-width="1"/><text x="58" y="308.4" text-anchor="end" class="tick">0.2</text>
-<line x1="70" x2="750" y1="232.8" y2="232.8" stroke="#d6dccf" stroke-width="1"/><text x="58" y="238.8" text-anchor="end" class="tick">0.4</text>
-<line x1="70" x2="750" y1="163.2" y2="163.2" stroke="#d6dccf" stroke-width="1"/><text x="58" y="169.2" text-anchor="end" class="tick">0.6</text>
-<line x1="70" x2="750" y1="93.6" y2="93.6" stroke="#d6dccf" stroke-width="1"/><text x="58" y="99.6" text-anchor="end" class="tick">0.8</text>
-<line x1="70" x2="750" y1="24.0" y2="24.0" stroke="#d6dccf" stroke-width="1"/><text x="58" y="30.0" text-anchor="end" class="tick">1.0</text>
-<text x="70.0" y="402" text-anchor="middle" class="tick">0k</text>
-<text x="240.0" y="402" text-anchor="middle" class="tick">10k</text>
-<text x="410.0" y="402" text-anchor="middle" class="tick">20k</text>
-<text x="580.0" y="402" text-anchor="middle" class="tick">30k</text>
-<text x="750.0" y="402" text-anchor="middle" class="tick">40k</text>
-<text x="410.0" y="426" text-anchor="middle" class="axis-label">Moves after the switch to the corner runner</text>
+          <figure><svg class="chart" viewBox="0 0 900 430" role="img" aria-labelledby="ev-t ev-d"><title id="ev-t">Catch rate after the runner switch, in Unreal</title><desc id="ev-d">The learner climbs from 0.13 to above 0.80 by about 10,000 moves. The frozen copy stays at 0.13.</desc>
+<line x1="70" x2="750" y1="372.0" y2="372.0" stroke="#d6dccf"/><text x="58" y="378.0" text-anchor="end" class="tick">0.0</text><line x1="70" x2="750" y1="302.4" y2="302.4" stroke="#d6dccf"/><text x="58" y="308.4" text-anchor="end" class="tick">0.2</text><line x1="70" x2="750" y1="232.8" y2="232.8" stroke="#d6dccf"/><text x="58" y="238.8" text-anchor="end" class="tick">0.4</text><line x1="70" x2="750" y1="163.2" y2="163.2" stroke="#d6dccf"/><text x="58" y="169.2" text-anchor="end" class="tick">0.6</text><line x1="70" x2="750" y1="93.6" y2="93.6" stroke="#d6dccf"/><text x="58" y="99.6" text-anchor="end" class="tick">0.8</text><line x1="70" x2="750" y1="24.0" y2="24.0" stroke="#d6dccf"/><text x="58" y="30.0" text-anchor="end" class="tick">1.0</text><text x="70.0" y="402" text-anchor="middle" class="tick">0k</text><text x="231.9" y="402" text-anchor="middle" class="tick">5k</text><text x="393.8" y="402" text-anchor="middle" class="tick">10k</text><text x="555.7" y="402" text-anchor="middle" class="tick">15k</text><text x="717.6" y="402" text-anchor="middle" class="tick">20k</text>
+<text x="410" y="426" text-anchor="middle" class="axis-label">Moves after the runner switch</text>
 <text transform="rotate(-90)" x="-198" y="16" text-anchor="middle" class="axis-label">Catch rate</text>
-<line x1="410.0" x2="410.0" y1="24" y2="372" stroke="#50645c" stroke-width="2" stroke-dasharray="6 6"/><text x="418.0" y="358.1" class="note">20k-move window</text>
-<line x1="70" x2="750" y1="93.6" y2="93.6" stroke="#50645c" stroke-width="2" stroke-dasharray="2 6"/><text x="78" y="83.6" class="note">0.80 recovery threshold</text>
-<line x1="70" x2="753.0" y1="309.4" y2="309.4" stroke="#b86a1f" stroke-width="3"/>
-<polyline points="70.0,309.4 87.0,351.1 103.4,295.4 120.4,302.4 137.4,368.5 152.5,292.0 169.3,365.0 186.3,264.1 201.1,166.7 215.7,295.4 230.8,180.6 244.4,100.6 255.6,79.7 268.1,267.6 281.7,72.7 293.0,72.7 305.0,86.6 317.5,97.1 331.4,76.2 341.8,76.2 353.6,100.6 361.4,83.2 372.7,79.7 383.2,27.5 392.6,44.9 403.1,55.3 413.9,69.2 426.4,41.4 437.1,41.4 448.3,31.0 458.0,48.4 467.1,34.4 477.9,90.1 489.5,27.5 498.1,27.5 508.1,27.5 516.5,48.4 525.4,44.9 537.5,69.2 546.9,34.4 560.8,27.5 570.6,41.4 580.3,31.0 589.7,41.4 600.3,62.3 611.3,58.8 622.9,41.4 632.9,65.8 643.9,65.8 652.1,34.4 662.3,37.9 670.5,55.3 679.6,34.4 689.1,90.1 698.3,79.7 709.3,65.8 717.4,114.5 727.1,27.5 735.0,24.0 745.3,27.5 753.0,27.5" fill="none" stroke="#00806b" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
-<circle cx="70.0" cy="309.4" r="9" fill="transparent"><title>0 moves: learner 0.18</title></circle>
-<circle cx="87.0" cy="351.1" r="9" fill="transparent"><title>1,000 moves: learner 0.06</title></circle>
-<circle cx="103.4" cy="295.4" r="9" fill="transparent"><title>1,965 moves: learner 0.22</title></circle>
-<circle cx="120.4" cy="302.4" r="9" fill="transparent"><title>2,965 moves: learner 0.20</title></circle>
-<circle cx="137.4" cy="368.5" r="9" fill="transparent"><title>3,965 moves: learner 0.01</title></circle>
-<circle cx="152.5" cy="292.0" r="9" fill="transparent"><title>4,853 moves: learner 0.23</title></circle>
-<circle cx="169.3" cy="365.0" r="9" fill="transparent"><title>5,844 moves: learner 0.02</title></circle>
-<circle cx="186.3" cy="264.1" r="9" fill="transparent"><title>6,844 moves: learner 0.31</title></circle>
-<circle cx="201.1" cy="166.7" r="9" fill="transparent"><title>7,710 moves: learner 0.59</title></circle>
-<circle cx="215.7" cy="295.4" r="9" fill="transparent"><title>8,570 moves: learner 0.22</title></circle>
-<circle cx="230.8" cy="180.6" r="9" fill="transparent"><title>9,458 moves: learner 0.55</title></circle>
-<circle cx="244.4" cy="100.6" r="9" fill="transparent"><title>10,258 moves: learner 0.78</title></circle>
-<circle cx="255.6" cy="79.7" r="9" fill="transparent"><title>10,916 moves: learner 0.84</title></circle>
-<circle cx="268.1" cy="267.6" r="9" fill="transparent"><title>11,652 moves: learner 0.30</title></circle>
-<circle cx="281.7" cy="72.7" r="9" fill="transparent"><title>12,452 moves: learner 0.86</title></circle>
-<circle cx="293.0" cy="72.7" r="9" fill="transparent"><title>13,117 moves: learner 0.86</title></circle>
-<circle cx="305.0" cy="86.6" r="9" fill="transparent"><title>13,822 moves: learner 0.82</title></circle>
-<circle cx="317.5" cy="97.1" r="9" fill="transparent"><title>14,556 moves: learner 0.79</title></circle>
-<circle cx="331.4" cy="76.2" r="9" fill="transparent"><title>15,375 moves: learner 0.85</title></circle>
-<circle cx="341.8" cy="76.2" r="9" fill="transparent"><title>15,987 moves: learner 0.85</title></circle>
-<circle cx="353.6" cy="100.6" r="9" fill="transparent"><title>16,685 moves: learner 0.78</title></circle>
-<circle cx="361.4" cy="83.2" r="9" fill="transparent"><title>17,142 moves: learner 0.83</title></circle>
-<circle cx="372.7" cy="79.7" r="9" fill="transparent"><title>17,804 moves: learner 0.84</title></circle>
-<circle cx="383.2" cy="27.5" r="9" fill="transparent"><title>18,424 moves: learner 0.99</title></circle>
-<circle cx="392.6" cy="44.9" r="9" fill="transparent"><title>18,979 moves: learner 0.94</title></circle>
-<circle cx="403.1" cy="55.3" r="9" fill="transparent"><title>19,595 moves: learner 0.91</title></circle>
-<circle cx="413.9" cy="69.2" r="9" fill="transparent"><title>20,232 moves: learner 0.87</title></circle>
-<circle cx="426.4" cy="41.4" r="9" fill="transparent"><title>20,964 moves: learner 0.95</title></circle>
-<circle cx="437.1" cy="41.4" r="9" fill="transparent"><title>21,595 moves: learner 0.95</title></circle>
-<circle cx="448.3" cy="31.0" r="9" fill="transparent"><title>22,252 moves: learner 0.98</title></circle>
-<circle cx="458.0" cy="48.4" r="9" fill="transparent"><title>22,825 moves: learner 0.93</title></circle>
-<circle cx="467.1" cy="34.4" r="9" fill="transparent"><title>23,361 moves: learner 0.97</title></circle>
-<circle cx="477.9" cy="90.1" r="9" fill="transparent"><title>23,996 moves: learner 0.81</title></circle>
-<circle cx="489.5" cy="27.5" r="9" fill="transparent"><title>24,676 moves: learner 0.99</title></circle>
-<circle cx="498.1" cy="27.5" r="9" fill="transparent"><title>25,182 moves: learner 0.99</title></circle>
-<circle cx="508.1" cy="27.5" r="9" fill="transparent"><title>25,770 moves: learner 0.99</title></circle>
-<circle cx="516.5" cy="48.4" r="9" fill="transparent"><title>26,264 moves: learner 0.93</title></circle>
-<circle cx="525.4" cy="44.9" r="9" fill="transparent"><title>26,786 moves: learner 0.94</title></circle>
-<circle cx="537.5" cy="69.2" r="9" fill="transparent"><title>27,500 moves: learner 0.87</title></circle>
-<circle cx="546.9" cy="34.4" r="9" fill="transparent"><title>28,051 moves: learner 0.97</title></circle>
-<circle cx="560.8" cy="27.5" r="9" fill="transparent"><title>28,870 moves: learner 0.99</title></circle>
-<circle cx="570.6" cy="41.4" r="9" fill="transparent"><title>29,447 moves: learner 0.95</title></circle>
-<circle cx="580.3" cy="31.0" r="9" fill="transparent"><title>30,015 moves: learner 0.98</title></circle>
-<circle cx="589.7" cy="41.4" r="9" fill="transparent"><title>30,569 moves: learner 0.95</title></circle>
-<circle cx="600.3" cy="62.3" r="9" fill="transparent"><title>31,197 moves: learner 0.89</title></circle>
-<circle cx="611.3" cy="58.8" r="9" fill="transparent"><title>31,841 moves: learner 0.90</title></circle>
-<circle cx="622.9" cy="41.4" r="9" fill="transparent"><title>32,522 moves: learner 0.95</title></circle>
-<circle cx="632.9" cy="65.8" r="9" fill="transparent"><title>33,110 moves: learner 0.88</title></circle>
-<circle cx="643.9" cy="65.8" r="9" fill="transparent"><title>33,756 moves: learner 0.88</title></circle>
-<circle cx="652.1" cy="34.4" r="9" fill="transparent"><title>34,243 moves: learner 0.97</title></circle>
-<circle cx="662.3" cy="37.9" r="9" fill="transparent"><title>34,839 moves: learner 0.96</title></circle>
-<circle cx="670.5" cy="55.3" r="9" fill="transparent"><title>35,322 moves: learner 0.91</title></circle>
-<circle cx="679.6" cy="34.4" r="9" fill="transparent"><title>35,861 moves: learner 0.97</title></circle>
-<circle cx="689.1" cy="90.1" r="9" fill="transparent"><title>36,418 moves: learner 0.81</title></circle>
-<circle cx="698.3" cy="79.7" r="9" fill="transparent"><title>36,957 moves: learner 0.84</title></circle>
-<circle cx="709.3" cy="65.8" r="9" fill="transparent"><title>37,606 moves: learner 0.88</title></circle>
-<circle cx="717.4" cy="114.5" r="9" fill="transparent"><title>38,081 moves: learner 0.74</title></circle>
-<circle cx="727.1" cy="27.5" r="9" fill="transparent"><title>38,650 moves: learner 0.99</title></circle>
-<circle cx="735.0" cy="24.0" r="9" fill="transparent"><title>39,120 moves: learner 1.00</title></circle>
-<circle cx="745.3" cy="27.5" r="9" fill="transparent"><title>39,721 moves: learner 0.99</title></circle>
-<circle cx="753.0" cy="27.5" r="9" fill="transparent"><title>40,179 moves: learner 0.99</title></circle>
-<text x="765.0" y="33.5" class="series" fill="#173d38"><tspan fill="#00806b">■</tspan> Learner</text>
-<text x="765.0" y="315.4" class="series" fill="#173d38"><tspan fill="#b86a1f">■</tspan> Frozen copy</text><text x="765.0" y="339.4" class="tick">(no learning)</text>
-</svg><figcaption>Catch rate over 100 fixed starts. One run, seed 2.</figcaption></figure>
+<line x1="70" x2="750" y1="93.6" y2="93.6" stroke="#50645c" stroke-width="2" stroke-dasharray="2 6"/>
+<line x1="70" x2="750" y1="326.8" y2="326.8" stroke="#b86a1f" stroke-width="3"/>
+<polyline points="70.0,326.8 100.9,271.1 129.9,281.5 160.0,267.6 184.1,267.6 215.0,274.6 243.0,302.4 271.7,205.0 304.1,215.4 327.5,194.5 355.3,218.9 382.2,79.7 408.2,163.2 434.6,187.6 461.4,114.5 486.8,72.7 510.5,104.0 531.1,37.9 554.4,41.4 575.9,100.6 601.2,76.2 624.9,51.8 643.4,72.7 661.8,55.3 679.4,44.9 697.6,41.4 721.7,34.4" fill="none" stroke="#00806b" stroke-width="3" stroke-linejoin="round"/>
+<text x="762" y="40.4" class="series" fill="#173d38"><tspan fill="#00806b">■</tspan> Learner</text>
+<text x="762" y="332.8" class="series" fill="#173d38"><tspan fill="#b86a1f">■</tspan> Frozen</text>
+</svg><figcaption>In Unreal on Windows, seed 1.</figcaption></figure>
           <div class="side-facts">
-            <div><strong>6 / 6</strong><span>seeds pass every criterion</span></div>
-            <div><strong>4–14k</strong><span>moves to recover (target: 20k)</span></div>
-            <div><strong>10k</strong><span>moves of memory. At 60k, only 2 / 3 pass</span></div>
+            <div><strong>3 / 3</strong><span>seeds recover in Unreal</span></div>
+            <div><strong>5–11 µs</strong><span>per decision</span></div>
+            <div><strong>60–90</strong><span>NPCs per shared learner</span></div>
           </div>
         </div>
-        <aside class="speaker-notes" data-time="0:40">Point at the switch on the left, where the learner starts at 0.18 like its frozen copy, then at the recovery above the 0.80 line well before the 20,000-move window. The frozen copy is the control; a rising curve alone doesn't prove adaptation. Criteria were fixed in D3 and never loosened, and the comparison is in whole percentage points, so a gap of exactly 0.20 fails. Honest limits: after recovery the curve still dips (one seed down to 0.54), and we don't have a stability criterion yet. The Unreal version of this test (NativeLearning.ChaseAdaptation, PR #63) passed on Windows with UE 5.8, seeds 1 to 3. Source: Tools/ScholaRLToolsNative/CHASE-ADAPTATION.md.</aside>
-      </section>
-
-      <section class="slide" id="scaling-adaptive" aria-labelledby="scaling-adaptive-heading" data-title="Adaptive: what limits scale" data-section="Technical">
-        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
-        <p class="eyebrow">Adaptive NPCs · scaling</p>
-        <h2 id="scaling-adaptive-heading">Decisions are cheap. Training is the limit.</h2>
-        <div class="chart-layout">
-          <figure><svg class="chart" viewBox="0 0 900 430" role="img" aria-labelledby="chart-scale-title chart-scale-desc"><title id="chart-scale-title">One shared learner: updates per second needed versus achieved</title><desc id="chart-scale-desc">Needed grows linearly with NPCs at 10 decisions per second. Achieved matches it up to 50 NPCs, then flattens near 910 updates per second.</desc>
-<line x1="90" x2="730" y1="372.0" y2="372.0" stroke="#d6dccf"/><text x="78" y="378.0" text-anchor="end" class="tick">0</text>
-<line x1="90" x2="730" y1="285.0" y2="285.0" stroke="#d6dccf"/><text x="78" y="291.0" text-anchor="end" class="tick">500</text>
-<line x1="90" x2="730" y1="198.0" y2="198.0" stroke="#d6dccf"/><text x="78" y="204.0" text-anchor="end" class="tick">1,000</text>
-<line x1="90" x2="730" y1="111.0" y2="111.0" stroke="#d6dccf"/><text x="78" y="117.0" text-anchor="end" class="tick">1,500</text>
-<line x1="90" x2="730" y1="24.0" y2="24.0" stroke="#d6dccf"/><text x="78" y="30.0" text-anchor="end" class="tick">2,000</text>
-<text x="90.0" y="402" text-anchor="middle" class="tick">0</text>
-<text x="250.0" y="402" text-anchor="middle" class="tick">50</text>
-<text x="410.0" y="402" text-anchor="middle" class="tick">100</text>
-<text x="570.0" y="402" text-anchor="middle" class="tick">150</text>
-<text x="730.0" y="402" text-anchor="middle" class="tick">200</text>
-<text x="410.0" y="426" text-anchor="middle" class="axis-label">NPCs sharing one learner (10 decisions/s each)</text>
-<text transform="rotate(-90)" x="-198" y="16" text-anchor="middle" class="axis-label">Learning steps per second</text>
-<polyline points="93.2,370.3 122.0,354.6 170.0,328.5 250.0,285.0 410.0,198.0 730.0,24.0" fill="none" stroke="#b86a1f" stroke-width="3" stroke-dasharray="10 8"/>
-<polyline points="93.2,370.3 122.0,354.6 170.0,328.5 250.0,285.0 410.0,214.0 730.0,212.8" fill="none" stroke="#00806b" stroke-width="3" stroke-linejoin="round"/>
-<circle cx="93.2" cy="370.3" r="5" fill="#00806b" stroke="#f5f3ec" stroke-width="2"><title>1 NPCs: 10 updates/s achieved, 10 needed</title></circle>
-<circle cx="122.0" cy="354.6" r="5" fill="#00806b" stroke="#f5f3ec" stroke-width="2"><title>10 NPCs: 100 updates/s achieved, 100 needed</title></circle>
-<circle cx="170.0" cy="328.5" r="5" fill="#00806b" stroke="#f5f3ec" stroke-width="2"><title>25 NPCs: 250 updates/s achieved, 250 needed</title></circle>
-<circle cx="250.0" cy="285.0" r="5" fill="#00806b" stroke="#f5f3ec" stroke-width="2"><title>50 NPCs: 500 updates/s achieved, 500 needed</title></circle>
-<circle cx="410.0" cy="214.0" r="5" fill="#00806b" stroke="#f5f3ec" stroke-width="2"><title>100 NPCs: 908 updates/s achieved, 1,000 needed</title></circle>
-<circle cx="730.0" cy="212.8" r="5" fill="#00806b" stroke="#f5f3ec" stroke-width="2"><title>200 NPCs: 915 updates/s achieved, 2,000 needed</title></circle>
-<text x="742.0" y="30.0" class="series" fill="#173d38"><tspan fill="#b86a1f">■</tspan> Needed</text>
-<text x="742.0" y="218.8" class="series" fill="#173d38"><tspan fill="#00806b">■</tspan> Achieved</text>
-</svg><figcaption>One shared learner on one background thread.</figcaption></figure>
-          <div class="side-facts">
-            <div><strong>5–11 µs</strong><span>per decision. A frame is 16,700 µs</span></div>
-            <div><strong>60–90</strong><span>NPCs per shared learner before it falls behind</span></div>
-            <div><strong>8.6 MB</strong><span>per learner</span></div>
-          </div>
-        </div>
-        <aside class="speaker-notes" data-time="0:25">The game thread is cheap at every size. The limit is training: one learner trains serially at about 650 to 900 updates per second, so past roughly 60 to 90 NPCs the backlog grows. NPCs keep acting; they just adapt more slowly. Independent learners scale with worker threads at about 750 updates per second each, at 8.6 MB per learner. Measured on one Apple M5 Pro without Unreal; in-engine, the world service also caps concurrent workers. Source: SCALING.md.</aside>
+        <aside class="speaker-notes" data-time="0:50">Same test as the live demo, but controlled. Train on the right-turn runner, save a frozen copy, switch to the corner runner, keep learning. Green is the learner, orange the frozen copy. Both start low; only the learner climbs back. This ran inside Unreal on Windows (NativeLearning.ChaseAdaptation, seeds 1 to 3, all pass the D3 criteria; recovery at 9.6k to 13k moves). Right side: deciding costs microseconds per NPC, so the game never slows down. The limit is training speed: one shared learner keeps up with about 60 to 90 NPCs, then they still act but adapt more slowly. Scaling measured outside Unreal (SCALING.md). Honest limit: after recovering, the curve still dips at times.</aside>
       </section>
 
       <section class="slide" id="checkpoints-adaptive" aria-labelledby="checkpoints-adaptive-heading" data-title="Adaptive: saving what an NPC learned" data-section="Technical">

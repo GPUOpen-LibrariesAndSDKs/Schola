@@ -314,21 +314,77 @@
         <aside class="speaker-notes" data-time="1:00">Shared Policy subteam: replace this slot.</aside>
       </section>
 
+      
       <section class="slide" id="demo-event" aria-labelledby="demo-event-heading" data-title="Demo: event NPCs" data-section="Demo">
-        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Demo 4 / Event NPCs</span></header>
-        <div class="slot">
-          <span class="slot-owner">Event NPCs subteam · 1:00</span>
-          <h3 id="demo-event-heading">User flow 4: deciding only on a game event</h3>
-          <ul>
-            <li>What the developer connects: which event triggers inference</li>
-            <li>Live: an NPC idle until the event fires, then acting on the model's decision</li>
-            <li>What to watch: no inference between events</li>
-            <li>State whether the stepper is merged into main</li>
-          </ul>
-          <p class="slot-known">On record: UEventStepper prototype on branch feature/event, with a Blueprint demonstration.</p>
+        <header class="slide-header">
+          <span class="wordmark">schola<span class="brand-dot">.</span></span>
+          <span>Demo 4 / Event NPCs</span>
+        </header>
+      
+        <p class="eyebrow">User flow 4 · Event-driven inference</p>
+        <h2 id="demo-event-heading">
+          NPCs decide only when needed<span class="accent">.</span>
+        </h2>
+      
+        <div class="split demo-split">
+          <div>
+            <h3>The developer workflow</h3>
+            <ol class="dev-steps">
+              <li>
+                <span>01</span>
+                <p>Configure NPC agents and their Schola policy.</p>
+              </li>
+              <li>
+                <span>02</span>
+                <p>Subscribe agents to relevant gameplay events.</p>
+              </li>
+              <li>
+                <span>03</span>
+                <p>Trigger inference on an event; change subscriptions at runtime.</p>
+              </li>
+            </ol>
+          </div>
+      
+          <div>
+            <h3>What we demonstrate in Unreal</h3>
+            <table class="comparison-table compact-table">
+              <thead>
+                <tr>
+                  <th scope="col">Event</th>
+                  <th scope="col">Agents responding</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">PlayerTurnEnded</th>
+                  <td>3 blue NPCs</td>
+                </tr>
+                <tr>
+                  <th scope="row">AlarmTriggered</th>
+                  <td>3 orange NPCs</td>
+                </tr>
+                <tr>
+                  <th scope="row">Turn after unsubscription</th>
+                  <td>2 blue NPCs</td>
+                </tr>
+              </tbody>
+            </table>
+      
+            <p class="prompt">
+              EventDemo · Six agents · Two gameplay events
+            </p>
+      
+            <!-- Add the demo video here later. -->
+          </div>
         </div>
-        <aside class="speaker-notes" data-time="1:00">Event subteam: replace this slot.</aside>
+      
+        <div class="takeaway">
+          <span>Watch for</span>
+          <p>Only subscribed agents execute policy decisions; unsubscribed agents no longer respond to that event.</p>
+        </div>
+      
       </section>
+
 
       <!-- ============ 3. TECHNICAL DISCUSSION (5:05) ============ -->
       <section class="slide dark divider" id="technical" aria-labelledby="technical-heading" data-title="Technical discussion" data-section="Technical">
@@ -571,20 +627,150 @@
         <aside class="speaker-notes" data-time="0:35">Shared Policy subteam: replace this slot.</aside>
       </section>
 
+
       <section class="slide" id="tech-event" aria-labelledby="tech-event-heading" data-title="Event: design" data-section="Technical">
-        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Event NPCs / Deliverable 4</span></header>
-        <div class="slot">
-          <span class="slot-owner">Event NPCs subteam · 0:35</span>
-          <h3 id="tech-event-heading">Design: inference on demand</h3>
-          <ul>
-            <li>A diagram from a gameplay event to Observe, BatchedThink and Act</li>
-            <li>The key decision: how events subscribe and unsubscribe, and why</li>
-            <li>What is tested and what is not</li>
-          </ul>
-          <p class="slot-known">No code screenshots. Walk the diagram; don't just show it.</p>
+      
+        <header class="slide-header">
+          <span class="wordmark">schola<span class="brand-dot">.</span></span>
+          <span>Event NPCs / Deliverable 4</span>
+        </header>
+      
+        <p class="eyebrow">Event NPCs · Design</p>
+        <h2 id="tech-event-heading">
+          Inference on demand<span class="accent">.</span>
+        </h2>
+      
+        <div class="chart-layout" style="grid-template-columns: 1.6fr 1fr">
+      
+          <figure>
+            <svg class="diagram" viewBox="0 0 840 405" role="img"
+                 aria-labelledby="event-flow-title event-flow-desc">
+      
+              <title id="event-flow-title">
+                Event-driven inference pipeline
+              </title>
+      
+              <desc id="event-flow-desc">
+                A gameplay event selects subscribed agents.
+                The Event Stepper observes their state,
+                evaluates the policy and applies their actions.
+              </desc>
+      
+              <defs>
+                <marker id="event-arrow" viewBox="0 0 10 10"
+                        refX="9" refY="5" markerWidth="7"
+                        markerHeight="7" orient="auto">
+                  <path d="M0 0 L10 5 L0 10Z" fill="#50645c"/>
+                </marker>
+              </defs>
+      
+              <!-- Architecture boxes -->
+              <g stroke="#173d38" stroke-width="2">
+                <rect x="40" y="0" width="350" height="56" fill="#e3eaf1"/>
+                <rect x="450" y="0" width="350" height="56" fill="#f4e5c9"/>
+      
+                <rect x="160" y="86" width="520" height="64" fill="#e9b65c"/>
+                <rect x="160" y="180" width="520" height="56" fill="#e9b65c"/>
+      
+                <rect x="0" y="276" width="250" height="64" fill="#f5f3ec"/>
+                <rect x="295" y="276" width="250" height="64" fill="#f5f3ec"/>
+                <rect x="590" y="276" width="250" height="64" fill="#f5f3ec"/>
+      
+                <rect x="160" y="366" width="520" height="38" fill="#173d38"/>
+              </g>
+      
+              <!-- Architecture labels -->
+              <g text-anchor="middle" fill="#173d38"
+                 font-size="23" font-weight="600">
+      
+                <text x="215" y="35">PlayerTurnEnded</text>
+                <text x="625" y="35">AlarmTriggered</text>
+      
+                <text x="420" y="112">Event subscriptions</text>
+                <text x="420" y="136" font-size="18" font-weight="400">
+                  Select matching agents
+                </text>
+      
+                <text x="420" y="215">UEventStepper</text>
+      
+                <text x="125" y="302">Observe</text>
+                <text x="125" y="326" font-size="18" font-weight="400">
+                  Collect state
+                </text>
+      
+                <text x="420" y="302">BatchedThink</text>
+                <text x="420" y="326" font-size="18" font-weight="400">
+                  Evaluate policy
+                </text>
+      
+                <text x="715" y="302">Act</text>
+                <text x="715" y="326" font-size="18" font-weight="400">
+                  Apply actions
+                </text>
+      
+                <text x="420" y="392" fill="#f5f3ec" font-size="20">
+                  Only selected NPCs respond
+                </text>
+              </g>
+      
+              <!-- Connecting arrows -->
+              <g stroke="#50645c" stroke-width="2.5" fill="none">
+      
+                <path d="M215 56 V71 H625 V56"/>
+      
+                <path d="M420 71 V82"
+                      marker-end="url(#event-arrow)"/>
+      
+                <path d="M420 150 V176"
+                      marker-end="url(#event-arrow)"/>
+      
+                <path d="M420 236 V254 H125 V272"
+                      marker-end="url(#event-arrow)"/>
+      
+                <path d="M250 308 H291"
+                      marker-end="url(#event-arrow)"/>
+      
+                <path d="M545 308 H586"
+                      marker-end="url(#event-arrow)"/>
+      
+                <path d="M715 340 V352 H420 V362"
+                      marker-end="url(#event-arrow)"/>
+              </g>
+            </svg>
+      
+            <div class="legend-row">
+              <span class="is-new">Event integration</span>
+              <span class="is-existing">Existing Schola workflow</span>
+            </div>
+          </figure>
+      
+          <div class="decision-list">
+            <div>
+              <h3>Runtime subscriptions</h3>
+              <p>Subscribe or unsubscribe agents without changing their policy.</p>
+            </div>
+      
+            <div>
+              <h3>Verified in Unreal</h3>
+              <p>Selective event routing, policy actions and dynamic unsubscription.</p>
+            </div>
+      
+            <div>
+              <h3>Trade-off</h3>
+              <p>Inference runs on the caller's thread.
+                 Performance and scalability are not yet quantified.</p>
+            </div>
+          </div>
+      
         </div>
-        <aside class="speaker-notes" data-time="0:35">Event subteam: replace this slot.</aside>
+      
+        <div class="takeaway">
+          <span>Key decision</span>
+          <p>Separate when inference happens from how Schola evaluates the policy.</p>
+        </div>
+      
       </section>
+
 
       <section class="slide" id="quality" aria-labelledby="quality-heading" data-title="Testing, CI and deployment" data-section="Technical">
         <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Engineering quality / Deliverable 4</span></header>

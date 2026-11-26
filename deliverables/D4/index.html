@@ -708,41 +708,43 @@
       <section class="slide" id="checkpoints-adaptive" aria-labelledby="checkpoints-adaptive-heading" data-title="Adaptive: saving what an NPC learned" data-section="Technical">
         <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
         <p class="eyebrow">Adaptive NPCs · checkpoints 1 of 3 · Chloe Lee</p>
-        <h2 id="checkpoints-adaptive-heading">Saving and loading NPCs</h2>
+        <h2 id="checkpoints-adaptive-heading">Saving and loading what an NPC learned</h2>
+        <p class="ck-lead">Once an NPC has learned something, you can save it and load it back later. There are 3 ways to save:</p>
         <div class="ck-cards">
-          <div><span class="ck-num">1</span><h3>Model only</h3><p>ship a trained NPC</p></div>
-          <div><span class="ck-num">2</span><h3>Full learner</h3><p>pause and resume training</p></div>
-          <div><span class="ck-num">3</span><h3>Full learner + experience</h3><p>resume exactly</p></div>
+          <div><span class="ck-num">1</span><h3>Model only</h3><p>for shipping an NPC that's already trained</p></div>
+          <div><span class="ck-num">2</span><h3>Full learner</h3><p>to pause training and continue later</p></div>
+          <div><span class="ck-num">3</span><h3>Full learner + its experience</h3><p>to pick up exactly where it stopped</p></div>
         </div>
-        <p class="ck-foot">Blueprint or C++ · runs off the game thread</p>
+        <p class="ck-foot">You call it from Blueprint or C++, and the saving and loading happen on a background thread.</p>
         <aside class="speaker-notes" data-time="0:15">This part is mine, checkpoints. You can save what an NPC has learned and load it back later. There are three modes. Model only, if you just want to ship a trained NPC. The full learner, so you can pause training and pick it up later. Or the full learner plus its stored experience, which resumes exactly where it left off. You can call it from Blueprint or C++, and the file work happens off the game thread.</aside>
       </section>
 
       <section class="slide" id="checkpoints-safe" aria-labelledby="checkpoints-safe-heading" data-title="Adaptive: a bad file never crashes the game" data-section="Technical">
         <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
         <p class="eyebrow">Adaptive NPCs · checkpoints 2 of 3 · Chloe Lee</p>
-        <h2 id="checkpoints-safe-heading">Loading a bad file is safe</h2>
-        <p class="ck-lead">RLtools aborts on a mismatched file → we validate first</p>
+        <h2 id="checkpoints-safe-heading">Making loading safe</h2>
+        <p class="ck-lead">The problem: RLtools crashes the whole program if you load a file that doesn't match. So before loading, we check the file in 5 steps:</p>
         <div class="ck-flow">
           <div class="ck-file">Saved file</div>
           <div class="ck-checks"><span>header</span><span>size</span><span>checksum</span><span>profile</span><span>structure</span></div>
-          <div class="ck-results"><div class="ck-ok">✓ pass → load</div><div class="ck-no">✗ fail → refused, current model kept</div></div>
+          <div class="ck-results"><div class="ck-ok">✓ All pass → we load it</div><div class="ck-no">✗ Any fail → we don't load, and the NPC keeps its current model</div></div>
         </div>
-        <p class="ck-foot">Saving: write a .tmp file, then rename</p>
+        <p class="ck-foot">When saving, we write to a temp file and rename it at the end, so a crash halfway through can't leave a broken file.</p>
         <aside class="speaker-notes" data-time="0:15">The tricky part was loading. RLtools just aborts the program if the file doesn't match what it expects. So before we give it the file, we check the header, the size, the checksum, the profile and the structure. If any of those fail, we don't load, and the NPC keeps its current model. For saving, we write to a temp file and rename it at the end, so a crash halfway through can't leave a broken file.</aside>
       </section>
 
       <section class="slide" id="checkpoints-evidence" aria-labelledby="checkpoints-evidence-heading" data-title="Adaptive: checkpoints are tested" data-section="Technical">
         <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
         <p class="eyebrow">Adaptive NPCs · checkpoints 3 of 3 · Chloe Lee</p>
-        <h2 id="checkpoints-evidence-heading">Testing</h2>
+        <h2 id="checkpoints-evidence-heading">Checking that it works</h2>
+        <p class="ck-lead">I tested it two ways: automated tests, and rerunning the chase test from a saved file.</p>
         <div class="ck-stats">
-          <div><strong>460</strong><span>tests, run in CI on every PR</span></div>
-          <div><strong>2</strong><span>platforms (Linux, macOS)</span></div>
-          <div><strong>6 / 6</strong><span>seeds still adapt after loading a checkpoint</span></div>
-          <div><strong>0</strong><span>changes to the frozen copy</span></div>
+          <div><strong>460</strong><span>tests run automatically on every PR</span></div>
+          <div><strong>2</strong><span>platforms: they run on both Linux and Mac</span></div>
+          <div><strong>6 / 6</strong><span>seeds: started from a saved file, the NPC still learned the new runner</span></div>
+          <div><strong>0</strong><span>changes: the frozen copy loaded from the same file stayed the same</span></div>
         </div>
-        <p class="ck-foot">Corrupt or mismatched files: all rejected, model unchanged</p>
+        <p class="ck-foot">Every broken or mismatched file we tried was rejected, and the NPC kept working.</p>
         <aside class="speaker-notes" data-time="0:15">For testing, there are 460 checks that run in CI on every PR, on Linux and Mac. That includes a bunch of broken and mismatched files, and all of them get rejected. I also reran the chase test starting from a saved checkpoint. It still adapts on all six seeds, and the frozen copy loaded from the same file doesn't change at all.</aside>
       </section>
 

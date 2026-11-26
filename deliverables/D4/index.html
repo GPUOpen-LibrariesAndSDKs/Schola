@@ -345,36 +345,26 @@
             </ol>
           </div>
       
+
           <div>
-            <h3>What we demonstrate in Unreal</h3>
-            <table class="comparison-table compact-table">
-              <thead>
-                <tr>
-                  <th scope="col">Event</th>
-                  <th scope="col">Agents responding</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <th scope="row">PlayerTurnEnded</th>
-                  <td>3 blue NPCs</td>
-                </tr>
-                <tr>
-                  <th scope="row">AlarmTriggered</th>
-                  <td>3 orange NPCs</td>
-                </tr>
-                <tr>
-                  <th scope="row">Turn after unsubscription</th>
-                  <td>2 blue NPCs</td>
-                </tr>
-              </tbody>
-            </table>
-      
-            <p class="prompt">
-              EventDemo · Six agents · Two gameplay events
-            </p>
-      
-            <!-- Add the demo video here later. -->
+            <h3>Event NPCs</h3>
+          
+            <figure style="margin: 0;">
+              <video
+                controls
+                muted
+                playsinline
+                preload="metadata"
+                style="width: 100%; max-height: 390px; background: #000; border-radius: 4px;"
+                aria-label="Event NPCs runtime demonstration">
+          
+                <source src="assets/event-npc-demo.mp4" type="video/mp4">
+              </video>
+          
+              <figcaption style="margin-top: 12px;">
+                Six agents · Two gameplay events · Dynamic subscriptions
+              </figcaption>
+            </figure>
           </div>
         </div>
       
@@ -757,8 +747,7 @@
       
             <div>
               <h3>Trade-off</h3>
-              <p>Inference runs on the caller's thread.
-                 Performance and scalability are not yet quantified.</p>
+              <p>Inference runs on the caller's thread.</p>
             </div>
           </div>
       

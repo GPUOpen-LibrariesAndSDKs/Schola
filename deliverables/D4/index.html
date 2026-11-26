@@ -739,7 +739,7 @@ if (MigrationDay)
             <div><strong>10k</strong><span>moves of memory. At 60k, only 2 / 3 pass</span></div>
           </div>
         </div>
-        <aside class="speaker-notes" data-time="0:40">Point at the switch on the left, where the learner starts at 0.18 like its frozen copy, then at the recovery above the 0.80 line well before the 20,000-move window. The frozen copy is the control; a rising curve alone doesn't prove adaptation. Criteria were fixed in D3 and never loosened, and the comparison is in whole percentage points, so a gap of exactly 0.20 fails. Honest limits: after recovery the curve still dips (one seed down to 0.54), and we don't have a stability criterion yet. The Unreal version of this test is written but not yet run on Windows. Source: Tools/ScholaRLToolsNative/CHASE-ADAPTATION.md.</aside>
+        <aside class="speaker-notes" data-time="0:40">Point at the switch on the left, where the learner starts at 0.18 like its frozen copy, then at the recovery above the 0.80 line well before the 20,000-move window. The frozen copy is the control; a rising curve alone doesn't prove adaptation. Criteria were fixed in D3 and never loosened, and the comparison is in whole percentage points, so a gap of exactly 0.20 fails. Honest limits: after recovery the curve still dips (one seed down to 0.54), and we don't have a stability criterion yet. The Unreal version of this test (NativeLearning.ChaseAdaptation, PR #63) passed on Windows with UE 5.8, seeds 1 to 3. Source: Tools/ScholaRLToolsNative/CHASE-ADAPTATION.md.</aside>
       </section>
 
       <section class="slide" id="scaling-adaptive" aria-labelledby="scaling-adaptive-heading" data-title="Adaptive: what limits scale" data-section="Technical">

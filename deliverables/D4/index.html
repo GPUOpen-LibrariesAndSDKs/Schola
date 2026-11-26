@@ -267,7 +267,7 @@
           <article class="sp-card"><h3>Architecture C · Integration target</h3><p>One model per active role. C matched A’s actions and reduced median request latency across all 64 tested configurations, with larger model files.</p></article>
         </div>
         <div class="takeaway"><span>16 active heads · batch of 16</span><p>375 µs for A, 242 µs for C, measured end to end in Python ONNX Runtime on one Mac CPU.</p></div>
-        <aside class="speaker-notes" data-time="0:08">Say: “In D3, I used A’s outputs to verify C and timed C against D in Unreal. For D4, I timed A against C directly as the number of roles grew.” Point to the 16-head example. For questions: I built the scaling runner in PR #55 and measured warmed, complete-request latency at 2, 4, 8, and 16 heads. C matched A’s actions and had lower median latency in all 64 synthetic configurations. C stores a separate model per role, which increased total ONNX file size. A versus C performance in Unreal is still to be measured.</aside>
+        <aside class="speaker-notes" data-time="0:22">In Demo 3, I benchmarked C and D, the two designs Alex from AMD asked us to focus on. This time, I compared C with our baseline, Architecture A. On a Mac CPU, C made the same decisions and was faster in every setup we tried. That’s why we’re moving forward with C.</aside>
       </section>
 
       <section class="slide sp-slide" id="shared-policy-per-role" aria-labelledby="shared-policy-per-role-heading" data-title="Shared Policy NPCs: Architecture C implementation" data-section="Technical">
@@ -319,7 +319,7 @@
           </div>
         </div>
         <div class="takeaway"><span>Same stepper API</span><p>Developers configure a role-to-model mapping. The existing Shared Policy Stepper works with either architecture.</p></div>
-        <aside class="speaker-notes" data-time="0:08">Say: “My merged implementation adds Architecture C to our Schola extension through the existing policy interface.” Trace NPCs 1 and 3 into the Toward batch and NPC 2 into the Away batch, then point to the restored order.</aside>
+        <aside class="speaker-notes" data-time="0:23">My merged implementation adds Architecture C to our Schola extension through the existing policy interface. Clementine integrated Architecture A first, and C is the version we plan to use going forward. At a high level, C takes a batch of observations from NPCs in different roles, runs one model per group, and sends each NPC its action.</aside>
       </section>
 
       <section class="slide sp-slide" id="shared-policy-beacon-walkthrough" aria-labelledby="shared-policy-beacon-walkthrough-heading" data-title="Shared Policy NPCs: what the beacon demo verifies" data-section="Demo">
@@ -333,7 +333,7 @@
           <article class="sp-card"><h3>In the Output Log</h3><p><code>LogSharedPolicyD4</code> reports six applied actions and two model calls per decision step. One call serves the Toward batch and the other serves the Away batch.</p></article>
         </div>
         <div class="takeaway"><span>What ties them together</span><p>The Shared Policy Stepper collects observations, submits them to Architecture C, and applies the returned action to each NPC.</p></div>
-        <aside class="speaker-notes" data-time="0:07">Say: “Watch both groups react to the beacon. Then look at the log: six steering actions, with one model call for each role.” The scene shows the observation-to-action loop. The log verifies the number of model calls.</aside>
+        <aside class="speaker-notes" data-time="0:21">Clementine and I put together two demos. First, I’ll show you the beacon scene I built and configured in Unreal. It shows Architecture C batching NPCs by role. All six NPCs make decisions in the same step, and Architecture C runs the model once for each group, so two model calls give us six steering actions.</aside>
       </section>
 
       <section class="slide sp-slide sp-video-slide" id="demo-shared" aria-labelledby="demo-shared-heading" data-title="Shared Policy NPCs: beacon runtime demo" data-section="Demo">
@@ -349,7 +349,7 @@
           </video>
           <figcaption>The stepper applies six steering actions from two model calls per decision step. <a href="https://github.com/csc301-2026-f/9-AMD-Advanced-NPCs/pull/66">PR #66</a></figcaption>
         </figure>
-        <aside class="speaker-notes" data-time="0:13">For the timed walkthrough, cue the recording around 0:15 and pause on the Output Log around 0:28. Narrate the shift in the beacon’s direction, the three Toward agents and the three Away agents. Explain that the stepper gathers observations, Architecture C runs one batch per role, and the stepper applies each returned action. Point out six actions and two model calls in LogSharedPolicyD4. The demo measures calls by reading Schola’s cumulative counter before and after the step. If time allows, show the full recording. Hand off: “We’ve shown the inference loop in a controlled Unreal scene. Clementine brought Schola into Lyra, Epic’s Unreal sample game, and will show bots switching between Patrol and Chase. Our next step is to use those states to select the models you just saw running.”</aside>
+        <aside class="speaker-notes" data-time="0:24">[Play the clip from around 0:15.] As I move the beacon, these three NPCs follow it, and the other three steer away. [Point to the log around 0:28.] You can see six steering actions from just two model calls, one for each group. [After the clip.] Next, Clementine will show NPCs switching between Patrol and Chase in Lyra, Epic’s sample game for Unreal Engine. That’s the piece we’ll connect to our shared policy next.</aside>
       </section>
 
       <section class="slide sp-slide sp-video-slide" id="shared-policy-statetree-demo" aria-labelledby="shared-policy-statetree-demo-heading" data-title="Shared Policy NPCs: Lyra runtime demo" data-section="Demo">

@@ -131,16 +131,6 @@ def test_async_vecenv_merged_segments_step(make_vec_env_server):
         schola_env.close()
 
 
-@pytest.mark.skip()
-def test_async_sb3_env_close(make_env_server):
-    gym_id = "CartPole-v1"
-    env_server_port = make_env_server(gym_id)
-    simulator = UnrealEditor()
-    protocol = AsyncGrpcProtocol(url="localhost", port=env_server_port)
-    env = AsyncVecEnv(simulator, protocol)
-    env.close()
-
-
 # The below StepEnv and terminal-obs test are adapted from stable-baselines3 tests
 # (see Test/sb3/test_env.py for license header).
 

@@ -21,7 +21,9 @@ from schola.core.export.export_common import (
 logger = logging.getLogger(__name__)
 
 
-def export_onnx_program(model: ScholaModel, onnx_opset: int = 21) -> th.onnx.ONNXProgram:
+def export_onnx_program(
+    model: ScholaModel, onnx_opset: int = 21
+) -> th.onnx.ONNXProgram:
     """
     Export a ``ScholaModel`` as an ONNX program.
 

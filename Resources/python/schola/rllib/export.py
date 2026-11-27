@@ -302,7 +302,9 @@ def _(arg: Algorithm, path: pathlib.Path, export_format: ExportFormat = "onnx") 
     format_name = export_format.upper()
     # arg.spaces["__env_single__"] is a tuple (observation_space, action_space)
     if arg.spaces is None:
-        raise RuntimeError(f"No spaces found on Algorithm while exporting to {format_name}")
+        raise RuntimeError(
+            f"No spaces found on Algorithm while exporting to {format_name}"
+        )
     elif "__env_single__" not in arg.spaces:
         raise RuntimeError(
             f"No single environment spaces found on Algorithm while exporting to {format_name}. Expected key '__env_single__'"

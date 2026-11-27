@@ -509,6 +509,7 @@ class ExportFormat(str, Enum):
     IREE = "iree"  #: Export an IREE ``.vmfb`` for ScholaIREE.
     BOTH = "both"  #: Export both ONNX and IREE artifacts.
 
+
 @dataclass
 class CheckpointSettings:
     """
@@ -555,11 +556,7 @@ class CheckpointSettings:
     @property
     def should_persist(self) -> bool:
         """True when any option needs artifacts written under checkpoint_dir"""
-        return (
-            self.enable_checkpoints
-            or self.save_final_policy
-            or self.should_export
-        )
+        return self.enable_checkpoints or self.save_final_policy or self.should_export
 
     @property
     def storage_path(self) -> str | None:

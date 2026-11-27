@@ -44,9 +44,7 @@ class TensorSpec:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "TensorSpec":
-        return cls(
-            name=data["name"], dtype=data["dtype"], shape=list(data["shape"])
-        )
+        return cls(name=data["name"], dtype=data["dtype"], shape=list(data["shape"]))
 
 
 @dataclass

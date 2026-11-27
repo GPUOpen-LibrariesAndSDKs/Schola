@@ -155,9 +155,7 @@ def build_export_example(
     obs_inputs: list[th.Tensor] = []
     for obs_space in model.observation_space.spaces.values():
         obs_inputs.append(
-            th.as_tensor(
-                np.stack([obs_space.sample() for _ in range(batch_size)])
-            )
+            th.as_tensor(np.stack([obs_space.sample() for _ in range(batch_size)]))
         )
 
     batch_dim = Dim("batch_size")
@@ -177,14 +175,10 @@ def build_export_example(
             for v in model.input_state_dict.values()
         )
         if fixed_batch:
-            state_input_shapes_generator = tuple(
-                {} for _ in model.input_state_metadata
-            )
+            state_input_shapes_generator = tuple({} for _ in model.input_state_metadata)
         else:
             state_dynamic_shapes_fn = lambda _k, v: (
-                {0: batch_dim, v.seq_dim: seq_dim}
-                if v.has_seq_dim
-                else {0: batch_dim}
+                {0: batch_dim, v.seq_dim: seq_dim} if v.has_seq_dim else {0: batch_dim}
             )
             state_input_shapes_generator = tuple(
                 state_dynamic_shapes_fn(k, metadata)

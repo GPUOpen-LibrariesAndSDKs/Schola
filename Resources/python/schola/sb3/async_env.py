@@ -325,16 +325,24 @@ class AsyncVecEnv(BaseVecEnv):
         async def _do_reset() -> (
             tuple[list[dict[str, Any]], list[dict[str, dict[str, str]]]]
         ):
+            async with asyncio.TaskGroup() as tg:
+                tasks = []
+                off = 0
+                for proto, nflat in zip(self.protocols, self._segment_flat_sizes):
+                    seeds = self._seeds[off : off + nflat] if self._seeds else None
+                    opts = self._options[off : off + nflat] if self._options else None
+                    tasks.append(
+                        tg.create_task(proto.send_reset_msg(seeds=seeds, options=opts))
+                    )
+                    off += nflat
+
+            # Results are flattened in protocol order, matching the env index layout.
             obs_all: list[Any] = []
             info_all: list[Any] = []
-            off = 0
-            for proto, nflat in zip(self.protocols, self._segment_flat_sizes):
-                seeds = self._seeds[off : off + nflat] if self._seeds else None
-                opts = self._options[off : off + nflat] if self._options else None
-                o, inf = await proto.send_reset_msg(seeds=seeds, options=opts)
+            for task in tasks:
+                o, inf = task.result()
                 obs_all.extend(o)
                 info_all.extend(inf)
-                off += nflat
             return obs_all, info_all
 
         obs, nested_infos = self._run(_do_reset())

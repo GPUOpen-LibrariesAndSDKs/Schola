@@ -1,6 +1,7 @@
 # Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
 """Tests for the SB3 AsyncVecEnv environment (AsyncGrpcProtocol)."""
 
+import asyncio
 import functools
 from collections.abc import Mapping
 from typing import Any, Optional
@@ -207,10 +208,18 @@ def test_async_vecenv_terminal_obs(make_vec_env_server, vec_env_wrapper):
 class FakeAsyncProtocol(AsyncBaseRLProtocol):
     """Fake AsyncBaseRLProtocol that implements only what the tests exercise."""
 
-    def __init__(self, close_error: Exception | None = None):
+    def __init__(
+        self,
+        close_error: Exception | None = None,
+        reset_marker: float = 0.0,
+        reset_barrier: asyncio.Barrier | None = None,
+    ):
         self.close_error = close_error
         self.close_calls = 0
         self.closed = False
+        self.reset_marker = reset_marker
+        self.reset_barrier = reset_barrier
+        self.reset_calls: list[tuple[list[Any] | None, list[Any] | None]] = []
 
     async def start(self) -> None:
         pass
@@ -248,7 +257,12 @@ class FakeAsyncProtocol(AsyncBaseRLProtocol):
         seeds: list[Any] | None = None,
         options: list[Any] | None = None,
     ) -> tuple[list[dict[str, dict[str, Any]]], list[dict[str, dict[str, str]]]]:
-        raise NotImplementedError
+        self.reset_calls.append((seeds, options))
+        if self.reset_barrier is not None:
+            # Only completes if every participating reset is in flight at once.
+            await asyncio.wait_for(self.reset_barrier.wait(), timeout=2.0)
+        obs = np.full((2,), self.reset_marker, dtype=np.float32)
+        return [{"agent0": obs}], [{"agent0": {}}]
 
     async def send_action_msg(
         self,
@@ -293,11 +307,17 @@ class FakeSimulator(BaseSimulator):
         self.stop_calls += 1
 
 
-def _make_env(num_pairs: int = 2, failing: tuple[int, ...] = ()):
+def _make_env(
+    num_pairs: int = 2,
+    failing: tuple[int, ...] = (),
+    reset_barrier: asyncio.Barrier | None = None,
+):
     sims = [FakeSimulator() for _ in range(num_pairs)]
     protos = [
         FakeAsyncProtocol(
-            close_error=RuntimeError(f"close failed {i}") if i in failing else None
+            close_error=RuntimeError(f"close failed {i}") if i in failing else None,
+            reset_marker=float(i),
+            reset_barrier=reset_barrier,
         )
         for i in range(num_pairs)
     ]
@@ -334,3 +354,41 @@ def test_close_stops_all_simulators_after_protocol_failure():
 
     assert [s.stop_calls for s in sims] == [1, 1, 1]
     assert env._thread is not None and not env._thread.is_alive()
+
+
+# --- AsyncVecEnv reset tests (fake protocols/simulators) ---
+
+
+def test_reset_runs_protocol_resets_concurrently():
+    # Each reset blocks on the barrier, so this only finishes if all three
+    # send_reset_msg calls are in flight at the same time.
+    env, _, _ = _make_env(num_pairs=3, reset_barrier=asyncio.Barrier(3))
+    try:
+        env.reset()
+    finally:
+        env.close()
+
+
+def test_reset_preserves_protocol_order_in_results():
+    env, _, _ = _make_env(num_pairs=3)
+    try:
+        obs = env.reset()
+    finally:
+        env.close()
+
+    assert isinstance(obs, np.ndarray)
+    assert obs[:, 0].tolist() == [0.0, 1.0, 2.0]
+
+
+def test_reset_passes_each_protocol_its_own_options_slice():
+    env, _, protos = _make_env(num_pairs=3)
+    try:
+        env.set_options([{"i": 0}, {"i": 1}, {"i": 2}])
+        env.reset()
+    finally:
+        env.close()
+
+    for i, proto in enumerate(protos):
+        assert len(proto.reset_calls) == 1
+        _, options = proto.reset_calls[0]
+        assert options == [{"i": i}]

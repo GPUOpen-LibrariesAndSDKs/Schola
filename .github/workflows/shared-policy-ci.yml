@@ -33,15 +33,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v10
-        with:
-          python-version: "3.12"
-          enable-cache: true
-          cache-dependency-glob: "Prototypes/SharedPolicy/uv.lock"
+      - name: Install uv
+        run: pipx install uv
 
       - name: Install dependencies
-        run: uv sync --locked
+        run: uv sync --locked --python 3.12
 
       - name: Run Shared Policy tests
         run: uv run --locked pytest -q

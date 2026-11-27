@@ -290,12 +290,13 @@ for Docker GPU flags and a virtual display, or use an authorized host X11 displa
 | Configuration generator | `Test/rltools_generation` (43 checks) | Locally: `Test/rltools_generation/Run.ps1` |
 | Background scheduler, NNE backend, Mass bridge | `Schola.Inference.Background.*`, `Schola.Mass.*` | Devcontainer via [CampusCrowd automation](Examples/CampusCrowd/README.md#validation-and-packaging) |
 | CampusCrowd tools | CAD parsing, navigation, migration routes and turn-policy tests | Devcontainer via `python -m pytest Examples/CampusCrowd/Tools/tests -q` |
-| Shared Policy | `Schola.Inference.SharedPolicy.*`, `Prototypes/SharedPolicy` pytest | Locally |
+| Shared Policy Python | Legacy prototype and architecture benchmark tests | GitHub Actions (`shared-policy-ci.yml`) and locally |
+| Shared Policy Unreal | `Schola.Inference.SharedPolicy.*` | Locally |
 | Upstream Schola | `Schola.*` automation tests, `Test/` pytest | Locally |
 
 Unreal automation tests do not run in GitHub Actions. Hosted runners have no Unreal installation, and
-provisioning one exceeds the course's job time limits. Hosted CI runs the native learner and chase
-simulator checks. The [maintainer guide](DEVELOPMENT.md#testing) lists the test commands and expected results.
+provisioning one exceeds the course's job time limits. Hosted CI runs the native learner, chase
+simulator, and Shared Policy Python prototype checks. The [maintainer guide](DEVELOPMENT.md#testing) lists the test commands and expected results.
 
 ## Non-functional requirements
 

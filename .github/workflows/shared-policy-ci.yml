@@ -1,0 +1,43 @@
+name: shared-policy CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "Prototypes/SharedPolicy/**"
+      - ".github/workflows/shared-policy-ci.yml"
+
+  push:
+    branches: [main]
+    paths:
+      - "Prototypes/SharedPolicy/**"
+      - ".github/workflows/shared-policy-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shared-policy-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    defaults:
+      run:
+        working-directory: Prototypes/SharedPolicy
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        run: pipx install uv
+
+      - name: Install dependencies
+        run: uv sync --locked --python 3.12
+
+      - name: Run Shared Policy tests
+        run: uv run --locked pytest -q

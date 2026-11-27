@@ -340,9 +340,9 @@ class AsyncVecEnv(BaseVecEnv):
             obs_all: list[Any] = []
             info_all: list[Any] = []
             for task in tasks:
-                o, inf = task.result()
-                obs_all.extend(o)
-                info_all.extend(inf)
+                obs_task, info_task = task.result()
+                obs_all.extend(obs_task)
+                info_all.extend(info_task)
             return obs_all, info_all
 
         obs, nested_infos = self._run(_do_reset())

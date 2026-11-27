@@ -49,7 +49,7 @@ bool FIREERuntimeSession::Initialize(const FString& DeviceUri, TConstArrayView<u
 		LogScholaIREE,
 		Error,
 		"FIREERuntimeSession::Initialize: IREE runtime was not linked (SCHOLA_IREE_HAS_RUNTIME=0). "
-		"Populate Source/ThirdParty/IREE/{{Platform}} with Resources/Build/iree/build_iree_windows.ps1 / build_iree_linux.sh and rebuild. Device={0} VMFBBytes={1}",
+		"Populate Source/ThirdParty/IREE/Win64 with Resources/Build/iree/build_iree_windows.ps1 and rebuild. Device={0} VMFBBytes={1}",
 		DeviceUri,
 		VmfbBytes.Num());
 	return false;

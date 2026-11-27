@@ -79,7 +79,7 @@ Load an IREE Model into Unreal Engine
 -------------------------------------
 
 1. Populate the IREE C runtime under ``Plugins/Schola/Source/ThirdParty/IREE`` using
-   ``Resources/Build/iree/build_iree_windows.ps1`` / ``Resources/Build/iree/build_iree_linux.sh`` (see ``Source/ThirdParty/IREE/README.md``), then rebuild.
+   ``Resources/Build/iree/build_iree_windows.ps1`` (see ``Source/ThirdParty/IREE/README.md``), then rebuild.
 2. Import a ``.vmfb`` file in the Content Browser. Schola's editor factory creates a
    ``UIREEModelData`` asset and reads the metadata embedded in the ``.vmfb``.
 3. Create a ``UIREEPolicy``, set ``Model Data`` to the imported asset, leave ``Device URI``

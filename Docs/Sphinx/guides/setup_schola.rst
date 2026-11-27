@@ -40,8 +40,8 @@ Install Schola
 Building 3rd-Party Dependencies for Schola (Optional)
 -----------------------------------------------------
 
-Schola bundles its gRPC and Protobuf dependencies, and the IREE runtime used by ``ScholaIREE`` on Windows, so Windows users
-don't need to build anything. Linux users must build the IREE runtime from a local IREE build (see below). You may also build
+Schola bundles its gRPC and Protobuf dependencies, and the IREE runtime used by ``ScholaIREE`` on Windows, so you
+don't need to build anything. You may also build
 any of these dependencies from source if you want a different version of a dependency or Unreal Engine.
 
 
@@ -100,23 +100,17 @@ Building gRPC from source for Schola
 Building the IREE runtime from source for ScholaIREE
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Required on Linux. On Windows, the bundled runtime is used unless you want a different IREE version.
+The bundled runtime is used unless you want a different IREE version.
 
 1. Build the IREE runtime (v3.14.0, to match the ``iree-base-compiler`` used for model export) by following the steps in
    ``Source/ThirdParty/IREE/README.md``.
 
-2. Copy the built runtime into Schola by running the script for your platform from the plugin root. The paths are your
+2. Copy the built runtime into Schola by running the following from the plugin root. The paths are your
    IREE install, source, and build directories.
 
-   .. tabs::
+   .. code-block:: powershell
 
-      .. code-tab:: powershell Windows
-
-         .\Resources\Build\iree\build_iree_windows.ps1 -IreeInstallRoot C:\iree\iree-install -IreeSourceRoot C:\iree\iree-src -IreeBuildRoot C:\iree\iree-build
-
-      .. code-tab:: bash Linux
-
-         bash ./Resources/Build/iree/build_iree_linux.sh ~/iree/iree-install ~/iree/iree-src ~/iree/iree-build
+      .\Resources\Build\iree\build_iree_windows.ps1 -IreeInstallRoot C:\iree\iree-install -IreeSourceRoot C:\iree\iree-src -IreeBuildRoot C:\iree\iree-build
 
 3. Rebuild Schola. The Unreal Build Tool output should report that the IREE runtime was found.
 

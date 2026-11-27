@@ -10,7 +10,7 @@ using System.Linq;
  *
  * When headers/libs are missing, defines SCHOLA_IREE_HAS_RUNTIME=0 so ScholaIREE
  * still compiles with a stub runtime (Init fails at runtime with a clear log).
- * Populate Win64/Linux via Resources/Build/iree/build_iree_windows.ps1 / build_iree_linux.sh.
+ * Populate Win64 via Resources/Build/iree/build_iree_windows.ps1.
  */
 public class IREE : ModuleRules
 {
@@ -28,9 +28,7 @@ public class IREE : ModuleRules
 
         bool hasHeaders = File.Exists(runtimeApiHeader);
         bool hasLibs = false;
-        string searchPattern = Target.Platform == UnrealTargetPlatform.Win64 ? "*.lib"
-            : Target.Platform == UnrealTargetPlatform.Linux ? "*.a"
-            : null;
+        string searchPattern = Target.Platform == UnrealTargetPlatform.Win64 ? "*.lib" : null;
 
         if (searchPattern != null && Directory.Exists(libraryPath))
         {

@@ -3,22 +3,34 @@
 #include "Factories/IREEModelDataImportFactory.h"
 
 #include "HAL/FileManager.h"
-#include "IREEModelData.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 
+#if SCHOLA_WITH_IREE
+#include "IREEModelData.h"
+#endif
+
+// On non-Windows platforms ScholaIREE is unavailable; the factory exists (UHT generates it from the header) but imports nothing.
 UIREEModelDataImportFactory::UIREEModelDataImportFactory()
 {
 	bEditorImport = true;
 	bCreateNew = false;
 	bText = false;
+#if SCHOLA_WITH_IREE
 	SupportedClass = UIREEModelData::StaticClass();
 	Formats.Add(TEXT("vmfb;Schola IREE VM FlatBuffer"));
+#else
+	SupportedClass = UObject::StaticClass();
+#endif
 }
 
 bool UIREEModelDataImportFactory::FactoryCanImport(const FString& Filename)
 {
+#if SCHOLA_WITH_IREE
 	return FPaths::GetExtension(Filename).Equals(TEXT("vmfb"), ESearchCase::IgnoreCase);
+#else
+	return false;
+#endif
 }
 
 UObject* UIREEModelDataImportFactory::FactoryCreateFile(
@@ -33,6 +45,9 @@ UObject* UIREEModelDataImportFactory::FactoryCreateFile(
 {
 	bOutOperationCanceled = false;
 
+#if !SCHOLA_WITH_IREE
+	return nullptr;
+#else
 	TArray<uint8> VmfbBytes;
 	if (!FFileHelper::LoadFileToArray(VmfbBytes, *Filename))
 	{
@@ -53,4 +68,5 @@ UObject* UIREEModelDataImportFactory::FactoryCreateFile(
 	}
 
 	return Asset;
+#endif
 }

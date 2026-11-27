@@ -185,10 +185,10 @@ Update Sphinx sources under `Docs/Sphinx/` when behavior or CLI options change.
 
 ## Building third-party dependencies
 
-Schola ships prebuilt gRPC and Protobuf libraries under `Source/ThirdParty/gRPC`. Schola also bundles a prebuilt IREE runtime for `ScholaIREE` on Windows under `Source/ThirdParty/IREE/Win64`. The Linux IREE runtime is not bundled yet; it must be built from a local IREE build and populated under `Source/ThirdParty/IREE/Linux`. Rebuild or repopulate these only if you hit setup issues or need to update a dependency, using the scripts in `Resources/Build`:
+Schola ships prebuilt gRPC and Protobuf libraries under `Source/ThirdParty/gRPC`. Schola also bundles a prebuilt IREE runtime for `ScholaIREE` on Windows under `Source/ThirdParty/IREE`. Rebuild or repopulate these only if you hit setup issues or need to update a dependency, using the scripts in `Resources/Build`:
 
 - gRPC and Protobuf: `Resources/Build/grpc/build_grpc_windows.bat` or `Resources/Build/grpc/build_grpc_linux.sh`
-- IREE runtime: `Resources/Build/iree/build_iree_windows.ps1` or `Resources/Build/iree/build_iree_linux.sh` (see `Source/ThirdParty/IREE/README.md`)
+- IREE runtime: `Resources/Build/iree/build_iree_windows.ps1` (see `Source/ThirdParty/IREE/README.md`)
 
 Don't commit updated third party dependencies unless part of a specific commit to update these dependencies.
 

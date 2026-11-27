@@ -38,7 +38,8 @@
 		{
 			"Name": "ScholaIREE",
 			"Type": "Runtime",
-			"LoadingPhase": "Default"
+			"LoadingPhase": "Default",
+			"PlatformAllowList": [ "Win64" ]
 		},
 		{
 			"Name": "ScholaInteractors",

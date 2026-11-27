@@ -19,7 +19,18 @@ public class ScholaEditor : ModuleRules
 		PublicDependencyModuleNames.AddRange(new string[] { "Kismet", "NNE", "BlueprintEditorLibrary", "Schola", "KismetCompiler", });
 
 		PrivateIncludePathModuleNames.AddRange(new string[] { });
-        PrivateDependencyModuleNames.AddRange(new string[] { "AIModule", "Engine", "Core", "BlueprintGraph", "UnrealEd", "CoreUObject", "AutomationController", "KismetCompiler", "Schola", "ScholaInteractors", "gRPC", "ScholaIREE", "ScholaTraining", "Slate", "SlateCore", "ToolMenus", "RenderCore", "RHI" });
+        PrivateDependencyModuleNames.AddRange(new string[] { "AIModule", "Engine", "Core", "BlueprintGraph", "UnrealEd", "CoreUObject", "AutomationController", "KismetCompiler", "Schola", "ScholaInteractors", "gRPC", "ScholaTraining", "Slate", "SlateCore", "ToolMenus", "RenderCore", "RHI" });
+
+		// IREE inference is only supported on Windows.
+		if (Target.Platform == UnrealTargetPlatform.Win64)
+		{
+			PrivateDependencyModuleNames.Add("ScholaIREE");
+			PrivateDefinitions.Add("SCHOLA_WITH_IREE=1");
+		}
+		else
+		{
+			PrivateDefinitions.Add("SCHOLA_WITH_IREE=0");
+		}
 		DynamicallyLoadedModuleNames.AddRange(new string[] { });
 	}
 }

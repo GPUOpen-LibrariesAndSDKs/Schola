@@ -80,9 +80,9 @@
         <aside class="speaker-notes" data-time="0:05">Introduce the Adaptive team, Jace Mu, Jason Panusopone, Chloe Lee and Olivia Markow, in one sentence, then go straight into what changed for developers.</aside>
       </section>
 
-      <section class="slide" id="demo-adaptive-change" aria-labelledby="demo-adaptive-change-heading" data-title="Adaptive: before and after" data-section="Demo">
-        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Demo 1 / Adaptive NPCs</span></header>
-        <p class="eyebrow">Adaptive NPCs</p>
+      <section class="slide" id="demo-adaptive-change" aria-labelledby="demo-adaptive-change-heading" data-title="Adaptive NPCs: why" data-section="Demo">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
+        <p class="eyebrow">Why adaptive NPCs?</p>
         <h2 id="demo-adaptive-change-heading">An NPC that keeps learning</h2>
         <div class="before-after">
           <div class="before">
@@ -154,6 +154,117 @@ Say: "This is the plugin's learner running inside Unreal. Nothing else is runnin
 Left column, one sentence: "Those four things are all a developer writes: what it sees is both positions and speeds, its reward is closing in plus a catch bonus. The plugin does the rest." The keys on the right are the ones you press, in order.
 
 If it hasn't recovered by the end of the minute: say it usually takes 4,000 to 14,000 moves, and that the full controlled run is coming up in the technical section. Don't wait on it. If the editor fails, go straight to that evidence chart.</aside>
+      </section>
+
+      <section class="slide" id="tech-adaptive" aria-labelledby="tech-adaptive-heading" data-title="Adaptive: learning inside the game" data-section="Technical">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
+        <p class="eyebrow">Adaptive NPCs · design</p>
+        <h2 id="tech-adaptive-heading">The game never waits for the learner</h2>
+        <svg class="diagram" viewBox="0 0 1420 400" role="img" aria-labelledby="ad-title ad-desc">
+          <title id="ad-title">Adaptive NPC data flow</title>
+          <desc id="ad-desc">On the game thread, the stepper gets an action from the latest published policy and later submits the outcome. Outcomes go through a bounded queue to a worker, where RLtools trains and publishes a new immutable policy version that the next decision uses.</desc>
+          <rect x="0" y="0" width="1420" height="170" fill="#e7efe6"/><rect x="0" y="230" width="1420" height="170" fill="#efe9da"/>
+          <g font-size="18" font-weight="600" letter-spacing="1.5" fill="#50645c"><text x="20" y="32">GAME THREAD</text><text x="20" y="262">WORKER THREAD</text></g>
+          <g stroke="#173d38" stroke-width="2">
+            <rect x="40" y="62" width="250" height="84" fill="#f5f3ec"/><rect x="400" y="62" width="260" height="84" fill="#e9b65c"/><rect x="770" y="62" width="300" height="84" fill="#e9b65c"/>
+            <rect x="770" y="292" width="300" height="84" fill="#e9b65c"/><rect x="1150" y="292" width="240" height="84" fill="#e9b65c"/><rect x="1150" y="62" width="240" height="84" fill="#e9b65c"/>
+          </g>
+          <g font-size="20" fill="#173d38" text-anchor="middle">
+            <text x="165" y="111">NPC</text>
+            <text x="530" y="111">Adaptive stepper</text>
+            <text x="920" y="111">Policy</text>
+            <text x="920" y="341">Learner (C++)</text>
+            <text x="1270" y="341">New version</text>
+            <text x="1270" y="111">Latest version</text>
+          </g>
+          <g stroke="#50645c" stroke-width="2.5" fill="none" marker-end="url(#arrow2)">
+            <line x1="290" y1="104" x2="396" y2="104"/><line x1="660" y1="104" x2="766" y2="104"/>
+            <line x1="920" y1="146" x2="920" y2="288"/><line x1="1070" y1="334" x2="1146" y2="334"/><line x1="1270" y1="292" x2="1270" y2="150"/><line x1="1150" y1="104" x2="1074" y2="104"/>
+          </g>
+          <defs><marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#50645c"/></marker></defs>
+          <g font-size="16" fill="#50645c"><text x="934" y="205">outcome</text><text x="1284" y="205">swap in</text><text x="1078" y="92" text-anchor="start">action</text></g>
+        </svg>
+        <aside class="speaker-notes" data-time="0:40">Follow the arrows once. The stepper asks the policy for an action, and the policy answers immediately from the latest published snapshot, so a decision never waits for training. The outcome goes through a bounded queue to a worker, where RLtools trains and publishes a new immutable version. Trade-offs: (1) native execution means a new observation or action size needs a C++ rebuild, which configuration assets automate; (2) a decision may use a policy a few versions old, and every outcome carries its version so attribution stays correct. Learners are independent by default; NPCs can opt into one shared learner per group.</aside>
+      </section>
+
+      <section class="slide" id="evidence-adaptive" aria-labelledby="evidence-adaptive-heading" data-title="Adaptive: evidence and scale" data-section="Technical">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
+        <p class="eyebrow">Adaptive NPCs</p>
+        <h2 id="evidence-adaptive-heading">It adapts. Training is the only limit.</h2>
+        <div class="chart-layout">
+          <figure><svg class="chart" viewBox="0 0 900 430" role="img" aria-labelledby="ev-t ev-d"><title id="ev-t">Catch rate after the runner switch, in Unreal</title><desc id="ev-d">The learner climbs from 0.13 to above 0.80 by about 10,000 moves. The frozen copy stays at 0.13.</desc>
+<line x1="70" x2="750" y1="372.0" y2="372.0" stroke="#d6dccf"/><text x="58" y="378.0" text-anchor="end" class="tick">0.0</text><line x1="70" x2="750" y1="302.4" y2="302.4" stroke="#d6dccf"/><text x="58" y="308.4" text-anchor="end" class="tick">0.2</text><line x1="70" x2="750" y1="232.8" y2="232.8" stroke="#d6dccf"/><text x="58" y="238.8" text-anchor="end" class="tick">0.4</text><line x1="70" x2="750" y1="163.2" y2="163.2" stroke="#d6dccf"/><text x="58" y="169.2" text-anchor="end" class="tick">0.6</text><line x1="70" x2="750" y1="93.6" y2="93.6" stroke="#d6dccf"/><text x="58" y="99.6" text-anchor="end" class="tick">0.8</text><line x1="70" x2="750" y1="24.0" y2="24.0" stroke="#d6dccf"/><text x="58" y="30.0" text-anchor="end" class="tick">1.0</text><text x="70.0" y="402" text-anchor="middle" class="tick">0k</text><text x="231.9" y="402" text-anchor="middle" class="tick">5k</text><text x="393.8" y="402" text-anchor="middle" class="tick">10k</text><text x="555.7" y="402" text-anchor="middle" class="tick">15k</text><text x="717.6" y="402" text-anchor="middle" class="tick">20k</text>
+<text x="410" y="426" text-anchor="middle" class="axis-label">Moves after the runner switch</text>
+<text transform="rotate(-90)" x="-198" y="16" text-anchor="middle" class="axis-label">Catch rate</text>
+<line x1="70" x2="750" y1="93.6" y2="93.6" stroke="#50645c" stroke-width="2" stroke-dasharray="2 6"/>
+<line x1="70" x2="750" y1="326.8" y2="326.8" stroke="#b86a1f" stroke-width="3"/>
+<polyline points="70.0,326.8 100.9,271.1 129.9,281.5 160.0,267.6 184.1,267.6 215.0,274.6 243.0,302.4 271.7,205.0 304.1,215.4 327.5,194.5 355.3,218.9 382.2,79.7 408.2,163.2 434.6,187.6 461.4,114.5 486.8,72.7 510.5,104.0 531.1,37.9 554.4,41.4 575.9,100.6 601.2,76.2 624.9,51.8 643.4,72.7 661.8,55.3 679.4,44.9 697.6,41.4 721.7,34.4" fill="none" stroke="#00806b" stroke-width="3" stroke-linejoin="round"/>
+<text x="762" y="40.4" class="series" fill="#173d38"><tspan fill="#00806b">■</tspan> Learner</text>
+<text x="762" y="332.8" class="series" fill="#173d38"><tspan fill="#b86a1f">■</tspan> Frozen</text>
+</svg><figcaption>In Unreal on Windows, seed 1.</figcaption></figure>
+          <div class="side-facts">
+            <div><strong>3 / 3</strong><span>seeds recover in Unreal</span></div>
+            <div><strong>5–11 µs</strong><span>per decision</span></div>
+            <div><strong>60–90</strong><span>NPCs per shared learner</span></div>
+          </div>
+        </div>
+        <aside class="speaker-notes" data-time="0:50">Same test as the live demo, but controlled. Train on the right-turn runner, save a frozen copy, switch to the corner runner, keep learning. Green is the learner, orange the frozen copy. Both start low; only the learner climbs back. This ran inside Unreal on Windows (NativeLearning.ChaseAdaptation, seeds 1 to 3, all pass the D3 criteria; recovery at 9.6k to 13k moves). Right side: deciding costs microseconds per NPC, so the game never slows down. The limit is training speed: one shared learner keeps up with about 60 to 90 NPCs, then they still act but adapt more slowly. Scaling measured outside Unreal (SCALING.md). Honest limit: after recovering, the curve still dips at times.</aside>
+      </section>
+
+      <section class="slide" id="checkpoints-adaptive" aria-labelledby="checkpoints-adaptive-heading" data-title="Adaptive: saving what an NPC learned" data-section="Technical">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
+        <p class="eyebrow">Adaptive NPCs · checkpoints 1 of 3 · Chloe Lee</p>
+        <h2 id="checkpoints-adaptive-heading">Saving and loading what an NPC learned</h2>
+        <p class="ck-lead">Once an NPC has learned something, you can save it and load it back later. There are 3 ways to save:</p>
+        <div class="ck-cards">
+          <div><span class="ck-num">1</span><h3>Model only</h3><p>for shipping an NPC that's already trained</p></div>
+          <div><span class="ck-num">2</span><h3>Full learner</h3><p>to pause training and continue later</p></div>
+          <div><span class="ck-num">3</span><h3>Full learner + its experience</h3><p>to pick up exactly where it stopped</p></div>
+        </div>
+        <p class="ck-foot">You call it from Blueprint or C++, and the saving and loading happen on a background thread.</p>
+        <aside class="speaker-notes" data-time="0:15">This part is mine, checkpoints. You can save what an NPC has learned and load it back later. There are three modes. Model only, if you just want to ship a trained NPC. The full learner, so you can pause training and pick it up later. Or the full learner plus its stored experience, which resumes exactly where it left off. You can call it from Blueprint or C++, and the file work happens off the game thread.</aside>
+      </section>
+
+      <section class="slide" id="checkpoints-safe" aria-labelledby="checkpoints-safe-heading" data-title="Adaptive: a bad file never crashes the game" data-section="Technical">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
+        <p class="eyebrow">Adaptive NPCs · checkpoints 2 of 3 · Chloe Lee</p>
+        <h2 id="checkpoints-safe-heading">Making loading safe</h2>
+        <p class="ck-lead">The problem: RLtools crashes the whole program if you load a file that doesn't match. So before loading, we check the file in 5 steps:</p>
+        <div class="ck-flow">
+          <div class="ck-file">Saved file</div>
+          <div class="ck-checks"><span>header</span><span>size</span><span>checksum</span><span>profile</span><span>structure</span></div>
+          <div class="ck-results"><div class="ck-ok">✓ All pass → we load it</div><div class="ck-no">✗ Any fail → we don't load, and the NPC keeps its current model</div></div>
+        </div>
+        <p class="ck-foot">When saving, we write to a temp file and rename it at the end, so a crash halfway through can't leave a broken file.</p>
+        <aside class="speaker-notes" data-time="0:15">The tricky part was loading. RLtools just aborts the program if the file doesn't match what it expects. So before we give it the file, we check the header, the size, the checksum, the profile and the structure. If any of those fail, we don't load, and the NPC keeps its current model. For saving, we write to a temp file and rename it at the end, so a crash halfway through can't leave a broken file.</aside>
+      </section>
+
+      <section class="slide" id="checkpoints-evidence" aria-labelledby="checkpoints-evidence-heading" data-title="Adaptive: checkpoints are tested" data-section="Technical">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
+        <p class="eyebrow">Adaptive NPCs · checkpoints 3 of 3 · Chloe Lee</p>
+        <h2 id="checkpoints-evidence-heading">Checking that it works</h2>
+        <p class="ck-lead">I tested it two ways: automated tests, and rerunning the chase test from a saved file.</p>
+        <div class="ck-stats">
+          <div><strong>460</strong><span>tests run automatically on every PR</span></div>
+          <div><strong>2</strong><span>platforms: they run on both Linux and Mac</span></div>
+          <div><strong>6 / 6</strong><span>seeds: started from a saved file, the NPC still learned the new runner</span></div>
+          <div><strong>0</strong><span>changes: the frozen copy loaded from the same file stayed the same</span></div>
+        </div>
+        <p class="ck-foot">Every broken or mismatched file we tried was rejected, and the NPC kept working.</p>
+        <aside class="speaker-notes" data-time="0:15">For testing, there are 460 checks that run in CI on every PR, on Linux and Mac. That includes a bunch of broken and mismatched files, and all of them get rejected. I also reran the chase test starting from a saved checkpoint. It still adapts on all six seeds, and the frozen copy loaded from the same file doesn't change at all.</aside>
+      </section>
+
+      <section class="slide" id="testing-adaptive" aria-labelledby="testing-adaptive-heading" data-title="Adaptive: testing and evaluation" data-section="Technical">
+        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
+        <p class="eyebrow">Adaptive NPCs · testing · Chloe Lee</p>
+        <h2 id="testing-adaptive-heading">Testing</h2>
+        <p class="ck-lead">I also worked on testing:</p>
+        <div class="ck-cards">
+          <div><span class="ck-num">1</span><h3>Speed</h3><p>A decision takes about 5 µs, so the game doesn't slow down.</p></div>
+          <div><span class="ck-num">2</span><h3>Fair test</h3><p>We compare the learning NPC to a frozen copy.</p></div>
+          <div><span class="ck-num">3</span><h3>Clear rules</h3><p>Pass or fail is decided before we run the test.</p></div>
+        </div>
+        <aside class="speaker-notes" data-time="0:15">I also worked on testing. First, speed: a decision takes about five microseconds, so the game doesn't slow down. Second, to prove the NPC really adapts, we compare it to a frozen copy that doesn't learn. And third, we decide what counts as a pass before we run the test, so we can't fudge it afterwards.</aside>
       </section>
 
       <!-- Background NPC / Max Xu -->
@@ -569,13 +680,12 @@ if (MigrationDay)
       
       </section>
 
-
       <!-- ============ 3. TECHNICAL DISCUSSION (5:05) ============ -->
       <section class="slide dark divider" id="technical" aria-labelledby="technical-heading" data-title="Technical discussion" data-section="Technical">
         <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Technical discussion / Deliverable 4</span></header>
         <h2 id="technical-heading">How it works<span class="accent">.</span></h2>
-        <p class="intro">One shared architecture, then the key design decision behind each NPC type.</p>
-        <p class="divider-time">Architecture · evidence · quality</p>
+        <p class="intro">How the four NPC types fit one Schola architecture, and how we keep it working.</p>
+        <p class="divider-time">Architecture · quality · requirements</p>
         <aside class="speaker-notes" data-time="0:05">Transition only.</aside>
       </section>
 
@@ -612,121 +722,8 @@ if (MigrationDay)
           <g font-size="17" fill="#50645c"><text x="0" y="160">Schola IStepper</text><text x="0" y="290">Schola IPolicy</text><text x="0" y="420">Unreal / NNE</text></g>
         </svg>
         <div class="legend-row"><span class="is-new">Built by this project</span><span class="is-existing">Existing Schola or Unreal</span></div>
-        <aside class="speaker-notes" data-time="0:40">Walk the diagram top to bottom once. Game code only implements agents. A stepper decides when NPCs decide, a policy decides how, and the bottom row is where the work runs. The key design choice: every NPC type is a new implementation of an existing Schola interface, so game code never touches RLtools, ONNX Runtime or worker threads, and the types compose. For example, the event stepper works with any policy. Each subteam's next slide zooms into its own column.</aside>
+        <aside class="speaker-notes" data-time="0:40">Walk the diagram top to bottom once. Game code only implements agents. A stepper decides when NPCs decide, a policy decides how, and the bottom row is where the work runs. The key design choice: every NPC type is a new implementation of an existing Schola interface, so game code never touches RLtools, ONNX Runtime or worker threads, and the types compose. For example, the event stepper works with any policy.</aside>
       </section>
-
-      <section class="slide" id="tech-adaptive" aria-labelledby="tech-adaptive-heading" data-title="Adaptive: learning inside the game" data-section="Technical">
-        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
-        <p class="eyebrow">Adaptive NPCs · design</p>
-        <h2 id="tech-adaptive-heading">The game never waits for the learner</h2>
-        <svg class="diagram" viewBox="0 0 1420 400" role="img" aria-labelledby="ad-title ad-desc">
-          <title id="ad-title">Adaptive NPC data flow</title>
-          <desc id="ad-desc">On the game thread, the stepper gets an action from the latest published policy and later submits the outcome. Outcomes go through a bounded queue to a worker, where RLtools trains and publishes a new immutable policy version that the next decision uses.</desc>
-          <rect x="0" y="0" width="1420" height="170" fill="#e7efe6"/><rect x="0" y="230" width="1420" height="170" fill="#efe9da"/>
-          <g font-size="18" font-weight="600" letter-spacing="1.5" fill="#50645c"><text x="20" y="32">GAME THREAD</text><text x="20" y="262">WORKER THREAD</text></g>
-          <g stroke="#173d38" stroke-width="2">
-            <rect x="40" y="62" width="250" height="84" fill="#f5f3ec"/><rect x="400" y="62" width="260" height="84" fill="#e9b65c"/><rect x="770" y="62" width="300" height="84" fill="#e9b65c"/>
-            <rect x="770" y="292" width="300" height="84" fill="#e9b65c"/><rect x="1150" y="292" width="240" height="84" fill="#e9b65c"/><rect x="1150" y="62" width="240" height="84" fill="#e9b65c"/>
-          </g>
-          <g font-size="20" fill="#173d38" text-anchor="middle">
-            <text x="165" y="111">NPC</text>
-            <text x="530" y="111">Adaptive stepper</text>
-            <text x="920" y="111">Policy</text>
-            <text x="920" y="341">Learner (C++)</text>
-            <text x="1270" y="341">New version</text>
-            <text x="1270" y="111">Latest version</text>
-          </g>
-          <g stroke="#50645c" stroke-width="2.5" fill="none" marker-end="url(#arrow2)">
-            <line x1="290" y1="104" x2="396" y2="104"/><line x1="660" y1="104" x2="766" y2="104"/>
-            <line x1="920" y1="146" x2="920" y2="288"/><line x1="1070" y1="334" x2="1146" y2="334"/><line x1="1270" y1="292" x2="1270" y2="150"/><line x1="1150" y1="104" x2="1074" y2="104"/>
-          </g>
-          <defs><marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#50645c"/></marker></defs>
-          <g font-size="16" fill="#50645c"><text x="934" y="205">outcome</text><text x="1284" y="205">swap in</text><text x="1078" y="92" text-anchor="start">action</text></g>
-        </svg>
-        <aside class="speaker-notes" data-time="0:40">Follow the arrows once. The stepper asks the policy for an action, and the policy answers immediately from the latest published snapshot, so a decision never waits for training. The outcome goes through a bounded queue to a worker, where RLtools trains and publishes a new immutable version. Trade-offs: (1) native execution means a new observation or action size needs a C++ rebuild, which configuration assets automate; (2) a decision may use a policy a few versions old, and every outcome carries its version so attribution stays correct. Learners are independent by default; NPCs can opt into one shared learner per group.</aside>
-      </section>
-
-      <section class="slide" id="evidence-adaptive" aria-labelledby="evidence-adaptive-heading" data-title="Adaptive: evidence and scale" data-section="Technical">
-        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
-        <p class="eyebrow">Adaptive NPCs</p>
-        <h2 id="evidence-adaptive-heading">It adapts. Training is the only limit.</h2>
-        <div class="chart-layout">
-          <figure><svg class="chart" viewBox="0 0 900 430" role="img" aria-labelledby="ev-t ev-d"><title id="ev-t">Catch rate after the runner switch, in Unreal</title><desc id="ev-d">The learner climbs from 0.13 to above 0.80 by about 10,000 moves. The frozen copy stays at 0.13.</desc>
-<line x1="70" x2="750" y1="372.0" y2="372.0" stroke="#d6dccf"/><text x="58" y="378.0" text-anchor="end" class="tick">0.0</text><line x1="70" x2="750" y1="302.4" y2="302.4" stroke="#d6dccf"/><text x="58" y="308.4" text-anchor="end" class="tick">0.2</text><line x1="70" x2="750" y1="232.8" y2="232.8" stroke="#d6dccf"/><text x="58" y="238.8" text-anchor="end" class="tick">0.4</text><line x1="70" x2="750" y1="163.2" y2="163.2" stroke="#d6dccf"/><text x="58" y="169.2" text-anchor="end" class="tick">0.6</text><line x1="70" x2="750" y1="93.6" y2="93.6" stroke="#d6dccf"/><text x="58" y="99.6" text-anchor="end" class="tick">0.8</text><line x1="70" x2="750" y1="24.0" y2="24.0" stroke="#d6dccf"/><text x="58" y="30.0" text-anchor="end" class="tick">1.0</text><text x="70.0" y="402" text-anchor="middle" class="tick">0k</text><text x="231.9" y="402" text-anchor="middle" class="tick">5k</text><text x="393.8" y="402" text-anchor="middle" class="tick">10k</text><text x="555.7" y="402" text-anchor="middle" class="tick">15k</text><text x="717.6" y="402" text-anchor="middle" class="tick">20k</text>
-<text x="410" y="426" text-anchor="middle" class="axis-label">Moves after the runner switch</text>
-<text transform="rotate(-90)" x="-198" y="16" text-anchor="middle" class="axis-label">Catch rate</text>
-<line x1="70" x2="750" y1="93.6" y2="93.6" stroke="#50645c" stroke-width="2" stroke-dasharray="2 6"/>
-<line x1="70" x2="750" y1="326.8" y2="326.8" stroke="#b86a1f" stroke-width="3"/>
-<polyline points="70.0,326.8 100.9,271.1 129.9,281.5 160.0,267.6 184.1,267.6 215.0,274.6 243.0,302.4 271.7,205.0 304.1,215.4 327.5,194.5 355.3,218.9 382.2,79.7 408.2,163.2 434.6,187.6 461.4,114.5 486.8,72.7 510.5,104.0 531.1,37.9 554.4,41.4 575.9,100.6 601.2,76.2 624.9,51.8 643.4,72.7 661.8,55.3 679.4,44.9 697.6,41.4 721.7,34.4" fill="none" stroke="#00806b" stroke-width="3" stroke-linejoin="round"/>
-<text x="762" y="40.4" class="series" fill="#173d38"><tspan fill="#00806b">■</tspan> Learner</text>
-<text x="762" y="332.8" class="series" fill="#173d38"><tspan fill="#b86a1f">■</tspan> Frozen</text>
-</svg><figcaption>In Unreal on Windows, seed 1.</figcaption></figure>
-          <div class="side-facts">
-            <div><strong>3 / 3</strong><span>seeds recover in Unreal</span></div>
-            <div><strong>5–11 µs</strong><span>per decision</span></div>
-            <div><strong>60–90</strong><span>NPCs per shared learner</span></div>
-          </div>
-        </div>
-        <aside class="speaker-notes" data-time="0:50">Same test as the live demo, but controlled. Train on the right-turn runner, save a frozen copy, switch to the corner runner, keep learning. Green is the learner, orange the frozen copy. Both start low; only the learner climbs back. This ran inside Unreal on Windows (NativeLearning.ChaseAdaptation, seeds 1 to 3, all pass the D3 criteria; recovery at 9.6k to 13k moves). Right side: deciding costs microseconds per NPC, so the game never slows down. The limit is training speed: one shared learner keeps up with about 60 to 90 NPCs, then they still act but adapt more slowly. Scaling measured outside Unreal (SCALING.md). Honest limit: after recovering, the curve still dips at times.</aside>
-      </section>
-
-      <section class="slide" id="checkpoints-adaptive" aria-labelledby="checkpoints-adaptive-heading" data-title="Adaptive: saving what an NPC learned" data-section="Technical">
-        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
-        <p class="eyebrow">Adaptive NPCs · checkpoints 1 of 3 · Chloe Lee</p>
-        <h2 id="checkpoints-adaptive-heading">Saving and loading what an NPC learned</h2>
-        <p class="ck-lead">Once an NPC has learned something, you can save it and load it back later. There are 3 ways to save:</p>
-        <div class="ck-cards">
-          <div><span class="ck-num">1</span><h3>Model only</h3><p>for shipping an NPC that's already trained</p></div>
-          <div><span class="ck-num">2</span><h3>Full learner</h3><p>to pause training and continue later</p></div>
-          <div><span class="ck-num">3</span><h3>Full learner + its experience</h3><p>to pick up exactly where it stopped</p></div>
-        </div>
-        <p class="ck-foot">You call it from Blueprint or C++, and the saving and loading happen on a background thread.</p>
-        <aside class="speaker-notes" data-time="0:15">This part is mine, checkpoints. You can save what an NPC has learned and load it back later. There are three modes. Model only, if you just want to ship a trained NPC. The full learner, so you can pause training and pick it up later. Or the full learner plus its stored experience, which resumes exactly where it left off. You can call it from Blueprint or C++, and the file work happens off the game thread.</aside>
-      </section>
-
-      <section class="slide" id="checkpoints-safe" aria-labelledby="checkpoints-safe-heading" data-title="Adaptive: a bad file never crashes the game" data-section="Technical">
-        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
-        <p class="eyebrow">Adaptive NPCs · checkpoints 2 of 3 · Chloe Lee</p>
-        <h2 id="checkpoints-safe-heading">Making loading safe</h2>
-        <p class="ck-lead">The problem: RLtools crashes the whole program if you load a file that doesn't match. So before loading, we check the file in 5 steps:</p>
-        <div class="ck-flow">
-          <div class="ck-file">Saved file</div>
-          <div class="ck-checks"><span>header</span><span>size</span><span>checksum</span><span>profile</span><span>structure</span></div>
-          <div class="ck-results"><div class="ck-ok">✓ All pass → we load it</div><div class="ck-no">✗ Any fail → we don't load, and the NPC keeps its current model</div></div>
-        </div>
-        <p class="ck-foot">When saving, we write to a temp file and rename it at the end, so a crash halfway through can't leave a broken file.</p>
-        <aside class="speaker-notes" data-time="0:15">The tricky part was loading. RLtools just aborts the program if the file doesn't match what it expects. So before we give it the file, we check the header, the size, the checksum, the profile and the structure. If any of those fail, we don't load, and the NPC keeps its current model. For saving, we write to a temp file and rename it at the end, so a crash halfway through can't leave a broken file.</aside>
-      </section>
-
-      <section class="slide" id="checkpoints-evidence" aria-labelledby="checkpoints-evidence-heading" data-title="Adaptive: checkpoints are tested" data-section="Technical">
-        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
-        <p class="eyebrow">Adaptive NPCs · checkpoints 3 of 3 · Chloe Lee</p>
-        <h2 id="checkpoints-evidence-heading">Checking that it works</h2>
-        <p class="ck-lead">I tested it two ways: automated tests, and rerunning the chase test from a saved file.</p>
-        <div class="ck-stats">
-          <div><strong>460</strong><span>tests run automatically on every PR</span></div>
-          <div><strong>2</strong><span>platforms: they run on both Linux and Mac</span></div>
-          <div><strong>6 / 6</strong><span>seeds: started from a saved file, the NPC still learned the new runner</span></div>
-          <div><strong>0</strong><span>changes: the frozen copy loaded from the same file stayed the same</span></div>
-        </div>
-        <p class="ck-foot">Every broken or mismatched file we tried was rejected, and the NPC kept working.</p>
-        <aside class="speaker-notes" data-time="0:15">For testing, there are 460 checks that run in CI on every PR, on Linux and Mac. That includes a bunch of broken and mismatched files, and all of them get rejected. I also reran the chase test starting from a saved checkpoint. It still adapts on all six seeds, and the frozen copy loaded from the same file doesn't change at all.</aside>
-      </section>
-
-      <section class="slide" id="testing-adaptive" aria-labelledby="testing-adaptive-heading" data-title="Adaptive: testing and evaluation" data-section="Technical">
-        <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Adaptive NPCs / Deliverable 4</span></header>
-        <p class="eyebrow">Adaptive NPCs · testing · Chloe Lee</p>
-        <h2 id="testing-adaptive-heading">Testing</h2>
-        <p class="ck-lead">I also worked on testing:</p>
-        <div class="ck-cards">
-          <div><span class="ck-num">1</span><h3>Speed</h3><p>A decision takes about 5 µs, so the game doesn't slow down.</p></div>
-          <div><span class="ck-num">2</span><h3>Fair test</h3><p>We compare the learning NPC to a frozen copy.</p></div>
-          <div><span class="ck-num">3</span><h3>Clear rules</h3><p>Pass or fail is decided before we run the test.</p></div>
-        </div>
-        <aside class="speaker-notes" data-time="0:15">I also worked on testing. First, speed: a decision takes about five microseconds, so the game doesn't slow down. Second, to prove the NPC really adapts, we compare it to a frozen copy that doesn't learn. And third, we decide what counts as a pass before we run the test, so we can't fudge it afterwards.</aside>
-      </section>
-
-
 
       <section class="slide" id="tech-event" aria-labelledby="tech-event-heading" data-title="Event: design" data-section="Technical">
       
@@ -870,7 +867,6 @@ if (MigrationDay)
       
       </section>
 
-
       <section class="slide" id="quality" aria-labelledby="quality-heading" data-title="Testing, CI and deployment" data-section="Technical">
         <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Engineering quality / Deliverable 4</span></header>
         <h2 id="quality-heading">Testing and packaging</h2>
@@ -965,7 +961,6 @@ if (MigrationDay)
         <p class="source-line">Criteria: ≥0.50 before the switch, ≤0.80 right after, ≥0.80 within 20,000 moves, frozen copy more than 0.20 below at 20,000 moves, on every seed. Source: Tools/ScholaRLToolsNative/CHASE-ADAPTATION.md.</p>
         <aside class="speaker-notes" data-time="Backup">Runs are deterministic; a second full run reproduced every CSV row. Seed 3 shares pre-switch training at 20k and 60k because the buffer never filled before the switch, and that snapshot already catches 0.72 on the new runner, which leaves little room for criterion 4.</aside>
       </section>
-
 
       <section class="slide references" id="references" aria-labelledby="references-heading" data-title="References" data-section="Backup">
         <header class="slide-header"><span class="wordmark">schola<span class="brand-dot">.</span></span><span>Backup / References</span></header>

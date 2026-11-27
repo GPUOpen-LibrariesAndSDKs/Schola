@@ -143,6 +143,7 @@ registrations, so a new test is checked automatically. Prefer controlled fakes f
 | --- | --- | --- |
 | `.github/workflows/native-learner-ci.yml` | PRs and pushes to `main` touching the learner, RLtools headers or `Tools/ScholaRLToolsNative` | Builds and runs the native learner and checkpoint checks with g++ |
 | `.github/workflows/chase-sim-ci.yml` | PRs and pushes to `main` touching `Examples/AdaptiveTag` | Builds `chase_sim` and runs 7 smoke checks |
+| `.github/workflows/shared-policy-ci.yml` | PRs and pushes to `main` touching Shared Policy prototypes | Runs Python prototype and architecture benchmark tests using Python 3.12 and uv |
 
 Course rules that every workflow must follow:
 

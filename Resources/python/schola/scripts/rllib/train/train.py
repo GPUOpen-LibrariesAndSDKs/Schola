@@ -182,7 +182,8 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
     from ray.rllib.algorithms.appo.appo import APPOConfig
     from ray.rllib.algorithms.impala.impala import IMPALAConfig
     from ray.tune.registry import register_env
-    from schola.rllib.export import export_onnx_from_policy
+    from schola.rllib.export import export_iree_from_policy, export_onnx_from_policy
+    from schola.scripts.common.settings import ExportFormat
     from ray.rllib.policy.policy import Policy
     from ray.rllib.core.rl_module.rl_module import RLModuleSpec, RLModule
     from schola.rllib.connectors import schola_env_to_module_flatten_connector
@@ -329,9 +330,9 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
     )
 
     ckpt = args.checkpoint_settings
-    if ckpt.export_onnx and not ckpt.save_final_policy:
+    if ckpt.should_export and not ckpt.save_final_policy:
         logger.info(
-            "export_onnx without save_final_policy: saving an end-of-run snapshot so "
+            "export without save_final_policy: saving an end-of-run snapshot so "
             "the exported model matches the final training weights (writes an end-of-run checkpoint)."
         )
     callbacks = []
@@ -369,7 +370,7 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
                     checkpoint_frequency=(
                         ckpt.save_freq if ckpt.enable_checkpoints else 0
                     ),
-                    checkpoint_at_end=ckpt.save_final_policy or ckpt.export_onnx,
+                    checkpoint_at_end=ckpt.save_final_policy or ckpt.should_export,
                 ),  # type: ignore
                 restore=(
                     str(args.resume_settings.resume_from)
@@ -388,16 +389,21 @@ def main(args: RllibScriptSettings) -> "ray.tune.ExperimentAnalysis":
         if not args.resource_settings.using_cluster:
             ray.shutdown()
 
+    export_formats = args.checkpoint_settings.resolved_export_formats
     if (
-        args.checkpoint_settings.export_onnx
+        export_formats
         and last_checkpoint
         and len(results.trials) > 0
         and results.trials[-1].path
     ):
-        export_onnx_from_policy(
-            Algorithm.from_checkpoint(last_checkpoint), Path(results.trials[-1].path)
-        )
-        logger.info("Models exported to ONNX at %s", results.trials[-1].path)
+        algo = Algorithm.from_checkpoint(last_checkpoint)
+        out_path = Path(results.trials[-1].path)
+        if ExportFormat.ONNX in export_formats:
+            export_onnx_from_policy(algo, out_path)
+            logger.info("Models exported to ONNX at %s", out_path)
+        if ExportFormat.IREE in export_formats:
+            export_iree_from_policy(algo, out_path)
+            logger.info("Models exported to IREE at %s", out_path)
     return results
 
 

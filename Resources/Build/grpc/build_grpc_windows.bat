@@ -5,9 +5,9 @@
 set SCRIPT_FOLDER=%~dp0
 
 set GRPC_ROOT=%TEMP%\grpc
-set GRPC_INCLUDE_DIR=%SCRIPT_FOLDER%\..\..\Source\ThirdParty\gRPC\Win64\include
-set GRPC_LIBRARIES_DIR=%SCRIPT_FOLDER%\..\..\Source\ThirdParty\gRPC\Win64\lib
-set GRPC_PROGRAMS_DIR=%SCRIPT_FOLDER%\..\tools
+set GRPC_INCLUDE_DIR=%SCRIPT_FOLDER%\..\..\..\Source\ThirdParty\gRPC\Win64\include
+set GRPC_LIBRARIES_DIR=%SCRIPT_FOLDER%\..\..\..\Source\ThirdParty\gRPC\Win64\lib
+set GRPC_PROGRAMS_DIR=%SCRIPT_FOLDER%\..\..\tools
 
 set CMAKE_BUILD_DIR=%GRPC_ROOT%\.build
 set CMAKE_EXE=

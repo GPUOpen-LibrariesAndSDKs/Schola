@@ -595,3 +595,166 @@ def check_onnx_runtime(
             batch_size,
             *state_shapes[state_name[len("state_out_") :]],
         ), f"Expected output state '{state_name}' to have shape {state_shapes[state_name[len('state_out_'):]]}. Got {state.shape}"
+
+
+# IREE counterparts of the ONNX checks above. A compiled ``.vmfb`` has a fixed
+# batch size of 1, so batches are run one row at a time.
+
+
+def check_iree_model_loads(model_path) -> Tuple[Any, Any]:
+    """Load a ``.vmfb`` and its embedded metadata, failing if the file is missing or cannot be loaded."""
+    from schola.core.export.iree_export import load_iree_module
+
+    path = Path(model_path)
+    assert path.exists(), f"IREE file not created at {model_path}"
+    try:
+        return load_iree_module(path)
+    except Exception as exc:
+        raise AssertionError(
+            f"Failed to load IREE model at {model_path}: {exc}"
+        ) from exc
+
+
+def run_iree_model(
+    vm_module, model_metadata, inputs: Dict[str, np.ndarray]
+) -> Dict[str, np.ndarray]:
+    """Call the entry function with ``inputs`` keyed by input name; return outputs keyed by output name."""
+    entry = getattr(vm_module, model_metadata.entry_function)
+    args = [
+        np.ascontiguousarray(inputs[t.name], dtype=np.dtype(t.dtype))
+        for t in model_metadata.call_inputs
+    ]
+    outputs = entry(*args)
+    if not isinstance(outputs, (tuple, list)):
+        outputs = (outputs,)
+    return {
+        t.name: np.asarray(output.to_host() if hasattr(output, "to_host") else output)
+        for t, output in zip(model_metadata.call_outputs, outputs)
+    }
+
+
+def check_iree_metadata(
+    model_metadata,
+    observation_space,
+    action_space,
+    state_shapes: Dict[str, Tuple[int, ...]] | None = None,
+    metadata: Dict[str, Dict[str, str]] | None = None,
+) -> None:
+    """Check embedded input and output names, fixed batch shapes, and state metadata.
+
+    ``metadata`` is keyed by state input name, then by metadata key. When
+    ``metadata`` is ``None``, the state metadata comparison is skipped.
+    """
+    if state_shapes is None:
+        state_shapes = {}
+
+    if not isinstance(observation_space, gym.spaces.Dict):
+        observation_space = gym.spaces.Dict({"obs": observation_space})
+
+    if not isinstance(action_space, gym.spaces.Dict):
+        action_space = gym.spaces.Dict({"action": action_space})
+
+    assert model_metadata.entry_function == "main"
+    assert "llvm-cpu" in model_metadata.target_backends
+
+    expected_input_names = set(observation_space.spaces.keys()) | {
+        f"state_in_{k}" for k in state_shapes.keys()
+    }
+    assert {t.name for t in model_metadata.call_inputs} == (
+        expected_input_names
+    ), "Input names should be the keys of the observation space or state inputs"
+    assert {t.name for t in model_metadata.call_outputs} == set(
+        action_space.spaces.keys()
+    ) | {
+        f"state_out_{k}" for k in state_shapes.keys()
+    }, "Output names should be the keys of the action space or 'state_out'"
+    assert {s.in_name for s in model_metadata.state} == {
+        f"state_in_{k}" for k in state_shapes.keys()
+    }
+    assert {s.out_name for s in model_metadata.state} == {
+        f"state_out_{k}" for k in state_shapes.keys()
+    }
+
+    for t in model_metadata.call_inputs:
+        assert t.shape, f"Expected input '{t.name}' to have non-empty dimensions. Must have at least one dimension."
+        assert t.shape[0] == 1, f"Expected input '{t.name}' to have a fixed batch dimension of 1. Got {t.shape}"
+
+    if metadata is None:
+        return
+
+    def _to_state_metadata(props: Dict[str, str]) -> StateMetadata:
+        has_seq_dim = props["has_seq_dim"] == "True"
+        return StateMetadata(
+            has_seq_dim=has_seq_dim,
+            max_seq_len=int(props["max_seq_len"]) if has_seq_dim else None,
+            seq_dim=int(props["seq_dim"]) if has_seq_dim else None,
+        )
+
+    expected = {name: _to_state_metadata(props) for name, props in metadata.items()}
+    actual = {s.in_name: s.state_metadata for s in model_metadata.state}
+    assert actual == expected, f"State metadata should be {expected}. Got {actual}"
+
+
+def check_iree_runtime(
+    vm_module,
+    model_metadata,
+    observation_space,
+    action_space,
+    state_shapes: Dict[str, Tuple[int, ...]] | None = None,
+    num_samples: int = 32,
+) -> None:
+    """Run inference on fake samples and check that the outputs match the spaces.
+
+    Uses the same samples as ``check_onnx_runtime``, including edge cases.
+    """
+    if state_shapes is None:
+        state_shapes = {}
+
+    if not isinstance(observation_space, gym.spaces.Dict):
+        observation_space = gym.spaces.Dict({"obs": observation_space})
+
+    input_data = make_fake_space_samples(observation_space, num_samples)
+    batch_size = _sample_batch_size(input_data)
+
+    if not isinstance(action_space, gym.spaces.Dict):
+        action_space = gym.spaces.Dict({"action": action_space})
+
+    action_space = cast(gym.spaces.Dict, batch_space(action_space, n=batch_size))
+
+    # no-op if state_shapes is empty
+    for k, v in state_shapes.items():
+        input_data[f"state_in_{k}"] = np.random.rand(batch_size, *v).astype(
+            np.float32
+        )
+
+    rows = [
+        run_iree_model(
+            vm_module,
+            model_metadata,
+            {name: value[i : i + 1] for name, value in input_data.items()},
+        )
+        for i in range(batch_size)
+    ]
+    outputs = {
+        name: np.concatenate([row[name] for row in rows], axis=0)
+        for name in (t.name for t in model_metadata.call_outputs)
+    }
+
+    output_states = {k: v for k, v in outputs.items() if k.startswith("state_out_")}
+    output_actions = {
+        k: v for k, v in outputs.items() if not k.startswith("state_out_")
+    }
+
+    for action_name, action in output_actions.items():
+        assert action_space.spaces[action_name].contains(
+            action
+        ), f"Expected Action '{action_name}' to be in action space. Got {action}"
+
+    assert set(output_states.keys()) == {
+        f"state_out_{k}" for k in state_shapes.keys()
+    }, f"Expected output states to be the keys of the state shapes. Got {output_states.keys()} != {state_shapes.keys()}"
+    for state_name, state in output_states.items():
+        assert state.shape == (
+            batch_size,
+            *state_shapes[state_name[len("state_out_") :]],
+        ), f"Expected output state '{state_name}' to have shape {state_shapes[state_name[len('state_out_'):]]}. Got {state.shape}"

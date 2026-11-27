@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 from stable_baselines3.common.policies import ActorCriticPolicy, BasePolicy
 from stable_baselines3.common.preprocessing import preprocess_obs
 from schola.core.model import ScholaModel
+from schola.core.export.iree_export import save_as_iree
+from schola.core.export.onnx_export import save_as_onnx
 from gymnasium.spaces import Box, Discrete, MultiDiscrete, MultiBinary
 import stable_baselines3 as sb3
 import torch as th
@@ -336,7 +338,26 @@ def save_model_as_onnx(
         The action space to use for the model. Useful for when the model has a merged dictionary action space (e.g. Dict with two Box Subspaces).
     """
     schola_model = get_scholasb3_model(model, action_space)
-    schola_model.save_as_onnx(export_path)
+    save_as_onnx(schola_model, export_path)
+
+
+def save_model_as_iree(
+    model: BaseAlgorithm, export_path: str, action_space: gym.Space | None = None
+) -> None:
+    """
+    Save a stable baselines model as an IREE ``.vmfb`` (metadata embedded).
+
+    Parameters
+    ----------
+    model : stable_baselines3.common.base_class.BaseAlgorithm
+        The model to save as IREE.
+    export_path : str
+        The path to save the ``.vmfb`` to.
+    action_space : gym.Space
+        The action space to use for the model. Useful for when the model has a merged dictionary action space (e.g. Dict with two Box Subspaces).
+    """
+    schola_model = get_scholasb3_model(model, action_space)
+    save_as_iree(schola_model, export_path)
 
 
 def convert_ckpt_to_onnx_for_unreal(
@@ -359,4 +380,27 @@ def convert_ckpt_to_onnx_for_unreal(
     model = trainer.load(model_path, device="cpu")
     action_space = getattr(model, "__unmerged_action_space", None)
     model = get_scholasb3_model(model, action_space)
-    model.save_as_onnx(export_path)
+    save_as_onnx(model, export_path)
+
+
+def convert_ckpt_to_iree_for_unreal(
+    trainer=sb3.PPO,
+    model_path="./ckpt/ppo_final.zip",
+    export_path="./ckpt/IreeFiles/Model.vmfb",
+) -> None:
+    """
+    Convert a stable baselines model to IREE for use in Unreal.
+
+    Parameters
+    ----------
+    trainer : stable_baselines3.common.base_class.BaseAlgorithm
+        The trainer to load the model from.
+    model_path : str
+        The path to the model to convert.
+    export_path : str
+        The path to save the converted ``.vmfb`` to.
+    """
+    model = trainer.load(model_path, device="cpu")
+    action_space = getattr(model, "__unmerged_action_space", None)
+    model = get_scholasb3_model(model, action_space)
+    save_as_iree(model, export_path)

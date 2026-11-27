@@ -34,26 +34,64 @@ from ray.rllib.policy.sample_batch import SampleBatch
 import os
 import numpy as np
 from schola.core.model import *
+from schola.core.export.iree_export import save_as_iree
+from schola.core.export.onnx_export import save_as_onnx
 import gymnasium as gym
 from gymnasium import spaces
 import copy
 from schola.rllib.env import RayVecEnv
 from torch.export.dynamic_shapes import Dim
-from typing import Any, TypedDict, cast
+from typing import Any, Literal, TypedDict, cast
 import logging
 
 from schola.rllib.policy_mapping import PolicyMappingFn
 
 logger = logging.getLogger(__name__)
 
+ExportFormat = Literal["onnx", "iree"]
+"""Output formats supported by :func:`export_from_policy`."""
+
+_EXPORT_EXTENSIONS: dict[str, str] = {"onnx": ".onnx", "iree": ".vmfb"}
+
+
+def _export_extension(export_format: ExportFormat) -> str:
+    """Return the file extension (including the dot) for ``export_format``."""
+    try:
+        return _EXPORT_EXTENSIONS[export_format]
+    except KeyError:
+        raise ValueError(
+            f"Unsupported export_format {export_format!r}. "
+            f"Expected one of {sorted(_EXPORT_EXTENSIONS)}"
+        ) from None
+
+
+def _save_schola_model(
+    schola_model: ScholaModel, path: pathlib.Path, export_format: ExportFormat
+) -> None:
+    """Save ``schola_model`` to ``path`` as ONNX or IREE, fixing the file extension if needed."""
+    ext = _export_extension(export_format)
+    if path.suffix.lower() != ext:
+        path = path.with_suffix(ext)
+    if export_format == "iree":
+        save_as_iree(schola_model, path)
+    else:
+        save_as_onnx(schola_model, path)
+
 
 @singledispatch
-def export_onnx_from_policy(arg: Any, path: pathlib.Path) -> None:
+def export_from_policy(
+    arg: Any,
+    path: pathlib.Path,
+    *args: Any,
+    export_format: ExportFormat = "onnx",
+    **kwargs: Any,
+) -> None:
     """
-    Export an RLlib policy to ONNX format.
+    Export an RLlib policy to ONNX or IREE format.
 
     This is a generic function that uses singledispatch to handle different
     input types (Policy objects, dictionaries of policies, or checkpoint paths).
+    Every registered implementation takes ``export_format`` as its last parameter.
 
     Parameters
     ----------
@@ -64,9 +102,9 @@ def export_onnx_from_policy(arg: Any, path: pathlib.Path) -> None:
         - A string path to a policy checkpoint
         - A pathlib.Path object to a policy checkpoint
     path : str
-        The directory path where the ONNX model will be saved.
-    policy_name : str, optional
-        The name to use for the exported policy file. If None, uses "Policy" as default.
+        The directory path where the model will be saved.
+    export_format : {"onnx", "iree"}, optional
+        Output format: ``.onnx`` or ``.vmfb`` (IREE, metadata embedded). Defaults to ``"onnx"``.
 
     Raises
     ------
@@ -76,23 +114,25 @@ def export_onnx_from_policy(arg: Any, path: pathlib.Path) -> None:
     Notes
     -----
     This function has multiple registered implementations for different
-    argument types. See the individual @export_onnx_from_policy.register
-    implementations for specific type handling.
+    argument types. See the individual @export_from_policy.register
+    implementations for specific type handling. :func:`export_onnx_from_policy`
+    and :func:`export_iree_from_policy` are thin adapters that fix ``export_format``.
     """
     raise TypeError(
-        f"Cannot export ONNX from Policy/Checkpoint stored as {type(arg)}. Pass a Policy, Dictionary of Policies, or a path to a Policy Checkpoint"
+        f"Cannot export {export_format.upper()} from Policy/Checkpoint stored as {type(arg)}. Pass a Policy, Dictionary of Policies, or a path to a Policy Checkpoint"
     )
 
 
-@export_onnx_from_policy.register
+@export_from_policy.register
 def _(
     arg: Policy,
     path: pathlib.Path,
     observation_space: gym.Space[Any] | None = None,
     action_space: gym.Space[Any] | None = None,
+    export_format: ExportFormat = "onnx",
 ):
     if path.is_dir():
-        path = path / "default_policy.onnx"
+        path = path / f"default_policy{_export_extension(export_format)}"
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
     assert isinstance(
@@ -102,15 +142,16 @@ def _(
     schola_model = RllibScholaModel(
         arg, observation_space=observation_space, action_space=action_space
     )
-    schola_model.save_as_onnx(path)
+    _save_schola_model(schola_model, path, export_format)
 
 
-@export_onnx_from_policy.register
+@export_from_policy.register
 def _(
     arg: dict,
     path: pathlib.Path,
     observation_spaces: dict[str, gym.Space[Any]] | None = None,
     action_spaces: dict[str, gym.Space[Any]] | None = None,
+    export_format: ExportFormat = "onnx",
 ):
     observation_spaces = observation_spaces if observation_spaces is not None else {}
     action_spaces = action_spaces if action_spaces is not None else {}
@@ -120,31 +161,33 @@ def _(
             "Path is a file but a dictionary of policies was passed, using parent directory: %s",
             path,
         )
+    ext = _export_extension(export_format)
     # policy name is ignored, as the dictionary has them already
     for policy_name, policy in arg.items():
-        export_onnx_from_policy(
+        export_from_policy(
             policy,
-            path / f"{policy_name}.onnx",
+            path / f"{policy_name}{ext}",
             observation_space=observation_spaces.get(policy_name, None),
             action_space=action_spaces.get(policy_name, None),
+            export_format=export_format,
         )
 
 
-@export_onnx_from_policy.register
-def _(arg: str, path: pathlib.Path):
+@export_from_policy.register
+def _(arg: str, path: pathlib.Path, export_format: ExportFormat = "onnx"):
     # dir and other stuff is handled later
     policy = Policy.from_checkpoint(arg)
-    export_onnx_from_policy(policy, path)
+    export_from_policy(policy, path, export_format=export_format)
 
 
-@export_onnx_from_policy.register
-def _(arg: pathlib.Path, path: pathlib.Path):
+@export_from_policy.register
+def _(arg: pathlib.Path, path: pathlib.Path, export_format: ExportFormat = "onnx"):
     # dir and other stuff is handled later
     policy = Policy.from_checkpoint(str(arg))
-    export_onnx_from_policy(policy, path)
+    export_from_policy(policy, path, export_format=export_format)
 
 
-@export_onnx_from_policy.register
+@export_from_policy.register
 def _(
     arg: TorchRLModule,
     path: pathlib.Path,
@@ -152,9 +195,10 @@ def _(
     action_space: gym.Space[Any] | None = None,
     normalize_actions: bool = True,
     clip_actions: bool = False,
+    export_format: ExportFormat = "onnx",
 ):
     if path.is_dir():
-        path = path / "default_policy.onnx"
+        path = path / f"default_policy{_export_extension(export_format)}"
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
     schola_model = ScholaRLModule(
@@ -164,10 +208,10 @@ def _(
         normalize_actions=normalize_actions,
         clip_actions=clip_actions,
     )
-    schola_model.save_as_onnx(path)
+    _save_schola_model(schola_model, path, export_format)
 
 
-@export_onnx_from_policy.register
+@export_from_policy.register
 def _(
     arg: MultiRLModule,
     path: pathlib.Path,
@@ -175,19 +219,22 @@ def _(
     action_spaces: dict[str, gym.Space[Any]],
     normalize_actions: bool = True,
     clip_actions: bool = False,
+    export_format: ExportFormat = "onnx",
 ) -> None:
     """
-    Export a multiagent module to ONNX format.
+    Export a multiagent module to ONNX or IREE format.
     Parameters
     ----------
     arg : MultiRLModule
         The multiagent module to export.
     path : pathlib.Path
-        The path to save the ONNX model to.
+        The path to save the models to.
     observation_spaces : gym.spaces.Dict
         The observation spaces defined as per policy_id
     action_spaces : gym.spaces.Dict
         The action spaces defined as per policy_id
+    export_format : {"onnx", "iree"}, optional
+        Output format for each module.
     """
     if path.is_file():
         path = path.parent
@@ -198,15 +245,17 @@ def _(
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
 
+    ext = _export_extension(export_format)
     for k, module in arg.items():
         # remap the observation space which has agents as keys to the policy name
-        export_onnx_from_policy(
+        export_from_policy(
             module,
-            path / f"{k}.onnx",
+            path / f"{k}{ext}",
             observation_spaces[k],
             action_spaces[k],
             normalize_actions=normalize_actions,
             clip_actions=clip_actions,
+            export_format=export_format,
         )
 
 
@@ -248,14 +297,17 @@ def _eval_action_postprocessing(config: Any) -> tuple[bool, bool]:
     return True, False
 
 
-@export_onnx_from_policy.register
-def _(arg: Algorithm, path: pathlib.Path) -> None:
+@export_from_policy.register
+def _(arg: Algorithm, path: pathlib.Path, export_format: ExportFormat = "onnx") -> None:
+    format_name = export_format.upper()
     # arg.spaces["__env_single__"] is a tuple (observation_space, action_space)
     if arg.spaces is None:
-        raise RuntimeError("No spaces found on Algorithm while exporting to ONNX")
+        raise RuntimeError(
+            f"No spaces found on Algorithm while exporting to {format_name}"
+        )
     elif "__env_single__" not in arg.spaces:
         raise RuntimeError(
-            "No single environment spaces found on Algorithm while exporting to ONNX. Expected key '__env_single__'"
+            f"No single environment spaces found on Algorithm while exporting to {format_name}. Expected key '__env_single__'"
         )
 
     obs_space, act_space = cast(
@@ -272,7 +324,7 @@ def _(arg: Algorithm, path: pathlib.Path) -> None:
         )[0]
     else:
         raise RuntimeError(
-            "No env runner or env runner group found while exporting Algorithm to ONNX"
+            f"No env runner or env runner group found while exporting Algorithm to {format_name}"
         )
     # The space will be defined as a Dict Space with agent_ids as the key, so we condense down to policy_ids.
     # All agent's mapping to the same policy will have the same observation space so we can just overwrite the values.
@@ -309,7 +361,9 @@ def _(arg: Algorithm, path: pathlib.Path) -> None:
     if isinstance(module, (TorchRLModule, MultiRLModule)):
         export_kwargs["normalize_actions"] = normalize_actions
         export_kwargs["clip_actions"] = clip_actions
-    export_onnx_from_policy(module, path, obs_space, act_space, **export_kwargs)
+    export_from_policy(
+        module, path, obs_space, act_space, export_format=export_format, **export_kwargs
+    )
 
 
 class ModelOutputDict(TypedDict):
@@ -342,7 +396,7 @@ class ScholaRLModule(ScholaModel):
     See Also
     --------
     ScholaModel
-    export_onnx_from_policy
+    export_from_policy
     """
 
     def __init__(
@@ -697,3 +751,25 @@ class RllibScholaModel(ScholaModel):
 
 
 # end of adapted code
+
+
+def export_onnx_from_policy(
+    arg: Any, path: pathlib.Path, *args: Any, **kwargs: Any
+) -> None:
+    """
+    Export an RLlib policy to ONNX format.
+
+    Adapter for :func:`export_from_policy` with ``export_format="onnx"``.
+    """
+    export_from_policy(arg, path, *args, export_format="onnx", **kwargs)
+
+
+def export_iree_from_policy(
+    arg: Any, path: pathlib.Path, *args: Any, **kwargs: Any
+) -> None:
+    """
+    Export an RLlib policy to IREE ``.vmfb`` format (metadata embedded).
+
+    Adapter for :func:`export_from_policy` with ``export_format="iree"``.
+    """
+    export_from_policy(arg, path, *args, export_format="iree", **kwargs)

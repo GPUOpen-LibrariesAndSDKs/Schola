@@ -43,7 +43,7 @@ public class gRPC : ModuleRules
 
         EnsureDirectoryExists(
             includePath,
-            $"Missing gRPC headers for {Target.Platform} at {includePath}. Rebuild third-party dependencies with Resources/Build/windows_dependencies.bat."
+            $"Missing gRPC headers for {Target.Platform} at {includePath}. Rebuild third-party dependencies with Resources/Build/grpc/build_grpc_windows.bat."
         );
 
         PublicSystemIncludePaths.Add(includePath);
@@ -82,7 +82,7 @@ public class gRPC : ModuleRules
         if (missingLibraries.Length > 0)
         {
             throw new BuildException(
-                $"Missing required Windows gRPC/protobuf archives in {libraryPath}: {string.Join(", ", missingLibraries)}. Rebuild third-party dependencies with Resources/Build/windows_dependencies.bat."
+                $"Missing required Windows gRPC/protobuf archives in {libraryPath}: {string.Join(", ", missingLibraries)}. Rebuild third-party dependencies with Resources/Build/grpc/build_grpc_windows.bat."
             );
         }
 
@@ -95,7 +95,7 @@ public class gRPC : ModuleRules
         if (abslLibraries.Length == 0)
         {
             throw new BuildException(
-                $"No Abseil static libraries were found in {libraryPath}. Rebuild third-party dependencies with Resources/Build/windows_dependencies.bat."
+                $"No Abseil static libraries were found in {libraryPath}. Rebuild third-party dependencies with Resources/Build/grpc/build_grpc_windows.bat."
             );
         }
 
@@ -117,7 +117,7 @@ public class gRPC : ModuleRules
     {
         EnsureDirectoryExists(
             libraryPath,
-            $"Missing {description} directory at {libraryPath}. Rebuild third-party dependencies with Resources/Build/windows_dependencies.bat."
+            $"Missing {description} directory at {libraryPath}. Rebuild third-party dependencies with Resources/Build/grpc/build_grpc_windows.bat."
         );
 
         string[] libraries = Directory
@@ -128,7 +128,7 @@ public class gRPC : ModuleRules
         if (libraries.Length == 0)
         {
             throw new BuildException(
-                $"No {description} were found in {libraryPath}. Rebuild third-party dependencies with Resources/Build/windows_dependencies.bat."
+                $"No {description} were found in {libraryPath}. Rebuild third-party dependencies with Resources/Build/grpc/build_grpc_windows.bat."
             );
         }
 

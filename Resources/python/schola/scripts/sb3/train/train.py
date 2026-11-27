@@ -111,7 +111,8 @@ def main(args: Sb3TrainScriptSettings) -> (tuple[float, float]) | None:
     from stable_baselines3.common.callbacks import CheckpointCallback
     from stable_baselines3.common.vec_env.vec_monitor import VecMonitor
     from stable_baselines3.common.base_class import BaseAlgorithm
-    from schola.sb3.export import save_model_as_onnx
+    from schola.sb3.export import save_model_as_iree, save_model_as_onnx
+    from schola.scripts.common.settings import ExportFormat
     from stable_baselines3.common.off_policy_algorithm import OffPolicyAlgorithm
 
     # initialize so we can force closure at the end
@@ -334,17 +335,27 @@ def main(args: Sb3TrainScriptSettings) -> (tuple[float, float]) | None:
                         )
                     )
 
-            if args.checkpoint_settings.export_onnx:
-                logger.info("... Exporting final policy to ONNX")
+            export_formats = args.checkpoint_settings.resolved_export_formats
+            if export_formats:
                 if isinstance(env, VecMergeDictActionWrapper):
                     action_space = env.unmerged_action_space
                 else:
                     action_space = model.action_space
-                save_model_as_onnx(
-                    model,
-                    f"{args.checkpoint_settings.checkpoint_dir}/{args.name_prefix}_final.onnx",
-                    action_space=action_space,
-                )
+                ckpt_dir = args.checkpoint_settings.checkpoint_dir
+                if ExportFormat.ONNX in export_formats:
+                    logger.info("... Exporting final policy to ONNX")
+                    save_model_as_onnx(
+                        model,
+                        f"{ckpt_dir}/{args.name_prefix}_final.onnx",
+                        action_space=action_space,
+                    )
+                if ExportFormat.IREE in export_formats:
+                    logger.info("... Exporting final policy to IREE")
+                    save_model_as_iree(
+                        model,
+                        f"{ckpt_dir}/{args.name_prefix}_final.vmfb",
+                        action_space=action_space,
+                    )
 
             if not args.training_settings.disable_eval:
                 if isinstance(env, VecNormalize):

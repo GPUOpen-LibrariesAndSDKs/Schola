@@ -82,7 +82,7 @@ needed:
   Container** after changing the Dockerfile or container configuration. If dependency setup needs
   to be rerun, run `bash .devcontainer/post-create.sh` from the repository root inside the container.
   For the older host comparison example, run `Examples/BackgroundNPCs/Scripts/build.sh`.
-- **Shared Policy:** `cd Prototypes/SharedPolicy && uv sync --python 3.12`.
+- **Shared Policy:** `cd Prototypes/SharedPolicy && uv sync --locked --python 3.12`.
 - **Tag arena:** `cd Examples/AdaptiveTag && ./Prepare-LearningDemo.ps1 && ./Build.ps1`.
 
 The first Unreal C++ build takes several minutes. Generated `Binaries/`, `Intermediate/`, `Saved/` and
@@ -128,8 +128,8 @@ a lower number means a test went missing.
 | Tag arena | `cd Examples/AdaptiveTag && ./Test-Learning.ps1 -Mode Native && ./Test-TagArena.ps1` | All checks pass |
 | Background + Mass | From `Examples/BackgroundNPCs`: `"$UE_ENGINE_ROOT/Engine/Binaries/Linux/UnrealEditor-Cmd" "$PWD/BackgroundNPCs.uproject" -nullrhi -unattended -nosound "-ExecCmds=Automation RunTests Schola.Inference.Background+Schola.Mass;Quit"` | 43 tests pass |
 | CampusCrowd | `cd Examples/CampusCrowd`, then the commands in its [README](Examples/CampusCrowd/README.md#validation-and-packaging) | As documented there |
-| Shared Policy (Python) | `cd Prototypes/SharedPolicy && uv run pytest -q` | All pass |
-| Shared Policy (NNE matrix) | `Examples/BackgroundNPCs/Scripts/run_cd_isolated_matrix.sh` | 48/48 reports pass correctness |
+| Shared Policy (Python) | `cd Prototypes/SharedPolicy && uv sync --locked --python 3.12 && uv run --locked pytest -q` | All pass. These are the two commands `shared-policy-ci.yml` runs |
+| Shared Policy (Unreal NNE) | `Examples/BackgroundNPCs/Scripts/run_cd_isolated_matrix.sh` | 48/48 reports pass correctness. Local only; GitHub Actions does not run `Schola.Inference.SharedPolicy.*` |
 | Upstream Schola | `pytest` (see `pytest.ini`; it builds Unreal, so set `engine_path`) | Upstream baseline |
 
 Write Unreal tests as `IMPLEMENT_SIMPLE_AUTOMATION_TEST` in the module's `Private/Test` folder, named
@@ -143,7 +143,7 @@ registrations, so a new test is checked automatically. Prefer controlled fakes f
 | --- | --- | --- |
 | `.github/workflows/native-learner-ci.yml` | PRs and pushes to `main` touching the learner, RLtools headers or `Tools/ScholaRLToolsNative` | Builds and runs the native learner and checkpoint checks with g++ |
 | `.github/workflows/chase-sim-ci.yml` | PRs and pushes to `main` touching `Examples/AdaptiveTag` | Builds `chase_sim` and runs 7 smoke checks |
-| `.github/workflows/shared-policy-ci.yml` | PRs and pushes to `main` touching Shared Policy prototypes | Runs Python prototype and architecture benchmark tests using Python 3.12 and uv |
+| `.github/workflows/shared-policy-ci.yml` | PRs and pushes to `main` that change `Prototypes/SharedPolicy/**` or this workflow file | Installs uv with `pipx`, then runs `uv sync --locked --python 3.12` and `uv run --locked pytest -q` for the prototype and architecture benchmark tests. Contents permission is read-only. A newer run on the same ref cancels the older one, and the job stops after 5 minutes |
 
 Course rules that every workflow must follow:
 

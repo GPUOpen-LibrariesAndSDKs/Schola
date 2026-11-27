@@ -295,8 +295,11 @@ for Docker GPU flags and a virtual display, or use an authorized host X11 displa
 | Upstream Schola | `Schola.*` automation tests, `Test/` pytest | Locally |
 
 Unreal automation tests do not run in GitHub Actions. Hosted runners have no Unreal installation, and
-provisioning one exceeds the course's job time limits. Hosted CI runs the native learner, chase
-simulator, and Shared Policy Python prototype checks. The [maintainer guide](DEVELOPMENT.md#testing) lists the test commands and expected results.
+provisioning one exceeds the course's job time limits. Hosted CI runs the native learner checks, the
+chase simulator checks, and the Shared Policy Python tests. `shared-policy-ci.yml` installs uv with
+`pipx`, then runs `uv sync --locked --python 3.12` and `uv run --locked pytest -q`. It does not run
+the Unreal Shared Policy tests, and it does not deploy a dev or release build. The [maintainer guide](DEVELOPMENT.md#testing) lists the test
+commands and expected results.
 
 ## Non-functional requirements
 

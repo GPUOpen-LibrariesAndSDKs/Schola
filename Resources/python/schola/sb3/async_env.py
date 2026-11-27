@@ -10,7 +10,6 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Coroutine, Mapping, Sequence
 import logging
-import sys
 import time
 from collections import defaultdict
 from concurrent.futures import Future
@@ -189,10 +188,6 @@ class AsyncVecEnv(BaseVecEnv):
         protocol: AsyncBaseRLProtocol | Sequence[AsyncBaseRLProtocol],
         verbosity: int = 0,
     ):
-        if sys.version_info < (3, 11):
-            raise RuntimeError(
-                "AsyncVecEnv requires Python 3.11 or later (uses asyncio.TaskGroup)."
-            )
         _simulator = simulator if isinstance(simulator, Sequence) else [simulator]
         _protocol = protocol if isinstance(protocol, Sequence) else [protocol]
 

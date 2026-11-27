@@ -2,7 +2,6 @@
 """Tests for the SB3 AsyncVecEnv environment (AsyncGrpcProtocol)."""
 
 import functools
-import sys
 from collections.abc import Mapping
 from typing import Any, Optional
 
@@ -23,15 +22,6 @@ from schola.core.simulators.base_simulator import (
 from schola.core.simulators.unreal.editor_simulator import UnrealEditor
 from schola.sb3.async_env import AsyncVecEnv
 
-_ASYNC_VECENV_PY311_REASON = "AsyncVecEnv requires Python 3.11+ (asyncio.TaskGroup)"
-
-pytestmark = pytest.mark.xfail(
-    sys.version_info < (3, 11),
-    reason=_ASYNC_VECENV_PY311_REASON,
-    raises=RuntimeError,
-)
-
-
 def wrap(env, wrappers):
     if wrappers:
         for wrapper in wrappers:
@@ -41,9 +31,6 @@ def wrap(env, wrappers):
 
 @pytest.fixture(scope="function")
 def sb3_and_async_schola_env(gym_id_and_wrappers, make_env_server):
-    if sys.version_info < (3, 11):
-        pytest.xfail(_ASYNC_VECENV_PY311_REASON)
-
     gym_id, wrappers = gym_id_and_wrappers
     sb3_env = make_vec_env(gym_id, n_envs=1, wrapper_class=lambda x: wrap(x, wrappers))
 
